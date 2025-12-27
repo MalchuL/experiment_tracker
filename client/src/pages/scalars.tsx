@@ -104,14 +104,6 @@ function MetricChart({
   const [refAreaRight, setRefAreaRight] = useState<number | null>(null);
   const [isSelecting, setIsSelecting] = useState(false);
 
-  const filteredData = useMemo(() => {
-    if (!domain) return data;
-    return data.filter(d => {
-      const step = d.step as number;
-      return step >= domain[0] && step <= domain[1];
-    });
-  }, [data, domain]);
-
   const handleMouseDown = (e: any) => {
     if (e && e.activeLabel !== undefined) {
       setRefAreaLeft(e.activeLabel);
@@ -138,23 +130,27 @@ function MetricChart({
 
   const handleBrushChange = useCallback((brushData: any) => {
     if (brushData && brushData.startIndex !== undefined && brushData.endIndex !== undefined) {
-      const startStep = filteredData[brushData.startIndex]?.step as number;
-      const endStep = filteredData[brushData.endIndex]?.step as number;
+      const startStep = data[brushData.startIndex]?.step as number;
+      const endStep = data[brushData.endIndex]?.step as number;
       if (startStep !== undefined && endStep !== undefined) {
         onDomainChange?.([startStep, endStep]);
       }
     }
-  }, [filteredData, onDomainChange]);
+  }, [data, onDomainChange]);
 
   const brushStartIndex = useMemo(() => {
-    if (!domain || filteredData.length === 0) return 0;
-    return 0;
-  }, [domain, filteredData.length]);
+    if (!domain || data.length === 0) return 0;
+    const idx = data.findIndex(d => (d.step as number) >= domain[0]);
+    return idx >= 0 ? idx : 0;
+  }, [data, domain]);
 
   const brushEndIndex = useMemo(() => {
-    if (!domain || filteredData.length === 0) return Math.max(0, filteredData.length - 1);
-    return filteredData.length - 1;
-  }, [domain, filteredData.length]);
+    if (!domain || data.length === 0) return Math.max(0, data.length - 1);
+    for (let i = data.length - 1; i >= 0; i--) {
+      if ((data[i].step as number) <= domain[1]) return i;
+    }
+    return data.length - 1;
+  }, [data, domain]);
 
   if (data.length === 0) {
     return (
@@ -168,7 +164,7 @@ function MetricChart({
     <div style={{ height }}>
       <ResponsiveContainer width="100%" height="100%">
         <LineChart
-          data={filteredData}
+          data={data}
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
@@ -180,6 +176,8 @@ function MetricChart({
             tick={{ fontSize: isFullscreen ? 12 : 10 }}
             tickLine={false}
             domain={domain || ['auto', 'auto']}
+            allowDataOverflow={!!domain}
+            type="number"
           />
           <YAxis
             tick={{ fontSize: isFullscreen ? 12 : 10 }}
@@ -364,9 +362,11 @@ export default function Scalars() {
   };
 
   const handleSmoothingChange = (value: number[]) => {
-    const newSmoothing = value[0];
-    setSmoothing(newSmoothing);
-    updateUrl(selectedExperimentIndices, hiddenMetrics, newSmoothing);
+    setSmoothing(value[0]);
+  };
+
+  const handleSmoothingCommit = (value: number[]) => {
+    updateUrl(selectedExperimentIndices, hiddenMetrics, value[0]);
   };
 
   const handleDomainChange = (metricName: string, domain: [number, number] | null) => {
@@ -476,6 +476,7 @@ export default function Scalars() {
               <Slider
                 value={[smoothing]}
                 onValueChange={handleSmoothingChange}
+                onValueCommit={handleSmoothingCommit}
                 min={0}
                 max={0.99}
                 step={0.01}
