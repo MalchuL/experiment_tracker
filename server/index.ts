@@ -1,7 +1,8 @@
 import express, { type Request, Response, NextFunction } from "express";
-import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
+import { createProxyMiddleware } from "http-proxy-middleware";
+import { spawn, type ChildProcess } from "child_process";
 
 const app = express();
 const httpServer = createServer(app);
@@ -11,16 +12,6 @@ declare module "http" {
     rawBody: unknown;
   }
 }
-
-app.use(
-  express.json({
-    verify: (req, _res, buf) => {
-      req.rawBody = buf;
-    },
-  }),
-);
-
-app.use(express.urlencoded({ extended: false }));
 
 export function log(message: string, source = "express") {
   const formattedTime = new Date().toLocaleTimeString("en-US", {
@@ -33,41 +24,85 @@ export function log(message: string, source = "express") {
   console.log(`${formattedTime} [${source}] ${message}`);
 }
 
-app.use((req, res, next) => {
-  const start = Date.now();
-  const path = req.path;
-  let capturedJsonResponse: Record<string, any> | undefined = undefined;
+let fastapiProcess: ChildProcess | null = null;
 
-  const originalResJson = res.json;
-  res.json = function (bodyJson, ...args) {
-    capturedJsonResponse = bodyJson;
-    return originalResJson.apply(res, [bodyJson, ...args]);
-  };
+function startFastAPI(): Promise<void> {
+  return new Promise((resolve, reject) => {
+    log("Starting FastAPI backend...", "fastapi");
+    
+    fastapiProcess = spawn("python", ["-c", `
+import uvicorn
+uvicorn.run('backend.main:app', host='127.0.0.1', port=8000, reload=False, log_level='info')
+    `], {
+      stdio: ["pipe", "pipe", "pipe"],
+      cwd: process.cwd(),
+    });
 
-  res.on("finish", () => {
-    const duration = Date.now() - start;
-    if (path.startsWith("/api")) {
-      let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-      if (capturedJsonResponse) {
-        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
+    fastapiProcess.stdout?.on("data", (data) => {
+      const output = data.toString().trim();
+      if (output) log(output, "fastapi");
+      if (output.includes("Application startup complete")) {
+        resolve();
       }
+    });
 
-      log(logLine);
-    }
+    fastapiProcess.stderr?.on("data", (data) => {
+      const output = data.toString().trim();
+      if (output) log(output, "fastapi");
+      if (output.includes("Application startup complete")) {
+        resolve();
+      }
+    });
+
+    fastapiProcess.on("error", (err) => {
+      log(`FastAPI error: ${err.message}`, "fastapi");
+      reject(err);
+    });
+
+    fastapiProcess.on("exit", (code) => {
+      log(`FastAPI exited with code ${code}`, "fastapi");
+    });
+
+    setTimeout(() => resolve(), 3000);
   });
+}
 
-  next();
+process.on("SIGINT", () => {
+  if (fastapiProcess) fastapiProcess.kill();
+  process.exit(0);
 });
 
+process.on("SIGTERM", () => {
+  if (fastapiProcess) fastapiProcess.kill();
+  process.exit(0);
+});
+
+app.use("/api", createProxyMiddleware({
+  target: "http://127.0.0.1:8000",
+  changeOrigin: true,
+  on: {
+    proxyReq: (proxyReq, req) => {
+      log(`Proxying ${req.method} ${req.url} to FastAPI`, "proxy");
+    },
+    error: (err, req, res) => {
+      log(`Proxy error: ${err.message}`, "proxy");
+      if (res && 'writeHead' in res) {
+        (res as any).writeHead(502, { 'Content-Type': 'application/json' });
+        (res as any).end(JSON.stringify({ error: 'FastAPI backend unavailable' }));
+      }
+    },
+  },
+}));
+
 (async () => {
-  await registerRoutes(httpServer, app);
+  await startFastAPI();
+  log("FastAPI backend started", "fastapi");
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";
-
+    log(`Error: ${status} - ${message}`, "error");
     res.status(status).json({ message });
-    throw err;
   });
 
   // importantly only setup vite in development and after
@@ -92,7 +127,7 @@ app.use((req, res, next) => {
       reusePort: true,
     },
     () => {
-      log(`serving on port ${port}`);
+      log(`Frontend server on port ${port}, proxying /api to FastAPI on port 8000`);
     },
   );
 })();
