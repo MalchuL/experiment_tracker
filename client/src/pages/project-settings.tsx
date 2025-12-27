@@ -27,7 +27,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import { useExperimentStore } from "@/stores/experiment-store";
+import { useProjectId } from "@/hooks/use-project-id";
 import { Settings, Plus, Trash2, TrendingUp, TrendingDown, AlertCircle } from "lucide-react";
 import type { Project, ProjectMetric } from "@shared/schema";
 import { z } from "zod";
@@ -48,14 +48,14 @@ const basicInfoSchema = z.object({
 type BasicInfoFormData = z.infer<typeof basicInfoSchema>;
 
 export default function ProjectSettings() {
-  const { selectedProjectId } = useExperimentStore();
+  const projectId = useProjectId();
   const { toast } = useToast();
   const [newMetricName, setNewMetricName] = useState("");
   const [newMetricDirection, setNewMetricDirection] = useState<"maximize" | "minimize">("maximize");
 
   const { data: project, isLoading } = useQuery<Project>({
-    queryKey: ["/api/projects", selectedProjectId],
-    enabled: !!selectedProjectId,
+    queryKey: ["/api/projects", projectId],
+    enabled: !!projectId,
   });
 
   const form = useForm<SettingsFormData>({
@@ -86,11 +86,11 @@ export default function ProjectSettings() {
 
   const updateMutation = useMutation({
     mutationFn: async (data: Partial<Project>) => {
-      return apiRequest("PATCH", `/api/projects/${selectedProjectId}`, data);
+      return apiRequest("PATCH", `/api/projects/${projectId}`, data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/projects", selectedProjectId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId] });
       toast({
         title: "Settings saved",
         description: "Project settings have been updated successfully.",
@@ -152,7 +152,7 @@ export default function ProjectSettings() {
     });
   };
 
-  if (!selectedProjectId) {
+  if (!projectId) {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-4">
         <AlertCircle className="w-12 h-12 text-muted-foreground" />

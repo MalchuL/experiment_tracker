@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Link, useSearch } from "wouter";
+import { Link } from "wouter";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
 import { ListSkeleton } from "@/components/loading-skeleton";
@@ -46,19 +46,16 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useExperimentStore } from "@/stores/experiment-store";
+import { useProjectId } from "@/hooks/use-project-id";
 
 export default function Hypotheses() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const { toast } = useToast();
-  const { selectedProjectId } = useExperimentStore();
-  const searchString = useSearch();
-  const params = new URLSearchParams(searchString);
-  const preselectedProjectId = params.get("projectId") || selectedProjectId;
+  const projectId = useProjectId();
 
   const { data: hypotheses = [], isLoading } = useQuery<Hypothesis[]>({
-    queryKey: ["/api/projects", selectedProjectId, "hypotheses"],
-    enabled: !!selectedProjectId,
+    queryKey: ["/api/projects", projectId, "hypotheses"],
+    enabled: !!projectId,
   });
 
   const { data: projects } = useQuery<Project[]>({
@@ -68,7 +65,7 @@ export default function Hypotheses() {
   const form = useForm<InsertHypothesis>({
     resolver: zodResolver(insertHypothesisSchema),
     defaultValues: {
-      projectId: preselectedProjectId || "",
+      projectId: projectId || "",
       title: "",
       description: "",
       author: "researcher",
@@ -128,9 +125,9 @@ export default function Hypotheses() {
     createMutation.mutate(data);
   };
 
-  const selectedProject = projects?.find((p) => p.id === selectedProjectId);
+  const selectedProject = projects?.find((p) => p.id === projectId);
 
-  if (!selectedProjectId) {
+  if (!projectId) {
     return (
       <div className="flex flex-col items-center justify-center h-[calc(100vh-8rem)] gap-4">
         <AlertCircle className="w-12 h-12 text-muted-foreground" />
@@ -314,7 +311,7 @@ export default function Hypotheses() {
             const project = projects?.find(p => p.id === hypothesis.projectId);
             
             return (
-              <Link key={hypothesis.id} href={`/hypotheses/${hypothesis.id}`}>
+              <Link key={hypothesis.id} href={`/projects/${projectId}/hypotheses/${hypothesis.id}`}>
                 <Card 
                   className="hover-elevate active-elevate-2 cursor-pointer"
                   data-testid={`card-hypothesis-${hypothesis.id}`}

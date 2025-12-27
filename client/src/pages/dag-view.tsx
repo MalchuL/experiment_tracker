@@ -19,6 +19,7 @@ import { EmptyState } from "@/components/empty-state";
 import { ExperimentSidebar } from "@/components/experiment-sidebar";
 import { Badge } from "@/components/ui/badge";
 import { useExperimentStore } from "@/stores/experiment-store";
+import { useProjectId } from "@/hooks/use-project-id";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { GitBranch, Clock, Play, CheckCircle2, XCircle, TrendingUp, TrendingDown, AlertCircle } from "lucide-react";
@@ -121,9 +122,9 @@ const nodeTypes = { experiment: ExperimentNode };
 
 export default function DAGView() {
   const { toast } = useToast();
+  const projectId = useProjectId();
   const {
     selectedExperimentId,
-    selectedProjectId,
     setSelectedExperimentId,
   } = useExperimentStore();
 
@@ -132,21 +133,21 @@ export default function DAGView() {
   });
 
   const { data: experiments = [], isLoading: experimentsLoading } = useQuery<Experiment[]>({
-    queryKey: ["/api/projects", selectedProjectId, "experiments"],
-    enabled: !!selectedProjectId,
+    queryKey: ["/api/projects", projectId, "experiments"],
+    enabled: !!projectId,
   });
 
   const { data: aggregatedMetrics } = useQuery<Record<string, Record<string, number | null>>>({
-    queryKey: ["/api/projects", selectedProjectId, "metrics"],
-    enabled: !!selectedProjectId,
+    queryKey: ["/api/projects", projectId, "metrics"],
+    enabled: !!projectId,
   });
 
-  const selectedProject = projects?.find((p) => p.id === selectedProjectId);
+  const selectedProject = projects?.find((p) => p.id === projectId);
 
   const filteredExperiments = useMemo(() => {
-    if (!experiments || !selectedProjectId) return [];
+    if (!experiments || !projectId) return [];
     return experiments;
-  }, [experiments, selectedProjectId]);
+  }, [experiments, projectId]);
 
   const { initialNodes, initialEdges } = useMemo(() => {
     if (!filteredExperiments.length) return { initialNodes: [], initialEdges: [] };
@@ -268,7 +269,7 @@ export default function DAGView() {
     [setSelectedExperimentId]
   );
 
-  if (!selectedProjectId) {
+  if (!projectId) {
     return (
       <div className="flex flex-col items-center justify-center h-[calc(100vh-8rem)] gap-4">
         <AlertCircle className="w-12 h-12 text-muted-foreground" />

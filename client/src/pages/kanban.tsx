@@ -34,6 +34,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useExperimentStore } from "@/stores/experiment-store";
+import { useProjectId } from "@/hooks/use-project-id";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { FlaskConical, Plus, Clock, Play, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
@@ -153,11 +154,10 @@ function DroppableColumn({ columnId, children }: DroppableColumnProps) {
 export default function Kanban() {
   const { toast } = useToast();
   const [activeId, setActiveId] = useState<string | null>(null);
+  const projectId = useProjectId();
   const {
     selectedExperimentId,
-    selectedProjectId,
     setSelectedExperimentId,
-    setSelectedProjectId,
   } = useExperimentStore();
 
   const sensors = useSensors(
@@ -173,16 +173,16 @@ export default function Kanban() {
   });
 
   const { data: experiments = [], isLoading } = useQuery<Experiment[]>({
-    queryKey: ["/api/projects", selectedProjectId, "experiments"],
-    enabled: !!selectedProjectId,
+    queryKey: ["/api/projects", projectId, "experiments"],
+    enabled: !!projectId,
   });
 
   const { data: aggregatedMetrics } = useQuery<Record<string, Record<string, number | null>>>({
-    queryKey: ["/api/projects", selectedProjectId, "metrics"],
-    enabled: !!selectedProjectId,
+    queryKey: ["/api/projects", projectId, "metrics"],
+    enabled: !!projectId,
   });
 
-  const selectedProject = projects?.find((p) => p.id === selectedProjectId);
+  const selectedProject = projects?.find((p) => p.id === projectId);
 
   const updateStatusMutation = useMutation({
     mutationFn: async ({
@@ -197,7 +197,7 @@ export default function Kanban() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/experiments"] });
       queryClient.invalidateQueries({
-        queryKey: ["/api/projects", selectedProjectId, "experiments"],
+        queryKey: ["/api/projects", projectId, "experiments"],
       });
       queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
       toast({
@@ -215,9 +215,9 @@ export default function Kanban() {
   });
 
   const filteredExperiments = useMemo(() => {
-    if (!experiments || !selectedProjectId) return [];
+    if (!experiments || !projectId) return [];
     return experiments;
-  }, [experiments, selectedProjectId]);
+  }, [experiments, projectId]);
 
   const getExperimentsByStatus = (status: string) => {
     return filteredExperiments.filter((e) => e.status === status);
@@ -263,7 +263,7 @@ export default function Kanban() {
     }
   };
 
-  if (!selectedProjectId) {
+  if (!projectId) {
     return (
       <div className="flex flex-col items-center justify-center h-[calc(100vh-8rem)] gap-4">
         <AlertCircle className="w-12 h-12 text-muted-foreground" />
@@ -299,7 +299,7 @@ export default function Kanban() {
           icon={FlaskConical}
           title="No experiments yet"
           description={
-            selectedProjectId
+            projectId
               ? "No experiments in this project."
               : "Create experiments to organize them by status."
           }

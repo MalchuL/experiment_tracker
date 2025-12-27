@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { useExperimentStore } from "@/stores/experiment-store";
+import { useProjectId } from "@/hooks/use-project-id";
 import { TrendingUp, TrendingDown, AlertCircle, BarChart3 } from "lucide-react";
 import {
   LineChart,
@@ -40,23 +40,23 @@ const CHART_COLORS = [
 ];
 
 export default function Scalars() {
-  const { selectedProjectId } = useExperimentStore();
+  const projectId = useProjectId();
   const [selectedMetric, setSelectedMetric] = useState<string | null>(null);
   const [selectedExperiments, setSelectedExperiments] = useState<Set<string>>(new Set());
 
   const { data: project } = useQuery<Project>({
-    queryKey: ["/api/projects", selectedProjectId],
-    enabled: !!selectedProjectId,
+    queryKey: ["/api/projects", projectId],
+    enabled: !!projectId,
   });
 
   const { data: experiments = [], isLoading: experimentsLoading } = useQuery<Experiment[]>({
-    queryKey: ["/api/projects", selectedProjectId, "experiments"],
-    enabled: !!selectedProjectId,
+    queryKey: ["/api/projects", projectId, "experiments"],
+    enabled: !!projectId,
   });
 
   const { data: allMetrics = {}, isLoading: metricsLoading } = useQuery<Record<string, Metric[]>>({
-    queryKey: ["/api/projects", selectedProjectId, "all-metrics"],
-    enabled: !!selectedProjectId,
+    queryKey: ["/api/projects", projectId, "all-metrics"],
+    enabled: !!projectId,
   });
 
   const availableMetricNames = useMemo(() => {
@@ -106,7 +106,7 @@ export default function Scalars() {
     setSelectedExperiments(new Set());
   };
 
-  if (!selectedProjectId) {
+  if (!projectId) {
     return (
       <div className="flex flex-col items-center justify-center h-[calc(100vh-8rem)] gap-4">
         <AlertCircle className="w-12 h-12 text-muted-foreground" />

@@ -45,6 +45,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useExperimentStore } from "@/stores/experiment-store";
+import { useProjectId } from "@/hooks/use-project-id";
 import { Plus, FlaskConical, GripVertical, TrendingUp, TrendingDown, AlertCircle } from "lucide-react";
 import type { Experiment, InsertExperiment, Project } from "@shared/schema";
 import { insertExperimentSchema, EXPERIMENT_COLORS } from "@shared/schema";
@@ -151,9 +152,9 @@ function SortableRow({ experiment, onClick, projectMetrics, expMetrics, parentNa
 export default function Experiments() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const { toast } = useToast();
+  const projectId = useProjectId();
   const {
     selectedExperimentId,
-    selectedProjectId,
     setSelectedExperimentId,
   } = useExperimentStore();
 
@@ -166,8 +167,8 @@ export default function Experiments() {
   );
 
   const { data: experiments = [], isLoading } = useQuery<Experiment[]>({
-    queryKey: ["/api/projects", selectedProjectId, "experiments"],
-    enabled: !!selectedProjectId,
+    queryKey: ["/api/projects", projectId, "experiments"],
+    enabled: !!projectId,
     staleTime: 0,
   });
 
@@ -176,11 +177,11 @@ export default function Experiments() {
   });
 
   const { data: aggregatedMetrics } = useQuery<Record<string, Record<string, number | null>>>({
-    queryKey: ["/api/projects", selectedProjectId, "metrics"],
-    enabled: !!selectedProjectId,
+    queryKey: ["/api/projects", projectId, "metrics"],
+    enabled: !!projectId,
   });
 
-  const selectedProject = projects?.find((p) => p.id === selectedProjectId);
+  const selectedProject = projects?.find((p) => p.id === projectId);
 
   const sortedExperiments = useMemo(() => {
     if (!experiments) return [];
@@ -190,7 +191,7 @@ export default function Experiments() {
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      projectId: selectedProjectId || "",
+      projectId: projectId || "",
       name: "",
       description: "",
       status: "planned",
@@ -210,7 +211,7 @@ export default function Experiments() {
       queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
       queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
       queryClient.invalidateQueries({
-        queryKey: ["/api/projects", selectedProjectId, "experiments"],
+        queryKey: ["/api/projects", projectId, "experiments"],
       });
       setIsDialogOpen(false);
       form.reset();
@@ -230,23 +231,23 @@ export default function Experiments() {
 
   const reorderMutation = useMutation({
     mutationFn: async (experimentIds: string[]) => {
-      return apiRequest("PATCH", `/api/projects/${selectedProjectId}/experiments/reorder`, {
+      return apiRequest("PATCH", `/api/projects/${projectId}/experiments/reorder`, {
         experimentIds,
       });
     },
     onMutate: async (experimentIds: string[]) => {
       await queryClient.cancelQueries({
-        queryKey: ["/api/projects", selectedProjectId, "experiments"],
+        queryKey: ["/api/projects", projectId, "experiments"],
       });
 
       const previousExperiments = queryClient.getQueryData<Experiment[]>([
         "/api/projects",
-        selectedProjectId,
+        projectId,
         "experiments",
       ]);
 
       queryClient.setQueryData<Experiment[]>(
-        ["/api/projects", selectedProjectId, "experiments"],
+        ["/api/projects", projectId, "experiments"],
         (old) => {
           if (!old) return old;
           return experimentIds.map((id, index) => {
@@ -261,7 +262,7 @@ export default function Experiments() {
     onError: (_err, _experimentIds, context) => {
       if (context?.previousExperiments) {
         queryClient.setQueryData(
-          ["/api/projects", selectedProjectId, "experiments"],
+          ["/api/projects", projectId, "experiments"],
           context.previousExperiments
         );
       }
@@ -273,7 +274,7 @@ export default function Experiments() {
     },
     onSettled: () => {
       queryClient.invalidateQueries({
-        queryKey: ["/api/projects", selectedProjectId, "experiments"],
+        queryKey: ["/api/projects", projectId, "experiments"],
       });
     },
   });
@@ -295,7 +296,7 @@ export default function Experiments() {
 
     createMutation.mutate({
       ...data,
-      projectId: selectedProjectId || data.projectId,
+      projectId: projectId || data.projectId,
       features,
     });
   };
@@ -311,7 +312,7 @@ export default function Experiments() {
     reorderMutation.mutate(newOrder.map((e) => e.id));
   };
 
-  if (!selectedProjectId) {
+  if (!projectId) {
     return (
       <div className="flex flex-col items-center justify-center h-[calc(100vh-8rem)] gap-4">
         <AlertCircle className="w-12 h-12 text-muted-foreground" />

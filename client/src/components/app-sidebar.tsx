@@ -13,134 +13,104 @@ import {
   SidebarFooter,
 } from "@/components/ui/sidebar";
 import { 
-  LayoutDashboard, 
-  FolderKanban, 
   FlaskConical, 
   Lightbulb, 
   KanbanSquare,
   GitBranch,
   Beaker,
   Settings,
-  ChevronRight,
-  BarChart3
+  Home,
+  BarChart3,
+  LayoutDashboard
 } from "lucide-react";
-import { useExperimentStore } from "@/stores/experiment-store";
 import type { Project } from "@shared/schema";
 
-const globalItems = [
+function getProjectIdFromPath(path: string): string | null {
+  const match = path.match(/^\/projects\/([^/]+)/);
+  return match ? match[1] : null;
+}
+
+const getProjectItems = (projectId: string) => [
   {
-    title: "Dashboard",
-    url: "/",
+    title: "Overview",
+    url: `/projects/${projectId}`,
     icon: LayoutDashboard,
   },
   {
-    title: "Projects",
-    url: "/projects",
-    icon: FolderKanban,
-  },
-];
-
-const projectItems = [
-  {
     title: "Experiments",
-    url: "/experiments",
+    url: `/projects/${projectId}/experiments`,
     icon: FlaskConical,
   },
   {
     title: "Hypotheses",
-    url: "/hypotheses",
+    url: `/projects/${projectId}/hypotheses`,
     icon: Lightbulb,
   },
   {
     title: "Kanban",
-    url: "/kanban",
+    url: `/projects/${projectId}/kanban`,
     icon: KanbanSquare,
   },
   {
     title: "Scalars",
-    url: "/scalars",
+    url: `/projects/${projectId}/scalars`,
     icon: BarChart3,
   },
   {
     title: "DAG View",
-    url: "/dag",
+    url: `/projects/${projectId}/dag`,
     icon: GitBranch,
   },
   {
     title: "Settings",
-    url: "/settings",
+    url: `/projects/${projectId}/settings`,
     icon: Settings,
   },
 ];
 
 export function AppSidebar() {
   const [location] = useLocation();
-  const { 
-    selectedProjectId, 
-    openProjectSelector 
-  } = useExperimentStore();
+  
+  const projectIdFromUrl = getProjectIdFromPath(location);
 
   const { data: projects } = useQuery<Project[]>({
     queryKey: ["/api/projects"],
   });
 
-  const selectedProject = projects?.find((p) => p.id === selectedProjectId);
+  const selectedProject = projectIdFromUrl 
+    ? projects?.find((p) => p.id === projectIdFromUrl)
+    : null;
 
   const isActive = (url: string) => {
-    if (url === "/") return location === "/";
-    return location.startsWith(url);
+    return location === url;
   };
+
+  const projectItems = projectIdFromUrl ? getProjectItems(projectIdFromUrl) : [];
 
   return (
     <Sidebar>
       <SidebarHeader className="p-4 border-b border-sidebar-border">
-        <button
-          onClick={openProjectSelector}
-          className="w-full text-left"
-          data-testid="button-project-selector"
-        >
+        <Link href="/">
           <div className="flex items-center gap-2 hover-elevate active-elevate-2 rounded-md px-2 py-1.5 cursor-pointer">
             <div className="flex items-center justify-center w-8 h-8 rounded-md bg-primary text-primary-foreground">
               <Beaker className="w-4 h-4" />
             </div>
             <div className="flex flex-col flex-1 min-w-0">
               <span className="font-semibold text-sm tracking-tight truncate">
-                {selectedProject ? selectedProject.name : "ResearchTrack"}
+                ResearchTrack
               </span>
               <span className="text-xs text-muted-foreground truncate">
-                {selectedProject ? "Click to change project" : "Click to select project"}
+                {selectedProject ? selectedProject.name : "All Projects"}
               </span>
             </div>
-            <ChevronRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+            <Home className="w-4 h-4 text-muted-foreground flex-shrink-0" />
           </div>
-        </button>
+        </Link>
       </SidebarHeader>
       <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupLabel>Navigation</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {globalItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton 
-                    asChild 
-                    isActive={isActive(item.url)}
-                    data-testid={`nav-${item.title.toLowerCase()}`}
-                  >
-                    <Link href={item.url}>
-                      <item.icon className="w-4 h-4" />
-                      <span>{item.title}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        {selectedProjectId && (
+        {projectIdFromUrl && selectedProject && (
           <SidebarGroup>
-            <SidebarGroupLabel>Project Views</SidebarGroupLabel>
+            <SidebarGroupLabel>{selectedProject.name}</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
                 {projectItems.map((item) => (
@@ -158,6 +128,16 @@ export function AppSidebar() {
                   </SidebarMenuItem>
                 ))}
               </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
+
+        {!projectIdFromUrl && (
+          <SidebarGroup>
+            <SidebarGroupContent>
+              <div className="px-3 py-8 text-center text-sm text-muted-foreground">
+                Select a project to see navigation options
+              </div>
             </SidebarGroupContent>
           </SidebarGroup>
         )}

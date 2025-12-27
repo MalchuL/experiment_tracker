@@ -11,9 +11,7 @@ import {
   SidebarInset 
 } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
-import { ProjectSelector } from "@/components/project-selector";
 
-import Dashboard from "@/pages/dashboard";
 import Projects from "@/pages/projects";
 import ProjectDetail from "@/pages/project-detail";
 import Experiments from "@/pages/experiments";
@@ -29,17 +27,16 @@ import NotFound from "@/pages/not-found";
 function Router() {
   return (
     <Switch>
-      <Route path="/" component={Dashboard} />
-      <Route path="/projects" component={Projects} />
+      <Route path="/" component={Projects} />
       <Route path="/projects/:id" component={ProjectDetail} />
-      <Route path="/experiments" component={Experiments} />
-      <Route path="/experiments/:id" component={ExperimentDetail} />
-      <Route path="/hypotheses" component={Hypotheses} />
-      <Route path="/hypotheses/:id" component={HypothesisDetail} />
-      <Route path="/kanban" component={Kanban} />
-      <Route path="/dag" component={DAGView} />
-      <Route path="/scalars" component={Scalars} />
-      <Route path="/settings" component={ProjectSettings} />
+      <Route path="/projects/:id/experiments" component={Experiments} />
+      <Route path="/projects/:id/experiments/:expId" component={ExperimentDetail} />
+      <Route path="/projects/:id/hypotheses" component={Hypotheses} />
+      <Route path="/projects/:id/hypotheses/:hypId" component={HypothesisDetail} />
+      <Route path="/projects/:id/kanban" component={Kanban} />
+      <Route path="/projects/:id/dag" component={DAGView} />
+      <Route path="/projects/:id/scalars" component={Scalars} />
+      <Route path="/projects/:id/settings" component={ProjectSettings} />
       <Route component={NotFound} />
     </Switch>
   );
@@ -71,7 +68,6 @@ function App() {
               </SidebarInset>
             </div>
           </SidebarProvider>
-          <ProjectSelector />
           <Toaster />
         </TooltipProvider>
       </ThemeProvider>
