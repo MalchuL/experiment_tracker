@@ -64,7 +64,7 @@ class ProjectBase(BaseModel):
 
 
 class ProjectCreate(ProjectBase):
-    pass
+    teamId: Optional[str] = None
 
 
 class ProjectUpdate(BaseModel):

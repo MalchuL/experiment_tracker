@@ -1,177 +1,265 @@
 from fastapi import APIRouter, HTTPException, Depends
-from typing import List, Dict, Optional
+from typing import List, Optional
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from .storage import storage
+from .database import get_async_session
 from .schemas import (
-    Project, ProjectCreate, ProjectUpdate,
-    Experiment, ExperimentCreate, ExperimentUpdate,
-    Hypothesis, HypothesisCreate, HypothesisUpdate,
-    Metric, MetricCreate,
+    ProjectCreate, ProjectUpdate,
+    ExperimentCreate, ExperimentUpdate,
+    HypothesisCreate, HypothesisUpdate,
+    MetricCreate,
     DashboardStats, ExperimentReorder
 )
 from .auth import current_active_user
 from .models import User
+from . import repository
 
 router = APIRouter(dependencies=[Depends(current_active_user)])
 
 
-@router.get("/dashboard/stats", response_model=DashboardStats)
-async def get_dashboard_stats(user: User = Depends(current_active_user)):
-    return storage.get_dashboard_stats()
+@router.get("/dashboard/stats")
+async def get_dashboard_stats(
+    user: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_async_session)
+):
+    return await repository.get_dashboard_stats(session, user)
 
 
-@router.get("/projects", response_model=List[Project])
-async def get_all_projects(user: User = Depends(current_active_user)):
-    return storage.get_all_projects()
+@router.get("/projects")
+async def get_all_projects(
+    user: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_async_session)
+):
+    return await repository.get_accessible_projects(session, user)
 
 
-@router.get("/projects/{project_id}", response_model=Project)
-async def get_project(project_id: str, user: User = Depends(current_active_user)):
-    project = storage.get_project(project_id)
+@router.get("/projects/{project_id}")
+async def get_project(
+    project_id: str,
+    user: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_async_session)
+):
+    project = await repository.get_project_if_accessible(session, user, project_id)
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
-    return project
+    from .repository import _project_to_schema
+    return _project_to_schema(project)
 
 
-@router.get("/projects/{project_id}/experiments", response_model=List[Experiment])
-async def get_project_experiments(project_id: str, user: User = Depends(current_active_user)):
-    return storage.get_experiments_by_project(project_id)
+@router.get("/projects/{project_id}/experiments")
+async def get_project_experiments(
+    project_id: str,
+    user: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_async_session)
+):
+    return await repository.get_experiments_by_project(session, user, project_id)
 
 
-@router.get("/projects/{project_id}/hypotheses", response_model=List[Hypothesis])
-async def get_project_hypotheses(project_id: str, user: User = Depends(current_active_user)):
-    return storage.get_hypotheses_by_project(project_id)
+@router.get("/projects/{project_id}/hypotheses")
+async def get_project_hypotheses(
+    project_id: str,
+    user: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_async_session)
+):
+    return await repository.get_hypotheses_by_project(session, user, project_id)
 
 
-@router.get("/projects/{project_id}/all-metrics", response_model=Dict[str, List[Metric]])
-async def get_project_all_metrics(project_id: str, user: User = Depends(current_active_user)):
-    """Get all metrics for all experiments in a project, grouped by experiment ID."""
-    experiments = storage.get_experiments_by_project(project_id)
-    result = {}
-    for exp in experiments:
-        result[exp.id] = storage.get_metrics_by_experiment(exp.id)
+@router.post("/projects")
+async def create_project(
+    data: ProjectCreate,
+    user: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_async_session)
+):
+    return await repository.create_project(session, user, data, data.teamId)
+
+
+@router.patch("/projects/{project_id}")
+async def update_project(
+    project_id: str,
+    data: ProjectUpdate,
+    user: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_async_session)
+):
+    result = await repository.update_project(session, user, project_id, data)
+    if not result:
+        raise HTTPException(status_code=404, detail="Project not found")
     return result
 
 
-@router.post("/projects", response_model=Project, status_code=201)
-async def create_project(data: ProjectCreate, user: User = Depends(current_active_user)):
-    return storage.create_project(data)
-
-
-@router.patch("/projects/{project_id}", response_model=Project)
-async def update_project(project_id: str, data: ProjectUpdate, user: User = Depends(current_active_user)):
-    project = storage.update_project(project_id, data)
-    if not project:
+@router.delete("/projects/{project_id}")
+async def delete_project(
+    project_id: str,
+    user: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_async_session)
+):
+    success = await repository.delete_project(session, user, project_id)
+    if not success:
         raise HTTPException(status_code=404, detail="Project not found")
-    return project
+    return {"success": True}
 
 
-@router.delete("/projects/{project_id}", status_code=204)
-async def delete_project(project_id: str, user: User = Depends(current_active_user)):
-    if not storage.delete_project(project_id):
-        raise HTTPException(status_code=404, detail="Project not found")
-    return None
+@router.get("/experiments")
+async def get_all_experiments(
+    user: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_async_session)
+):
+    return await repository.get_accessible_experiments(session, user)
 
 
-@router.get("/experiments", response_model=List[Experiment])
-async def get_all_experiments(user: User = Depends(current_active_user)):
-    return storage.get_all_experiments()
+@router.get("/experiments/recent")
+async def get_recent_experiments(
+    limit: int = 10,
+    user: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_async_session)
+):
+    return await repository.get_recent_experiments(session, user, limit)
 
 
-@router.get("/experiments/recent", response_model=List[Experiment])
-async def get_recent_experiments(limit: int = 10, user: User = Depends(current_active_user)):
-    return storage.get_recent_experiments(limit)
-
-
-@router.get("/experiments/{experiment_id}", response_model=Experiment)
-async def get_experiment(experiment_id: str, user: User = Depends(current_active_user)):
-    experiment = storage.get_experiment(experiment_id)
+@router.get("/experiments/{experiment_id}")
+async def get_experiment(
+    experiment_id: str,
+    user: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_async_session)
+):
+    experiment = await repository.get_experiment_if_accessible(session, user, experiment_id)
     if not experiment:
         raise HTTPException(status_code=404, detail="Experiment not found")
-    return experiment
+    from .repository import _experiment_to_schema
+    return _experiment_to_schema(experiment)
 
 
-@router.get("/experiments/{experiment_id}/metrics", response_model=List[Metric])
-async def get_experiment_metrics(experiment_id: str, user: User = Depends(current_active_user)):
-    return storage.get_metrics_by_experiment(experiment_id)
+@router.get("/experiments/{experiment_id}/metrics")
+async def get_experiment_metrics(
+    experiment_id: str,
+    user: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_async_session)
+):
+    return await repository.get_experiment_metrics(session, user, experiment_id)
 
 
-@router.post("/experiments", response_model=Experiment, status_code=201)
-async def create_experiment(data: ExperimentCreate, user: User = Depends(current_active_user)):
-    return storage.create_experiment(data)
+@router.post("/experiments")
+async def create_experiment(
+    data: ExperimentCreate,
+    user: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_async_session)
+):
+    result = await repository.create_experiment(session, user, data)
+    if not result:
+        raise HTTPException(status_code=404, detail="Project not found or not accessible")
+    return result
 
 
-@router.patch("/experiments/{experiment_id}", response_model=Experiment)
-async def update_experiment(experiment_id: str, data: ExperimentUpdate, user: User = Depends(current_active_user)):
-    experiment = storage.update_experiment(experiment_id, data)
-    if not experiment:
+@router.patch("/experiments/{experiment_id}")
+async def update_experiment(
+    experiment_id: str,
+    data: ExperimentUpdate,
+    user: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_async_session)
+):
+    result = await repository.update_experiment(session, user, experiment_id, data)
+    if not result:
         raise HTTPException(status_code=404, detail="Experiment not found")
-    return experiment
+    return result
 
 
-@router.delete("/experiments/{experiment_id}", status_code=204)
-async def delete_experiment(experiment_id: str, user: User = Depends(current_active_user)):
-    if not storage.delete_experiment(experiment_id):
+@router.delete("/experiments/{experiment_id}")
+async def delete_experiment(
+    experiment_id: str,
+    user: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_async_session)
+):
+    success = await repository.delete_experiment(session, user, experiment_id)
+    if not success:
         raise HTTPException(status_code=404, detail="Experiment not found")
-    return None
+    return {"success": True}
 
 
-@router.patch("/projects/{project_id}/experiments/reorder", response_model=List[Experiment])
-async def reorder_experiments(project_id: str, data: ExperimentReorder, user: User = Depends(current_active_user)):
+@router.post("/experiments/reorder")
+async def reorder_experiments(
+    data: ExperimentReorder,
+    user: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_async_session)
+):
     for i, exp_id in enumerate(data.experimentIds):
-        from .schemas import ExperimentUpdate as ExpUpdate
-        storage.update_experiment(exp_id, ExpUpdate(order=i))
-    return storage.get_experiments_by_project(project_id)
+        from .schemas import ExperimentUpdate
+        await repository.update_experiment(session, user, exp_id, ExperimentUpdate(order=i))
+    return {"success": True}
 
 
-@router.get("/hypotheses", response_model=List[Hypothesis])
-async def get_all_hypotheses(user: User = Depends(current_active_user)):
-    return storage.get_all_hypotheses()
+@router.get("/hypotheses")
+async def get_all_hypotheses(
+    user: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_async_session)
+):
+    return await repository.get_accessible_hypotheses(session, user)
 
 
-@router.get("/hypotheses/recent", response_model=List[Hypothesis])
-async def get_recent_hypotheses(limit: int = 10, user: User = Depends(current_active_user)):
-    return storage.get_recent_hypotheses(limit)
+@router.get("/hypotheses/recent")
+async def get_recent_hypotheses(
+    limit: int = 10,
+    user: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_async_session)
+):
+    return await repository.get_recent_hypotheses(session, user, limit)
 
 
-@router.get("/hypotheses/{hypothesis_id}", response_model=Hypothesis)
-async def get_hypothesis(hypothesis_id: str, user: User = Depends(current_active_user)):
-    hypothesis = storage.get_hypothesis(hypothesis_id)
+@router.get("/hypotheses/{hypothesis_id}")
+async def get_hypothesis(
+    hypothesis_id: str,
+    user: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_async_session)
+):
+    hypothesis = await repository.get_hypothesis_if_accessible(session, user, hypothesis_id)
     if not hypothesis:
         raise HTTPException(status_code=404, detail="Hypothesis not found")
-    return hypothesis
+    from .repository import _hypothesis_to_schema
+    return _hypothesis_to_schema(hypothesis)
 
 
-@router.get("/hypotheses/{hypothesis_id}/experiments", response_model=List[Hypothesis])
-async def get_hypothesis_experiments(hypothesis_id: str, user: User = Depends(current_active_user)):
-    return storage.get_hypotheses_by_experiment(hypothesis_id)
+@router.post("/hypotheses")
+async def create_hypothesis(
+    data: HypothesisCreate,
+    user: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_async_session)
+):
+    result = await repository.create_hypothesis(session, user, data)
+    if not result:
+        raise HTTPException(status_code=404, detail="Project not found or not accessible")
+    return result
 
 
-@router.post("/hypotheses", response_model=Hypothesis, status_code=201)
-async def create_hypothesis(data: HypothesisCreate, user: User = Depends(current_active_user)):
-    return storage.create_hypothesis(data)
-
-
-@router.patch("/hypotheses/{hypothesis_id}", response_model=Hypothesis)
-async def update_hypothesis(hypothesis_id: str, data: HypothesisUpdate, user: User = Depends(current_active_user)):
-    hypothesis = storage.update_hypothesis(hypothesis_id, data)
-    if not hypothesis:
+@router.patch("/hypotheses/{hypothesis_id}")
+async def update_hypothesis(
+    hypothesis_id: str,
+    data: HypothesisUpdate,
+    user: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_async_session)
+):
+    result = await repository.update_hypothesis(session, user, hypothesis_id, data)
+    if not result:
         raise HTTPException(status_code=404, detail="Hypothesis not found")
-    return hypothesis
+    return result
 
 
-@router.delete("/hypotheses/{hypothesis_id}", status_code=204)
-async def delete_hypothesis(hypothesis_id: str, user: User = Depends(current_active_user)):
-    if not storage.delete_hypothesis(hypothesis_id):
+@router.delete("/hypotheses/{hypothesis_id}")
+async def delete_hypothesis(
+    hypothesis_id: str,
+    user: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_async_session)
+):
+    success = await repository.delete_hypothesis(session, user, hypothesis_id)
+    if not success:
         raise HTTPException(status_code=404, detail="Hypothesis not found")
-    return None
+    return {"success": True}
 
 
-@router.post("/metrics", response_model=Metric, status_code=201)
-async def create_metric(data: MetricCreate, user: User = Depends(current_active_user)):
-    return storage.create_metric(data)
-
-
-@router.get("/projects/{project_id}/metrics", response_model=Dict[str, Dict[str, Optional[float]]])
-async def get_project_metrics(project_id: str, user: User = Depends(current_active_user)):
-    return storage.get_aggregated_metrics_for_project(project_id)
+@router.post("/metrics")
+async def create_metric(
+    data: MetricCreate,
+    user: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_async_session)
+):
+    result = await repository.create_metric(session, user, data)
+    if not result:
+        raise HTTPException(status_code=404, detail="Experiment not found or not accessible")
+    return result
