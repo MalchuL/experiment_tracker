@@ -54,7 +54,7 @@ export default function Scalars() {
     enabled: !!selectedProjectId,
   });
 
-  const { data: allMetrics = [], isLoading: metricsLoading } = useQuery<Record<string, Metric[]>>({
+  const { data: allMetrics = {}, isLoading: metricsLoading } = useQuery<Record<string, Metric[]>>({
     queryKey: ["/api/projects", selectedProjectId, "all-metrics"],
     enabled: !!selectedProjectId,
   });
