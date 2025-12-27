@@ -28,7 +28,15 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useProjectId } from "@/hooks/use-project-id";
-import { Settings, Plus, Trash2, TrendingUp, TrendingDown, AlertCircle } from "lucide-react";
+import { Settings, Plus, Trash2, TrendingUp, TrendingDown, AlertCircle, Eye, ChevronDown, Check } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuCheckboxItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+  DropdownMenuItem,
+} from "@/components/ui/dropdown-menu";
 import type { Project, ProjectMetric } from "@shared/schema";
 import { z } from "zod";
 
@@ -301,9 +309,109 @@ export default function ProjectSettings() {
 
         <Card>
           <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Eye className="w-5 h-5" />
+              Display Metrics
+            </CardTitle>
+            <CardDescription>
+              Choose which metrics to show by default on the Scalars page.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {project.metrics.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-4 text-center">
+                No metrics configured. Add metrics below first.
+              </p>
+            ) : (
+              <>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" className="w-full justify-between" data-testid="dropdown-display-metrics">
+                      <span className="flex items-center gap-2">
+                        <Eye className="w-4 h-4" />
+                        {form.watch("displayMetrics").length === 0
+                          ? "Select metrics to display..."
+                          : form.watch("displayMetrics").length === project.metrics.length
+                          ? "All metrics selected"
+                          : `${form.watch("displayMetrics").length} of ${project.metrics.length} metrics selected`}
+                      </span>
+                      <ChevronDown className="w-4 h-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent className="w-64">
+                    <DropdownMenuItem
+                      onClick={() => {
+                        form.setValue("displayMetrics", project.metrics.map(m => m.name));
+                      }}
+                      data-testid="menu-select-all-metrics"
+                    >
+                      <Check className="w-4 h-4 mr-2" />
+                      Select All
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => {
+                        form.setValue("displayMetrics", []);
+                      }}
+                      data-testid="menu-clear-all-metrics"
+                    >
+                      Clear All
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    {project.metrics.map((metric) => (
+                      <DropdownMenuCheckboxItem
+                        key={metric.name}
+                        checked={form.watch("displayMetrics").includes(metric.name)}
+                        onCheckedChange={(checked) => {
+                          const current = form.getValues("displayMetrics");
+                          if (checked) {
+                            form.setValue("displayMetrics", [...current, metric.name]);
+                          } else {
+                            form.setValue("displayMetrics", current.filter(m => m !== metric.name));
+                          }
+                        }}
+                        data-testid={`menu-metric-${metric.name}`}
+                      >
+                        <span className="flex items-center gap-2">
+                          {metric.name}
+                          {metric.direction === "maximize" ? (
+                            <TrendingUp className="w-3 h-3 text-green-500" />
+                          ) : (
+                            <TrendingDown className="w-3 h-3 text-red-500" />
+                          )}
+                        </span>
+                      </DropdownMenuCheckboxItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+
+                {form.watch("displayMetrics").length > 0 && (
+                  <div className="flex flex-wrap gap-1">
+                    {form.watch("displayMetrics").map((metricName) => (
+                      <Badge key={metricName} variant="secondary" className="text-xs">
+                        {metricName}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+
+                <Button
+                  onClick={form.handleSubmit(onSubmit)}
+                  disabled={updateMutation.isPending}
+                  className="w-full"
+                  data-testid="button-save-display-metrics"
+                >
+                  Save Display Settings
+                </Button>
+              </>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
             <CardTitle>Tracked Metrics</CardTitle>
             <CardDescription>
-              Configure which metrics to track and display for this project. Set direction to indicate whether higher or lower values are better.
+              Add or remove metrics and set their optimization direction.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -366,19 +474,6 @@ export default function ProjectSettings() {
                           <SelectItem value="minimize">Minimize</SelectItem>
                         </SelectContent>
                       </Select>
-                      <Checkbox
-                        checked={form.watch("displayMetrics").includes(metric.name)}
-                        onCheckedChange={(checked) => {
-                          const current = form.getValues("displayMetrics");
-                          if (checked) {
-                            form.setValue("displayMetrics", [...current, metric.name]);
-                          } else {
-                            form.setValue("displayMetrics", current.filter(m => m !== metric.name));
-                          }
-                        }}
-                        data-testid={`checkbox-display-${metric.name}`}
-                      />
-                      <span className="text-xs text-muted-foreground">Display</span>
                       <Button
                         size="icon"
                         variant="ghost"
@@ -392,17 +487,6 @@ export default function ProjectSettings() {
                 ))
               )}
             </div>
-
-            {project.metrics.length > 0 && (
-              <Button
-                onClick={form.handleSubmit(onSubmit)}
-                disabled={updateMutation.isPending}
-                className="w-full"
-                data-testid="button-save-display-metrics"
-              >
-                Save Display Settings
-              </Button>
-            )}
           </CardContent>
         </Card>
       </div>
