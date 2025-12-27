@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { PageHeader } from "@/components/page-header";
 import { StatCard } from "@/components/stat-card";
@@ -15,9 +16,17 @@ import {
   Clock
 } from "lucide-react";
 import { Link } from "wouter";
+import { useExperimentStore } from "@/stores/experiment-store";
 import type { DashboardStats, Experiment, Hypothesis } from "@shared/schema";
 
 export default function Dashboard() {
+  const { selectedProjectId, openProjectSelector } = useExperimentStore();
+
+  useEffect(() => {
+    if (!selectedProjectId) {
+      openProjectSelector();
+    }
+  }, [selectedProjectId, openProjectSelector]);
   const { data: stats, isLoading: statsLoading } = useQuery<DashboardStats>({
     queryKey: ["/api/dashboard/stats"],
   });

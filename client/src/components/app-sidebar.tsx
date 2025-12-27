@@ -21,7 +21,8 @@ import {
   GitBranch,
   Beaker,
   Settings,
-  ChevronRight
+  ChevronRight,
+  BarChart3
 } from "lucide-react";
 import { useExperimentStore } from "@/stores/experiment-store";
 import type { Project } from "@shared/schema";
@@ -54,6 +55,11 @@ const projectItems = [
     title: "Kanban",
     url: "/kanban",
     icon: KanbanSquare,
+  },
+  {
+    title: "Scalars",
+    url: "/scalars",
+    icon: BarChart3,
   },
   {
     title: "DAG View",

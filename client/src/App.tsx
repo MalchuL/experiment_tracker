@@ -22,6 +22,7 @@ import Hypotheses from "@/pages/hypotheses";
 import HypothesisDetail from "@/pages/hypothesis-detail";
 import Kanban from "@/pages/kanban";
 import DAGView from "@/pages/dag-view";
+import Scalars from "@/pages/scalars";
 import ProjectSettings from "@/pages/project-settings";
 import NotFound from "@/pages/not-found";
 
@@ -37,6 +38,7 @@ function Router() {
       <Route path="/hypotheses/:id" component={HypothesisDetail} />
       <Route path="/kanban" component={Kanban} />
       <Route path="/dag" component={DAGView} />
+      <Route path="/scalars" component={Scalars} />
       <Route path="/settings" component={ProjectSettings} />
       <Route component={NotFound} />
     </Switch>

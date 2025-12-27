@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Form,
   FormControl,
@@ -38,6 +39,14 @@ const settingsSchema = z.object({
 
 type SettingsFormData = z.infer<typeof settingsSchema>;
 
+const basicInfoSchema = z.object({
+  name: z.string().min(1, "Project name is required"),
+  description: z.string().optional(),
+  owner: z.string().optional(),
+});
+
+type BasicInfoFormData = z.infer<typeof basicInfoSchema>;
+
 export default function ProjectSettings() {
   const { selectedProjectId } = useExperimentStore();
   const { toast } = useToast();
@@ -61,6 +70,20 @@ export default function ProjectSettings() {
     },
   });
 
+  const basicInfoForm = useForm<BasicInfoFormData>({
+    resolver: zodResolver(basicInfoSchema),
+    defaultValues: {
+      name: project?.name || "",
+      description: project?.description || "",
+      owner: project?.owner || "",
+    },
+    values: {
+      name: project?.name || "",
+      description: project?.description || "",
+      owner: project?.owner || "",
+    },
+  });
+
   const updateMutation = useMutation({
     mutationFn: async (data: Partial<Project>) => {
       return apiRequest("PATCH", `/api/projects/${selectedProjectId}`, data);
@@ -79,6 +102,10 @@ export default function ProjectSettings() {
     updateMutation.mutate({
       settings: data,
     });
+  };
+
+  const onSubmitBasicInfo = (data: BasicInfoFormData) => {
+    updateMutation.mutate(data);
   };
 
   const addMetric = () => {
@@ -153,6 +180,80 @@ export default function ProjectSettings() {
       />
 
       <div className="grid gap-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Project Information</CardTitle>
+            <CardDescription>
+              Update your project's basic details.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Form {...basicInfoForm}>
+              <form onSubmit={basicInfoForm.handleSubmit(onSubmitBasicInfo)} className="space-y-4">
+                <FormField
+                  control={basicInfoForm.control}
+                  name="name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Project Name</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="My ML Project"
+                          data-testid="input-project-name"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={basicInfoForm.control}
+                  name="description"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Description</FormLabel>
+                      <FormControl>
+                        <Textarea
+                          placeholder="Describe your project..."
+                          className="resize-none"
+                          data-testid="input-project-description"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={basicInfoForm.control}
+                  name="owner"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Owner</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="Team or individual"
+                          data-testid="input-project-owner"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <Button
+                  type="submit"
+                  disabled={updateMutation.isPending}
+                  data-testid="button-save-basic-info"
+                >
+                  Save Project Info
+                </Button>
+              </form>
+            </Form>
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">

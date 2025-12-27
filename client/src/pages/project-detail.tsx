@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useParams, Link } from "wouter";
 import { PageHeader } from "@/components/page-header";
@@ -9,10 +10,18 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ArrowLeft, FlaskConical, Lightbulb, Plus, Calendar, User } from "lucide-react";
 import { format } from "date-fns";
+import { useExperimentStore } from "@/stores/experiment-store";
 import type { Project, Experiment, Hypothesis } from "@shared/schema";
 
 export default function ProjectDetail() {
   const { id } = useParams<{ id: string }>();
+  const { setSelectedProjectId, selectedProjectId } = useExperimentStore();
+
+  useEffect(() => {
+    if (id && id !== selectedProjectId) {
+      setSelectedProjectId(id);
+    }
+  }, [id, selectedProjectId, setSelectedProjectId]);
 
   const { data: project, isLoading: projectLoading } = useQuery<Project>({
     queryKey: ["/api/projects", id],

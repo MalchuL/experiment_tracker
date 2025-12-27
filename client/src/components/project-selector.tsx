@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import {
   Dialog,
   DialogContent,
@@ -14,6 +15,7 @@ import { FlaskConical, Lightbulb, FolderKanban } from "lucide-react";
 import type { Project } from "@shared/schema";
 
 export function ProjectSelector() {
+  const [, setLocation] = useLocation();
   const {
     selectedProjectId,
     isProjectSelectorOpen,
@@ -28,6 +30,11 @@ export function ProjectSelector() {
   const handleSelectProject = (projectId: string | null) => {
     setSelectedProjectId(projectId);
     closeProjectSelector();
+    if (projectId) {
+      setLocation(`/projects/${projectId}`);
+    } else {
+      setLocation("/");
+    }
   };
 
   return (

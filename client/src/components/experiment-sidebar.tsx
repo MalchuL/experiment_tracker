@@ -50,6 +50,7 @@ export function ExperimentSidebar({
   aggregatedMetrics,
 }: ExperimentSidebarProps) {
   const { toast } = useToast();
+  const [editedName, setEditedName] = useState<string | null>(null);
   const [editedDescription, setEditedDescription] = useState<string | null>(null);
   const [editedColor, setEditedColor] = useState<string | null>(null);
 
@@ -86,6 +87,7 @@ export function ExperimentSidebar({
         title: "Experiment updated",
         description: "Changes have been saved.",
       });
+      setEditedName(null);
       setEditedDescription(null);
       setEditedColor(null);
     },
@@ -105,15 +107,20 @@ export function ExperimentSidebar({
     return value.toFixed(4);
   };
 
+  const currentName = editedName !== null ? editedName : (experiment?.name || "");
   const currentDescription = editedDescription !== null ? editedDescription : (experiment?.description || "");
   const currentColor = editedColor !== null ? editedColor : (experiment?.color || EXPERIMENT_COLORS[0]);
 
   const hasChanges = 
+    (editedName !== null && editedName !== (experiment?.name || "")) ||
     (editedDescription !== null && editedDescription !== (experiment?.description || "")) ||
     (editedColor !== null && editedColor !== experiment?.color);
 
   const saveChanges = () => {
     const updates: Partial<Experiment> = {};
+    if (editedName !== null && editedName !== (experiment?.name || "")) {
+      updates.name = editedName;
+    }
     if (editedDescription !== null && editedDescription !== (experiment?.description || "")) {
       updates.description = editedDescription;
     }
@@ -187,6 +194,17 @@ export function ExperimentSidebar({
                   from {parentExperiment.name}
                 </Badge>
               )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="name">Name</Label>
+              <Input
+                id="name"
+                value={currentName}
+                onChange={(e) => setEditedName(e.target.value)}
+                placeholder="Experiment name"
+                data-testid="input-name"
+              />
             </div>
 
             <div className="flex items-center gap-2">

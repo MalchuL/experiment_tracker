@@ -5,10 +5,12 @@ import {
   DragEndEvent,
   DragOverlay,
   DragStartEvent,
+  DragOverEvent,
   PointerSensor,
   useSensor,
   useSensors,
   closestCorners,
+  useDroppable,
 } from "@dnd-kit/core";
 import {
   SortableContext,
@@ -127,6 +129,27 @@ function ExperimentCardOverlay({ experiment }: { experiment: Experiment }) {
   );
 }
 
+interface DroppableColumnProps {
+  columnId: string;
+  children: React.ReactNode;
+}
+
+function DroppableColumn({ columnId, children }: DroppableColumnProps) {
+  const { setNodeRef, isOver } = useDroppable({
+    id: columnId,
+  });
+
+  return (
+    <div
+      ref={setNodeRef}
+      className={`space-y-2 pr-2 min-h-[100px] ${isOver ? "bg-accent/30 rounded-md" : ""}`}
+      data-column={columnId}
+    >
+      {children}
+    </div>
+  );
+}
+
 export default function Kanban() {
   const { toast } = useToast();
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -216,9 +239,20 @@ export default function Kanban() {
     if (!over) return;
 
     const experimentId = active.id as string;
-    const targetColumnId = over.id as string;
+    const overId = over.id as string;
 
-    if (columns.some((col) => col.id === targetColumnId)) {
+    let targetColumnId: string | null = null;
+
+    if (columns.some((col) => col.id === overId)) {
+      targetColumnId = overId;
+    } else {
+      const targetExperiment = filteredExperiments.find((e) => e.id === overId);
+      if (targetExperiment) {
+        targetColumnId = targetExperiment.status;
+      }
+    }
+
+    if (targetColumnId) {
       const experiment = filteredExperiments.find((e) => e.id === experimentId);
       if (experiment && experiment.status !== targetColumnId) {
         updateStatusMutation.mutate({
@@ -298,13 +332,13 @@ export default function Kanban() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="flex-1 p-2 overflow-hidden">
-                    <SortableContext
-                      id={column.id}
-                      items={columnExperiments.map((e) => e.id)}
-                      strategy={verticalListSortingStrategy}
-                    >
-                      <ScrollArea className="h-full">
-                        <div className="space-y-2 pr-2 min-h-[100px]" data-column={column.id}>
+                    <ScrollArea className="h-full">
+                      <DroppableColumn columnId={column.id}>
+                        <SortableContext
+                          id={column.id}
+                          items={columnExperiments.map((e) => e.id)}
+                          strategy={verticalListSortingStrategy}
+                        >
                           {columnExperiments.length === 0 ? (
                             <div
                               className="text-center py-8 text-sm text-muted-foreground border-2 border-dashed rounded-md"
@@ -321,9 +355,9 @@ export default function Kanban() {
                               />
                             ))
                           )}
-                        </div>
-                      </ScrollArea>
-                    </SortableContext>
+                        </SortableContext>
+                      </DroppableColumn>
+                    </ScrollArea>
                   </CardContent>
                 </Card>
               );

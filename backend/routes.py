@@ -41,6 +41,16 @@ def get_project_hypotheses(project_id: str):
     return storage.get_hypotheses_by_project(project_id)
 
 
+@router.get("/projects/{project_id}/all-metrics", response_model=Dict[str, List[Metric]])
+def get_project_all_metrics(project_id: str):
+    """Get all metrics for all experiments in a project, grouped by experiment ID."""
+    experiments = storage.get_experiments_by_project(project_id)
+    result = {}
+    for exp in experiments:
+        result[exp.id] = storage.get_metrics_by_experiment(exp.id)
+    return result
+
+
 @router.post("/projects", response_model=Project, status_code=201)
 def create_project(data: ProjectCreate):
     return storage.create_project(data)
