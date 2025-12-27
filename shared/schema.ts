@@ -85,6 +85,8 @@ export interface Project {
   hypothesisCount: number;
   metrics: ProjectMetric[];
   settings: ProjectSettings;
+  teamId?: string | null;
+  teamName?: string | null;
 }
 
 export interface InsertProject {
@@ -93,6 +95,7 @@ export interface InsertProject {
   owner: string;
   metrics?: ProjectMetric[];
   settings?: ProjectSettings;
+  teamId?: string | null;
 }
 
 export const projectMetricSchema = z.object({
@@ -115,6 +118,7 @@ export const insertProjectSchema = z.object({
     namingPattern: "{num}_from_{parent}_{change}",
     displayMetrics: [],
   }),
+  teamId: z.string().nullable().optional(),
 });
 
 export interface Experiment {
