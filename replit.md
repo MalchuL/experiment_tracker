@@ -8,17 +8,16 @@ ResearchTrack is a research-native experiment tracking platform for managing, lo
 - **Feature Model**: Hierarchical configuration tracking with diff computation
 - **Hypothesis Management**: Track research claims and link them to experiments
 - **Multiple Views**: Dashboard, List, Kanban, and DAG visualization
+- **User Authentication**: JWT-based authentication with 7-day tokens
+- **Team Collaboration**: Role-based access control (owner, admin, member, viewer)
 
 ## Architecture
 
-### Domain-Driven Design (DDD)
+### Dual Backend Architecture
 
-The backend follows DDD principles adapted from fastapi-ddd patterns:
-
-- **Domain Layer**: Entities and value objects defined in `shared/schema.ts`
-- **Application Layer**: Business logic in `server/storage.ts` (IStorage interface)
-- **Infrastructure Layer**: In-memory repository implementation (MemStorage)
-- **Presentation Layer**: REST API routes in `server/routes.ts`
+The application uses a dual backend architecture:
+1. **FastAPI (Python)**: Handles authentication, database models, and team management
+2. **Express.js (Node.js)**: Serves frontend and proxies API requests
 
 ### Tech Stack
 
@@ -28,47 +27,54 @@ The backend follows DDD principles adapted from fastapi-ddd patterns:
 - TanStack Query for data fetching
 - Shadcn/ui + Tailwind CSS for UI
 - Lucide React for icons
+- Auth context with JWT token management
 
-**Backend:**
-- Express.js
-- In-memory storage (MemStorage)
-- Zod for validation
+**Backend (FastAPI):**
+- FastAPI with FastAPI Users for authentication
+- SQLAlchemy async with asyncpg driver
+- PostgreSQL database
+- JWT authentication (7-day tokens)
+- Role-based access control
+
+**Backend (Express):**
+- Frontend static serving
+- API proxy to FastAPI
+- In-memory storage for experiments (legacy)
 
 ## Project Structure
 
 ```
+backend/
+├── main.py          # FastAPI app configuration
+├── database.py      # SQLAlchemy async setup
+├── models.py        # User, Team, TeamMember models
+├── auth.py          # FastAPI Users configuration
+├── routes.py        # Protected experiment/project routes
+├── team_routes.py   # Team CRUD with role permissions
+├── schemas.py       # Pydantic models
+└── storage.py       # In-memory experiment storage
 client/
 ├── src/
 │   ├── components/
 │   │   ├── ui/          # Shadcn components
 │   │   ├── app-sidebar.tsx
-│   │   ├── empty-state.tsx
-│   │   ├── loading-skeleton.tsx
-│   │   ├── page-header.tsx
-│   │   ├── stat-card.tsx
-│   │   ├── status-badge.tsx
-│   │   └── theme-toggle.tsx
+│   │   └── ...
 │   ├── pages/
 │   │   ├── dashboard.tsx
-│   │   ├── projects.tsx
-│   │   ├── project-detail.tsx
-│   │   ├── experiments.tsx
-│   │   ├── experiment-detail.tsx
-│   │   ├── hypotheses.tsx
-│   │   ├── hypothesis-detail.tsx
-│   │   ├── kanban.tsx
-│   │   └── dag-view.tsx
+│   │   ├── login.tsx
+│   │   ├── register.tsx
+│   │   ├── teams.tsx
+│   │   └── ...
 │   ├── lib/
-│   │   ├── queryClient.ts
-│   │   ├── theme-provider.tsx
+│   │   ├── queryClient.ts  # With auth headers
+│   │   ├── auth-context.tsx
 │   │   └── utils.ts
 │   └── App.tsx
 server/
-├── routes.ts        # API endpoints
-├── storage.ts       # Domain/Repository layer
+├── routes.ts        # Express proxy configuration
 └── index.ts
 shared/
-└── schema.ts        # Domain models & validation
+└── schema.ts        # Domain models (Zod)
 ```
 
 ## Core Domain Models
@@ -123,6 +129,14 @@ shared/
 - Inter font for UI, JetBrains Mono for code/metrics
 
 ## Recent Changes
+
+- **Dec 27, 2025**: Added user authentication and team management
+  - Integrated FastAPI Users with JWT authentication (7-day tokens)
+  - Created User, Team, and TeamMember database models
+  - Implemented role-based access control (owner, admin, member, viewer)
+  - Protected all API routes with authentication
+  - Built login/register pages with auth context
+  - Added teams management UI with member invitations
 
 - **Dec 27, 2025**: Initial MVP implementation
   - Created domain models with DDD structure
