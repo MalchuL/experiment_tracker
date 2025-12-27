@@ -11,8 +11,14 @@ import { Slider } from "@/components/ui/slider";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { useProjectId } from "@/hooks/use-project-id";
-import { AlertCircle, BarChart3, Eye, EyeOff } from "lucide-react";
+import { AlertCircle, BarChart3, Eye, EyeOff, Maximize2, RotateCcw } from "lucide-react";
 import {
   LineChart,
   Line,
@@ -22,6 +28,8 @@ import {
   Tooltip,
   Legend,
   ResponsiveContainer,
+  Brush,
+  ReferenceArea,
 } from "recharts";
 import type { Project, Experiment, Metric } from "@shared/schema";
 
@@ -64,6 +72,169 @@ function applySmoothing(data: number[], weight: number): number[] {
   return smoothed;
 }
 
+interface MetricChartProps {
+  metricName: string;
+  data: Array<Record<string, number | null>>;
+  experiments: Experiment[];
+  selectedExperiments: Experiment[];
+  allExperiments: Experiment[];
+  height?: number;
+  showBrush?: boolean;
+  domain?: [number, number] | null;
+  onDomainChange?: (domain: [number, number] | null) => void;
+  onExpand?: () => void;
+  onReset?: () => void;
+  isFullscreen?: boolean;
+}
+
+function MetricChart({
+  metricName,
+  data,
+  selectedExperiments,
+  allExperiments,
+  height = 200,
+  showBrush = true,
+  domain,
+  onDomainChange,
+  onExpand,
+  onReset,
+  isFullscreen = false,
+}: MetricChartProps) {
+  const [refAreaLeft, setRefAreaLeft] = useState<number | null>(null);
+  const [refAreaRight, setRefAreaRight] = useState<number | null>(null);
+  const [isSelecting, setIsSelecting] = useState(false);
+
+  const filteredData = useMemo(() => {
+    if (!domain) return data;
+    return data.filter(d => {
+      const step = d.step as number;
+      return step >= domain[0] && step <= domain[1];
+    });
+  }, [data, domain]);
+
+  const handleMouseDown = (e: any) => {
+    if (e && e.activeLabel !== undefined) {
+      setRefAreaLeft(e.activeLabel);
+      setIsSelecting(true);
+    }
+  };
+
+  const handleMouseMove = (e: any) => {
+    if (isSelecting && e && e.activeLabel !== undefined) {
+      setRefAreaRight(e.activeLabel);
+    }
+  };
+
+  const handleMouseUp = () => {
+    if (refAreaLeft !== null && refAreaRight !== null && refAreaLeft !== refAreaRight) {
+      const left = Math.min(refAreaLeft, refAreaRight);
+      const right = Math.max(refAreaLeft, refAreaRight);
+      onDomainChange?.([left, right]);
+    }
+    setRefAreaLeft(null);
+    setRefAreaRight(null);
+    setIsSelecting(false);
+  };
+
+  const handleBrushChange = useCallback((brushData: any) => {
+    if (brushData && brushData.startIndex !== undefined && brushData.endIndex !== undefined) {
+      const startStep = filteredData[brushData.startIndex]?.step as number;
+      const endStep = filteredData[brushData.endIndex]?.step as number;
+      if (startStep !== undefined && endStep !== undefined) {
+        onDomainChange?.([startStep, endStep]);
+      }
+    }
+  }, [filteredData, onDomainChange]);
+
+  const brushStartIndex = useMemo(() => {
+    if (!domain || filteredData.length === 0) return 0;
+    return 0;
+  }, [domain, filteredData.length]);
+
+  const brushEndIndex = useMemo(() => {
+    if (!domain || filteredData.length === 0) return Math.max(0, filteredData.length - 1);
+    return filteredData.length - 1;
+  }, [domain, filteredData.length]);
+
+  if (data.length === 0) {
+    return (
+      <div className="flex items-center justify-center text-sm text-muted-foreground" style={{ height }}>
+        No data for selected experiments
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ height }}>
+      <ResponsiveContainer width="100%" height="100%">
+        <LineChart
+          data={filteredData}
+          onMouseDown={handleMouseDown}
+          onMouseMove={handleMouseMove}
+          onMouseUp={handleMouseUp}
+          onMouseLeave={handleMouseUp}
+        >
+          <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+          <XAxis
+            dataKey="step"
+            tick={{ fontSize: isFullscreen ? 12 : 10 }}
+            tickLine={false}
+            domain={domain || ['auto', 'auto']}
+          />
+          <YAxis
+            tick={{ fontSize: isFullscreen ? 12 : 10 }}
+            tickLine={false}
+            width={isFullscreen ? 60 : 50}
+          />
+          <Tooltip
+            contentStyle={{
+              backgroundColor: "hsl(var(--card))",
+              border: "1px solid hsl(var(--border))",
+              borderRadius: "var(--radius)",
+              fontSize: isFullscreen ? 14 : 12,
+            }}
+          />
+          <Legend wrapperStyle={{ fontSize: isFullscreen ? 12 : 10 }} />
+          {selectedExperiments.map((experiment) => {
+            const originalIndex = allExperiments.findIndex(e => e.id === experiment.id);
+            return (
+              <Line
+                key={experiment.id}
+                type="monotone"
+                dataKey={experiment.name}
+                stroke={CHART_COLORS[originalIndex % CHART_COLORS.length]}
+                strokeWidth={isFullscreen ? 2 : 1.5}
+                dot={false}
+                activeDot={{ r: isFullscreen ? 5 : 3 }}
+              />
+            );
+          })}
+          {refAreaLeft !== null && refAreaRight !== null && (
+            <ReferenceArea
+              x1={refAreaLeft}
+              x2={refAreaRight}
+              strokeOpacity={0.3}
+              fill="hsl(var(--primary))"
+              fillOpacity={0.1}
+            />
+          )}
+          {showBrush && data.length > 10 && (
+            <Brush
+              dataKey="step"
+              height={20}
+              stroke="hsl(var(--muted-foreground))"
+              fill="hsl(var(--muted))"
+              startIndex={brushStartIndex}
+              endIndex={brushEndIndex}
+              onChange={handleBrushChange}
+            />
+          )}
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
 export default function Scalars() {
   const projectId = useProjectId();
   const searchString = useSearch();
@@ -73,6 +244,8 @@ export default function Scalars() {
   const [initialized, setInitialized] = useState(false);
   const [selectedExperimentIndices, setSelectedExperimentIndices] = useState<Set<number>>(new Set());
   const [hiddenMetrics, setHiddenMetrics] = useState<Set<string>>(new Set());
+  const [metricDomains, setMetricDomains] = useState<Record<string, [number, number] | null>>({});
+  const [fullscreenMetric, setFullscreenMetric] = useState<string | null>(null);
 
   const { data: project } = useQuery<Project>({
     queryKey: ["/api/projects", projectId],
@@ -196,6 +369,18 @@ export default function Scalars() {
     updateUrl(selectedExperimentIndices, hiddenMetrics, newSmoothing);
   };
 
+  const handleDomainChange = (metricName: string, domain: [number, number] | null) => {
+    setMetricDomains(prev => ({ ...prev, [metricName]: domain }));
+  };
+
+  const resetDomain = (metricName: string) => {
+    setMetricDomains(prev => ({ ...prev, [metricName]: null }));
+  };
+
+  const resetAllDomains = () => {
+    setMetricDomains({});
+  };
+
   const visibleMetrics = useMemo(() => {
     if (!project?.metrics) return [];
     return project.metrics.filter(m => !hiddenMetrics.has(m.name));
@@ -248,6 +433,8 @@ export default function Scalars() {
 
     return result;
   }, [allMetrics, selectedExperiments, experiments, visibleMetrics, smoothing]);
+
+  const fullscreenMetricData = fullscreenMetric ? chartDataByMetric[fullscreenMetric] || [] : [];
 
   if (!projectId) {
     return (
@@ -405,6 +592,28 @@ export default function Scalars() {
               </div>
             </ScrollArea>
           </div>
+
+          <Separator />
+
+          <div className="space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <Label className="text-sm font-medium">Zoom</Label>
+              {Object.values(metricDomains).some(d => d !== null) && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 px-2 text-xs"
+                  onClick={resetAllDomains}
+                  data-testid="button-reset-all-zoom"
+                >
+                  Reset All
+                </Button>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Drag on chart to zoom. Use brush below chart to pan.
+            </p>
+          </div>
         </CardContent>
       </Card>
 
@@ -436,21 +645,47 @@ export default function Scalars() {
             {visibleMetrics.map((metric) => {
               const data = chartDataByMetric[metric.name] || [];
               const hasData = data.length > 0;
+              const domain = metricDomains[metric.name] || null;
 
               return (
                 <Card key={metric.name} data-testid={`card-metric-${metric.name}`}>
                   <CardHeader className="pb-2">
                     <CardTitle className="text-sm flex items-center justify-between gap-2">
                       <span className="truncate">{metric.name}</span>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6 flex-shrink-0"
-                        onClick={() => toggleMetric(metric.name)}
-                        data-testid={`button-hide-metric-${metric.name}`}
-                      >
-                        <EyeOff className="w-3 h-3" />
-                      </Button>
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        {domain && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6"
+                            onClick={() => resetDomain(metric.name)}
+                            title="Reset zoom"
+                            data-testid={`button-reset-zoom-${metric.name}`}
+                          >
+                            <RotateCcw className="w-3 h-3" />
+                          </Button>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6"
+                          onClick={() => setFullscreenMetric(metric.name)}
+                          title="Expand"
+                          data-testid={`button-expand-${metric.name}`}
+                        >
+                          <Maximize2 className="w-3 h-3" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6"
+                          onClick={() => toggleMetric(metric.name)}
+                          title="Hide"
+                          data-testid={`button-hide-metric-${metric.name}`}
+                        >
+                          <EyeOff className="w-3 h-3" />
+                        </Button>
+                      </div>
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
@@ -459,46 +694,19 @@ export default function Scalars() {
                         No data for selected experiments
                       </div>
                     ) : (
-                      <div className="h-48">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <LineChart data={data}>
-                            <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                            <XAxis
-                              dataKey="step"
-                              tick={{ fontSize: 10 }}
-                              tickLine={false}
-                            />
-                            <YAxis
-                              tick={{ fontSize: 10 }}
-                              tickLine={false}
-                              width={50}
-                            />
-                            <Tooltip
-                              contentStyle={{
-                                backgroundColor: "hsl(var(--card))",
-                                border: "1px solid hsl(var(--border))",
-                                borderRadius: "var(--radius)",
-                                fontSize: 12,
-                              }}
-                            />
-                            <Legend wrapperStyle={{ fontSize: 10 }} />
-                            {selectedExperiments.map((experiment) => {
-                              const originalIndex = experiments.findIndex(e => e.id === experiment.id);
-                              return (
-                                <Line
-                                  key={experiment.id}
-                                  type="monotone"
-                                  dataKey={experiment.name}
-                                  stroke={CHART_COLORS[originalIndex % CHART_COLORS.length]}
-                                  strokeWidth={1.5}
-                                  dot={false}
-                                  activeDot={{ r: 3 }}
-                                />
-                              );
-                            })}
-                          </LineChart>
-                        </ResponsiveContainer>
-                      </div>
+                      <MetricChart
+                        metricName={metric.name}
+                        data={data}
+                        experiments={experiments}
+                        selectedExperiments={selectedExperiments}
+                        allExperiments={experiments}
+                        height={200}
+                        showBrush={true}
+                        domain={domain}
+                        onDomainChange={(d) => handleDomainChange(metric.name, d)}
+                        onExpand={() => setFullscreenMetric(metric.name)}
+                        onReset={() => resetDomain(metric.name)}
+                      />
                     )}
                   </CardContent>
                 </Card>
@@ -507,6 +715,45 @@ export default function Scalars() {
           </div>
         )}
       </div>
+
+      <Dialog open={!!fullscreenMetric} onOpenChange={(open) => !open && setFullscreenMetric(null)}>
+        <DialogContent className="max-w-6xl w-[90vw] h-[80vh]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center justify-between gap-4">
+              <span>{fullscreenMetric}</span>
+              <div className="flex items-center gap-2">
+                {fullscreenMetric && metricDomains[fullscreenMetric] && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => fullscreenMetric && resetDomain(fullscreenMetric)}
+                    data-testid="button-reset-zoom-fullscreen"
+                  >
+                    <RotateCcw className="w-4 h-4 mr-2" />
+                    Reset Zoom
+                  </Button>
+                )}
+              </div>
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 min-h-0">
+            {fullscreenMetric && (
+              <MetricChart
+                metricName={fullscreenMetric}
+                data={fullscreenMetricData}
+                experiments={experiments}
+                selectedExperiments={selectedExperiments}
+                allExperiments={experiments}
+                height={500}
+                showBrush={true}
+                domain={metricDomains[fullscreenMetric] || null}
+                onDomainChange={(d) => handleDomainChange(fullscreenMetric, d)}
+                isFullscreen={true}
+              />
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
