@@ -579,69 +579,66 @@ export default function Scalars() {
             <ScrollArea className="h-32">
               <div className="space-y-1 pr-3">
                 {project?.metrics?.map((metric) => (
-                  <DropdownMenu key={metric.name}>
-                    <DropdownMenuTrigger asChild>
-                      <div
-                        className="flex items-center gap-2 py-1 px-1 rounded-md cursor-pointer hover-elevate"
-                        data-testid={`dropdown-metric-${metric.name}`}
-                      >
-                        {hiddenMetrics.has(metric.name) ? (
-                          <EyeOff className="w-3 h-3 text-muted-foreground flex-shrink-0" />
-                        ) : (
-                          <Eye className="w-3 h-3 flex-shrink-0" />
-                        )}
-                        <span 
-                          className={`text-sm truncate flex-1 ${hiddenMetrics.has(metric.name) ? 'text-muted-foreground line-through' : ''}`}
-                          title={metric.name}
+                  <div
+                    key={metric.name}
+                    className="flex items-center gap-1 py-1"
+                  >
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 flex-shrink-0"
+                      onClick={() => toggleMetric(metric.name)}
+                      data-testid={`button-toggle-metric-${metric.name}`}
+                    >
+                      {hiddenMetrics.has(metric.name) ? (
+                        <EyeOff className="w-3 h-3 text-muted-foreground" />
+                      ) : (
+                        <Eye className="w-3 h-3" />
+                      )}
+                    </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <div
+                          className="flex items-center gap-1 flex-1 min-w-0 px-1 py-0.5 rounded-md cursor-pointer hover-elevate"
+                          data-testid={`dropdown-metric-${metric.name}`}
                         >
-                          {metric.name}
-                        </span>
-                        <ChevronDown className="w-3 h-3 text-muted-foreground flex-shrink-0" />
-                      </div>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="start">
-                      <DropdownMenuItem 
-                        onClick={() => toggleMetric(metric.name)}
-                        data-testid={`menu-toggle-metric-${metric.name}`}
-                      >
-                        {hiddenMetrics.has(metric.name) ? (
-                          <>
-                            <Eye className="w-4 h-4 mr-2" />
-                            Show
-                          </>
-                        ) : (
-                          <>
-                            <EyeOff className="w-4 h-4 mr-2" />
-                            Hide
-                          </>
-                        )}
-                      </DropdownMenuItem>
-                      <DropdownMenuItem 
-                        onClick={() => showOnlyMetric(metric.name)}
-                        data-testid={`menu-only-metric-${metric.name}`}
-                      >
-                        <Eye className="w-4 h-4 mr-2" />
-                        Show Only This
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem 
-                        onClick={() => setFullscreenMetric(metric.name)}
-                        disabled={hiddenMetrics.has(metric.name)}
-                        data-testid={`menu-expand-metric-${metric.name}`}
-                      >
-                        <Maximize2 className="w-4 h-4 mr-2" />
-                        Expand
-                      </DropdownMenuItem>
-                      <DropdownMenuItem 
-                        onClick={() => resetDomain(metric.name)}
-                        disabled={!metricDomains[metric.name]}
-                        data-testid={`menu-reset-zoom-metric-${metric.name}`}
-                      >
-                        <RotateCcw className="w-4 h-4 mr-2" />
-                        Reset Zoom
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                          <span 
+                            className={`text-sm truncate flex-1 ${hiddenMetrics.has(metric.name) ? 'text-muted-foreground line-through' : ''}`}
+                            title={metric.name}
+                          >
+                            {metric.name}
+                          </span>
+                          <ChevronDown className="w-3 h-3 text-muted-foreground flex-shrink-0" />
+                        </div>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="start">
+                        <DropdownMenuItem 
+                          onClick={() => showOnlyMetric(metric.name)}
+                          data-testid={`menu-only-metric-${metric.name}`}
+                        >
+                          <Eye className="w-4 h-4 mr-2" />
+                          Show Only This
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem 
+                          onClick={() => setFullscreenMetric(metric.name)}
+                          disabled={hiddenMetrics.has(metric.name)}
+                          data-testid={`menu-expand-metric-${metric.name}`}
+                        >
+                          <Maximize2 className="w-4 h-4 mr-2" />
+                          Expand
+                        </DropdownMenuItem>
+                        <DropdownMenuItem 
+                          onClick={() => resetDomain(metric.name)}
+                          disabled={!metricDomains[metric.name]}
+                          data-testid={`menu-reset-zoom-metric-${metric.name}`}
+                        >
+                          <RotateCcw className="w-4 h-4 mr-2" />
+                          Reset Zoom
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
                 ))}
               </div>
             </ScrollArea>
