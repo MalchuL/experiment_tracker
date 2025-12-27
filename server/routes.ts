@@ -265,5 +265,18 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/projects/:id/metrics", async (req, res) => {
+    try {
+      const metricsMap = await storage.getAggregatedMetricsForProject(req.params.id);
+      const result: Record<string, Record<string, number | null>> = {};
+      metricsMap.forEach((metricValues, experimentId) => {
+        result[experimentId] = Object.fromEntries(metricValues);
+      });
+      res.json(result);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch project metrics" });
+    }
+  });
+
   return httpServer;
 }

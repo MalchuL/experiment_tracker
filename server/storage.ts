@@ -10,8 +10,8 @@ import {
   type Metric,
   type InsertMetric,
   type DashboardStats,
-  type ExperimentStatusType,
-  type HypothesisStatusType
+  type ProjectMetric,
+  EXPERIMENT_COLORS
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 
@@ -45,6 +45,7 @@ export interface IStorage {
 
   getMetricsByExperiment(experimentId: string): Promise<Metric[]>;
   createMetric(metric: InsertMetric): Promise<Metric>;
+  getAggregatedMetricsForProject(projectId: string): Promise<Map<string, Map<string, number | null>>>;
 
   getDashboardStats(): Promise<DashboardStats>;
 }
@@ -68,7 +69,20 @@ export class MemStorage implements IStorage {
     this.seedData();
   }
 
+  private getNextColor(projectId: string): string {
+    const projectExperiments = Array.from(this.experiments.values())
+      .filter(e => e.projectId === projectId);
+    const colorIndex = projectExperiments.length % EXPERIMENT_COLORS.length;
+    return EXPERIMENT_COLORS[colorIndex];
+  }
+
   private seedData() {
+    const defaultMetrics: ProjectMetric[] = [
+      { name: "accuracy", direction: "maximize", aggregation: "best" },
+      { name: "loss", direction: "minimize", aggregation: "last" },
+      { name: "f1_score", direction: "maximize", aggregation: "best" },
+    ];
+
     const project1: Project = {
       id: randomUUID(),
       name: "ViT Training on ImageNet",
@@ -77,6 +91,7 @@ export class MemStorage implements IStorage {
       createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
       experimentCount: 0,
       hypothesisCount: 0,
+      metrics: defaultMetrics,
     };
 
     const project2: Project = {
@@ -87,6 +102,11 @@ export class MemStorage implements IStorage {
       createdAt: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString(),
       experimentCount: 0,
       hypothesisCount: 0,
+      metrics: [
+        { name: "f1_score", direction: "maximize", aggregation: "best" },
+        { name: "precision", direction: "maximize", aggregation: "last" },
+        { name: "recall", direction: "maximize", aggregation: "last" },
+      ],
     };
 
     this.projects.set(project1.id, project1);
@@ -103,6 +123,7 @@ export class MemStorage implements IStorage {
       featuresDiff: null,
       gitDiff: null,
       progress: 100,
+      color: EXPERIMENT_COLORS[0],
       createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
       startedAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
       completedAt: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString(),
@@ -119,6 +140,7 @@ export class MemStorage implements IStorage {
       featuresDiff: { lr: { from: 0.001, to: 0.0001 } },
       gitDiff: "--- a/train.py\n+++ b/train.py\n@@ -15,7 +15,7 @@ def train():\n-    lr = 0.001\n+    lr = 0.0001",
       progress: 65,
+      color: EXPERIMENT_COLORS[1],
       createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
       startedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
       completedAt: null,
@@ -135,6 +157,7 @@ export class MemStorage implements IStorage {
       featuresDiff: { batch_size: { from: 256, to: 512 } },
       gitDiff: null,
       progress: 0,
+      color: EXPERIMENT_COLORS[2],
       createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
       startedAt: null,
       completedAt: null,
@@ -151,6 +174,7 @@ export class MemStorage implements IStorage {
       featuresDiff: null,
       gitDiff: null,
       progress: 100,
+      color: EXPERIMENT_COLORS[0],
       createdAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
       startedAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
       completedAt: new Date(Date.now() - 9 * 24 * 60 * 60 * 1000).toISOString(),
@@ -167,6 +191,7 @@ export class MemStorage implements IStorage {
       featuresDiff: { lr: { from: 2e-5, to: 1e-4 } },
       gitDiff: null,
       progress: 45,
+      color: EXPERIMENT_COLORS[1],
       createdAt: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString(),
       startedAt: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString(),
       completedAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
@@ -261,10 +286,43 @@ export class MemStorage implements IStorage {
       createdAt: new Date().toISOString(),
     };
 
+    const metric5: Metric = {
+      id: randomUUID(),
+      experimentId: exp4.id,
+      name: "f1_score",
+      value: 0.8912,
+      step: 100,
+      direction: "maximize",
+      createdAt: new Date().toISOString(),
+    };
+
+    const metric6: Metric = {
+      id: randomUUID(),
+      experimentId: exp4.id,
+      name: "precision",
+      value: 0.9021,
+      step: 100,
+      direction: "maximize",
+      createdAt: new Date().toISOString(),
+    };
+
+    const metric7: Metric = {
+      id: randomUUID(),
+      experimentId: exp4.id,
+      name: "recall",
+      value: 0.8804,
+      step: 100,
+      direction: "maximize",
+      createdAt: new Date().toISOString(),
+    };
+
     this.metrics.set(metric1.id, metric1);
     this.metrics.set(metric2.id, metric2);
     this.metrics.set(metric3.id, metric3);
     this.metrics.set(metric4.id, metric4);
+    this.metrics.set(metric5.id, metric5);
+    this.metrics.set(metric6.id, metric6);
+    this.metrics.set(metric7.id, metric7);
 
     this.experimentHypotheses.set(exp2.id, new Set([hyp1.id]));
 
@@ -321,6 +379,7 @@ export class MemStorage implements IStorage {
       createdAt: new Date().toISOString(),
       experimentCount: 0,
       hypothesisCount: 0,
+      metrics: insertProject.metrics || [],
     };
     this.projects.set(id, project);
     return project;
@@ -377,6 +436,8 @@ export class MemStorage implements IStorage {
       rootExperimentId = parent?.rootExperimentId || parent?.id || null;
     }
 
+    const color = insertExperiment.color || this.getNextColor(insertExperiment.projectId);
+
     const experiment: Experiment = {
       id,
       projectId: insertExperiment.projectId,
@@ -388,6 +449,7 @@ export class MemStorage implements IStorage {
       featuresDiff: null,
       gitDiff: insertExperiment.gitDiff || null,
       progress: 0,
+      color,
       createdAt: now,
       startedAt: insertExperiment.status === "running" ? now : null,
       completedAt: null,
@@ -545,6 +607,51 @@ export class MemStorage implements IStorage {
     };
     this.metrics.set(id, metric);
     return metric;
+  }
+
+  async getAggregatedMetricsForProject(projectId: string): Promise<Map<string, Map<string, number | null>>> {
+    const project = this.projects.get(projectId);
+    if (!project) return new Map();
+
+    const experiments = await this.getExperimentsByProject(projectId);
+    const result = new Map<string, Map<string, number | null>>();
+
+    for (const experiment of experiments) {
+      const experimentMetrics = await this.getMetricsByExperiment(experiment.id);
+      const metricValues = new Map<string, number | null>();
+
+      for (const projectMetric of project.metrics) {
+        const matchingMetrics = experimentMetrics.filter(m => m.name === projectMetric.name);
+        
+        if (matchingMetrics.length === 0) {
+          metricValues.set(projectMetric.name, null);
+        } else {
+          let value: number;
+          switch (projectMetric.aggregation) {
+            case "last":
+              value = matchingMetrics.sort((a, b) => b.step - a.step)[0].value;
+              break;
+            case "best":
+              if (projectMetric.direction === "maximize") {
+                value = Math.max(...matchingMetrics.map(m => m.value));
+              } else {
+                value = Math.min(...matchingMetrics.map(m => m.value));
+              }
+              break;
+            case "average":
+              value = matchingMetrics.reduce((sum, m) => sum + m.value, 0) / matchingMetrics.length;
+              break;
+            default:
+              value = matchingMetrics[0].value;
+          }
+          metricValues.set(projectMetric.name, value);
+        }
+      }
+
+      result.set(experiment.id, metricValues);
+    }
+
+    return result;
   }
 
   async getDashboardStats(): Promise<DashboardStats> {

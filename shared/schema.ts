@@ -43,6 +43,33 @@ export const MetricDirection = {
 
 export type MetricDirectionType = typeof MetricDirection[keyof typeof MetricDirection];
 
+export const MetricAggregation = {
+  LAST: "last",
+  BEST: "best",
+  AVERAGE: "average",
+} as const;
+
+export type MetricAggregationType = typeof MetricAggregation[keyof typeof MetricAggregation];
+
+export const EXPERIMENT_COLORS = [
+  "#3b82f6", // blue
+  "#10b981", // green
+  "#f59e0b", // amber
+  "#ef4444", // red
+  "#8b5cf6", // violet
+  "#ec4899", // pink
+  "#06b6d4", // cyan
+  "#f97316", // orange
+  "#84cc16", // lime
+  "#6366f1", // indigo
+] as const;
+
+export interface ProjectMetric {
+  name: string;
+  direction: MetricDirectionType;
+  aggregation: MetricAggregationType;
+}
+
 export interface Project {
   id: string;
   name: string;
@@ -51,18 +78,27 @@ export interface Project {
   createdAt: string;
   experimentCount: number;
   hypothesisCount: number;
+  metrics: ProjectMetric[];
 }
 
 export interface InsertProject {
   name: string;
   description: string;
   owner: string;
+  metrics?: ProjectMetric[];
 }
+
+export const projectMetricSchema = z.object({
+  name: z.string().min(1),
+  direction: z.enum(["minimize", "maximize"]),
+  aggregation: z.enum(["last", "best", "average"]),
+});
 
 export const insertProjectSchema = z.object({
   name: z.string().min(1, "Name is required").max(100),
   description: z.string().max(500).default(""),
   owner: z.string().min(1, "Owner is required"),
+  metrics: z.array(projectMetricSchema).default([]),
 });
 
 export interface Experiment {
@@ -76,6 +112,7 @@ export interface Experiment {
   featuresDiff: Record<string, unknown> | null;
   gitDiff: string | null;
   progress: number;
+  color: string;
   createdAt: string;
   startedAt: string | null;
   completedAt: string | null;
@@ -88,6 +125,7 @@ export interface InsertExperiment {
   parentExperimentId?: string | null;
   features?: Record<string, unknown>;
   gitDiff?: string | null;
+  color?: string;
 }
 
 export const insertExperimentSchema = z.object({
@@ -97,6 +135,7 @@ export const insertExperimentSchema = z.object({
   parentExperimentId: z.string().nullable().optional(),
   features: z.record(z.unknown()).default({}),
   gitDiff: z.string().nullable().optional(),
+  color: z.string().optional(),
 });
 
 export interface Metric {
@@ -186,4 +225,10 @@ export interface DashboardStats {
   totalHypotheses: number;
   supportedHypotheses: number;
   refutedHypotheses: number;
+}
+
+export interface ExperimentMetricValue {
+  experimentId: string;
+  metricName: string;
+  value: number | null;
 }
