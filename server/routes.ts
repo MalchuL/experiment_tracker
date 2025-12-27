@@ -175,6 +175,22 @@ export async function registerRoutes(
     }
   });
 
+  app.patch("/api/projects/:id/experiments/reorder", async (req, res) => {
+    try {
+      const { experimentIds } = req.body as { experimentIds: string[] };
+      if (!experimentIds || !Array.isArray(experimentIds)) {
+        return res.status(400).json({ error: "experimentIds array is required" });
+      }
+      for (let i = 0; i < experimentIds.length; i++) {
+        await storage.updateExperiment(experimentIds[i], { order: i });
+      }
+      const experiments = await storage.getExperimentsByProject(req.params.id);
+      res.json(experiments);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to reorder experiments" });
+    }
+  });
+
   app.get("/api/hypotheses", async (req, res) => {
     try {
       const hypotheses = await storage.getAllHypotheses();

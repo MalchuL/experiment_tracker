@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
@@ -6,6 +7,9 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -18,18 +22,19 @@ import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import {
   X,
-  FlaskConical,
   GitBranch,
-  Calendar,
   Clock,
   Play,
   CheckCircle2,
   XCircle,
   TrendingUp,
   TrendingDown,
+  Save,
+  Palette,
 } from "lucide-react";
 import { format } from "date-fns";
 import type { Experiment, Metric, Project, ProjectMetric } from "@shared/schema";
+import { EXPERIMENT_COLORS } from "@shared/schema";
 
 interface ExperimentSidebarProps {
   experimentId: string | null;
@@ -45,6 +50,8 @@ export function ExperimentSidebar({
   aggregatedMetrics,
 }: ExperimentSidebarProps) {
   const { toast } = useToast();
+  const [editedDescription, setEditedDescription] = useState<string | null>(null);
+  const [editedColor, setEditedColor] = useState<string | null>(null);
 
   const { data: experiment, isLoading: experimentLoading } = useQuery<Experiment>({
     queryKey: ["/api/experiments", experimentId],
@@ -66,9 +73,9 @@ export function ExperimentSidebar({
     enabled: !!experiment?.parentExperimentId,
   });
 
-  const updateStatusMutation = useMutation({
-    mutationFn: async (status: string) => {
-      return apiRequest("PATCH", `/api/experiments/${experimentId}`, { status });
+  const updateMutation = useMutation({
+    mutationFn: async (updates: Partial<Experiment>) => {
+      return apiRequest("PATCH", `/api/experiments/${experimentId}`, updates);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/experiments", experimentId] });
@@ -76,14 +83,16 @@ export function ExperimentSidebar({
       queryClient.invalidateQueries({ queryKey: ["/api/projects", experiment?.projectId, "experiments"] });
       queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
       toast({
-        title: "Status updated",
-        description: "Experiment status has been updated.",
+        title: "Experiment updated",
+        description: "Changes have been saved.",
       });
+      setEditedDescription(null);
+      setEditedColor(null);
     },
     onError: () => {
       toast({
         title: "Error",
-        description: "Failed to update status.",
+        description: "Failed to update experiment.",
         variant: "destructive",
       });
     },
@@ -91,22 +100,29 @@ export function ExperimentSidebar({
 
   if (!experimentId) return null;
 
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case "running":
-        return <Play className="w-4 h-4" />;
-      case "complete":
-        return <CheckCircle2 className="w-4 h-4" />;
-      case "failed":
-        return <XCircle className="w-4 h-4" />;
-      default:
-        return <Clock className="w-4 h-4" />;
-    }
-  };
-
   const formatMetricValue = (value: number | null | undefined): string => {
     if (value === null || value === undefined) return "NaN";
     return value.toFixed(4);
+  };
+
+  const currentDescription = editedDescription !== null ? editedDescription : (experiment?.description || "");
+  const currentColor = editedColor !== null ? editedColor : (experiment?.color || EXPERIMENT_COLORS[0]);
+
+  const hasChanges = 
+    (editedDescription !== null && editedDescription !== (experiment?.description || "")) ||
+    (editedColor !== null && editedColor !== experiment?.color);
+
+  const saveChanges = () => {
+    const updates: Partial<Experiment> = {};
+    if (editedDescription !== null && editedDescription !== (experiment?.description || "")) {
+      updates.description = editedDescription;
+    }
+    if (editedColor !== null && editedColor !== experiment?.color) {
+      updates.color = editedColor;
+    }
+    if (Object.keys(updates).length > 0) {
+      updateMutation.mutate(updates);
+    }
   };
 
   return (
@@ -118,7 +134,7 @@ export function ExperimentSidebar({
         <div className="flex items-center gap-2">
           <div
             className="w-3 h-3 rounded-full"
-            style={{ backgroundColor: experiment?.color || "#3b82f6" }}
+            style={{ backgroundColor: currentColor }}
           />
           <h2 className="font-semibold truncate">
             {experimentLoading ? (
@@ -128,14 +144,27 @@ export function ExperimentSidebar({
             )}
           </h2>
         </div>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={onClose}
-          data-testid="button-close-sidebar"
-        >
-          <X className="w-4 h-4" />
-        </Button>
+        <div className="flex items-center gap-1">
+          {hasChanges && (
+            <Button
+              size="sm"
+              onClick={saveChanges}
+              disabled={updateMutation.isPending}
+              data-testid="button-save-experiment"
+            >
+              <Save className="w-4 h-4 mr-1" />
+              Save
+            </Button>
+          )}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onClose}
+            data-testid="button-close-sidebar"
+          >
+            <X className="w-4 h-4" />
+          </Button>
+        </div>
       </div>
 
       {experimentLoading ? (
@@ -164,7 +193,7 @@ export function ExperimentSidebar({
               <span className="text-sm text-muted-foreground">Status:</span>
               <Select
                 value={experiment.status}
-                onValueChange={(value) => updateStatusMutation.mutate(value)}
+                onValueChange={(value) => updateMutation.mutate({ status: value as Experiment["status"] })}
               >
                 <SelectTrigger className="w-32 h-8" data-testid="select-status">
                   <SelectValue />
@@ -187,6 +216,41 @@ export function ExperimentSidebar({
                 <Progress value={experiment.progress} className="h-2" />
               </div>
             )}
+
+            <div className="space-y-2">
+              <Label htmlFor="description">Description</Label>
+              <Textarea
+                id="description"
+                value={currentDescription}
+                onChange={(e) => setEditedDescription(e.target.value)}
+                placeholder="Add experiment description..."
+                className="min-h-[80px] resize-none"
+                data-testid="input-description"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2">
+                <Palette className="w-4 h-4" />
+                Color
+              </Label>
+              <div className="flex gap-2 flex-wrap">
+                {EXPERIMENT_COLORS.map((color) => (
+                  <button
+                    key={color}
+                    type="button"
+                    className={`w-6 h-6 rounded-full border-2 transition-transform ${
+                      currentColor === color
+                        ? "border-foreground scale-110"
+                        : "border-transparent hover:scale-105"
+                    }`}
+                    style={{ backgroundColor: color }}
+                    onClick={() => setEditedColor(color)}
+                    data-testid={`color-option-${color}`}
+                  />
+                ))}
+              </div>
+            </div>
 
             <div className="grid grid-cols-2 gap-2 text-sm">
               <div className="p-2 rounded-md bg-muted/50">

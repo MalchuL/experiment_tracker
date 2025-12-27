@@ -34,7 +34,7 @@ import {
 import { useExperimentStore } from "@/stores/experiment-store";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { FlaskConical, Plus, Clock, Play, CheckCircle2, XCircle } from "lucide-react";
+import { FlaskConical, Plus, Clock, Play, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
 import type { Experiment, Project, ExperimentStatusType } from "@shared/schema";
 import { ExperimentStatus } from "@shared/schema";
 
@@ -149,10 +149,9 @@ export default function Kanban() {
     queryKey: ["/api/projects"],
   });
 
-  const { data: experiments, isLoading } = useQuery<Experiment[]>({
-    queryKey: selectedProjectId
-      ? ["/api/projects", selectedProjectId, "experiments"]
-      : ["/api/experiments"],
+  const { data: experiments = [], isLoading } = useQuery<Experiment[]>({
+    queryKey: ["/api/projects", selectedProjectId, "experiments"],
+    enabled: !!selectedProjectId,
   });
 
   const { data: aggregatedMetrics } = useQuery<Record<string, Record<string, number | null>>>({
@@ -193,9 +192,8 @@ export default function Kanban() {
   });
 
   const filteredExperiments = useMemo(() => {
-    if (!experiments) return [];
-    if (!selectedProjectId) return experiments;
-    return experiments.filter((e) => e.projectId === selectedProjectId);
+    if (!experiments || !selectedProjectId) return [];
+    return experiments;
   }, [experiments, selectedProjectId]);
 
   const getExperimentsByStatus = (status: string) => {
@@ -231,6 +229,18 @@ export default function Kanban() {
     }
   };
 
+  if (!selectedProjectId) {
+    return (
+      <div className="flex flex-col items-center justify-center h-[calc(100vh-8rem)] gap-4">
+        <AlertCircle className="w-12 h-12 text-muted-foreground" />
+        <h2 className="text-lg font-medium">No Project Selected</h2>
+        <p className="text-muted-foreground text-center max-w-md">
+          Click on the logo in the sidebar to select a project and view its Kanban board.
+        </p>
+      </div>
+    );
+  }
+
   if (isLoading) {
     return (
       <div className="space-y-6">
@@ -247,25 +257,7 @@ export default function Kanban() {
     <div className="h-[calc(100vh-8rem)] flex flex-col">
       <PageHeader
         title="Kanban View"
-        description="Drag experiments between columns to update status"
-        actions={
-          <Select
-            value={selectedProjectId || "all"}
-            onValueChange={(v) => setSelectedProjectId(v === "all" ? null : v)}
-          >
-            <SelectTrigger className="w-48" data-testid="select-project-filter">
-              <SelectValue placeholder="All Projects" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Projects</SelectItem>
-              {projects?.map((project) => (
-                <SelectItem key={project.id} value={project.id}>
-                  {project.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        }
+        description={`Kanban board for "${selectedProject?.name}"`}
       />
 
       {filteredExperiments.length === 0 ? (

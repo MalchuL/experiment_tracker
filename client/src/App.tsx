@@ -11,6 +11,7 @@ import {
   SidebarInset 
 } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
+import { ProjectSelector } from "@/components/project-selector";
 
 import Dashboard from "@/pages/dashboard";
 import Projects from "@/pages/projects";
@@ -21,6 +22,7 @@ import Hypotheses from "@/pages/hypotheses";
 import HypothesisDetail from "@/pages/hypothesis-detail";
 import Kanban from "@/pages/kanban";
 import DAGView from "@/pages/dag-view";
+import ProjectSettings from "@/pages/project-settings";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -35,6 +37,7 @@ function Router() {
       <Route path="/hypotheses/:id" component={HypothesisDetail} />
       <Route path="/kanban" component={Kanban} />
       <Route path="/dag" component={DAGView} />
+      <Route path="/settings" component={ProjectSettings} />
       <Route component={NotFound} />
     </Switch>
   );
@@ -66,6 +69,7 @@ function App() {
               </SidebarInset>
             </div>
           </SidebarProvider>
+          <ProjectSelector />
           <Toaster />
         </TooltipProvider>
       </ThemeProvider>

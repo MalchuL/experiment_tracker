@@ -36,7 +36,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import { Plus, Lightbulb, MoreVertical, User, Calendar } from "lucide-react";
+import { Plus, Lightbulb, MoreVertical, User, Calendar, AlertCircle } from "lucide-react";
 import type { Hypothesis, InsertHypothesis, Project } from "@shared/schema";
 import { insertHypothesisSchema } from "@shared/schema";
 import { format } from "date-fns";
@@ -46,16 +46,19 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useExperimentStore } from "@/stores/experiment-store";
 
 export default function Hypotheses() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const { toast } = useToast();
+  const { selectedProjectId } = useExperimentStore();
   const searchString = useSearch();
   const params = new URLSearchParams(searchString);
-  const preselectedProjectId = params.get("projectId");
+  const preselectedProjectId = params.get("projectId") || selectedProjectId;
 
-  const { data: hypotheses, isLoading } = useQuery<Hypothesis[]>({
-    queryKey: ["/api/hypotheses"],
+  const { data: hypotheses = [], isLoading } = useQuery<Hypothesis[]>({
+    queryKey: ["/api/projects", selectedProjectId, "hypotheses"],
+    enabled: !!selectedProjectId,
   });
 
   const { data: projects } = useQuery<Project[]>({
@@ -124,6 +127,20 @@ export default function Hypotheses() {
   const onSubmit = (data: InsertHypothesis) => {
     createMutation.mutate(data);
   };
+
+  const selectedProject = projects?.find((p) => p.id === selectedProjectId);
+
+  if (!selectedProjectId) {
+    return (
+      <div className="flex flex-col items-center justify-center h-[calc(100vh-8rem)] gap-4">
+        <AlertCircle className="w-12 h-12 text-muted-foreground" />
+        <h2 className="text-lg font-medium">No Project Selected</h2>
+        <p className="text-muted-foreground text-center max-w-md">
+          Click on the logo in the sidebar to select a project and view its hypotheses.
+        </p>
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (

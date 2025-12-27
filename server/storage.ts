@@ -83,6 +83,11 @@ export class MemStorage implements IStorage {
       { name: "f1_score", direction: "maximize", aggregation: "best" },
     ];
 
+    const defaultSettings = {
+      namingPattern: "{num}_from_{parent}_{change}",
+      displayMetrics: ["accuracy", "loss"],
+    };
+
     const project1: Project = {
       id: randomUUID(),
       name: "ViT Training on ImageNet",
@@ -92,6 +97,7 @@ export class MemStorage implements IStorage {
       experimentCount: 0,
       hypothesisCount: 0,
       metrics: defaultMetrics,
+      settings: defaultSettings,
     };
 
     const project2: Project = {
@@ -107,6 +113,10 @@ export class MemStorage implements IStorage {
         { name: "precision", direction: "maximize", aggregation: "last" },
         { name: "recall", direction: "maximize", aggregation: "last" },
       ],
+      settings: {
+        namingPattern: "{num}_from_{parent}_{change}",
+        displayMetrics: ["f1_score", "precision"],
+      },
     };
 
     this.projects.set(project1.id, project1);
@@ -116,6 +126,7 @@ export class MemStorage implements IStorage {
       id: randomUUID(),
       projectId: project1.id,
       name: "baseline_vit_b16",
+      description: "Baseline Vision Transformer experiment",
       status: "complete",
       parentExperimentId: null,
       rootExperimentId: null,
@@ -124,6 +135,7 @@ export class MemStorage implements IStorage {
       gitDiff: null,
       progress: 100,
       color: EXPERIMENT_COLORS[0],
+      order: 0,
       createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
       startedAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
       completedAt: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString(),
@@ -133,6 +145,7 @@ export class MemStorage implements IStorage {
       id: randomUUID(),
       projectId: project1.id,
       name: "exp_001_lr_sweep",
+      description: "Learning rate sweep experiment",
       status: "running",
       parentExperimentId: exp1.id,
       rootExperimentId: exp1.id,
@@ -141,6 +154,7 @@ export class MemStorage implements IStorage {
       gitDiff: "--- a/train.py\n+++ b/train.py\n@@ -15,7 +15,7 @@ def train():\n-    lr = 0.001\n+    lr = 0.0001",
       progress: 65,
       color: EXPERIMENT_COLORS[1],
+      order: 1,
       createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
       startedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
       completedAt: null,
@@ -150,6 +164,7 @@ export class MemStorage implements IStorage {
       id: randomUUID(),
       projectId: project1.id,
       name: "exp_002_batch_size",
+      description: "Batch size experiment",
       status: "planned",
       parentExperimentId: exp1.id,
       rootExperimentId: exp1.id,
@@ -158,6 +173,7 @@ export class MemStorage implements IStorage {
       gitDiff: null,
       progress: 0,
       color: EXPERIMENT_COLORS[2],
+      order: 2,
       createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
       startedAt: null,
       completedAt: null,
@@ -167,6 +183,7 @@ export class MemStorage implements IStorage {
       id: randomUUID(),
       projectId: project2.id,
       name: "bert_baseline",
+      description: "BERT baseline experiment",
       status: "complete",
       parentExperimentId: null,
       rootExperimentId: null,
@@ -175,6 +192,7 @@ export class MemStorage implements IStorage {
       gitDiff: null,
       progress: 100,
       color: EXPERIMENT_COLORS[0],
+      order: 0,
       createdAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
       startedAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
       completedAt: new Date(Date.now() - 9 * 24 * 60 * 60 * 1000).toISOString(),
@@ -184,6 +202,7 @@ export class MemStorage implements IStorage {
       id: randomUUID(),
       projectId: project2.id,
       name: "bert_lr_experiment",
+      description: "BERT learning rate experiment",
       status: "failed",
       parentExperimentId: exp4.id,
       rootExperimentId: exp4.id,
@@ -192,6 +211,7 @@ export class MemStorage implements IStorage {
       gitDiff: null,
       progress: 45,
       color: EXPERIMENT_COLORS[1],
+      order: 1,
       createdAt: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString(),
       startedAt: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString(),
       completedAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
@@ -380,6 +400,10 @@ export class MemStorage implements IStorage {
       experimentCount: 0,
       hypothesisCount: 0,
       metrics: insertProject.metrics || [],
+      settings: insertProject.settings || {
+        namingPattern: "{num}_from_{parent}_{change}",
+        displayMetrics: [],
+      },
     };
     this.projects.set(id, project);
     return project;
@@ -438,10 +462,14 @@ export class MemStorage implements IStorage {
 
     const color = insertExperiment.color || this.getNextColor(insertExperiment.projectId);
 
+    const projectExperiments = await this.getExperimentsByProject(insertExperiment.projectId);
+    const maxOrder = projectExperiments.reduce((max, e) => Math.max(max, e.order), -1);
+
     const experiment: Experiment = {
       id,
       projectId: insertExperiment.projectId,
       name: insertExperiment.name,
+      description: insertExperiment.description || "",
       status: insertExperiment.status || "planned",
       parentExperimentId: insertExperiment.parentExperimentId || null,
       rootExperimentId,
@@ -450,6 +478,7 @@ export class MemStorage implements IStorage {
       gitDiff: insertExperiment.gitDiff || null,
       progress: 0,
       color,
+      order: insertExperiment.order ?? maxOrder + 1,
       createdAt: now,
       startedAt: insertExperiment.status === "running" ? now : null,
       completedAt: null,

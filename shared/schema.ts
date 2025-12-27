@@ -70,6 +70,11 @@ export interface ProjectMetric {
   aggregation: MetricAggregationType;
 }
 
+export interface ProjectSettings {
+  namingPattern: string;
+  displayMetrics: string[];
+}
+
 export interface Project {
   id: string;
   name: string;
@@ -79,6 +84,7 @@ export interface Project {
   experimentCount: number;
   hypothesisCount: number;
   metrics: ProjectMetric[];
+  settings: ProjectSettings;
 }
 
 export interface InsertProject {
@@ -86,6 +92,7 @@ export interface InsertProject {
   description: string;
   owner: string;
   metrics?: ProjectMetric[];
+  settings?: ProjectSettings;
 }
 
 export const projectMetricSchema = z.object({
@@ -94,17 +101,27 @@ export const projectMetricSchema = z.object({
   aggregation: z.enum(["last", "best", "average"]),
 });
 
+export const projectSettingsSchema = z.object({
+  namingPattern: z.string().default("{num}_from_{parent}_{change}"),
+  displayMetrics: z.array(z.string()).default([]),
+});
+
 export const insertProjectSchema = z.object({
   name: z.string().min(1, "Name is required").max(100),
   description: z.string().max(500).default(""),
   owner: z.string().min(1, "Owner is required"),
   metrics: z.array(projectMetricSchema).default([]),
+  settings: projectSettingsSchema.default({
+    namingPattern: "{num}_from_{parent}_{change}",
+    displayMetrics: [],
+  }),
 });
 
 export interface Experiment {
   id: string;
   projectId: string;
   name: string;
+  description: string;
   status: ExperimentStatusType;
   parentExperimentId: string | null;
   rootExperimentId: string | null;
@@ -113,6 +130,7 @@ export interface Experiment {
   gitDiff: string | null;
   progress: number;
   color: string;
+  order: number;
   createdAt: string;
   startedAt: string | null;
   completedAt: string | null;
@@ -121,21 +139,25 @@ export interface Experiment {
 export interface InsertExperiment {
   projectId: string;
   name: string;
+  description?: string;
   status?: ExperimentStatusType;
   parentExperimentId?: string | null;
   features?: Record<string, unknown>;
   gitDiff?: string | null;
   color?: string;
+  order?: number;
 }
 
 export const insertExperimentSchema = z.object({
   projectId: z.string().min(1, "Project is required"),
   name: z.string().min(1, "Name is required").max(100),
+  description: z.string().max(1000).default(""),
   status: z.enum(["planned", "running", "complete", "failed"]).default("planned"),
   parentExperimentId: z.string().nullable().optional(),
   features: z.record(z.unknown()).default({}),
   gitDiff: z.string().nullable().optional(),
   color: z.string().optional(),
+  order: z.number().optional(),
 });
 
 export interface Metric {

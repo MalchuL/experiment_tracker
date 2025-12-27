@@ -2,13 +2,28 @@ import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import {
+  DndContext,
+  DragEndEvent,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  closestCenter,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  verticalListSortingStrategy,
+  useSortable,
+  arrayMove,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
 import { ListSkeleton } from "@/components/loading-skeleton";
 import { StatusBadge } from "@/components/status-badge";
 import { ExperimentSidebar } from "@/components/experiment-sidebar";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -25,31 +40,16 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Progress } from "@/components/ui/progress";
-import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useExperimentStore } from "@/stores/experiment-store";
-import { Plus, FlaskConical, MoreVertical, GitBranch, Calendar, TrendingUp, TrendingDown } from "lucide-react";
+import { Plus, FlaskConical, GripVertical, TrendingUp, TrendingDown, AlertCircle } from "lucide-react";
 import type { Experiment, InsertExperiment, Project } from "@shared/schema";
 import { insertExperimentSchema, EXPERIMENT_COLORS } from "@shared/schema";
 import { format } from "date-fns";
 import { z } from "zod";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import {
   Table,
   TableBody,
@@ -62,9 +62,91 @@ import {
 const formSchema = insertExperimentSchema.extend({
   featuresJson: z.string().optional(),
   color: z.string().optional(),
+  description: z.string().optional(),
 });
 
 type FormData = z.infer<typeof formSchema>;
+
+interface SortableRowProps {
+  experiment: Experiment;
+  onClick: () => void;
+  projectMetrics?: Project["metrics"];
+  expMetrics?: Record<string, number | null>;
+  parentName?: string;
+}
+
+function SortableRow({ experiment, onClick, projectMetrics, expMetrics, parentName }: SortableRowProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: experiment.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  const formatMetricValue = (value: number | null | undefined): string => {
+    if (value === null || value === undefined) return "NaN";
+    return value.toFixed(4);
+  };
+
+  return (
+    <TableRow
+      ref={setNodeRef}
+      style={style}
+      className="cursor-pointer hover-elevate"
+      onClick={onClick}
+      data-testid={`row-experiment-${experiment.id}`}
+    >
+      <TableCell>
+        <div
+          className="cursor-grab active:cursor-grabbing p-1"
+          {...attributes}
+          {...listeners}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <GripVertical className="w-4 h-4 text-muted-foreground" />
+        </div>
+      </TableCell>
+      <TableCell>
+        <div className="flex items-center gap-2">
+          <div
+            className="w-3 h-3 rounded-full flex-shrink-0"
+            style={{ backgroundColor: experiment.color }}
+          />
+          <div>
+            <p className="font-medium truncate">{experiment.name}</p>
+            {experiment.description && (
+              <p className="text-xs text-muted-foreground truncate max-w-[200px]">
+                {experiment.description}
+              </p>
+            )}
+          </div>
+        </div>
+      </TableCell>
+      <TableCell>
+        <StatusBadge status={experiment.status} />
+      </TableCell>
+      <TableCell className="text-muted-foreground text-sm">
+        {parentName || "-"}
+      </TableCell>
+      {projectMetrics?.map((metric) => (
+        <TableCell key={metric.name} className="text-right font-mono text-sm">
+          {formatMetricValue(expMetrics?.[metric.name])}
+        </TableCell>
+      ))}
+      <TableCell className="text-muted-foreground text-sm">
+        {format(new Date(experiment.createdAt), "MMM d")}
+      </TableCell>
+    </TableRow>
+  );
+}
 
 export default function Experiments() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -73,13 +155,20 @@ export default function Experiments() {
     selectedExperimentId,
     selectedProjectId,
     setSelectedExperimentId,
-    setSelectedProjectId,
   } = useExperimentStore();
 
-  const { data: experiments, isLoading } = useQuery<Experiment[]>({
-    queryKey: selectedProjectId
-      ? ["/api/projects", selectedProjectId, "experiments"]
-      : ["/api/experiments"],
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    })
+  );
+
+  const { data: experiments = [], isLoading } = useQuery<Experiment[]>({
+    queryKey: ["/api/projects", selectedProjectId, "experiments"],
+    enabled: !!selectedProjectId,
+    staleTime: 0,
   });
 
   const { data: projects } = useQuery<Project[]>({
@@ -93,11 +182,17 @@ export default function Experiments() {
 
   const selectedProject = projects?.find((p) => p.id === selectedProjectId);
 
+  const sortedExperiments = useMemo(() => {
+    if (!experiments) return [];
+    return [...experiments].sort((a, b) => a.order - b.order);
+  }, [experiments]);
+
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       projectId: selectedProjectId || "",
       name: "",
+      description: "",
       status: "planned",
       parentExperimentId: null,
       features: {},
@@ -127,33 +222,58 @@ export default function Experiments() {
     onError: () => {
       toast({
         title: "Error",
-        description: "Failed to create experiment. Please try again.",
+        description: "Failed to create experiment.",
         variant: "destructive",
       });
     },
   });
 
-  const deleteMutation = useMutation({
-    mutationFn: async (id: string) => {
-      return apiRequest("DELETE", `/api/experiments/${id}`);
+  const reorderMutation = useMutation({
+    mutationFn: async (experimentIds: string[]) => {
+      return apiRequest("PATCH", `/api/projects/${selectedProjectId}/experiments/reorder`, {
+        experimentIds,
+      });
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/experiments"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
-      queryClient.invalidateQueries({
+    onMutate: async (experimentIds: string[]) => {
+      await queryClient.cancelQueries({
         queryKey: ["/api/projects", selectedProjectId, "experiments"],
       });
-      toast({
-        title: "Experiment deleted",
-        description: "The experiment has been deleted.",
-      });
+
+      const previousExperiments = queryClient.getQueryData<Experiment[]>([
+        "/api/projects",
+        selectedProjectId,
+        "experiments",
+      ]);
+
+      queryClient.setQueryData<Experiment[]>(
+        ["/api/projects", selectedProjectId, "experiments"],
+        (old) => {
+          if (!old) return old;
+          return experimentIds.map((id, index) => {
+            const exp = old.find((e) => e.id === id);
+            return exp ? { ...exp, order: index } : null;
+          }).filter(Boolean) as Experiment[];
+        }
+      );
+
+      return { previousExperiments };
     },
-    onError: () => {
+    onError: (_err, _experimentIds, context) => {
+      if (context?.previousExperiments) {
+        queryClient.setQueryData(
+          ["/api/projects", selectedProjectId, "experiments"],
+          context.previousExperiments
+        );
+      }
       toast({
         title: "Error",
-        description: "Failed to delete experiment.",
+        description: "Failed to reorder experiments.",
         variant: "destructive",
+      });
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({
+        queryKey: ["/api/projects", selectedProjectId, "experiments"],
       });
     },
   });
@@ -175,27 +295,39 @@ export default function Experiments() {
 
     createMutation.mutate({
       ...data,
+      projectId: selectedProjectId || data.projectId,
       features,
-      parentExperimentId: data.parentExperimentId || null,
     });
   };
 
-  const formProjectId = form.watch("projectId");
-  const projectExperiments = useMemo(() => {
-    if (!experiments) return [];
-    return experiments.filter((e) => e.projectId === formProjectId);
-  }, [experiments, formProjectId]);
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
 
-  const formatMetricValue = (value: number | null | undefined): string => {
-    if (value === null || value === undefined) return "NaN";
-    return value.toFixed(4);
+    const oldIndex = sortedExperiments.findIndex((e) => e.id === active.id);
+    const newIndex = sortedExperiments.findIndex((e) => e.id === over.id);
+
+    const newOrder = arrayMove(sortedExperiments, oldIndex, newIndex);
+    reorderMutation.mutate(newOrder.map((e) => e.id));
   };
+
+  if (!selectedProjectId) {
+    return (
+      <div className="flex flex-col items-center justify-center h-[calc(100vh-8rem)] gap-4">
+        <AlertCircle className="w-12 h-12 text-muted-foreground" />
+        <h2 className="text-lg font-medium">No Project Selected</h2>
+        <p className="text-muted-foreground text-center max-w-md">
+          Click on the logo in the sidebar to select a project and view its experiments.
+        </p>
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (
       <div className="space-y-6">
-        <PageHeader title="Experiments" description="Manage your research experiments" />
-        <ListSkeleton />
+        <PageHeader title="Experiments" description="Loading..." />
+        <ListSkeleton count={5} />
       </div>
     );
   }
@@ -204,206 +336,127 @@ export default function Experiments() {
     <div className="space-y-6">
       <PageHeader
         title="Experiments"
-        description="Track and manage your ML/DS experiments"
+        description={`Experiments for "${selectedProject?.name}". Drag to reorder.`}
         actions={
-          <div className="flex items-center gap-2">
-            <Select
-              value={selectedProjectId || "all"}
-              onValueChange={(v) => setSelectedProjectId(v === "all" ? null : v)}
-            >
-              <SelectTrigger className="w-48" data-testid="select-project-filter">
-                <SelectValue placeholder="All Projects" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Projects</SelectItem>
-                {projects?.map((project) => (
-                  <SelectItem key={project.id} value={project.id}>
-                    {project.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-              <DialogTrigger asChild>
-                <Button data-testid="button-create-experiment">
-                  <Plus className="w-4 h-4 mr-2" />
-                  New Experiment
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-lg">
-                <DialogHeader>
-                  <DialogTitle>Create Experiment</DialogTitle>
-                  <DialogDescription>
-                    Create a new experiment to track your research run.
-                  </DialogDescription>
-                </DialogHeader>
-                <Form {...form}>
-                  <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                    <FormField
-                      control={form.control}
-                      name="projectId"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Project</FormLabel>
-                          <Select onValueChange={field.onChange} value={field.value}>
-                            <FormControl>
-                              <SelectTrigger data-testid="select-project">
-                                <SelectValue placeholder="Select a project" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              {projects?.map((project) => (
-                                <SelectItem key={project.id} value={project.id}>
-                                  {project.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="name"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Name</FormLabel>
-                          <FormControl>
-                            <Input
-                              placeholder="e.g., exp_001_lr_sweep"
-                              data-testid="input-experiment-name"
-                              {...field}
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild>
+              <Button data-testid="button-create-experiment">
+                <Plus className="w-4 h-4 mr-2" />
+                New Experiment
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle>Create Experiment</DialogTitle>
+                <DialogDescription>
+                  Add a new experiment to "{selectedProject?.name}".
+                </DialogDescription>
+              </DialogHeader>
+              <Form {...form}>
+                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                  <FormField
+                    control={form.control}
+                    name="name"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Name</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="exp_001_lr_sweep"
+                            data-testid="input-experiment-name"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="description"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Description</FormLabel>
+                        <FormControl>
+                          <Textarea
+                            placeholder="Experiment description..."
+                            className="resize-none"
+                            data-testid="input-experiment-description"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="color"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Color</FormLabel>
+                        <div className="flex gap-2 flex-wrap">
+                          {EXPERIMENT_COLORS.map((color) => (
+                            <button
+                              key={color}
+                              type="button"
+                              className={`w-6 h-6 rounded-full border-2 ${
+                                field.value === color
+                                  ? "border-foreground"
+                                  : "border-transparent"
+                              }`}
+                              style={{ backgroundColor: color }}
+                              onClick={() => field.onChange(color)}
+                              data-testid={`color-${color}`}
                             />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <div className="grid grid-cols-2 gap-4">
-                      <FormField
-                        control={form.control}
-                        name="status"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Status</FormLabel>
-                            <Select onValueChange={field.onChange} defaultValue={field.value}>
-                              <FormControl>
-                                <SelectTrigger data-testid="select-status">
-                                  <SelectValue placeholder="Select status" />
-                                </SelectTrigger>
-                              </FormControl>
-                              <SelectContent>
-                                <SelectItem value="planned">Planned</SelectItem>
-                                <SelectItem value="running">Running</SelectItem>
-                                <SelectItem value="complete">Complete</SelectItem>
-                                <SelectItem value="failed">Failed</SelectItem>
-                              </SelectContent>
-                            </Select>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={form.control}
-                        name="color"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Color</FormLabel>
-                            <div className="flex gap-1 flex-wrap">
-                              {EXPERIMENT_COLORS.map((color) => (
-                                <button
-                                  key={color}
-                                  type="button"
-                                  className={`w-6 h-6 rounded-full border-2 ${
-                                    field.value === color
-                                      ? "border-foreground"
-                                      : "border-transparent"
-                                  }`}
-                                  style={{ backgroundColor: color }}
-                                  onClick={() => field.onChange(color)}
-                                  data-testid={`color-${color}`}
-                                />
-                              ))}
-                            </div>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-                    <FormField
-                      control={form.control}
-                      name="parentExperimentId"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Parent Experiment (Optional)</FormLabel>
-                          <Select
-                            onValueChange={(value) =>
-                              field.onChange(value === "none" ? null : value)
-                            }
-                            value={field.value || "none"}
-                          >
-                            <FormControl>
-                              <SelectTrigger data-testid="select-parent">
-                                <SelectValue placeholder="Select parent experiment" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              <SelectItem value="none">No parent (root experiment)</SelectItem>
-                              {projectExperiments.map((exp) => (
-                                <SelectItem key={exp.id} value={exp.id}>
-                                  {exp.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="featuresJson"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Features (JSON)</FormLabel>
-                          <FormControl>
-                            <Textarea
-                              placeholder='{"optimizer": "AdamW", "lr": 0.0001}'
-                              className="resize-none font-mono text-sm"
-                              data-testid="input-features"
-                              {...field}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <div className="flex justify-end gap-2">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => setIsDialogOpen(false)}
-                      >
-                        Cancel
-                      </Button>
-                      <Button
-                        type="submit"
-                        disabled={createMutation.isPending}
-                        data-testid="button-submit-experiment"
-                      >
-                        {createMutation.isPending ? "Creating..." : "Create Experiment"}
-                      </Button>
-                    </div>
-                  </form>
-                </Form>
-              </DialogContent>
-            </Dialog>
-          </div>
+                          ))}
+                        </div>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="featuresJson"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Features (JSON)</FormLabel>
+                        <FormControl>
+                          <Textarea
+                            placeholder='{"optimizer": "AdamW", "lr": 0.0001}'
+                            className="resize-none font-mono text-sm"
+                            data-testid="input-features"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <div className="flex justify-end gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setIsDialogOpen(false)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      type="submit"
+                      disabled={createMutation.isPending}
+                      data-testid="button-submit-experiment"
+                    >
+                      {createMutation.isPending ? "Creating..." : "Create"}
+                    </Button>
+                  </div>
+                </form>
+              </Form>
+            </DialogContent>
+          </Dialog>
         }
       />
 
-      {!experiments || experiments.length === 0 ? (
+      {!sortedExperiments.length ? (
         <EmptyState
           icon={FlaskConical}
           title="No experiments yet"
@@ -420,125 +473,57 @@ export default function Experiments() {
         />
       ) : (
         <Card>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-[200px]">Experiment</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Parent</TableHead>
-                {selectedProject?.metrics.map((metric) => (
-                  <TableHead key={metric.name} className="text-right">
-                    <div className="flex items-center justify-end gap-1">
-                      {metric.name}
-                      {metric.direction === "minimize" ? (
-                        <TrendingDown className="w-3 h-3" />
-                      ) : (
-                        <TrendingUp className="w-3 h-3" />
-                      )}
-                    </div>
-                  </TableHead>
-                ))}
-                <TableHead className="w-[100px]">Created</TableHead>
-                <TableHead className="w-[50px]"></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {experiments.map((experiment) => {
-                const expMetrics = aggregatedMetrics?.[experiment.id];
-                const parentExp = experiments.find(
-                  (e) => e.id === experiment.parentExperimentId
-                );
-
-                return (
-                  <TableRow
-                    key={experiment.id}
-                    className="cursor-pointer hover-elevate"
-                    onClick={() => setSelectedExperimentId(experiment.id)}
-                    data-testid={`row-experiment-${experiment.id}`}
-                  >
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <div
-                          className="w-3 h-3 rounded-full flex-shrink-0"
-                          style={{ backgroundColor: experiment.color }}
-                        />
-                        <div className="min-w-0">
-                          <p className="font-medium truncate">{experiment.name}</p>
-                          <p className="text-xs text-muted-foreground font-mono">
-                            {experiment.id.slice(0, 8)}
-                          </p>
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <StatusBadge status={experiment.status} size="sm" />
-                        {experiment.status === "running" && (
-                          <span className="text-xs text-muted-foreground">
-                            {experiment.progress}%
-                          </span>
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
+          >
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-[40px]"></TableHead>
+                  <TableHead className="w-[200px]">Experiment</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Parent</TableHead>
+                  {selectedProject?.metrics.map((metric) => (
+                    <TableHead key={metric.name} className="text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        {metric.name}
+                        {metric.direction === "minimize" ? (
+                          <TrendingDown className="w-3 h-3" />
+                        ) : (
+                          <TrendingUp className="w-3 h-3" />
                         )}
                       </div>
-                    </TableCell>
-                    <TableCell>
-                      {parentExp ? (
-                        <Badge variant="outline" className="text-xs">
-                          <GitBranch className="w-3 h-3 mr-1" />
-                          {parentExp.name.slice(0, 15)}
-                        </Badge>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">root</span>
-                      )}
-                    </TableCell>
-                    {selectedProject?.metrics.map((metric) => (
-                      <TableCell
-                        key={metric.name}
-                        className="text-right font-mono text-sm"
-                      >
-                        <span
-                          className={
-                            expMetrics?.[metric.name] === null ||
-                            expMetrics?.[metric.name] === undefined
-                              ? "text-muted-foreground"
-                              : ""
-                          }
-                        >
-                          {formatMetricValue(expMetrics?.[metric.name])}
-                        </span>
-                      </TableCell>
-                    ))}
-                    <TableCell className="text-muted-foreground text-xs">
-                      {format(new Date(experiment.createdAt), "MMM d")}
-                    </TableCell>
-                    <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger
-                          asChild
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <Button variant="ghost" size="icon" className="h-8 w-8">
-                            <MoreVertical className="w-4 h-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem
-                            className="text-destructive"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              deleteMutation.mutate(experiment.id);
-                            }}
-                            data-testid={`button-delete-experiment-${experiment.id}`}
-                          >
-                            Delete
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
+                    </TableHead>
+                  ))}
+                  <TableHead className="w-[80px]">Created</TableHead>
+                </TableRow>
+              </TableHeader>
+              <SortableContext
+                items={sortedExperiments.map((e) => e.id)}
+                strategy={verticalListSortingStrategy}
+              >
+                <TableBody>
+                  {sortedExperiments.map((experiment) => {
+                    const parent = sortedExperiments.find(
+                      (e) => e.id === experiment.parentExperimentId
+                    );
+                    return (
+                      <SortableRow
+                        key={experiment.id}
+                        experiment={experiment}
+                        onClick={() => setSelectedExperimentId(experiment.id)}
+                        projectMetrics={selectedProject?.metrics}
+                        expMetrics={aggregatedMetrics?.[experiment.id]}
+                        parentName={parent?.name}
+                      />
+                    );
+                  })}
+                </TableBody>
+              </SortableContext>
+            </Table>
+          </DndContext>
         </Card>
       )}
 

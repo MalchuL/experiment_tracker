@@ -11,73 +11,98 @@ import {
   Handle,
   Position,
   MarkerType,
-  Panel,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { PageHeader } from "@/components/page-header";
 import { ListSkeleton } from "@/components/loading-skeleton";
 import { EmptyState } from "@/components/empty-state";
 import { ExperimentSidebar } from "@/components/experiment-sidebar";
-import { Card, CardTitle } from "@/components/ui/card";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
 import { useExperimentStore } from "@/stores/experiment-store";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { GitBranch, Clock, Play, CheckCircle2, XCircle } from "lucide-react";
-import type { Experiment, Project } from "@shared/schema";
+import { GitBranch, Clock, Play, CheckCircle2, XCircle, TrendingUp, TrendingDown, AlertCircle } from "lucide-react";
+import type { Experiment, Project, ProjectMetric } from "@shared/schema";
+
+interface MetricComparison {
+  name: string;
+  value: number | null;
+  parentValue: number | null;
+  direction: "maximize" | "minimize";
+  isBetter: boolean | null;
+}
 
 interface ExperimentNodeData {
   id: string;
   label: string;
+  description: string;
   status: string;
   color: string;
   progress: number;
+  metrics: MetricComparison[];
+  [key: string]: unknown;
 }
 
 function ExperimentNode({ data }: { data: ExperimentNodeData }) {
   const getStatusIcon = (status: string) => {
     switch (status) {
       case "running":
-        return <Play className="w-3 h-3" />;
+        return <Play className="w-3 h-3 text-blue-500" />;
       case "complete":
-        return <CheckCircle2 className="w-3 h-3" />;
+        return <CheckCircle2 className="w-3 h-3 text-green-500" />;
       case "failed":
-        return <XCircle className="w-3 h-3" />;
+        return <XCircle className="w-3 h-3 text-red-500" />;
       default:
         return <Clock className="w-3 h-3" />;
     }
+  };
+
+  const formatValue = (v: number | null) => {
+    if (v === null) return "NaN";
+    return v.toFixed(3);
   };
 
   return (
     <>
       <Handle type="target" position={Position.Top} className="w-2 h-2" />
       <div
-        className="px-3 py-2 rounded-md border bg-card shadow-sm cursor-pointer hover-elevate min-w-[160px]"
+        className="px-3 py-2 rounded-md border bg-card shadow-sm cursor-pointer hover-elevate min-w-[180px]"
         style={{ borderLeftColor: data.color, borderLeftWidth: "4px" }}
         data-testid={`dag-node-${data.id}`}
       >
         <div className="flex items-center gap-2 mb-1">
           <div
-            className="w-2 h-2 rounded-full"
+            className="w-2 h-2 rounded-full flex-shrink-0"
             style={{ backgroundColor: data.color }}
           />
-          <span className="text-sm font-medium truncate">{data.label}</span>
+          <span className="text-sm font-medium truncate flex-1">{data.label}</span>
+          {getStatusIcon(data.status)}
         </div>
-        <div className="flex items-center justify-between">
-          <span className="text-xs text-muted-foreground font-mono">
-            {data.id.slice(0, 8)}
-          </span>
-          <div className="flex items-center gap-1">
-            {getStatusIcon(data.status)}
-            <span className="text-xs capitalize">{data.status}</span>
+        
+        {data.description && (
+          <p className="text-xs text-muted-foreground truncate mb-1">{data.description}</p>
+        )}
+
+        {data.metrics.length > 0 && (
+          <div className="space-y-0.5 mt-2 border-t pt-1">
+            {data.metrics.slice(0, 3).map((metric) => (
+              <div key={metric.name} className="flex items-center justify-between text-xs">
+                <span className="text-muted-foreground truncate">{metric.name}</span>
+                <div className="flex items-center gap-1">
+                  <span className="font-mono">{formatValue(metric.value)}</span>
+                  {metric.isBetter !== null && (
+                    metric.isBetter ? (
+                      <TrendingUp className="w-3 h-3 text-green-500" />
+                    ) : (
+                      <TrendingDown className="w-3 h-3 text-red-500" />
+                    )
+                  )}
+                </div>
+              </div>
+            ))}
           </div>
-        </div>
+        )}
+
         {data.status === "running" && (
           <div className="mt-1 h-1 bg-muted rounded-full overflow-hidden">
             <div
@@ -100,18 +125,15 @@ export default function DAGView() {
     selectedExperimentId,
     selectedProjectId,
     setSelectedExperimentId,
-    setSelectedProjectId,
   } = useExperimentStore();
 
   const { data: projects } = useQuery<Project[]>({
     queryKey: ["/api/projects"],
   });
 
-  const { data: experiments, isLoading: experimentsLoading } = useQuery<Experiment[]>({
-    queryKey: selectedProjectId
-      ? ["/api/projects", selectedProjectId, "experiments"]
-      : ["/api/experiments"],
-    enabled: true,
+  const { data: experiments = [], isLoading: experimentsLoading } = useQuery<Experiment[]>({
+    queryKey: ["/api/projects", selectedProjectId, "experiments"],
+    enabled: !!selectedProjectId,
   });
 
   const { data: aggregatedMetrics } = useQuery<Record<string, Record<string, number | null>>>({
@@ -121,41 +143,9 @@ export default function DAGView() {
 
   const selectedProject = projects?.find((p) => p.id === selectedProjectId);
 
-  const updateParentMutation = useMutation({
-    mutationFn: async ({
-      experimentId,
-      parentId,
-    }: {
-      experimentId: string;
-      parentId: string | null;
-    }) => {
-      return apiRequest("PATCH", `/api/experiments/${experimentId}`, {
-        parentExperimentId: parentId,
-      });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/experiments"] });
-      queryClient.invalidateQueries({
-        queryKey: ["/api/projects", selectedProjectId, "experiments"],
-      });
-      toast({
-        title: "Parent updated",
-        description: "Experiment hierarchy has been updated.",
-      });
-    },
-    onError: () => {
-      toast({
-        title: "Error",
-        description: "Failed to update parent.",
-        variant: "destructive",
-      });
-    },
-  });
-
   const filteredExperiments = useMemo(() => {
-    if (!experiments) return [];
-    if (!selectedProjectId) return experiments;
-    return experiments.filter((e) => e.projectId === selectedProjectId);
+    if (!experiments || !selectedProjectId) return [];
+    return experiments;
   }, [experiments, selectedProjectId]);
 
   const { initialNodes, initialEdges } = useMemo(() => {
@@ -187,25 +177,63 @@ export default function DAGView() {
       columns.get(depth)!.push(exp.id);
     });
 
+    const displayMetrics = selectedProject?.settings?.displayMetrics || [];
+    const projectMetrics = selectedProject?.metrics || [];
+
     const nodes: Node<ExperimentNodeData>[] = filteredExperiments.map((exp) => {
       const depth = depths.get(exp.id) || 0;
       const columnExps = columns.get(depth) || [];
       const indexInColumn = columnExps.indexOf(exp.id);
       const columnWidth = columnExps.length;
 
+      const expMetrics = aggregatedMetrics?.[exp.id] || {};
+      const parentMetrics = exp.parentExperimentId 
+        ? aggregatedMetrics?.[exp.parentExperimentId] || {}
+        : {};
+
+      const metricsToDisplay = displayMetrics.length > 0 
+        ? displayMetrics 
+        : projectMetrics.slice(0, 2).map(m => m.name);
+
+      const metrics: MetricComparison[] = metricsToDisplay.map(metricName => {
+        const pm = projectMetrics.find(m => m.name === metricName);
+        const value = expMetrics[metricName] ?? null;
+        const parentValue = parentMetrics[metricName] ?? null;
+        const direction = pm?.direction || "maximize";
+
+        let isBetter: boolean | null = null;
+        if (value !== null && parentValue !== null) {
+          if (direction === "maximize") {
+            isBetter = value > parentValue;
+          } else {
+            isBetter = value < parentValue;
+          }
+        }
+
+        return {
+          name: metricName,
+          value,
+          parentValue,
+          direction,
+          isBetter,
+        };
+      });
+
       return {
         id: exp.id,
         type: "experiment",
         position: {
-          x: (indexInColumn - (columnWidth - 1) / 2) * 220,
-          y: depth * 120,
+          x: (indexInColumn - (columnWidth - 1) / 2) * 240,
+          y: depth * 160,
         },
         data: {
           id: exp.id,
           label: exp.name,
+          description: exp.description || "",
           status: exp.status,
           color: exp.color,
           progress: exp.progress,
+          metrics,
         },
       };
     });
@@ -223,7 +251,7 @@ export default function DAGView() {
       }));
 
     return { initialNodes: nodes, initialEdges: edges };
-  }, [filteredExperiments]);
+  }, [filteredExperiments, aggregatedMetrics, selectedProject]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
@@ -240,12 +268,24 @@ export default function DAGView() {
     [setSelectedExperimentId]
   );
 
+  if (!selectedProjectId) {
+    return (
+      <div className="flex flex-col items-center justify-center h-[calc(100vh-8rem)] gap-4">
+        <AlertCircle className="w-12 h-12 text-muted-foreground" />
+        <h2 className="text-lg font-medium">No Project Selected</h2>
+        <p className="text-muted-foreground text-center max-w-md">
+          Click on the logo in the sidebar to select a project and view its experiment DAG.
+        </p>
+      </div>
+    );
+  }
+
   if (experimentsLoading) {
     return (
       <div className="space-y-6">
         <PageHeader
           title="DAG View"
-          description="Visualize experiment hierarchy with React Flow"
+          description="Visualize experiment hierarchy"
         />
         <ListSkeleton count={3} />
       </div>
@@ -253,44 +293,24 @@ export default function DAGView() {
   }
 
   return (
-    <div className="h-[calc(100vh-8rem)] flex flex-col">
-      <PageHeader
-        title="DAG View"
-        description="Visualize experiment hierarchy as a directed acyclic graph"
-        actions={
-          <div className="flex items-center gap-2">
-            <Select
-              value={selectedProjectId || "all"}
-              onValueChange={(v) => setSelectedProjectId(v === "all" ? null : v)}
-            >
-              <SelectTrigger className="w-48" data-testid="select-project-filter">
-                <SelectValue placeholder="All Projects" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Projects</SelectItem>
-                {projects?.map((project) => (
-                  <SelectItem key={project.id} value={project.id}>
-                    {project.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        }
-      />
+    <div className="h-[calc(100vh-8rem)] flex flex-col -m-6">
+      <div className="px-6 pt-6 pb-2">
+        <PageHeader
+          title="DAG View"
+          description={`Experiment hierarchy for "${selectedProject?.name}"`}
+        />
+      </div>
 
       {filteredExperiments.length === 0 ? (
-        <EmptyState
-          icon={GitBranch}
-          title="No experiments yet"
-          description={
-            selectedProjectId
-              ? "No experiments in this project. Create experiments to see their relationships."
-              : "Create experiments to see their relationships in the DAG view."
-          }
-        />
+        <div className="flex-1 flex items-center justify-center">
+          <EmptyState
+            icon={GitBranch}
+            title="No experiments yet"
+            description="Create experiments to see their relationships in the DAG view."
+          />
+        </div>
       ) : (
-        <Card className="flex-1 overflow-hidden">
+        <div className="flex-1">
           <ReactFlow
             nodes={nodes}
             edges={edges}
@@ -299,38 +319,15 @@ export default function DAGView() {
             onNodeClick={onNodeClick}
             nodeTypes={nodeTypes}
             fitView
-            fitViewOptions={{ padding: 0.2 }}
-            minZoom={0.3}
-            maxZoom={1.5}
+            fitViewOptions={{ padding: 0.1 }}
+            minZoom={0.2}
+            maxZoom={2}
             proOptions={{ hideAttribution: true }}
           >
-            <Controls />
-            <Background gap={16} />
-            <Panel position="bottom-left">
-              <Card className="p-3">
-                <CardTitle className="text-xs mb-2">Legend</CardTitle>
-                <div className="flex flex-wrap gap-3 text-xs">
-                  <div className="flex items-center gap-1">
-                    <Clock className="w-3 h-3" />
-                    <span>Planned</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Play className="w-3 h-3 text-blue-500" />
-                    <span>Running</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <CheckCircle2 className="w-3 h-3 text-green-500" />
-                    <span>Complete</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <XCircle className="w-3 h-3 text-red-500" />
-                    <span>Failed</span>
-                  </div>
-                </div>
-              </Card>
-            </Panel>
+            <Controls position="bottom-right" />
+            <Background gap={20} />
           </ReactFlow>
-        </Card>
+        </div>
       )}
 
       {selectedExperimentId && (

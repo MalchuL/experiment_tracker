@@ -1,4 +1,5 @@
 import { Link, useLocation } from "wouter";
+import { useQuery } from "@tanstack/react-query";
 import {
   Sidebar,
   SidebarContent,
@@ -18,10 +19,14 @@ import {
   Lightbulb, 
   KanbanSquare,
   GitBranch,
-  Beaker
+  Beaker,
+  Settings,
+  ChevronRight
 } from "lucide-react";
+import { useExperimentStore } from "@/stores/experiment-store";
+import type { Project } from "@shared/schema";
 
-const navigationItems = [
+const globalItems = [
   {
     title: "Dashboard",
     url: "/",
@@ -32,6 +37,9 @@ const navigationItems = [
     url: "/projects",
     icon: FolderKanban,
   },
+];
+
+const projectItems = [
   {
     title: "Experiments",
     url: "/experiments",
@@ -42,9 +50,6 @@ const navigationItems = [
     url: "/hypotheses",
     icon: Lightbulb,
   },
-];
-
-const viewItems = [
   {
     title: "Kanban",
     url: "/kanban",
@@ -55,10 +60,25 @@ const viewItems = [
     url: "/dag",
     icon: GitBranch,
   },
+  {
+    title: "Settings",
+    url: "/settings",
+    icon: Settings,
+  },
 ];
 
 export function AppSidebar() {
   const [location] = useLocation();
+  const { 
+    selectedProjectId, 
+    openProjectSelector 
+  } = useExperimentStore();
+
+  const { data: projects } = useQuery<Project[]>({
+    queryKey: ["/api/projects"],
+  });
+
+  const selectedProject = projects?.find((p) => p.id === selectedProjectId);
 
   const isActive = (url: string) => {
     if (url === "/") return location === "/";
@@ -68,24 +88,33 @@ export function AppSidebar() {
   return (
     <Sidebar>
       <SidebarHeader className="p-4 border-b border-sidebar-border">
-        <Link href="/">
+        <button
+          onClick={openProjectSelector}
+          className="w-full text-left"
+          data-testid="button-project-selector"
+        >
           <div className="flex items-center gap-2 hover-elevate active-elevate-2 rounded-md px-2 py-1.5 cursor-pointer">
             <div className="flex items-center justify-center w-8 h-8 rounded-md bg-primary text-primary-foreground">
               <Beaker className="w-4 h-4" />
             </div>
-            <div className="flex flex-col">
-              <span className="font-semibold text-sm tracking-tight">ResearchTrack</span>
-              <span className="text-xs text-muted-foreground">Experiment Platform</span>
+            <div className="flex flex-col flex-1 min-w-0">
+              <span className="font-semibold text-sm tracking-tight truncate">
+                {selectedProject ? selectedProject.name : "ResearchTrack"}
+              </span>
+              <span className="text-xs text-muted-foreground truncate">
+                {selectedProject ? "Click to change project" : "Click to select project"}
+              </span>
             </div>
+            <ChevronRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />
           </div>
-        </Link>
+        </button>
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
           <SidebarGroupLabel>Navigation</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {navigationItems.map((item) => (
+              {globalItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton 
                     asChild 
@@ -103,27 +132,29 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        <SidebarGroup>
-          <SidebarGroupLabel>Views</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {viewItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton 
-                    asChild 
-                    isActive={isActive(item.url)}
-                    data-testid={`nav-${item.title.toLowerCase().replace(" ", "-")}`}
-                  >
-                    <Link href={item.url}>
-                      <item.icon className="w-4 h-4" />
-                      <span>{item.title}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        {selectedProjectId && (
+          <SidebarGroup>
+            <SidebarGroupLabel>Project Views</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {projectItems.map((item) => (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton 
+                      asChild 
+                      isActive={isActive(item.url)}
+                      data-testid={`nav-${item.title.toLowerCase().replace(" ", "-")}`}
+                    >
+                      <Link href={item.url}>
+                        <item.icon className="w-4 h-4" />
+                        <span>{item.title}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
       </SidebarContent>
       <SidebarFooter className="p-4 border-t border-sidebar-border">
         <div className="text-xs text-muted-foreground">
