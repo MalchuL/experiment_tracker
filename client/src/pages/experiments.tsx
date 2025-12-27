@@ -183,6 +183,14 @@ export default function Experiments() {
 
   const selectedProject = projects?.find((p) => p.id === projectId);
 
+  // Filter metrics by displayMetrics setting
+  const filteredMetrics = useMemo(() => {
+    if (!selectedProject?.metrics) return [];
+    const displayMetrics = selectedProject?.settings?.displayMetrics || [];
+    if (displayMetrics.length === 0) return selectedProject.metrics;
+    return selectedProject.metrics.filter(m => displayMetrics.includes(m.name));
+  }, [selectedProject?.metrics, selectedProject?.settings?.displayMetrics]);
+
   const sortedExperiments = useMemo(() => {
     if (!experiments) return [];
     return [...experiments].sort((a, b) => a.order - b.order);
@@ -486,7 +494,7 @@ export default function Experiments() {
                   <TableHead className="w-[200px]">Experiment</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Parent</TableHead>
-                  {selectedProject?.metrics.map((metric) => (
+                  {filteredMetrics.map((metric) => (
                     <TableHead key={metric.name} className="text-right">
                       <div className="flex items-center justify-end gap-1">
                         {metric.name}
@@ -515,7 +523,7 @@ export default function Experiments() {
                         key={experiment.id}
                         experiment={experiment}
                         onClick={() => setSelectedExperimentId(experiment.id)}
-                        projectMetrics={selectedProject?.metrics}
+                        projectMetrics={filteredMetrics}
                         expMetrics={aggregatedMetrics?.[experiment.id]}
                         parentName={parent?.name}
                       />
@@ -532,7 +540,7 @@ export default function Experiments() {
         <ExperimentSidebar
           experimentId={selectedExperimentId}
           onClose={() => setSelectedExperimentId(null)}
-          projectMetrics={selectedProject?.metrics}
+          projectMetrics={filteredMetrics}
           aggregatedMetrics={aggregatedMetrics?.[selectedExperimentId] || undefined}
         />
       )}

@@ -184,6 +184,14 @@ export default function Kanban() {
 
   const selectedProject = projects?.find((p) => p.id === projectId);
 
+  // Filter metrics by displayMetrics setting
+  const filteredMetrics = useMemo(() => {
+    if (!selectedProject?.metrics) return [];
+    const displayMetrics = selectedProject?.settings?.displayMetrics || [];
+    if (displayMetrics.length === 0) return selectedProject.metrics;
+    return selectedProject.metrics.filter(m => displayMetrics.includes(m.name));
+  }, [selectedProject?.metrics, selectedProject?.settings?.displayMetrics]);
+
   const updateStatusMutation = useMutation({
     mutationFn: async ({
       experimentId,
@@ -375,7 +383,7 @@ export default function Kanban() {
         <ExperimentSidebar
           experimentId={selectedExperimentId}
           onClose={() => setSelectedExperimentId(null)}
-          projectMetrics={selectedProject?.metrics}
+          projectMetrics={filteredMetrics}
           aggregatedMetrics={
             aggregatedMetrics?.[selectedExperimentId] || undefined
           }

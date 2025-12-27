@@ -267,8 +267,17 @@ export default function Scalars() {
     enabled: !!projectId,
   });
 
+  const allLoggedMetricNames = useMemo(() => {
+    if (!allMetrics) return [];
+    const metricSet = new Set<string>();
+    Object.values(allMetrics).forEach(metrics => {
+      metrics.forEach(m => metricSet.add(m.name));
+    });
+    return Array.from(metricSet).sort();
+  }, [allMetrics]);
+
   useEffect(() => {
-    if (experiments.length === 0 || !project?.metrics || initialized) return;
+    if (experiments.length === 0 || allLoggedMetricNames.length === 0 || initialized) return;
     
     const params = new URLSearchParams(searchString);
     const expParam = params.get("exp");
@@ -284,8 +293,7 @@ export default function Scalars() {
     
     if (metParam) {
       const hiddenIndices = decodeSelection(metParam);
-      const metricNames = project.metrics.map(m => m.name);
-      setHiddenMetrics(new Set(hiddenIndices.map(i => metricNames[i]).filter(Boolean)));
+      setHiddenMetrics(new Set(hiddenIndices.map(i => allLoggedMetricNames[i]).filter(Boolean)));
     }
     
     if (smoothParam) {
@@ -296,7 +304,7 @@ export default function Scalars() {
     }
     
     setInitialized(true);
-  }, [experiments, searchString, initialized, project]);
+  }, [experiments, searchString, initialized, allLoggedMetricNames]);
 
   const updateUrl = useCallback((expIndices: Set<number>, hiddenMets: Set<string>, smooth: number) => {
     const params = new URLSearchParams();
@@ -307,9 +315,8 @@ export default function Scalars() {
     }
     
     if (hiddenMets.size > 0) {
-      const metricNames = project?.metrics?.map(m => m.name) || [];
       const hiddenIndices = Array.from(hiddenMets)
-        .map(name => metricNames.indexOf(name))
+        .map(name => allLoggedMetricNames.indexOf(name))
         .filter(i => i >= 0)
         .sort();
       if (hiddenIndices.length > 0) {
@@ -324,7 +331,7 @@ export default function Scalars() {
     const queryString = params.toString();
     const basePath = `/projects/${projectId}/scalars`;
     navigate(queryString ? `${basePath}?${queryString}` : basePath, { replace: true });
-  }, [experiments.length, project, projectId, navigate]);
+  }, [experiments.length, allLoggedMetricNames, projectId, navigate]);
 
   const toggleExperiment = (index: number) => {
     setSelectedExperimentIndices((prev) => {
@@ -369,8 +376,8 @@ export default function Scalars() {
   };
 
   const showOnlyMetric = (metricName: string) => {
-    if (!project?.metrics) return;
-    const newHidden = new Set(project.metrics.map(m => m.name).filter(name => name !== metricName));
+    if (allLoggedMetricNames.length === 0) return;
+    const newHidden = new Set(allLoggedMetricNames.filter(name => name !== metricName));
     setHiddenMetrics(newHidden);
     updateUrl(selectedExperimentIndices, newHidden, smoothing);
   };
@@ -396,9 +403,11 @@ export default function Scalars() {
   };
 
   const visibleMetrics = useMemo(() => {
-    if (!project?.metrics) return [];
-    return project.metrics.filter(m => !hiddenMetrics.has(m.name));
-  }, [project, hiddenMetrics]);
+    if (allLoggedMetricNames.length === 0) return [];
+    return allLoggedMetricNames
+      .filter(name => !hiddenMetrics.has(name))
+      .map(name => ({ name }));
+  }, [allLoggedMetricNames, hiddenMetrics]);
 
   const selectedExperiments = useMemo(() => {
     return experiments.filter((_, i) => selectedExperimentIndices.has(i));
@@ -578,19 +587,19 @@ export default function Scalars() {
             </div>
             <ScrollArea className="h-32">
               <div className="space-y-1 pr-3">
-                {project?.metrics?.map((metric) => (
+                {allLoggedMetricNames.map((metricName) => (
                   <div
-                    key={metric.name}
+                    key={metricName}
                     className="flex items-center gap-1 py-1"
                   >
                     <Button
                       variant="ghost"
                       size="icon"
                       className="h-6 w-6 flex-shrink-0"
-                      onClick={() => toggleMetric(metric.name)}
-                      data-testid={`button-toggle-metric-${metric.name}`}
+                      onClick={() => toggleMetric(metricName)}
+                      data-testid={`button-toggle-metric-${metricName}`}
                     >
-                      {hiddenMetrics.has(metric.name) ? (
+                      {hiddenMetrics.has(metricName) ? (
                         <EyeOff className="w-3 h-3 text-muted-foreground" />
                       ) : (
                         <Eye className="w-3 h-3" />
@@ -600,38 +609,38 @@ export default function Scalars() {
                       <DropdownMenuTrigger asChild>
                         <div
                           className="flex items-center gap-1 flex-1 min-w-0 px-1 py-0.5 rounded-md cursor-pointer hover-elevate"
-                          data-testid={`dropdown-metric-${metric.name}`}
+                          data-testid={`dropdown-metric-${metricName}`}
                         >
                           <span 
-                            className={`text-sm truncate flex-1 ${hiddenMetrics.has(metric.name) ? 'text-muted-foreground line-through' : ''}`}
-                            title={metric.name}
+                            className={`text-sm truncate flex-1 ${hiddenMetrics.has(metricName) ? 'text-muted-foreground line-through' : ''}`}
+                            title={metricName}
                           >
-                            {metric.name}
+                            {metricName}
                           </span>
                           <ChevronDown className="w-3 h-3 text-muted-foreground flex-shrink-0" />
                         </div>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="start">
                         <DropdownMenuItem 
-                          onClick={() => showOnlyMetric(metric.name)}
-                          data-testid={`menu-only-metric-${metric.name}`}
+                          onClick={() => showOnlyMetric(metricName)}
+                          data-testid={`menu-only-metric-${metricName}`}
                         >
                           <Eye className="w-4 h-4 mr-2" />
                           Show Only This
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem 
-                          onClick={() => setFullscreenMetric(metric.name)}
-                          disabled={hiddenMetrics.has(metric.name)}
-                          data-testid={`menu-expand-metric-${metric.name}`}
+                          onClick={() => setFullscreenMetric(metricName)}
+                          disabled={hiddenMetrics.has(metricName)}
+                          data-testid={`menu-expand-metric-${metricName}`}
                         >
                           <Maximize2 className="w-4 h-4 mr-2" />
                           Expand
                         </DropdownMenuItem>
                         <DropdownMenuItem 
-                          onClick={() => resetDomain(metric.name)}
-                          disabled={!metricDomains[metric.name]}
-                          data-testid={`menu-reset-zoom-metric-${metric.name}`}
+                          onClick={() => resetDomain(metricName)}
+                          disabled={!metricDomains[metricName]}
+                          data-testid={`menu-reset-zoom-metric-${metricName}`}
                         >
                           <RotateCcw className="w-4 h-4 mr-2" />
                           Reset Zoom
