@@ -10,9 +10,13 @@ from .models import Base, User
 
 
 def build_async_database_url() -> str:
-    url = os.environ.get("DATABASE_URL", "")
+    url = os.environ.get("DATABASE_URL")
     if not url:
-        return ""
+        raise RuntimeError(
+            "DATABASE_URL environment variable is not set. "
+            "Please set DATABASE_URL to a valid PostgreSQL connection string. "
+            "Example: DATABASE_URL='postgresql://username:password@localhost:5432/experiment_tracker'"
+        )
     
     if url.startswith("postgres://"):
         url = url.replace("postgres://", "postgresql+asyncpg://", 1)
@@ -40,8 +44,14 @@ def build_async_database_url() -> str:
 
 DATABASE_URL = build_async_database_url()
 
-engine = create_async_engine(DATABASE_URL) if DATABASE_URL else None
-async_session_maker = async_sessionmaker(engine, expire_on_commit=False) if engine else None
+try:
+    engine = create_async_engine(DATABASE_URL)
+    async_session_maker = async_sessionmaker(engine, expire_on_commit=False)
+except Exception as e:
+    raise RuntimeError(
+        f"Failed to connect to database at {DATABASE_URL}. "
+        f"Please ensure the database exists and is accessible. Error: {e}"
+    ) from e
 
 
 async def create_db_and_tables():

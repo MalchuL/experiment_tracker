@@ -46,12 +46,8 @@ async function buildAll() {
   ];
   const externals = allDeps.filter((dep) => !allowlist.includes(dep));
 
-  await esbuild({
-    entryPoints: ["server/index.ts"],
-    platform: "node",
-    bundle: true,
-    format: "cjs",
-    outfile: "dist/index.cjs",
+  // Server removed - building client only via Vite
+  console.log("Server removed - use 'vite build' for client production build");
     define: {
       "process.env.NODE_ENV": '"production"',
     },
