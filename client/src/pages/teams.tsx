@@ -31,7 +31,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/lib/auth-context";
-import { Plus, Users, Crown, Shield, UserCheck, Eye } from "lucide-react";
+import { Plus, Users, Crown, Shield, UserCheck, Eye, ChevronRight } from "lucide-react";
+import { Link } from "wouter";
 
 interface TeamMember {
   id: string;
@@ -219,50 +220,55 @@ export default function Teams() {
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {teams.map((team) => (
-            <Card key={team.id} className="hover-elevate" data-testid={`card-team-${team.id}`}>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Users className="w-5 h-5 text-muted-foreground" />
-                  {team.name}
-                </CardTitle>
-                {team.description && (
-                  <CardDescription>{team.description}</CardDescription>
-                )}
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  <div className="text-sm text-muted-foreground">
-                    {team.members.length} member{team.members.length !== 1 ? "s" : ""}
+            <Link key={team.id} href={`/teams/${team.id}`}>
+              <Card className="hover-elevate cursor-pointer" data-testid={`card-team-${team.id}`}>
+                <CardHeader>
+                  <CardTitle className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <Users className="w-5 h-5 text-muted-foreground" />
+                      {team.name}
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                  </CardTitle>
+                  {team.description && (
+                    <CardDescription>{team.description}</CardDescription>
+                  )}
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    <div className="text-sm text-muted-foreground">
+                      {team.members.length} member{team.members.length !== 1 ? "s" : ""}
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {team.members.slice(0, 5).map((member) => {
+                        const RoleIcon = roleIcons[member.role];
+                        const initials = member.display_name 
+                          ? member.display_name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2)
+                          : member.email.slice(0, 2).toUpperCase();
+                        
+                        return (
+                          <div
+                            key={member.id}
+                            className="flex items-center gap-1"
+                            title={`${member.display_name || member.email} (${roleLabels[member.role]})`}
+                          >
+                            <Avatar className="h-6 w-6">
+                              <AvatarFallback className="text-xs">{initials}</AvatarFallback>
+                            </Avatar>
+                            <RoleIcon className="w-3 h-3 text-muted-foreground" />
+                          </div>
+                        );
+                      })}
+                      {team.members.length > 5 && (
+                        <Badge variant="secondary" className="text-xs">
+                          +{team.members.length - 5} more
+                        </Badge>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex flex-wrap gap-2">
-                    {team.members.slice(0, 5).map((member) => {
-                      const RoleIcon = roleIcons[member.role];
-                      const initials = member.display_name 
-                        ? member.display_name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2)
-                        : member.email.slice(0, 2).toUpperCase();
-                      
-                      return (
-                        <div
-                          key={member.id}
-                          className="flex items-center gap-1"
-                          title={`${member.display_name || member.email} (${roleLabels[member.role]})`}
-                        >
-                          <Avatar className="h-6 w-6">
-                            <AvatarFallback className="text-xs">{initials}</AvatarFallback>
-                          </Avatar>
-                          <RoleIcon className="w-3 h-3 text-muted-foreground" />
-                        </div>
-                      );
-                    })}
-                    {team.members.length > 5 && (
-                      <Badge variant="secondary" className="text-xs">
-                        +{team.members.length - 5} more
-                      </Badge>
-                    )}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            </Link>
           ))}
         </div>
       )}

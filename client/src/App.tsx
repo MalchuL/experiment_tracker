@@ -37,6 +37,7 @@ import ProjectSettings from "@/pages/project-settings";
 import Login from "@/pages/login";
 import Register from "@/pages/register";
 import Teams from "@/pages/teams";
+import TeamDetail from "@/pages/team-detail";
 import NotFound from "@/pages/not-found";
 
 function AuthenticatedRouter() {
@@ -44,6 +45,7 @@ function AuthenticatedRouter() {
     <Switch>
       <Route path="/" component={Projects} />
       <Route path="/teams" component={Teams} />
+      <Route path="/teams/:id" component={TeamDetail} />
       <Route path="/projects/:id" component={ProjectDetail} />
       <Route path="/projects/:id/experiments" component={Experiments} />
       <Route path="/projects/:id/experiments/:expId" component={ExperimentDetail} />
