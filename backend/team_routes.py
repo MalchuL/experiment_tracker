@@ -55,7 +55,35 @@ async def list_teams(
     result = await session.execute(
         select(Team).join(team_members, Team.id == team_members.c.team_id).where(team_members.c.user_id == user.id)
     )
-    return list(result.scalars().all())
+    teams = list(result.scalars().all())
+    
+    teams_with_members = []
+    for team in teams:
+        members_result = await session.execute(
+            select(User, team_members.c.role, team_members.c.joined_at)
+            .join(team_members, User.id == team_members.c.user_id)
+            .where(team_members.c.team_id == team.id)
+        )
+        members = [
+            TeamMemberRead(
+                id=row.User.id,
+                email=row.User.email,
+                display_name=row.User.display_name,
+                role=row.role,
+                joined_at=row.joined_at
+            )
+            for row in members_result
+        ]
+        teams_with_members.append(TeamRead(
+            id=team.id,
+            name=team.name,
+            description=team.description,
+            owner_id=team.owner_id,
+            created_at=team.created_at,
+            members=members
+        ))
+    
+    return teams_with_members
 
 
 @router.post("", response_model=TeamRead, status_code=status.HTTP_201_CREATED)
@@ -72,18 +100,33 @@ async def create_team(
     session.add(team)
     await session.flush()
     
+    joined_at = datetime.utcnow()
     await session.execute(
         team_members.insert().values(
             team_id=team.id,
             user_id=user.id,
             role=TeamRole.OWNER,
-            joined_at=datetime.utcnow()
+            joined_at=joined_at
         )
     )
     
     await session.commit()
     await session.refresh(team)
-    return team
+    
+    return TeamRead(
+        id=team.id,
+        name=team.name,
+        description=team.description,
+        owner_id=team.owner_id,
+        created_at=team.created_at,
+        members=[TeamMemberRead(
+            id=user.id,
+            email=user.email,
+            display_name=user.display_name,
+            role=TeamRole.OWNER,
+            joined_at=joined_at
+        )]
+    )
 
 
 @router.get("/{team_id}", response_model=TeamRead)
@@ -139,7 +182,31 @@ async def update_team(
     
     await session.commit()
     await session.refresh(team)
-    return team
+    
+    members_result = await session.execute(
+        select(User, team_members.c.role, team_members.c.joined_at)
+        .join(team_members, User.id == team_members.c.user_id)
+        .where(team_members.c.team_id == team_id)
+    )
+    members = [
+        TeamMemberRead(
+            id=row.User.id,
+            email=row.User.email,
+            display_name=row.User.display_name,
+            role=row.role,
+            joined_at=row.joined_at
+        )
+        for row in members_result
+    ]
+    
+    return TeamRead(
+        id=team.id,
+        name=team.name,
+        description=team.description,
+        owner_id=team.owner_id,
+        created_at=team.created_at,
+        members=members
+    )
 
 
 @router.delete("/{team_id}", status_code=status.HTTP_204_NO_CONTENT)
