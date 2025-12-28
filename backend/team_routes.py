@@ -230,10 +230,14 @@ async def add_team_member(
     session: AsyncSession = Depends(get_async_session),
     user: User = Depends(current_active_user)
 ):
-    await get_team_with_permission(
+    team = await get_team_with_permission(
         team_id, session, user,
         required_roles=[TeamRole.OWNER, TeamRole.ADMIN]
     )
+    
+    is_owner = team.owner_id == user.id
+    if data.role == TeamRole.ADMIN and not is_owner:
+        raise HTTPException(status_code=403, detail="Only the owner can assign admin role")
     
     result = await session.execute(select(User).where(User.email == data.email))
     new_member = result.scalar_one_or_none()
@@ -286,6 +290,10 @@ async def update_member_role(
     
     if member_id == team.owner_id:
         raise HTTPException(status_code=400, detail="Cannot change owner's role")
+    
+    is_owner = team.owner_id == user.id
+    if data.role == TeamRole.ADMIN and not is_owner:
+        raise HTTPException(status_code=403, detail="Only the owner can assign admin role")
     
     result = await session.execute(
         select(team_members).where(

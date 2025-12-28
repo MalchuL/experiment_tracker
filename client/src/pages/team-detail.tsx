@@ -363,7 +363,7 @@ export default function TeamDetail() {
                                   </SelectTrigger>
                                 </FormControl>
                                 <SelectContent>
-                                  <SelectItem value="admin">Admin - Can manage team and members</SelectItem>
+                                  {isOwner && <SelectItem value="admin">Admin - Can manage team and members</SelectItem>}
                                   <SelectItem value="member">Member - Can view and edit projects</SelectItem>
                                   <SelectItem value="viewer">Viewer - Read-only access</SelectItem>
                                 </SelectContent>
