@@ -26,18 +26,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useProjectId } from "@/hooks/use-project-id";
 import { AlertCircle, BarChart3, ChevronDown, Eye, EyeOff, Maximize2, RotateCcw } from "lucide-react";
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-  Brush,
-  ReferenceArea,
-} from "recharts";
+import Plot from "react-plotly.js";
 import type { Project, Experiment, Metric } from "@shared/schema";
 
 const CHART_COLORS = [
@@ -100,64 +89,47 @@ function MetricChart({
   selectedExperiments,
   allExperiments,
   height = 200,
-  showBrush = true,
   domain,
   onDomainChange,
-  onExpand,
-  onReset,
   isFullscreen = false,
 }: MetricChartProps) {
-  const [refAreaLeft, setRefAreaLeft] = useState<number | null>(null);
-  const [refAreaRight, setRefAreaRight] = useState<number | null>(null);
-  const [isSelecting, setIsSelecting] = useState(false);
+  const plotData = useMemo(() => {
+    return selectedExperiments.map((experiment) => {
+      const originalIndex = allExperiments.findIndex(e => e.id === experiment.id);
+      const xValues: number[] = [];
+      const yValues: number[] = [];
+      
+      data.forEach(point => {
+        const step = point.step as number;
+        const value = point[experiment.name];
+        if (value !== null && value !== undefined) {
+          xValues.push(step);
+          yValues.push(value as number);
+        }
+      });
 
-  const handleMouseDown = (e: any) => {
-    if (e && e.activeLabel !== undefined) {
-      setRefAreaLeft(e.activeLabel);
-      setIsSelecting(true);
+      return {
+        x: xValues,
+        y: yValues,
+        type: 'scatter' as const,
+        mode: 'lines' as const,
+        name: experiment.name,
+        line: {
+          color: CHART_COLORS[originalIndex % CHART_COLORS.length],
+          width: isFullscreen ? 2 : 1.5,
+        },
+        hovertemplate: `<b>${experiment.name}</b><br>Step: %{x}<br>Value: %{y:.4f}<extra></extra>`,
+      };
+    });
+  }, [data, selectedExperiments, allExperiments, isFullscreen]);
+
+  const handleRelayout = useCallback((event: any) => {
+    if (event['xaxis.range[0]'] !== undefined && event['xaxis.range[1]'] !== undefined) {
+      onDomainChange?.([event['xaxis.range[0]'], event['xaxis.range[1]']]);
+    } else if (event['xaxis.autorange'] === true) {
+      onDomainChange?.(null);
     }
-  };
-
-  const handleMouseMove = (e: any) => {
-    if (isSelecting && e && e.activeLabel !== undefined) {
-      setRefAreaRight(e.activeLabel);
-    }
-  };
-
-  const handleMouseUp = () => {
-    if (refAreaLeft !== null && refAreaRight !== null && refAreaLeft !== refAreaRight) {
-      const left = Math.min(refAreaLeft, refAreaRight);
-      const right = Math.max(refAreaLeft, refAreaRight);
-      onDomainChange?.([left, right]);
-    }
-    setRefAreaLeft(null);
-    setRefAreaRight(null);
-    setIsSelecting(false);
-  };
-
-  const handleBrushChange = useCallback((brushData: any) => {
-    if (brushData && brushData.startIndex !== undefined && brushData.endIndex !== undefined) {
-      const startStep = data[brushData.startIndex]?.step as number;
-      const endStep = data[brushData.endIndex]?.step as number;
-      if (startStep !== undefined && endStep !== undefined) {
-        onDomainChange?.([startStep, endStep]);
-      }
-    }
-  }, [data, onDomainChange]);
-
-  const brushStartIndex = useMemo(() => {
-    if (!domain || data.length === 0) return 0;
-    const idx = data.findIndex(d => (d.step as number) >= domain[0]);
-    return idx >= 0 ? idx : 0;
-  }, [data, domain]);
-
-  const brushEndIndex = useMemo(() => {
-    if (!domain || data.length === 0) return Math.max(0, data.length - 1);
-    for (let i = data.length - 1; i >= 0; i--) {
-      if ((data[i].step as number) <= domain[1]) return i;
-    }
-    return data.length - 1;
-  }, [data, domain]);
+  }, [onDomainChange]);
 
   if (data.length === 0) {
     return (
@@ -167,75 +139,56 @@ function MetricChart({
     );
   }
 
+  const layout: Partial<Plotly.Layout> = {
+    autosize: true,
+    height,
+    margin: {
+      l: isFullscreen ? 60 : 50,
+      r: 20,
+      t: 10,
+      b: isFullscreen ? 40 : 30,
+    },
+    xaxis: {
+      title: isFullscreen ? { text: 'Step', font: { size: 12 } } : undefined,
+      tickfont: { size: isFullscreen ? 12 : 10 },
+      gridcolor: 'rgba(128, 128, 128, 0.2)',
+      range: domain || undefined,
+      autorange: domain ? false : true,
+    },
+    yaxis: {
+      tickfont: { size: isFullscreen ? 12 : 10 },
+      gridcolor: 'rgba(128, 128, 128, 0.2)',
+    },
+    legend: {
+      font: { size: isFullscreen ? 12 : 10 },
+      orientation: 'h' as const,
+      y: -0.15,
+      x: 0.5,
+      xanchor: 'center' as const,
+    },
+    hovermode: 'x unified' as const,
+    paper_bgcolor: 'transparent',
+    plot_bgcolor: 'transparent',
+    dragmode: 'zoom' as const,
+  };
+
+  const config: Partial<Plotly.Config> = {
+    displayModeBar: true,
+    modeBarButtonsToRemove: ['lasso2d', 'select2d', 'autoScale2d'] as any,
+    displaylogo: false,
+    responsive: true,
+  };
+
   return (
     <div style={{ height }}>
-      <ResponsiveContainer width="100%" height="100%">
-        <LineChart
-          data={data}
-          onMouseDown={handleMouseDown}
-          onMouseMove={handleMouseMove}
-          onMouseUp={handleMouseUp}
-          onMouseLeave={handleMouseUp}
-        >
-          <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-          <XAxis
-            dataKey="step"
-            tick={{ fontSize: isFullscreen ? 12 : 10 }}
-            tickLine={false}
-            domain={domain || ['auto', 'auto']}
-            allowDataOverflow={!!domain}
-            type="number"
-          />
-          <YAxis
-            tick={{ fontSize: isFullscreen ? 12 : 10 }}
-            tickLine={false}
-            width={isFullscreen ? 60 : 50}
-          />
-          <Tooltip
-            contentStyle={{
-              backgroundColor: "hsl(var(--card))",
-              border: "1px solid hsl(var(--border))",
-              borderRadius: "var(--radius)",
-              fontSize: isFullscreen ? 14 : 12,
-            }}
-          />
-          <Legend wrapperStyle={{ fontSize: isFullscreen ? 12 : 10 }} />
-          {selectedExperiments.map((experiment) => {
-            const originalIndex = allExperiments.findIndex(e => e.id === experiment.id);
-            return (
-              <Line
-                key={experiment.id}
-                type="monotone"
-                dataKey={experiment.name}
-                stroke={CHART_COLORS[originalIndex % CHART_COLORS.length]}
-                strokeWidth={isFullscreen ? 2 : 1.5}
-                dot={false}
-                activeDot={{ r: isFullscreen ? 5 : 3 }}
-              />
-            );
-          })}
-          {refAreaLeft !== null && refAreaRight !== null && (
-            <ReferenceArea
-              x1={refAreaLeft}
-              x2={refAreaRight}
-              strokeOpacity={0.3}
-              fill="hsl(var(--primary))"
-              fillOpacity={0.1}
-            />
-          )}
-          {showBrush && data.length > 10 && (
-            <Brush
-              dataKey="step"
-              height={20}
-              stroke="hsl(var(--muted-foreground))"
-              fill="hsl(var(--muted))"
-              startIndex={brushStartIndex}
-              endIndex={brushEndIndex}
-              onChange={handleBrushChange}
-            />
-          )}
-        </LineChart>
-      </ResponsiveContainer>
+      <Plot
+        data={plotData}
+        layout={layout}
+        config={config}
+        style={{ width: '100%', height: '100%' }}
+        useResizeHandler={true}
+        onRelayout={handleRelayout}
+      />
     </div>
   );
 }
@@ -671,7 +624,7 @@ export default function Scalars() {
               )}
             </div>
             <p className="text-xs text-muted-foreground">
-              Drag on chart to zoom. Use brush below chart to pan.
+              Drag on chart to zoom. Double-click to reset. Use toolbar for pan/zoom modes.
             </p>
           </div>
         </CardContent>
