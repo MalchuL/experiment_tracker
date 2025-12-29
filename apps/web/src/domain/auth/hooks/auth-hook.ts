@@ -5,7 +5,8 @@ import { User } from "@/shared/types";
 import { useAuthStore } from "../store/auth-store";
 import { authService, LoginPayload, SignUpPayload } from "../services/auth-service";
 import { useMutation } from "@tanstack/react-query";
-import { useCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { getAuthToken } from "../utils/token";
 
 export interface AuthHookResult {
     user: User | null;
@@ -20,25 +21,29 @@ export interface AuthHookResult {
 
 export function useAuthService(): AuthHookResult {
     const { user, isLoading, isAuthenticated, setUser, setIsLoading, setIsAuthenticated } = useAuthStore();
+    const cookieToken = getAuthToken()
+    useEffect(() => {
+        if (cookieToken) {
+            setIsAuthenticated(true);
+        }
+    }, [cookieToken]);
     // User Query
     const {
-        data,
-        isLoading: queryLoading,
+        isLoading: queryIsLoading,
         error,
     } = useQuery({
-        queryKey: ["auth", isAuthenticated],
+        queryKey: ["auth", cookieToken],
         queryFn: async () => {
-            // guard if not authenticated, skip the request
-            if (!isAuthenticated) return null;
-            const response = await serviceClients.api.get<User>(API_ROUTES.USERS.ME);
-            setUser(response.data);
-            return response.data;
+            // guard if not cookie token, skip the request
+            if (!cookieToken) return null;
+            const data = await authService.getUser();
+            setUser(data);
+            return data;
         },
-        enabled: isAuthenticated,
+        enabled: !!cookieToken,
         staleTime: 1000 * 60 * 5,
         retry: 1,
     });
-
     // Login mutation
     const loginMutation = useMutation({
         mutationFn: async (payload: LoginPayload) => {
@@ -85,9 +90,12 @@ export function useAuthService(): AuthHookResult {
     });
 
     // Update local loading state based on query
-    if (isLoading !== queryLoading) {
-        setIsLoading(queryLoading);
-    }
+    useEffect(() => {
+        if (isLoading !== queryIsLoading) {
+            setIsLoading(queryIsLoading);
+        }
+    }, [isLoading, queryIsLoading]);
+    
     const logout = useCallback(({onSuccess, onError}: {onSuccess: () => void, onError: (error: Error) => void}) => {
         return logoutMutation.mutateAsync(undefined, {
             onSuccess,

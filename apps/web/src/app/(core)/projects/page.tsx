@@ -10,7 +10,7 @@ export default function Projects() {
   return (
     <div>
       <h1>Projects</h1>
-      <p>Welcome, {user?.name}</p>
+      <p>Welcome, {user?.display_name}</p>
     </div>
   );
 }

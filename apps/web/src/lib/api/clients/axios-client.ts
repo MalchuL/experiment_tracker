@@ -3,9 +3,10 @@
  * Handles authentication, error handling, and request/response transformation
  */
 
-import axios, { AxiosInstance } from "axios";
+import axios, { AxiosInstance, AxiosRequestHeaders } from "axios";
 import { env } from "@/lib/env";
 import { ErrorResponse } from "../error-response";
+import { getAuthHeaders } from "@/domain/auth/utils/headers";
 
 /**
  * Service names for type safety
@@ -30,18 +31,6 @@ const serviceRegistry: Record<ServiceName, ServiceConfig> = {
 };
 
 /**
- * Helper function to get auth token from cookie
- */
-function getAuthToken(): string | null {
-  if (typeof document === "undefined") return null;
-  const cookieValue = document.cookie
-    .split("; ")
-    .find((row) => row.startsWith("auth_token="))
-    ?.split("=")[1];
-  return cookieValue ? decodeURIComponent(cookieValue) : null;
-}
-
-/**
  * Creates a service-specific axios client instance
  * @param serviceName - Name of the service or custom config
  * @param customConfig - Optional custom configuration to override defaults
@@ -60,9 +49,9 @@ export function createServiceClient(config: ServiceConfig): AxiosInstance {
   // Add request interceptor to include Authorization header
   client.interceptors.request.use(
     (config) => {
-      const token = getAuthToken();
-      if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
+      const headers = getAuthHeaders();
+      if (Object.keys(headers).length > 0) {
+        config.headers = { ...config.headers, ...headers } as AxiosRequestHeaders;
       }
       return config;
     },
@@ -101,9 +90,3 @@ export const serviceClients = {
    */
   api: createServiceClient(serviceRegistry["api"]),
 } as const;
-
-// Initialize Authorization header if token exists
-const initialToken = getAuthToken();
-if (initialToken) {
-  serviceClients.api.defaults.headers.common['Authorization'] = `Bearer ${initialToken}`;
-}
