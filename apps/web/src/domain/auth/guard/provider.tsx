@@ -10,10 +10,10 @@ interface AuthContextType {
   user: User | null;
   isLoading: boolean;
   isAuthenticated: boolean;
-  login: (payload: LoginPayload, {onSuccess, onError}: {onSuccess: () => void, onError: (error: Error) => void}) => Promise<void>;
-  register: (payload: SignUpPayload, {onSuccess, onError}: {onSuccess: () => void, onError: (error: Error) => void}) => Promise<void>;
-  updateUser: (payload: User, {onSuccess, onError}: {onSuccess: () => void, onError: (error: Error) => void}) => Promise<void>;
-  logout: ({onSuccess, onError}: {onSuccess: () => void, onError: (error: Error) => void}) => Promise<void>;
+  login: (payload: LoginPayload, {onSuccess, onError}: {onSuccess?: () => void, onError?: (error: Error) => void}) => Promise<void>;
+  register: (payload: SignUpPayload, {onSuccess, onError}?: {onSuccess?: () => void, onError?: (error: Error) => void}) => Promise<void>;
+  updateUser: (payload: User, {onSuccess, onError}?: {onSuccess?: () => void, onError?: (error: Error) => void}) => Promise<void>;
+  logout: ({onSuccess, onError}?: {onSuccess?: () => void, onError?: (error: Error) => void}) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);

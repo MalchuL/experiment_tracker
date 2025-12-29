@@ -15,6 +15,7 @@ import { useToast } from "@/lib/hooks/use-toast";
 import { FlaskConical, Loader2 } from "lucide-react";
 import { FRONTEND_ROUTES } from "@/lib/constants/frontend-routes";
 import { LoginPayload } from "@/domain/auth/services/auth-service";
+import { ErrorResponse } from "@/lib/api/error-response";
 
 const loginSchema = z.object({
   email: z.email("Please enter a valid email"),
@@ -49,20 +50,21 @@ export default function Login() {
           });
           router.push(FRONTEND_ROUTES.ROOT);
         },
-        onError: (error) => {
-          toast({
-            title: "Login failed",
-            description: error instanceof Error ? error.message : "Invalid credentials",
-            variant: "destructive",
-          });
-        },
       });
     } catch (error) {
-      toast({
-        title: "Login failed",
-        description: error instanceof Error ? error.message : "Invalid credentials",
-        variant: "destructive",
-      });
+      if (error instanceof ErrorResponse && error.status === 400) {
+        toast({
+          title: "Login failed",
+          description: "Invalid credentials",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Login failed",
+          description: error instanceof Error ? error.message : "Invalid credentials",
+          variant: "destructive",
+        });
+      }
     } finally {
       setIsLoading(false);
     }

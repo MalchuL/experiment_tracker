@@ -11,10 +11,10 @@ export interface AuthHookResult {
     user: User | null;
     isLoading: boolean;
     isAuthenticated: boolean;
-    login(payload: LoginPayload, {onSuccess, onError}: {onSuccess: () => void, onError: (error: Error) => void}): Promise<void>;
-    register(payload: SignUpPayload, {onSuccess, onError}: {onSuccess: () => void, onError: (error: Error) => void}): Promise<void>;
-    updateUser(payload: User, {onSuccess, onError}: {onSuccess: () => void, onError: (error: Error) => void}): Promise<void>;
-    logout({onSuccess, onError}: {onSuccess: () => void, onError: (error: Error) => void}): Promise<void>;
+    login(payload: LoginPayload, {onSuccess, onError}?: {onSuccess?: () => void, onError?: (error: Error) => void}): Promise<void>;
+    register(payload: SignUpPayload, {onSuccess, onError}?: {onSuccess?: () => void, onError?: (error: Error) => void}): Promise<void>;
+    updateUser(payload: User, {onSuccess, onError}?: {onSuccess?: () => void, onError?: (error: Error) => void}): Promise<void>;
+    logout({onSuccess, onError}?: {onSuccess?: () => void, onError?: (error: Error) => void}): Promise<void>;
     error: Error | null;
 }
 
@@ -45,7 +45,6 @@ export function useAuthService(): AuthHookResult {
             const user = await authService.login(payload);
             setUser(user);
             setIsAuthenticated(true);
-            return user;
         },
         onError: () => {
             setIsAuthenticated(false);
@@ -58,7 +57,6 @@ export function useAuthService(): AuthHookResult {
             const user = await authService.register(payload);
             setUser(user);
             setIsAuthenticated(true);
-            return user;
         },
         onError: () => {
             setIsAuthenticated(false);
