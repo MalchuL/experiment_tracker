@@ -56,8 +56,8 @@ app.include_router(
     tags=["users"],
 )
 
-app.include_router(team_router)
-app.include_router(router)
+app.include_router(team_router, prefix="/api")
+app.include_router(router, prefix="/api")
 
 
 @app.get("/")

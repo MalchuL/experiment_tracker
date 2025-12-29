@@ -2,6 +2,7 @@ import uuid
 from datetime import datetime
 from typing import List, Optional
 from sqlalchemy import select, or_, func
+from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .models import (
@@ -29,11 +30,16 @@ def _format_datetime(dt: Optional[datetime]) -> Optional[str]:
 
 
 def _project_to_schema(project: Project) -> dict:
+    # Handle owner name safely
+    owner_name = "Unknown"
+    if project.owner:
+        owner_name = project.owner.display_name or project.owner.email or "Unknown"
+
     return {
         "id": str(project.id),
         "name": project.name,
         "description": project.description,
-        "owner": project.owner.display_name or project.owner.email if project.owner else "Unknown",
+        "owner": owner_name,
         "createdAt": _format_datetime(project.created_at),
         "experimentCount": len(project.experiments) if project.experiments else 0,
         "hypothesisCount": len(project.hypotheses) if project.hypotheses else 0,
@@ -101,13 +107,18 @@ async def get_user_team_ids(session: AsyncSession, user_id: uuid.UUID) -> List[u
 
 async def get_accessible_projects(session: AsyncSession, user: User) -> List[dict]:
     team_ids = await get_user_team_ids(session, user.id)
-    
+
     conditions = [Project.owner_id == user.id]
     if team_ids:
         conditions.append(Project.team_id.in_(team_ids))
-    
-    query = select(Project).where(or_(*conditions)).order_by(Project.created_at.desc())
-    
+
+    query = select(Project).options(
+        selectinload(Project.owner),
+        selectinload(Project.experiments),
+        selectinload(Project.hypotheses),
+        selectinload(Project.team)
+    ).where(or_(*conditions)).order_by(Project.created_at.desc())
+
     result = await session.execute(query)
     projects = result.scalars().all()
     return [_project_to_schema(p) for p in projects]
@@ -115,16 +126,21 @@ async def get_accessible_projects(session: AsyncSession, user: User) -> List[dic
 
 async def get_project_if_accessible(session: AsyncSession, user: User, project_id: str) -> Optional[Project]:
     team_ids = await get_user_team_ids(session, user.id)
-    
+
     conditions = [Project.owner_id == user.id]
     if team_ids:
         conditions.append(Project.team_id.in_(team_ids))
-    
-    query = select(Project).where(
+
+    query = select(Project).options(
+        selectinload(Project.owner),
+        selectinload(Project.experiments),
+        selectinload(Project.hypotheses),
+        selectinload(Project.team)
+    ).where(
         Project.id == uuid.UUID(project_id),
         or_(*conditions)
     )
-    
+
     result = await session.execute(query)
     return result.scalar_one_or_none()
 
