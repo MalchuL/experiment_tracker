@@ -52,7 +52,7 @@ export default function Register() {
     try {
       await registerUser({ email: data.email, password: data.password, display_name: data.display_name },
         {onSuccess() {
-          router.push(FRONTEND_ROUTES.ROOT);
+          router.push(FRONTEND_ROUTES.LOGIN);
           toast({
             title: "Account created",
             description: "Welcome to ResearchTrack!",

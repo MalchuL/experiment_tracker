@@ -7,6 +7,7 @@ import axios, { AxiosInstance, AxiosRequestHeaders } from "axios";
 import { env } from "@/lib/env";
 import { ErrorResponse } from "../error-response";
 import { getAuthHeaders } from "@/domain/auth/utils/headers";
+import { deleteAuthToken } from "@/domain/auth/utils/token";
 
 /**
  * Service names for type safety
@@ -67,7 +68,7 @@ export function createServiceClient(config: ServiceConfig): AxiosInstance {
       if (error.response?.status === 401) {
         // Clear token on unauthorized
         if (typeof document !== "undefined") {
-          document.cookie = 'auth_token=; Max-Age=0; path=/';
+          deleteAuthToken();
         }
         delete client.defaults.headers.common['Authorization'];
       }

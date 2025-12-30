@@ -1,6 +1,7 @@
 import { serviceClients } from "@/lib/api/clients/axios-client";
 import { API_ROUTES } from "@/lib/constants/api-routes";
 import { User } from "@/shared/types";
+import { setAuthToken } from "../utils/token";
 
 export interface LoginPayload {
     email: string;
@@ -18,7 +19,7 @@ export interface LoginResponse {
 }
 
 export interface AuthService {
-    login: (payload: LoginPayload) => Promise<User>;
+    login: (payload: LoginPayload) => Promise<LoginResponse>;
     register: (payload: SignUpPayload) => Promise<User>;
     updateUser: (user: User) => Promise<User>;
     getUser: () => Promise<User>;
@@ -35,7 +36,7 @@ function setCookie(name: string, value: string, days = 7) {
 }
 
 export const authService = {
-    login: async (payload: LoginPayload): Promise<User> => {
+    login: async (payload: LoginPayload): Promise<LoginResponse> => {
         // FastAPI Users BearerTransport expects form data with 'username' and 'password' fields
         const formData = new URLSearchParams();
         formData.append('username', payload.email); // FastAPI Users uses 'username' field for email
@@ -50,17 +51,7 @@ export const authService = {
                 },
             }
         );
-        
-        // Store the access token
-        const { access_token } = response.data;
-        setCookie('auth_token', access_token);
-        
-        // Set the token in axios default headers for subsequent requests
-        serviceClients.api.defaults.headers.common['Authorization'] = `Bearer ${access_token}`;
-        
-        // Fetch and return the user
-        const userResponse = await serviceClients.api.get<User>(API_ROUTES.USERS.ME);
-        return userResponse.data;
+        return response.data;
     },
     register: async (payload: SignUpPayload): Promise<User> => {
         const response = await serviceClients.api.post<User>(API_ROUTES.AUTH.REGISTER, payload);

@@ -20,35 +20,28 @@ export interface AuthHookResult {
 }
 
 export function useAuthService(): AuthHookResult {
-    const { user, isLoading, isAuthenticated, setUser, setIsLoading, setIsAuthenticated } = useAuthStore();
-    const cookieToken = getAuthToken()
-    useEffect(() => {
-        if (cookieToken) {
-            setIsAuthenticated(true);
-        }
-    }, [cookieToken]);
+    const { user, isLoading, token, setToken, isAuthenticated, setUser, setIsLoading, setIsAuthenticated } = useAuthStore();
     // User Query
     const {
         isLoading: queryIsLoading,
         error,
     } = useQuery({
-        queryKey: ["auth", cookieToken],
+        queryKey: ["auth", token],
         queryFn: async () => {
-            // guard if not cookie token, skip the request
-            if (!cookieToken) return null;
+            // guard if not user, skip the request
             const data = await authService.getUser();
             setUser(data);
             return data;
         },
-        enabled: !!cookieToken,
+        enabled: user === null && !!token && !isLoading,
         staleTime: 1000 * 60 * 5,
         retry: 1,
     });
     // Login mutation
     const loginMutation = useMutation({
         mutationFn: async (payload: LoginPayload) => {
-            const user = await authService.login(payload);
-            setUser(user);
+            const response = await authService.login(payload);
+            setToken(response.access_token);
             setIsAuthenticated(true);
         },
         onError: () => {
@@ -59,13 +52,10 @@ export function useAuthService(): AuthHookResult {
     // Register mutation
     const registerMutation = useMutation({
         mutationFn: async (payload: SignUpPayload) => {
-            console.log(payload);
-            const user = await authService.register(payload);
-            setUser(user);
-            setIsAuthenticated(true);
+            await authService.register(payload);
+            setToken(null);
         },
         onError: () => {
-            setIsAuthenticated(false);
         }
     });
 
@@ -83,11 +73,9 @@ export function useAuthService(): AuthHookResult {
         mutationFn: async () => {
             await authService.logout();
             setUser(null);
+            setToken(null);
             setIsAuthenticated(false);
         },
-        onError: () => {
-            setIsAuthenticated(false);
-        }
     });
 
     // Update local loading state based on query
