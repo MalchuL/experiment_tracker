@@ -1,7 +1,7 @@
 import { serviceClients } from "@/lib/api/clients/axios-client";
 import { API_ROUTES } from "@/lib/constants/api-routes";
 import { User } from "@/shared/types";
-import { LoginPayload, SignUpPayload, LoginResponse } from "../types/login";
+import { LoginPayload, SignUpPayload, LoginResponse } from "../types";
 
 
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, type ReactNode } from "react";
-import { LoginPayload, SignUpPayload } from "../types/login";
+import { LoginPayload, SignUpPayload } from "../types";
 import { useAuthService } from "./auth-hook";
 import { User } from "@/shared/types";
 

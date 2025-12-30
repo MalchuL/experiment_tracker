@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { User } from "@/shared/types";
 import { useAuthStore } from "../store/auth-store";
 import { authService } from "../services/auth-service";
-import { LoginPayload, SignUpPayload } from "../types/login";
+import { LoginPayload, SignUpPayload } from "../types";
 import { useMutation } from "@tanstack/react-query";
 import { useCallback, useEffect } from "react";
 

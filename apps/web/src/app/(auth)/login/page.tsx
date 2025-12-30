@@ -14,7 +14,6 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/lib/hooks/use-toast";
 import { FlaskConical, Loader2, Eye, EyeOff } from "lucide-react";
 import { FRONTEND_ROUTES } from "@/lib/constants/frontend-routes";
-import { LoginPayload } from "@/domain/auth/services/auth-service";
 import { ErrorResponse } from "@/lib/api/error-response";
 
 const loginSchema = z.object({

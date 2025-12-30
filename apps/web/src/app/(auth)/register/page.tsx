@@ -13,7 +13,6 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/lib/hooks/use-toast";
 import { FlaskConical, Loader2, Eye, EyeOff } from "lucide-react";
-import { AuthGuard } from "@/domain/auth/guard/auth-guard";
 import { ErrorResponse } from "@/lib/api/error-response";
 import { FRONTEND_ROUTES } from "@/lib/constants/frontend-routes";
 
