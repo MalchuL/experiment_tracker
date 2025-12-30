@@ -14,7 +14,7 @@ export interface AuthService {
 }
 
 
-export const authService = {
+export const authService: AuthService = {
     login: async (payload: LoginPayload): Promise<LoginResponse> => {
         // FastAPI Users BearerTransport expects form data with 'username' and 'password' fields
         const formData = new URLSearchParams();

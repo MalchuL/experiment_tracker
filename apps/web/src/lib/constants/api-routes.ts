@@ -68,6 +68,8 @@ export const API_ROUTES = {
   
         HYPOTHESES: (projectId: string) =>
           `/api/projects/${projectId}/hypotheses`,
+        METRICS: (projectId: string) =>
+          `/api/projects/${projectId}/metrics`,
       },
     },
   
