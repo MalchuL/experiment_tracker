@@ -59,6 +59,7 @@ export function useAuthService(): AuthHookResult {
     // Register mutation
     const registerMutation = useMutation({
         mutationFn: async (payload: SignUpPayload) => {
+            console.log(payload);
             const user = await authService.register(payload);
             setUser(user);
             setIsAuthenticated(true);

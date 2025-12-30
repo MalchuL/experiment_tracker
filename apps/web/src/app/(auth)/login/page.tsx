@@ -12,13 +12,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/lib/hooks/use-toast";
-import { FlaskConical, Loader2 } from "lucide-react";
+import { FlaskConical, Loader2, Eye, EyeOff } from "lucide-react";
 import { FRONTEND_ROUTES } from "@/lib/constants/frontend-routes";
 import { LoginPayload } from "@/domain/auth/services/auth-service";
 import { ErrorResponse } from "@/lib/api/error-response";
 
 const loginSchema = z.object({
-  email: z.email("Please enter a valid email"),
+  email: z.string().email("Please enter a valid email"),
   password: z.string().min(1, "Password is required"),
 });
 
@@ -30,9 +30,10 @@ export default function Login() {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
 
   const form = useForm<LoginForm>({
-    resolver: zodResolver<LoginForm>(loginSchema),
+    resolver: zodResolver(loginSchema),
     defaultValues: {
       email: "",
       password: "",
@@ -120,12 +121,27 @@ export default function Login() {
                       <FormItem>
                         <FormLabel>Password</FormLabel>
                         <FormControl>
-                          <Input
-                            type="password"
-                            placeholder="Enter your password"
-                            disabled={isLoading}
-                            {...field}
-                          />
+                          <div className="relative">
+                            <Input
+                              type={showPassword ? "text" : "password"}
+                              placeholder="Enter your password"
+                              disabled={isLoading}
+                              className="pr-10"
+                              {...field}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowPassword(!showPassword)}
+                              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 focus:outline-none"
+                              disabled={isLoading}
+                            >
+                              {showPassword ? (
+                                <EyeOff className="h-4 w-4" />
+                              ) : (
+                                <Eye className="h-4 w-4" />
+                              )}
+                            </button>
+                          </div>
                         </FormControl>
                         <FormMessage />
                       </FormItem>

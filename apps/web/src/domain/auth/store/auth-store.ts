@@ -28,16 +28,6 @@ function deleteCookie(name: string) {
 }
 
 
-interface LoginPayload {
-    email: string;
-    password: string;
-}
-
-interface SignUpPayload {
-    email: string;
-    password: string;
-    displayName?: string;
-}
 
 interface AuthStoreState {
     user: User | null;
