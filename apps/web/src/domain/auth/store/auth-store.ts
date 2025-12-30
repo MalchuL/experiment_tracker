@@ -1,7 +1,5 @@
 import { create } from "zustand";
 import { User } from "@/shared/types";
-import { serviceClients } from "@/lib/api/clients/axios-client";
-import { API_ROUTES } from "@/lib/constants/api-routes";
 import { deleteAuthToken, getAuthToken, setAuthToken } from "../utils/token";
 
 

@@ -1,26 +1,30 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react";
-import { LoginPayload, SignUpPayload } from "../services/auth-service";
-import { useAuthService } from "../hooks/auth-hook";
+import { createContext, useContext, type ReactNode } from "react";
+import { LoginPayload, SignUpPayload } from "../types/login";
+import { useAuthService } from "./auth-hook";
 import { User } from "@/shared/types";
 
+interface AuthProviderOptions {
+  onSuccess?: () => void;
+  onError?: (error: Error) => void;
+}
 
 interface AuthContextType {
   user: User | null;
   isLoading: boolean;
   isAuthenticated: boolean;
-  login: (payload: LoginPayload, {onSuccess, onError}: {onSuccess?: () => void, onError?: (error: Error) => void}) => Promise<void>;
-  register: (payload: SignUpPayload, {onSuccess, onError}?: {onSuccess?: () => void, onError?: (error: Error) => void}) => Promise<void>;
-  updateUser: (payload: User, {onSuccess, onError}?: {onSuccess?: () => void, onError?: (error: Error) => void}) => Promise<void>;
-  logout: ({onSuccess, onError}?: {onSuccess?: () => void, onError?: (error: Error) => void}) => Promise<void>;
+  login: (payload: LoginPayload, options?: AuthProviderOptions) => Promise<void>;
+  register: (payload: SignUpPayload, options?: AuthProviderOptions) => Promise<void>;
+  updateUser: (payload: User, options?: AuthProviderOptions) => Promise<void>;
+  logout: (options?: AuthProviderOptions) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const { user, isLoading, isAuthenticated, login, register, updateUser, logout } = useAuthService();
-  
+
   const value = {
     user,
     isLoading,

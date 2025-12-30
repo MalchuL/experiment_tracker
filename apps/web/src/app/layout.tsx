@@ -7,7 +7,7 @@ import { createQueryClient } from "@/lib/api/clients/query-client";
 import { useState } from "react";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { AuthGuard } from "@/domain/auth/guard/auth-guard";
-import { AuthProvider } from "@/domain/auth/guard/provider";
+import { AuthProvider } from "@/domain/auth/hooks/provider";
 import { Toaster } from "@/components/ui/toaster";
 
 

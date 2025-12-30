@@ -1,21 +1,24 @@
-import { API_ROUTES } from "@/lib/constants/api-routes";
-import { serviceClients } from "@/lib/api/clients/axios-client";
 import { useQuery } from "@tanstack/react-query";
 import { User } from "@/shared/types";
 import { useAuthStore } from "../store/auth-store";
-import { authService, LoginPayload, SignUpPayload } from "../services/auth-service";
+import { authService } from "../services/auth-service";
+import { LoginPayload, SignUpPayload } from "../types/login";
 import { useMutation } from "@tanstack/react-query";
-import { useCallback, useEffect, useState } from "react";
-import { getAuthToken } from "../utils/token";
+import { useCallback, useEffect } from "react";
+
+interface AuthHookOptions {
+    onSuccess?: () => void;
+    onError?: (error: Error) => void;
+}
 
 export interface AuthHookResult {
     user: User | null;
     isLoading: boolean;
     isAuthenticated: boolean;
-    login(payload: LoginPayload, {onSuccess, onError}?: {onSuccess?: () => void, onError?: (error: Error) => void}): Promise<void>;
-    register(payload: SignUpPayload, {onSuccess, onError}?: {onSuccess?: () => void, onError?: (error: Error) => void}): Promise<void>;
-    updateUser(payload: User, {onSuccess, onError}?: {onSuccess?: () => void, onError?: (error: Error) => void}): Promise<void>;
-    logout({onSuccess, onError}?: {onSuccess?: () => void, onError?: (error: Error) => void}): Promise<void>;
+    login(payload: LoginPayload, options?: AuthHookOptions): Promise<void>;
+    register(payload: SignUpPayload, options?: AuthHookOptions): Promise<void>;
+    updateUser(payload: User, options?: AuthHookOptions): Promise<void>;
+    logout(options?: AuthHookOptions): Promise<void>;
     error: Error | null;
 }
 

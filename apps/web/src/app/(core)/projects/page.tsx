@@ -1,6 +1,6 @@
 "use client";
 
-import { useAuth } from "@/domain/auth/guard/provider";
+import { useAuth } from "@/domain/auth/hooks/provider";
 
 export default function Projects() {
   const { user, isAuthenticated } = useAuth();
