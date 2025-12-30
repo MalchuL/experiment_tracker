@@ -4,6 +4,7 @@ import { useAuthService } from "../hooks/auth-hook";
 import { useRouter } from "next/navigation";
 import { FRONTEND_ROUTES } from "@/lib/constants/frontend-routes";
 import { useEffect } from "react";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface AuthGuardProps {
   children: React.ReactNode;
@@ -25,7 +26,7 @@ export function AuthGuard({ children, requireAuth = true }: AuthGuardProps) {
   }, [isAuthenticated, requireAuth, isLoading]);
 
   if (isLoading) {
-    return <div>Loading...</div>;
+    return <Skeleton className="w-full h-full" />;
   }
 
 

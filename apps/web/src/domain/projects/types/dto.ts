@@ -8,3 +8,11 @@ export interface InsertProject {
     settings?: ProjectSettings;
     teamId?: string | null;
   }
+
+export interface UpdateProject {
+    name?: string;
+    description?: string;
+    metrics?: ProjectMetric[];
+    settings?: ProjectSettings;
+    teamId?: string | null;
+  }
