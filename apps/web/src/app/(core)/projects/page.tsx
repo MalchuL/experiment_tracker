@@ -19,7 +19,7 @@ export default function Projects() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const { toast } = useToast();
 
-  const { projects, isLoading, create: createProject, delete: deleteProject, creationIsPending } = useProjects();
+  const { projects, isLoading, createProject, deleteProject, creationIsPending } = useProjects();
 
   const form = useForm<InsertProject>({
     resolver: zodResolver(insertProjectSchema as any),

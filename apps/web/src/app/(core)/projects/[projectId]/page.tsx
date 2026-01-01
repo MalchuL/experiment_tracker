@@ -6,22 +6,25 @@ import { ProjectStatsGrid } from "@/domain/projects/components/project-stats-gri
 import { RecentExperimentsCard } from "@/domain/projects/components/recent-experiments-card";
 import { RecentHypothesesCard } from "@/domain/projects/components/recent-hypotheses-card";
 import { ExperimentStatusCards } from "@/domain/projects/components/experiment-status-cards";
-import { useParams } from "next/navigation";
-import { useProject } from "@/domain/projects/hooks/project-hook";
 import { useStats } from "@/domain/projects/hooks/stats-hook";
 import { useRecentExperiments } from "@/domain/experiments/hooks/recent-experiments";
 import { useRecentHypothesis } from "@/domain/hypothesis/hooks/recent-hypothesis";
+import { useCurrentProject } from "@/domain/projects/hooks/project-provider";
 
 export default function ProjectDashboard() {
-  const { projectId } = useParams<{ projectId: string }>();
-  const { project } = useProject(projectId);
+  const { project, isLoading } = useCurrentProject();
 
+  const projectId = project?.id;
   const { stats, statsIsLoading } = useStats();
 
   const { experiments: recentExperiments, recentExperimentsIsLoading: experimentsLoading } = useRecentExperiments(projectId);
 
   const { hypotheses: recentHypotheses, recentHypothesesIsLoading: hypothesesLoading } = useRecentHypothesis(projectId);
 
+
+  if (isLoading) {
+    return <DashboardSkeleton />;
+  }
   if (statsIsLoading || experimentsLoading || hypothesesLoading) {
     return <DashboardSkeleton />;
   }

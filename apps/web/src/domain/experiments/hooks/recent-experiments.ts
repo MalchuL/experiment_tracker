@@ -8,10 +8,11 @@ export interface RecentExperimentsHookResult {
     recentExperimentsIsLoading: boolean;
 }
 
-export function useRecentExperiments(projectId: string, limit?: number | undefined, offset?: number | undefined): RecentExperimentsHookResult {
+export function useRecentExperiments(projectId?: string, limit?: number | undefined, offset?: number | undefined): RecentExperimentsHookResult {
     const { data: experiments, isLoading } = useQuery<Experiment[]>({
-        queryKey: [QUERY_KEYS.EXPERIMENTS.RECENT(projectId, limit, offset)],
-        queryFn: () => experimentsService.getRecent(projectId, limit, offset),
+        queryKey: [QUERY_KEYS.EXPERIMENTS.RECENT(projectId!, limit, offset)],
+        queryFn: () => experimentsService.getRecent(projectId!, limit, offset),
+        enabled: Boolean(projectId)
     });
     return { experiments: experiments ?? [], recentExperimentsIsLoading: isLoading };
 }

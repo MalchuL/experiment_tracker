@@ -26,6 +26,8 @@ import {
 import { FRONTEND_ROUTES } from "@/lib/constants/frontend-routes";
 import { useParams } from "next/navigation";
 import { useProject } from "@/domain/projects/hooks/project-hook";
+import { useCurrentProject } from '@/domain/projects/hooks/project-provider';
+import { Skeleton } from '../ui/skeleton';
 
 
 const getProjectItems = (projectId: string) => [
@@ -66,18 +68,23 @@ const getProjectItems = (projectId: string) => [
   },
 ];
 
+export function SidebarSkeleton() {
+  return (
+    <Sidebar>
+      <SidebarHeader className="p-4 border-b border-sidebar-border">
+        <Skeleton className="w-full h-8" />
+      </SidebarHeader>
+    </Sidebar>
+  );
+}
+
 export function AppSidebar() {
-  const { projectId } = useParams();
-  const { project,
-    isLoading,
-    updateIsPending,
-    deleteIsPending,
-    update: updateProject,
-    delete: deleteProject,
-  } = useProject(projectId as string);
+  const { project, isLoading } = useCurrentProject();
 
   const projectItems = project ? getProjectItems(project.id) : [];
-
+  if (isLoading) {
+    return <SidebarSkeleton />;
+  }
   return (
     <Sidebar>
       <SidebarHeader className="p-4 border-b border-sidebar-border">

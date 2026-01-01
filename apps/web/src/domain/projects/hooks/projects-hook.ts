@@ -14,8 +14,8 @@ export interface ProjectsHookResult {
     isLoading: boolean;
     creationIsPending: boolean;
     deletionIsPending: boolean;
-    create: (data: InsertProject, options?: ProjectHookOptions) => Promise<void>;
-    delete: (id: string, options?: ProjectHookOptions) => Promise<void>;
+    createProject: (data: InsertProject, options?: ProjectHookOptions) => Promise<void>;
+    deleteProject: (id: string, options?: ProjectHookOptions) => Promise<void>;
 }
 
 export function useProjects() {
@@ -52,7 +52,7 @@ export function useProjects() {
         isLoading,
         creationIsPending: createMutation.isPending,
         deletionIsPending: deleteMutation.isPending,
-        create: createMutation.mutateAsync,
-        delete: deleteMutation.mutateAsync
+        createProject: createMutation.mutateAsync,
+        deleteProject: deleteMutation.mutateAsync
     };
 }

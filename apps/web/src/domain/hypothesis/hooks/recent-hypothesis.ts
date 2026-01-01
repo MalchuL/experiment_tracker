@@ -8,10 +8,11 @@ export interface RecentHypothesisHookResult {
     recentHypothesesIsLoading: boolean;
 }
 
-export function useRecentHypothesis(projectId: string, limit?: number | undefined, offset?: number | undefined): RecentHypothesisHookResult {
+export function useRecentHypothesis(projectId?: string, limit?: number | undefined, offset?: number | undefined): RecentHypothesisHookResult {
     const { data: hypotheses, isLoading } = useQuery<Hypothesis[]>({
-        queryKey: [QUERY_KEYS.HYPOTHESES.RECENT(projectId, limit, offset)],
-        queryFn: () => hypothesisService.getRecent(projectId, limit, offset),
+        queryKey: [QUERY_KEYS.HYPOTHESES.RECENT(projectId!, limit, offset)],
+        queryFn: () => hypothesisService.getRecent(projectId!, limit, offset),
+        enabled: Boolean(projectId)
     });
     return { hypotheses: hypotheses ?? [], recentHypothesesIsLoading: isLoading };
 }

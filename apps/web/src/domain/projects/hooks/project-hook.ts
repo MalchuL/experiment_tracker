@@ -15,8 +15,8 @@ export interface ProjectHookResult {
     isLoading: boolean;
     updateIsPending: boolean;
     deleteIsPending: boolean;
-    update: (project: UpdateProject, options?: ProjectHookOptions) => Promise<void>;
-    delete: (options?: ProjectHookOptions) => Promise<void>;
+    updateProject: (project: UpdateProject, options?: ProjectHookOptions) => Promise<void>;
+    deleteProject: (options?: ProjectHookOptions) => Promise<void>;
 }
 
 export function useProject(projectId: string): ProjectHookResult {
@@ -40,7 +40,7 @@ export function useProject(projectId: string): ProjectHookResult {
         project, isLoading,
         updateIsPending: updateProject.isPending,
         deleteIsPending: deleteProject.isPending,
-        update: updateProject.mutateAsync,
-        delete: deleteFn,
+        updateProject: updateProject.mutateAsync,
+        deleteProject: deleteFn,
     };
 }
