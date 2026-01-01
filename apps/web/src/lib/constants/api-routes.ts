@@ -77,10 +77,10 @@ export const API_ROUTES = {
       LIST: "/api/experiments",
       CREATE: "/api/experiments",
   
-      RECENT: (limit?: number) =>
-        limit !== undefined
-          ? `/api/experiments/recent?limit=${limit}`
-          : "/api/experiments/recent",
+      RECENT: (projectId: string, limit?: number | undefined, offset?: number | undefined) =>
+        limit !== undefined && offset !== undefined
+          ? `/api/experiments/recent?projectId=${projectId}&limit=${limit}&offset=${offset}`
+          : `/api/experiments/recent?projectId=${projectId}`,
   
       REORDER: "/api/experiments/reorder",
   
@@ -101,10 +101,10 @@ export const API_ROUTES = {
       LIST: "/api/hypotheses",
       CREATE: "/api/hypotheses",
   
-      RECENT: (limit?: number) =>
-        limit !== undefined
-          ? `/api/hypotheses/recent?limit=${limit}`
-          : "/api/hypotheses/recent",
+      RECENT: (projectId: string, limit?: number | undefined, offset?: number | undefined) =>
+        limit !== undefined && offset !== undefined
+          ? `/api/hypotheses/recent?projectId=${projectId}&limit=${limit}&offset=${offset}`
+          : `/api/hypotheses/recent?projectId=${projectId}`,
   
       BY_ID: {
         GET: (hypothesisId: string) =>

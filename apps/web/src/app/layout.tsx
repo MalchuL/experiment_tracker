@@ -9,6 +9,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { AuthGuard } from "@/domain/auth/guard/auth-guard";
 import { AuthProvider } from "@/domain/auth/hooks/provider";
 import { Toaster } from "@/components/ui/toaster";
+import { ThemeProvider } from "@/lib/providers";
 
 
 const geistSans = Geist({
@@ -39,12 +40,14 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <QueryClientProvider client={queryClient}>
-          <AuthProvider>
-            <AuthGuard>
-              {children}
-              <Toaster />
-            </AuthGuard>
-          </AuthProvider>
+          <ThemeProvider defaultTheme="system" storageKey="researchtrack-theme">
+            <AuthProvider>
+              <AuthGuard>
+                {children}
+                <Toaster />
+              </AuthGuard>
+            </AuthProvider>
+          </ThemeProvider>
         </QueryClientProvider>
       </body>
     </html>

@@ -122,7 +122,7 @@ export function AppSidebar() {
           </SidebarGroup>
         )}
 
-        {!isLoading && (
+        {!project && (
           <SidebarGroup>
             <SidebarGroupContent>
               <div className="px-3 py-8 text-center text-sm text-muted-foreground">

@@ -1,4 +1,4 @@
-import type { Project, InsertProject } from '../types';
+import type { Project, InsertProject, UpdateProject, DashboardStats } from '../types';
 import type { Experiment } from '@/domain/experiments/types';
 import type { Hypothesis } from '@/domain/hypothesis/types';
 import { serviceClients } from "@/lib/api/clients/axios-client";
@@ -13,8 +13,9 @@ export interface ProjectsService {
   reorderExperiments: (id: string, experimentIds: string[]) => Promise<Experiment[]>;
   getMetrics: (id: string) => Promise<Record<string, Record<string, number | null>>>;
   create: (project: InsertProject) => Promise<Project>;
-  update: (id: string, updates: Partial<InsertProject>) => Promise<Project>;
+  update: (id: string, updates: UpdateProject) => Promise<Project>;
   delete: (id: string) => Promise<void>;
+  getDashboardStats: () => Promise<DashboardStats>;
 }
 
 export const projectsService: ProjectsService = {
@@ -41,7 +42,7 @@ export const projectsService: ProjectsService = {
     return response.data;
   },
 
-  update: async (id: string, updates: Partial<InsertProject>): Promise<Project> => {
+  update: async (id: string, updates: UpdateProject): Promise<Project> => {
     const response = await serviceClients.api.patch<Project>(API_ROUTES.PROJECTS.BY_ID.UPDATE(id), updates);
     return response.data;
   },
@@ -57,6 +58,11 @@ export const projectsService: ProjectsService = {
 
   getMetrics: async (id: string): Promise<Record<string, Record<string, number | null>>> => {
     const response = await serviceClients.api.get<Record<string, Record<string, number | null>>>(API_ROUTES.PROJECTS.BY_ID.METRICS(id));
+    return response.data;
+  },
+
+  getDashboardStats: async (): Promise<DashboardStats> => {
+    const response = await serviceClients.api.get<DashboardStats>(API_ROUTES.DASHBOARD.STATS);
     return response.data;
   },
 };
