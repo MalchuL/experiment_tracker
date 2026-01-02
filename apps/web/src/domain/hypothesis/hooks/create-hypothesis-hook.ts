@@ -17,10 +17,8 @@ export interface UseCreateHypothesisResult {
 
 export function useCreateHypothesis(
     projectId?: string,
-    options?: UseCreateHypothesisOptions
 ): UseCreateHypothesisResult {
     const queryClient = useQueryClient();
-    const { toast } = useToast();
 
     const mutation = useMutation({
         mutationFn: async (data: InsertHypothesis) => {
@@ -29,23 +27,7 @@ export function useCreateHypothesis(
         onSuccess: () => {
             if (projectId) {
                 queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.HYPOTHESES.BY_PROJECT(projectId)] });
-                queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.HYPOTHESES.RECENT(projectId)] });
             }
-            queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.DASHBOARD.STATS] });
-            queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.PROJECTS.LIST] });
-            toast({
-                title: "Hypothesis created",
-                description: "Your new hypothesis has been created successfully.",
-            });
-            options?.onSuccess?.();
-        },
-        onError: (error: Error) => {
-            toast({
-                title: "Error",
-                description: "Failed to create hypothesis. Please try again.",
-                variant: "destructive",
-            });
-            options?.onError?.(error);
         },
     });
 

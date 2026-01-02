@@ -70,6 +70,8 @@ export const API_ROUTES = {
   
         HYPOTHESES: (projectId: string) =>
           `/api/projects/${projectId}/hypotheses`,
+        HYPOTHESES_BY_ID: (projectId: string, hypothesisId: string) =>
+          `/api/projects/${projectId}/hypotheses/${hypothesisId}`,
         METRICS: (projectId: string) =>
           `/api/projects/${projectId}/metrics`,
       },

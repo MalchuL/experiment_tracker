@@ -40,20 +40,31 @@ interface CreateHypothesisDialogProps {
   projectId: string;
   projects?: Project[];
   trigger?: React.ReactNode;
+  onSuccess?: () => void;
+  onError?: (error: Error) => void;
 }
 
 export function CreateHypothesisDialog({
   projectId,
   projects,
   trigger,
+  onSuccess,
+  onError,
 }: CreateHypothesisDialogProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const { createHypothesis, isPending } = useCreateHypothesis(projectId, {
-    onSuccess: () => {
-      setIsOpen(false);
-      form.reset();
-    },
-  });
+  const { createHypothesis, isPending } = useCreateHypothesis(projectId);
+  const handleSubmit = (data: InsertHypothesis) => {
+    createHypothesis(data, {
+      onSuccess: () => {
+        onSuccess?.();
+      },
+      onError: (error: Error) => {
+        onError?.(error);
+      },
+    });
+    setIsOpen(false);
+    form.reset();
+  };
 
   const form = useForm<InsertHypothesis>({
     resolver: zodResolver(insertHypothesisSchema as any),
@@ -67,10 +78,6 @@ export function CreateHypothesisDialog({
       baseline: "root",
     },
   });
-
-  const onSubmit = (data: InsertHypothesis) => {
-    createHypothesis(data);
-  };
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
@@ -90,7 +97,7 @@ export function CreateHypothesisDialog({
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
             <FormField
               control={form.control}
               name="projectId"

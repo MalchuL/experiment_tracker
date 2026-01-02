@@ -1,6 +1,6 @@
 "use client";
 
-import { Link } from "wouter";
+import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,7 @@ import {
 import { Lightbulb, MoreVertical, User, Calendar } from "lucide-react";
 import { format } from "date-fns";
 import type { Hypothesis } from "@/domain/hypothesis/types";
+import { FRONTEND_ROUTES } from "@/lib/constants/frontend-routes";
 
 interface HypothesisCardProps {
   hypothesis: Hypothesis;
@@ -28,7 +29,7 @@ export function HypothesisCard({
   onDelete,
 }: HypothesisCardProps) {
   return (
-    <Link href={`/projects/${projectId}/hypotheses/${hypothesis.id}`}>
+    <Link href={FRONTEND_ROUTES.PROJECT_PAGES.HYPOTHESIS_BY_ID(projectId, hypothesis.id)}>
       <Card
         className="hover-elevate active-elevate-2 cursor-pointer"
         data-testid={`card-hypothesis-${hypothesis.id}`}

@@ -13,6 +13,7 @@ export const FRONTEND_ROUTES = {
     OVERVIEW: (projectId: string) => `/projects/${projectId}`,
     EXPERIMENTS: (projectId: string) => `/projects/${projectId}/experiments`,
     HYPOTHESES: (projectId: string) => `/projects/${projectId}/hypotheses`,
+    HYPOTHESIS_BY_ID: (projectId: string, hypothesisId: string) => `/projects/${projectId}/hypotheses/${hypothesisId}`,
     KANBAN: (projectId: string) => `/projects/${projectId}/kanban`,
     SCALARS: (projectId: string) => `/projects/${projectId}/scalars`,
     DAG: (projectId: string) => `/projects/${projectId}/dag`,

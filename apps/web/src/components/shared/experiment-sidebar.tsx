@@ -17,8 +17,6 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/lib/hooks/use-toast";
 import { useExperiment } from "@/domain/experiments/hooks/experiment-hook";
-import { experimentsService } from "@/domain/experiments/services/experiments-service";
-import { QUERY_KEYS } from "@/lib/constants/query-keys";
 import {
   X,
   GitBranch,

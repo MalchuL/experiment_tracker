@@ -9,20 +9,68 @@ import { useCurrentProject } from "@/domain/projects/hooks";
 import { useProjects } from "@/domain/projects/hooks";
 import {
   useHypotheses,
-  useDeleteHypothesis,
 } from "@/domain/hypothesis/hooks";
 import {
   CreateHypothesisDialog,
   HypothesesList,
 } from "@/domain/hypothesis/components";
 
+import { useCallback } from "react";
+import { QUERY_KEYS } from "@/lib/constants/query-keys";
+import { useQueryClient } from "@tanstack/react-query";
+import { useToast } from "@/lib/hooks/use-toast";
+
 export default function Hypotheses() {
   const { project, isLoading: projectLoading } = useCurrentProject();
-  const projectId = project?.id;
+  const { toast } = useToast();
   const { projects } = useProjects();
-  const { hypotheses, isLoading: hypothesesLoading } = useHypotheses(projectId);
-  const { deleteHypothesis } = useDeleteHypothesis(projectId);
+  const projectId = project?.id;
+  const { hypotheses, isLoading: hypothesesLoading, deleteHypothesis } = useHypotheses(projectId);
+  const queryClient = useQueryClient();
 
+  const handleDeleteHypothesis = useCallback((hypothesisId: string) => {
+    deleteHypothesis(hypothesisId, {
+      onSuccess: () => {
+        if (projectId) {
+          queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.HYPOTHESES.BY_PROJECT(projectId)] });
+          queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.HYPOTHESES.RECENT(projectId)] });
+        }
+        queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.DASHBOARD.STATS] });
+        queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.PROJECTS.LIST] });
+        toast({
+          title: "Hypothesis deleted",
+          description: "The hypothesis has been deleted.",
+        });
+      },
+      onError: (error: Error) => {
+        toast({
+          title: "Error",
+          description: "Failed to delete hypothesis.",
+          variant: "destructive",
+        });
+      },
+    });
+  }, [deleteHypothesis, projectId]);
+
+  const onCreateSuccess = useCallback(() => {
+    if (projectId) {
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.HYPOTHESES.BY_PROJECT(projectId)] });
+    }
+    queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.DASHBOARD.STATS] });
+    queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.PROJECTS.LIST] });
+    toast({
+      title: "Hypothesis created",
+      description: "Your new hypothesis has been created successfully.",
+    });
+  }, [projectId]);
+
+  const onCreateError = useCallback((error: Error) => {
+    toast({
+      title: "Error",
+      description: "Failed to create hypothesis. Please try again.",
+      variant: "destructive",
+    });
+  }, [projectId]);
   const isLoading = projectLoading || hypothesesLoading;
 
   if (!projectId) {
@@ -56,6 +104,8 @@ export default function Hypotheses() {
             <CreateHypothesisDialog
               projectId={projectId}
               projects={projects}
+              onSuccess={onCreateSuccess}
+              onError={onCreateError}
             />
           ) : null
         }
@@ -86,7 +136,7 @@ export default function Hypotheses() {
           hypotheses={hypotheses}
           projectId={projectId}
           projects={projects}
-          onDelete={deleteHypothesis}
+          onDelete={handleDeleteHypothesis}
         />
       )}
     </div>
