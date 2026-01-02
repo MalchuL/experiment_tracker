@@ -7,7 +7,7 @@ import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
 import { CreateProjectModal } from "@/domain/projects/components/create-project-modal";
 import { ProjectCard } from "@/domain/projects/components/project-card";
-import { ListSkeleton } from "@/domain/projects/components/loading-skeleton";
+import { ListSkeleton } from "@/components/shared/loading-skeleton";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/lib/hooks/use-toast";
 import { Plus, FolderKanban } from "lucide-react";

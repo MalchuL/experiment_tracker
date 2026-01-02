@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
-import { ListSkeleton } from "@/domain/projects/components/loading-skeleton";
+import { ListSkeleton } from "@/components/shared/loading-skeleton";
 import { ExperimentSidebar } from "@/components/shared/experiment-sidebar";
 import { Button } from "@/components/ui/button";
 import { useCurrentProject } from "@/domain/projects/hooks/project-provider";

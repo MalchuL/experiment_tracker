@@ -1,7 +1,7 @@
 "use client";
 
 import { PageHeader } from "@/components/shared/page-header";
-import { DashboardSkeleton } from "@/domain/projects/components/loading-skeleton";
+import { DashboardSkeleton } from "@/components/shared/loading-skeleton";
 import { ProjectStatsGrid } from "@/domain/projects/components/project-stats-grid";
 import { RecentExperimentsCard } from "@/domain/projects/components/recent-experiments-card";
 import { RecentHypothesesCard } from "@/domain/projects/components/recent-hypotheses-card";
