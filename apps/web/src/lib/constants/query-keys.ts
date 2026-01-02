@@ -13,6 +13,7 @@ export const QUERY_KEYS = {
     },
     HYPOTHESES: {
         RECENT: (projectId: string, limit?: number | undefined, offset?: number | undefined) => `hypotheses/recent?projectId=${projectId}&limit=${limit}&offset=${offset}`,
+        BY_PROJECT: (projectId: string) => `projects/${projectId}/hypotheses`,
     },
     METRICS: {
         GET: (experimentId: string) => `experiments/${experimentId}/metrics`,
