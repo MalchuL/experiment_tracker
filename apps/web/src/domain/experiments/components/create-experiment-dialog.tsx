@@ -30,6 +30,7 @@ import { useToast } from "@/lib/hooks/use-toast";
 import { experimentFormSchema } from "../schemas/experiment-form";
 import { ExperimentForm } from "../types/form";
 import { ColorList } from "@/components/shared/color-list";
+import { generateRandomColor } from "@/lib/colors";
 
 interface CreateExperimentDialogProps {
     projectId: string;
@@ -69,6 +70,7 @@ export function CreateExperimentDialog({
         onSuccess: () => {
             setIsOpen(false);
             form.reset();
+            form.setValue("color", generateRandomColor());
         },
     });
 
@@ -80,7 +82,7 @@ export function CreateExperimentDialog({
             status: "planned",
             parentExperimentId: null,
             featuresJson: "{}",
-            color: EXPERIMENT_COLORS[0],
+            color: generateRandomColor(),
         },
     });
 
