@@ -8,11 +8,11 @@ export const FRONTEND_ROUTES = {
   TEAMS: "/teams",
   USERS: "/users",
   SETTINGS: "/settings",
-
-  BY_ID: {
-    PROJECT: (projectId: string) => `/projects/${projectId}`,
-    EXPERIMENT: (experimentId: string) => `/experiments/${experimentId}`,
-    HYPOTHESIS: (hypothesisId: string) => `/hypotheses/${hypothesisId}`,
+  
+  PROJECT_PAGES: {
+    OVERVIEW: (projectId: string) => `/projects/${projectId}`,
+    EXPERIMENTS: (projectId: string) => `/projects/${projectId}/experiments`,
+    HYPOTHESES: (projectId: string) => `/projects/${projectId}/hypotheses`,
     KANBAN: (projectId: string) => `/projects/${projectId}/kanban`,
     SCALARS: (projectId: string) => `/projects/${projectId}/scalars`,
     DAG: (projectId: string) => `/projects/${projectId}/dag`,

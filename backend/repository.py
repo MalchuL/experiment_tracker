@@ -14,7 +14,7 @@ from .schemas import (
     ProjectCreate, ProjectUpdate,
     ExperimentCreate, ExperimentUpdate,
     HypothesisCreate, HypothesisUpdate,
-    MetricCreate, DashboardStats,
+    MetricCreate, DashboardStats, MetricAggregation,
     Project as ProjectSchema,
     Experiment as ExperimentSchema,
     Hypothesis as HypothesisSchema,
@@ -516,3 +516,66 @@ async def get_recent_hypotheses(session: AsyncSession, user: User, limit: int = 
     result = await session.execute(query)
     hypotheses = result.scalars().all()
     return [_hypothesis_to_schema(h) for h in hypotheses]
+
+
+async def get_aggregated_metrics_for_project(session: AsyncSession, user: User, project_id: str) -> dict:
+    """Get aggregated metrics for all experiments in a project."""
+    project = await get_project_if_accessible(session, user, project_id)
+    if not project:
+        return {}
+    
+    # Get all experiments for the project
+    experiments_query = select(Experiment).where(
+        Experiment.project_id == uuid.UUID(project_id)
+    ).order_by(Experiment.order)
+    experiments_result = await session.execute(experiments_query)
+    experiments = experiments_result.scalars().all()
+    
+    # Get project metrics configuration
+    project_metrics = project.metrics or []
+    
+    result: dict = {}
+    
+    for experiment in experiments:
+        # Get all metrics for this experiment
+        metrics_query = select(Metric).where(
+            Metric.experiment_id == experiment.id
+        ).order_by(Metric.step)
+        metrics_result = await session.execute(metrics_query)
+        exp_metrics = metrics_result.scalars().all()
+        
+        metric_values: dict = {}
+        
+        # For each project metric, aggregate the experiment metrics
+        for project_metric in project_metrics:
+            # Handle both dict (from JSONB) and object types
+            if isinstance(project_metric, dict):
+                metric_name = project_metric.get("name")
+                aggregation_str = project_metric.get("aggregation")
+                direction_str = project_metric.get("direction")
+            else:
+                metric_name = project_metric.name
+                aggregation_str = project_metric.aggregation.value if hasattr(project_metric.aggregation, 'value') else str(project_metric.aggregation)
+                direction_str = project_metric.direction.value if hasattr(project_metric.direction, 'value') else str(project_metric.direction)
+            
+            # Find matching metrics for this experiment
+            matching = [m for m in exp_metrics if m.name == metric_name]
+            
+            if not matching:
+                metric_values[metric_name] = None
+            else:
+                if aggregation_str == MetricAggregation.LAST.value:
+                    # Get the metric with the highest step
+                    metric_values[metric_name] = max(matching, key=lambda m: m.step).value
+                elif aggregation_str == MetricAggregation.BEST.value:
+                    # Get best value based on direction
+                    if direction_str == MetricDirection.MAXIMIZE.value:
+                        metric_values[metric_name] = max(m.value for m in matching)
+                    else:
+                        metric_values[metric_name] = min(m.value for m in matching)
+                else:  # AVERAGE
+                    metric_values[metric_name] = sum(m.value for m in matching) / len(matching)
+        
+        result[str(experiment.id)] = metric_values
+    
+    return result

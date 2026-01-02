@@ -64,6 +64,15 @@ async def get_project_hypotheses(
     return await repository.get_hypotheses_by_project(session, user, project_id)
 
 
+@router.get("/projects/{project_id}/metrics")
+async def get_project_metrics(
+    project_id: str,
+    user: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_async_session)
+):
+    return await repository.get_aggregated_metrics_for_project(session, user, project_id)
+
+
 @router.post("/projects")
 async def create_project(
     data: ProjectCreate,

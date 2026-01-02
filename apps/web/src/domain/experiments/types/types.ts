@@ -5,7 +5,7 @@ export const ExperimentStatus = {
     FAILED: "failed",
   } as const;
   
-  export type ExperimentStatusType = typeof ExperimentStatus[keyof typeof ExperimentStatus];
+export type ExperimentStatusType = typeof ExperimentStatus[keyof typeof ExperimentStatus];
 
 export interface Experiment {
     id: string;

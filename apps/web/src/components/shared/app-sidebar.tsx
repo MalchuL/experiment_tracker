@@ -33,37 +33,37 @@ import { Skeleton } from '../ui/skeleton';
 const getProjectItems = (projectId: string) => [
   {
     title: "Overview",
-    url: FRONTEND_ROUTES.BY_ID.PROJECT(projectId),
+    url: FRONTEND_ROUTES.PROJECT_PAGES.OVERVIEW(projectId),
     icon: LayoutDashboard,
   },
   {
     title: "Experiments",
-    url: FRONTEND_ROUTES.BY_ID.EXPERIMENT(projectId),
+    url: FRONTEND_ROUTES.PROJECT_PAGES.EXPERIMENTS(projectId),
     icon: FlaskConical,
   },
   {
     title: "Hypotheses",
-    url: FRONTEND_ROUTES.BY_ID.HYPOTHESIS(projectId),
+    url: FRONTEND_ROUTES.PROJECT_PAGES.HYPOTHESES(projectId),
     icon: Lightbulb,
   },
   {
     title: "Kanban",
-    url: FRONTEND_ROUTES.BY_ID.KANBAN(projectId),
+    url: FRONTEND_ROUTES.PROJECT_PAGES.KANBAN(projectId),
     icon: KanbanSquare,
   },
   {
     title: "Scalars",
-    url: FRONTEND_ROUTES.BY_ID.SCALARS(projectId),
+    url: FRONTEND_ROUTES.PROJECT_PAGES.SCALARS(projectId),
     icon: BarChart3,
   },
   {
     title: "DAG View",
-    url: FRONTEND_ROUTES.BY_ID.DAG(projectId),
+    url: FRONTEND_ROUTES.PROJECT_PAGES.DAG(projectId),
     icon: GitBranch,
   },
   {
     title: "Settings",
-    url: FRONTEND_ROUTES.BY_ID.SETTINGS(projectId),
+    url: FRONTEND_ROUTES.PROJECT_PAGES.SETTINGS(projectId),
     icon: Settings,
   },
 ];
