@@ -104,6 +104,7 @@ class ExperimentCreate(ExperimentBase):
 class ExperimentUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=100)
     description: Optional[str] = Field(None, max_length=1000)
+    color: Optional[str] = None
     status: Optional[ExperimentStatus] = None
     features: Optional[Dict[str, Any]] = None
     gitDiff: Optional[str] = None

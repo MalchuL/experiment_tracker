@@ -313,6 +313,8 @@ async def update_experiment(session: AsyncSession, user: User, experiment_id: st
         experiment.progress = data.progress
     if data.order is not None:
         experiment.order = data.order
+    if data.color is not None:
+        experiment.color = data.color
     
     await session.commit()
     await session.refresh(experiment)
