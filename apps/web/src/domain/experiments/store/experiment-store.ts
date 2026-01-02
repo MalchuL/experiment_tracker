@@ -1,13 +1,10 @@
 import { create } from "zustand";
 
-interface ExperimentStoreState {
-    selectedExperimentId: string | null;
-    setSelectedExperimentId: (id: string | null) => void;
+export interface ExperimentStore {
+    id: string;
 }
 
-export const useExperimentStore = create<ExperimentStoreState>((set) => ({
+export const experimentStore = create<ExperimentStore>((set) => ({
     selectedExperimentId: null,
     setSelectedExperimentId: (id: string | null) => set({ selectedExperimentId: id }),
 }));
-
-

@@ -8,6 +8,9 @@ export interface ExperimentsService {
     getByProject: (projectId: string) => Promise<Experiment[]>;
     create: (data: InsertExperiment) => Promise<Experiment>;
     reorder: (projectId: string, experimentIds: string[]) => Promise<Experiment[]>;
+    get: (experimentId: string) => Promise<Experiment>;
+    update: (experimentId: string, data: InsertExperiment) => Promise<Experiment>;
+    delete: (experimentId: string) => Promise<void>;
 }
 
 export const experimentsService: ExperimentsService = {
@@ -29,5 +32,17 @@ export const experimentsService: ExperimentsService = {
             { experimentIds }
         );
         return response.data;
+    },
+
+    get: async (experimentId: string) => {
+        const response = await serviceClients.api.get<Experiment>(API_ROUTES.EXPERIMENTS.BY_ID.GET(experimentId));
+        return response.data;
+    },
+    update: async (experimentId: string, data: InsertExperiment) => {
+        const response = await serviceClients.api.patch<Experiment>(API_ROUTES.EXPERIMENTS.BY_ID.UPDATE(experimentId), data);
+        return response.data;
+    },
+    delete: async (experimentId: string) => {
+        await serviceClients.api.delete(API_ROUTES.EXPERIMENTS.BY_ID.DELETE(experimentId));
     },
 };

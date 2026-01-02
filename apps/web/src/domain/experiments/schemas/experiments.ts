@@ -1,7 +1,7 @@
 import { z, ZodType } from "zod";
 import { InsertExperiment } from "../types";
 
-export const EXPERIMENT_COLORS = [
+export const EXPERIMENT_COLORS: string[] = [
     "#3b82f6", // blue
     "#10b981", // green
     "#f59e0b", // amber

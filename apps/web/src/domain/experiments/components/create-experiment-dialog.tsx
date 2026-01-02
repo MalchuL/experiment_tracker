@@ -29,6 +29,7 @@ import { InsertExperiment } from "../types";
 import { useToast } from "@/lib/hooks/use-toast";
 import { experimentFormSchema } from "../schemas/experiment-form";
 import { ExperimentForm } from "../types/form";
+import { ColorList } from "@/components/shared/color-list";
 
 interface CreateExperimentDialogProps {
     projectId: string;
@@ -156,22 +157,7 @@ export function CreateExperimentDialog({
                             render={({ field }) => (
                                 <FormItem>
                                     <FormLabel>Color</FormLabel>
-                                    <div className="flex gap-2 flex-wrap">
-                                        {EXPERIMENT_COLORS.map((color) => (
-                                            <button
-                                                key={color}
-                                                type="button"
-                                                className={`w-6 h-6 rounded-full border-2 ${
-                                                    field.value === color
-                                                        ? "border-foreground"
-                                                        : "border-transparent"
-                                                }`}
-                                                style={{ backgroundColor: color }}
-                                                onClick={() => field.onChange(color)}
-                                                data-testid={`color-${color}`}
-                                            />
-                                        ))}
-                                    </div>
+                                    <ColorList currentColor={field.value} useColorPalette={true} onColorChange={field.onChange} colors={EXPERIMENT_COLORS} />
                                     <FormMessage />
                                 </FormItem>
                             )}

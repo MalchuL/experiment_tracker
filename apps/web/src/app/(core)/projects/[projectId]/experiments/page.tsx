@@ -12,14 +12,14 @@ import {
     useExperiments,
     useReorderExperiments,
     useAggregatedMetrics,
-    useExperimentStore,
+    useSelectedExperimentStore,
 } from "@/domain/experiments/hooks";
 import { CreateExperimentDialog, ExperimentsTable } from "@/domain/experiments/components";
 
 export default function Experiments() {
   const { project, isLoading: projectLoading } = useCurrentProject();
   const projectId = project?.id;
-  const { selectedExperimentId, setSelectedExperimentId } = useExperimentStore();
+  const { selectedExperimentId, setSelectedExperimentId } = useSelectedExperimentStore();
   const { experiments, isLoading: experimentsLoading } = useExperiments(projectId);
   const { aggregatedMetrics } = useAggregatedMetrics(projectId);
   const { reorderExperiments } = useReorderExperiments(projectId);
