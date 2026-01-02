@@ -11,7 +11,7 @@ import { ListSkeleton } from "@/components/shared/loading-skeleton";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/lib/hooks/use-toast";
 import { Plus, FolderKanban } from "lucide-react";
-import type { Project, InsertProject } from "@/domain/projects/types";
+import type { InsertProject } from "@/domain/projects/types";
 import { insertProjectSchema } from "@/domain/projects/schemas";
 import { useProjects } from "@/domain/projects/hooks";
 

@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { DashboardStats } from "../types";
 import { QUERY_KEYS } from "@/lib/constants/query-keys";
-import { projectsService } from "../services/projects-service";
+import { projectsService } from "../services";
 
 export interface StatsHookResult {
     stats: DashboardStats;

@@ -1,10 +1,9 @@
-import { toast } from "@/lib/hooks/use-toast";
-import { projectsService } from "../services/projects-service";
+import { projectsService } from "../services";
 import { Project, InsertProject } from "../types";
 import { QUERY_KEYS } from "@/lib/constants/query-keys";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-export interface ProjectHookOptions {
+export interface ProjectsHookOptions {
     onSuccess?: () => void;
     onError?: (error: Error) => void;
 }
@@ -14,8 +13,8 @@ export interface ProjectsHookResult {
     isLoading: boolean;
     creationIsPending: boolean;
     deletionIsPending: boolean;
-    createProject: (data: InsertProject, options?: ProjectHookOptions) => Promise<void>;
-    deleteProject: (id: string, options?: ProjectHookOptions) => Promise<void>;
+    createProject: (data: InsertProject, options?: ProjectsHookOptions) => Promise<void>;
+    deleteProject: (id: string, options?: ProjectsHookOptions) => Promise<void>;
 }
 
 export function useProjects() {

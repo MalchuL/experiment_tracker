@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { experimentsService } from "../services/experiments-service";
+import { experimentsService } from "../services";
 import { Experiment } from "../types";
 import { QUERY_KEYS } from "@/lib/constants/query-keys";
 import { useToast } from "@/lib/hooks/use-toast";

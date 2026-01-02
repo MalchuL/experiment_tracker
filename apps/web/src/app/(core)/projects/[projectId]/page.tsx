@@ -6,10 +6,10 @@ import { ProjectStatsGrid } from "@/domain/projects/components/project-stats-gri
 import { RecentExperimentsCard } from "@/domain/projects/components/recent-experiments-card";
 import { RecentHypothesesCard } from "@/domain/projects/components/recent-hypotheses-card";
 import { ExperimentStatusCards } from "@/domain/projects/components/experiment-status-cards";
-import { useStats } from "@/domain/projects/hooks/stats-hook";
-import { useRecentExperiments } from "@/domain/experiments/hooks/recent-experiments";
-import { useRecentHypothesis } from "@/domain/hypothesis/hooks/recent-hypothesis";
-import { useCurrentProject } from "@/domain/projects/hooks/project-provider";
+import { useStats } from "@/domain/projects/hooks";
+import { useRecentExperiments } from "@/domain/experiments/hooks";
+import { useRecentHypothesis } from "@/domain/hypothesis/hooks";
+import { useCurrentProject } from "@/domain/projects/hooks";
 
 export default function ProjectDashboard() {
   const { project, isLoading } = useCurrentProject();

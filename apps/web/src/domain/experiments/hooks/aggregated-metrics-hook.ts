@@ -1,6 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { projectsService } from "@/domain/projects/services/projects-service";
-import { QUERY_KEYS } from "@/lib/constants/query-keys";
+import { projectsService } from "@/domain/projects/services";
 
 export interface UseAggregatedMetricsResult {
     aggregatedMetrics: Record<string, Record<string, number | null>> | undefined;

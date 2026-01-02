@@ -2,7 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { FlaskConical } from "lucide-react";
 import Link from "next/link";
-import type { Experiment } from "@/domain/experiments/types/types";
+import type { Experiment } from "@/domain/experiments/types";
 
 interface RecentExperimentsCardProps {
   experiments: Experiment[] | undefined;

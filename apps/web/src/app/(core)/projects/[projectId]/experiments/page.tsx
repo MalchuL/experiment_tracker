@@ -6,15 +6,15 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { ListSkeleton } from "@/components/shared/loading-skeleton";
 import { ExperimentSidebar } from "@/components/shared/experiment-sidebar";
 import { Button } from "@/components/ui/button";
-import { useCurrentProject } from "@/domain/projects/hooks/project-provider";
+import { useCurrentProject } from "@/domain/projects/hooks";
 import { Plus, FlaskConical, AlertCircle } from "lucide-react";
 import {
     useExperiments,
     useReorderExperiments,
     useAggregatedMetrics,
-    useSelectedExperimentStore,
 } from "@/domain/experiments/hooks";
 import { CreateExperimentDialog, ExperimentsTable } from "@/domain/experiments/components";
+import { useSelectedExperimentStore } from "@/domain/experiments/store";
 
 export default function Experiments() {
   const { project, isLoading: projectLoading } = useCurrentProject();

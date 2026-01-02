@@ -1,6 +1,6 @@
 import { StatCard } from "@/components/shared/stat-card";
 import { FolderKanban, FlaskConical, Lightbulb, TrendingUp } from "lucide-react";
-import type { DashboardStats } from "../types/stats";
+import type { DashboardStats } from "../types";
 
 interface ProjectStatsGridProps {
   stats: DashboardStats | undefined;

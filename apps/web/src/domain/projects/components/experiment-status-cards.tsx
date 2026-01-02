@@ -1,6 +1,6 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { Play, CheckCircle2, XCircle } from "lucide-react";
-import type { DashboardStats } from "../types/stats";
+import type { DashboardStats } from "../types";
 
 interface ExperimentStatusCardsProps {
   stats: DashboardStats | undefined;

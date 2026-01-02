@@ -23,11 +23,11 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
-import { useCreateExperiment } from "../hooks/create-experiment-hook";
+import { useCreateExperiment } from "../hooks";
 import { insertExperimentSchema, EXPERIMENT_COLORS} from "../schemas"
 import { InsertExperiment } from "../types";
 import { useToast } from "@/lib/hooks/use-toast";
-import { experimentFormSchema } from "../schemas/experiment-form";
+import { experimentFormSchema } from "../schemas";
 import { ExperimentForm } from "../types/form";
 import { ColorList } from "@/components/shared/color-list";
 import { generateRandomColor } from "@/lib/colors";

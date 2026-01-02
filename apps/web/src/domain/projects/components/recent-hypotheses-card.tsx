@@ -2,7 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Lightbulb } from "lucide-react";
 import Link from "next/link";
-import type { Hypothesis } from "@/domain/hypothesis/types/types";
+import type { Hypothesis } from "@/domain/hypothesis/types";
 
 interface RecentHypothesesCardProps {
   hypotheses: Hypothesis[] | undefined;

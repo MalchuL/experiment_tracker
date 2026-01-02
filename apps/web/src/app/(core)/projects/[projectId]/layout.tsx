@@ -4,7 +4,7 @@ import { AppSidebar } from "@/components/shared/app-sidebar";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { ThemeToggle } from "@/components/shared/theme-toggle";
 import { UserMenu } from "@/components/shared/user-menu";
-import { ProjectProvider } from "@/domain/projects/hooks/project-provider";
+import { ProjectProvider } from "@/domain/projects/hooks";
 import { useParams } from "next/navigation";
 
 export default function ProjectLayout({

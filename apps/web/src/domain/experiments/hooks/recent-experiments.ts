@@ -1,5 +1,5 @@
 import { QUERY_KEYS } from "@/lib/constants/query-keys";
-import { experimentsService } from "../services/experiments-service";
+import { experimentsService } from "../services";
 import { useQuery } from "@tanstack/react-query";
 import { Experiment } from "../types";
 

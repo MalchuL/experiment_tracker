@@ -1,6 +1,6 @@
 import { QUERY_KEYS } from "@/lib/constants/query-keys";
 import { useQuery } from "@tanstack/react-query";
-import { hypothesisService } from "../services/hypothesis-service";
+import { hypothesisService } from "../services";
 import { Hypothesis } from "../types";
 
 export interface RecentHypothesisHookResult {

@@ -1,6 +1,6 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { QUERY_KEYS } from "@/lib/constants/query-keys";
-import { projectsService } from "../services/projects-service";
+import { projectsService } from "../services";
 import { Project, UpdateProject } from "../types";
 import { useCallback } from "react";
 

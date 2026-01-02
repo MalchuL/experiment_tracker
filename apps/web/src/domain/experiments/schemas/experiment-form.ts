@@ -1,7 +1,7 @@
 import z, { ZodType } from "zod";
 import { ExperimentForm } from "../types/form";
 import { EXPERIMENT_COLORS } from "./experiments";
-import { ExperimentStatus } from "../types/types";
+import { ExperimentStatus } from "../types";
 
 export const experimentFormSchema = z.object({
     name: z.string().min(1, "Name is required"),
