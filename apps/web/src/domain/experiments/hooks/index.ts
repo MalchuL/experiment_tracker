@@ -4,4 +4,5 @@ export * from "./reorder-experiments-hook";
 export * from "./aggregated-metrics-hook";
 export * from "./recent-experiments";
 export * from "./experiment-hook";
+export * from "./update-experiment-status-hook";
 
