@@ -1,0 +1,766 @@
+"use client";
+
+import { useState, useMemo, useEffect, useCallback } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
+import { PageHeader } from "@/components/shared/page-header";
+import { ListSkeleton } from "@/components/shared/loading-skeleton";
+import { EmptyState } from "@/components/shared/empty-state";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+import { Slider } from "@/components/ui/slider";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Separator } from "@/components/ui/separator";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { useCurrentProject } from "@/domain/projects/hooks";
+import { useExperiments } from "@/domain/experiments/hooks";
+import { useAllMetrics } from "@/domain/metrics/hooks";
+import { AlertCircle, BarChart3, ChevronDown, Eye, EyeOff, Maximize2, RotateCcw } from "lucide-react";
+import Plot from "react-plotly.js";
+import type { Layout, Config } from "plotly.js";
+import type { Experiment } from "@/domain/experiments/types";
+import type { Metric } from "@/domain/metrics/types";
+
+const CHART_COLORS = [
+  "#3b82f6",
+  "#ef4444",
+  "#22c55e",
+  "#f59e0b",
+  "#8b5cf6",
+  "#ec4899",
+  "#06b6d4",
+  "#f97316",
+  "#84cc16",
+  "#14b8a6",
+];
+
+function encodeSelection(indices: number[]): string {
+  if (indices.length === 0) return "";
+  return btoa(indices.join(","));
+}
+
+function decodeSelection(encoded: string): number[] {
+  if (!encoded) return [];
+  try {
+    return atob(encoded).split(",").map(Number).filter(n => !isNaN(n));
+  } catch {
+    return [];
+  }
+}
+
+function applySmoothing(data: number[], weight: number): number[] {
+  if (weight === 0 || data.length === 0) return data;
+  const smoothed: number[] = [];
+  let last = data[0];
+  for (const value of data) {
+    const smoothedValue = last * weight + value * (1 - weight);
+    smoothed.push(smoothedValue);
+    last = smoothedValue;
+  }
+  return smoothed;
+}
+
+interface MetricChartProps {
+  metricName: string;
+  data: Array<Record<string, number | null>>;
+  experiments: Experiment[];
+  selectedExperiments: Experiment[];
+  allExperiments: Experiment[];
+  height?: number;
+  showBrush?: boolean;
+  domain?: [number, number] | null;
+  onDomainChange?: (domain: [number, number] | null) => void;
+  onExpand?: () => void;
+  onReset?: () => void;
+  isFullscreen?: boolean;
+}
+
+function MetricChart({
+  metricName,
+  data,
+  selectedExperiments,
+  allExperiments,
+  height = 200,
+  domain,
+  onDomainChange,
+  isFullscreen = false,
+}: MetricChartProps) {
+  const plotData = useMemo(() => {
+    return selectedExperiments.map((experiment) => {
+      const originalIndex = allExperiments.findIndex(e => e.id === experiment.id);
+      const xValues: number[] = [];
+      const yValues: number[] = [];
+      
+      data.forEach(point => {
+        const step = point.step as number;
+        const value = point[experiment.name];
+        if (value !== null && value !== undefined) {
+          xValues.push(step);
+          yValues.push(value as number);
+        }
+      });
+
+      return {
+        x: xValues,
+        y: yValues,
+        type: 'scatter' as const,
+        mode: 'lines' as const,
+        name: experiment.name,
+        line: {
+          color: CHART_COLORS[originalIndex % CHART_COLORS.length],
+          width: isFullscreen ? 2 : 1.5,
+        },
+        hovertemplate: `<b>${experiment.name}</b><br>Step: %{x}<br>Value: %{y:.4f}<extra></extra>`,
+      };
+    });
+  }, [data, selectedExperiments, allExperiments, isFullscreen]);
+
+  const handleRelayout = useCallback((event: any) => {
+    if (event['xaxis.range[0]'] !== undefined && event['xaxis.range[1]'] !== undefined) {
+      onDomainChange?.([event['xaxis.range[0]'], event['xaxis.range[1]']]);
+    } else if (event['xaxis.autorange'] === true) {
+      onDomainChange?.(null);
+    }
+  }, [onDomainChange]);
+
+  if (data.length === 0) {
+    return (
+      <div className="flex items-center justify-center text-sm text-muted-foreground" style={{ height }}>
+        No data for selected experiments
+      </div>
+    );
+  }
+
+  const layout: Partial<Layout> = {
+    autosize: true,
+    height,
+    margin: {
+      l: isFullscreen ? 60 : 50,
+      r: 20,
+      t: 10,
+      b: isFullscreen ? 40 : 30,
+    },
+    xaxis: {
+      title: isFullscreen ? { text: 'Step', font: { size: 12 } } : undefined,
+      tickfont: { size: isFullscreen ? 12 : 10 },
+      gridcolor: 'rgba(128, 128, 128, 0.2)',
+      range: domain || undefined,
+      autorange: domain ? false : true,
+    },
+    yaxis: {
+      tickfont: { size: isFullscreen ? 12 : 10 },
+      gridcolor: 'rgba(128, 128, 128, 0.2)',
+    },
+    legend: {
+      font: { size: isFullscreen ? 12 : 10 },
+      orientation: 'h' as const,
+      y: -0.15,
+      x: 0.5,
+      xanchor: 'center' as const,
+    },
+    hovermode: 'x unified' as const,
+    paper_bgcolor: 'transparent',
+    plot_bgcolor: 'transparent',
+    dragmode: 'zoom' as const,
+  };
+
+  const config: Partial<Config> = {
+    displayModeBar: true,
+    modeBarButtonsToRemove: ['lasso2d', 'select2d', 'autoScale2d'] as any,
+    displaylogo: false,
+    responsive: true,
+  };
+
+  return (
+    <div style={{ height }}>
+      <Plot
+        data={plotData}
+        layout={layout}
+        config={config}
+        style={{ width: '100%', height: '100%' }}
+        useResizeHandler={true}
+        onRelayout={handleRelayout}
+      />
+    </div>
+  );
+}
+
+export default function Scalars() {
+  const { project, isLoading: projectLoading } = useCurrentProject();
+  const projectId = project?.id;
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  
+  const [smoothing, setSmoothing] = useState(0);
+  const [initialized, setInitialized] = useState(false);
+  const [selectedExperimentIndices, setSelectedExperimentIndices] = useState<Set<number>>(new Set());
+  const [hiddenMetrics, setHiddenMetrics] = useState<Set<string>>(new Set());
+  const [metricDomains, setMetricDomains] = useState<Record<string, [number, number] | null>>({});
+  const [fullscreenMetric, setFullscreenMetric] = useState<string | null>(null);
+
+  const { experiments = [], isLoading: experimentsLoading } = useExperiments(projectId);
+  const { allMetrics = {}, isLoading: metricsLoading } = useAllMetrics(projectId);
+
+  const allLoggedMetricNames = useMemo(() => {
+    if (!allMetrics) return [];
+    const metricSet = new Set<string>();
+    Object.values(allMetrics).forEach(metrics => {
+      metrics.forEach(m => metricSet.add(m.name));
+    });
+    return Array.from(metricSet).sort();
+  }, [allMetrics]);
+
+  useEffect(() => {
+    if (experiments.length === 0 || allLoggedMetricNames.length === 0 || initialized) return;
+    
+    const expParam = searchParams.get("exp");
+    const metParam = searchParams.get("met");
+    const smoothParam = searchParams.get("s");
+    
+    if (expParam) {
+      const indices = decodeSelection(expParam);
+      setSelectedExperimentIndices(new Set(indices.filter(i => i >= 0 && i < experiments.length)));
+    } else {
+      setSelectedExperimentIndices(new Set(experiments.map((_, i) => i)));
+    }
+    
+    if (metParam) {
+      const hiddenIndices = decodeSelection(metParam);
+      setHiddenMetrics(new Set(hiddenIndices.map(i => allLoggedMetricNames[i]).filter(Boolean)));
+    }
+    
+    if (smoothParam) {
+      const s = parseFloat(smoothParam);
+      if (!isNaN(s) && s >= 0 && s <= 1) {
+        setSmoothing(s);
+      }
+    }
+    
+    setInitialized(true);
+  }, [experiments, searchParams, initialized, allLoggedMetricNames]);
+
+  const updateUrl = useCallback((expIndices: Set<number>, hiddenMets: Set<string>, smooth: number) => {
+    const params = new URLSearchParams();
+    
+    const allSelected = expIndices.size === experiments.length;
+    if (!allSelected && expIndices.size > 0) {
+      params.set("exp", encodeSelection(Array.from(expIndices).sort()));
+    }
+    
+    if (hiddenMets.size > 0) {
+      const hiddenIndices = Array.from(hiddenMets)
+        .map(name => allLoggedMetricNames.indexOf(name))
+        .filter(i => i >= 0)
+        .sort();
+      if (hiddenIndices.length > 0) {
+        params.set("met", encodeSelection(hiddenIndices));
+      }
+    }
+    
+    if (smooth > 0) {
+      params.set("s", smooth.toFixed(2));
+    }
+    
+    const queryString = params.toString();
+    const basePath = `/projects/${projectId}/scalars`;
+    router.replace(queryString ? `${basePath}?${queryString}` : basePath);
+  }, [experiments.length, allLoggedMetricNames, projectId, router]);
+
+  const toggleExperiment = (index: number) => {
+    setSelectedExperimentIndices((prev) => {
+      const next = new Set(prev);
+      if (next.has(index)) {
+        next.delete(index);
+      } else {
+        next.add(index);
+      }
+      updateUrl(next, hiddenMetrics, smoothing);
+      return next;
+    });
+  };
+
+  const selectAllExperiments = () => {
+    const all = new Set(experiments.map((_, i) => i));
+    setSelectedExperimentIndices(all);
+    updateUrl(all, hiddenMetrics, smoothing);
+  };
+
+  const clearAllExperiments = () => {
+    setSelectedExperimentIndices(new Set());
+    updateUrl(new Set(), hiddenMetrics, smoothing);
+  };
+
+  const toggleMetric = (metricName: string) => {
+    setHiddenMetrics((prev) => {
+      const next = new Set(prev);
+      if (next.has(metricName)) {
+        next.delete(metricName);
+      } else {
+        next.add(metricName);
+      }
+      updateUrl(selectedExperimentIndices, next, smoothing);
+      return next;
+    });
+  };
+
+  const showAllMetrics = () => {
+    setHiddenMetrics(new Set());
+    updateUrl(selectedExperimentIndices, new Set(), smoothing);
+  };
+
+  const showOnlyMetric = (metricName: string) => {
+    if (allLoggedMetricNames.length === 0) return;
+    const newHidden = new Set(allLoggedMetricNames.filter(name => name !== metricName));
+    setHiddenMetrics(newHidden);
+    updateUrl(selectedExperimentIndices, newHidden, smoothing);
+  };
+
+  const handleSmoothingChange = (value: number[]) => {
+    setSmoothing(value[0]);
+  };
+
+  const handleSmoothingCommit = (value: number[]) => {
+    updateUrl(selectedExperimentIndices, hiddenMetrics, value[0]);
+  };
+
+  const handleDomainChange = (metricName: string, domain: [number, number] | null) => {
+    setMetricDomains(prev => ({ ...prev, [metricName]: domain }));
+  };
+
+  const resetDomain = (metricName: string) => {
+    setMetricDomains(prev => ({ ...prev, [metricName]: null }));
+  };
+
+  const resetAllDomains = () => {
+    setMetricDomains({});
+  };
+
+  const visibleMetrics = useMemo(() => {
+    if (allLoggedMetricNames.length === 0) return [];
+    return allLoggedMetricNames
+      .filter(name => !hiddenMetrics.has(name))
+      .map(name => ({ name }));
+  }, [allLoggedMetricNames, hiddenMetrics]);
+
+  const selectedExperiments = useMemo(() => {
+    return experiments.filter((_, i) => selectedExperimentIndices.has(i));
+  }, [experiments, selectedExperimentIndices]);
+
+  const chartDataByMetric = useMemo(() => {
+    const result: Record<string, Array<Record<string, number | null>>> = {};
+    
+    if (!allMetrics || selectedExperiments.length === 0) return result;
+
+    for (const metric of visibleMetrics) {
+      const stepMap = new Map<number, Record<string, number | null>>();
+      const rawDataByExp: Record<string, { steps: number[]; values: number[] }> = {};
+      
+      selectedExperiments.forEach((experiment) => {
+        const expMetrics = allMetrics[experiment.id] || [];
+        const metricData = expMetrics
+          .filter(m => m.name === metric.name)
+          .sort((a, b) => a.step - b.step);
+        
+        if (metricData.length > 0) {
+          rawDataByExp[experiment.id] = {
+            steps: metricData.map(m => m.step),
+            values: metricData.map(m => m.value),
+          };
+        }
+      });
+
+      Object.entries(rawDataByExp).forEach(([expId, data]) => {
+        const experiment = experiments.find(e => e.id === expId);
+        if (!experiment) return;
+        
+        const smoothedValues = applySmoothing(data.values, smoothing);
+        
+        data.steps.forEach((step, i) => {
+          const existing = stepMap.get(step) || { step };
+          existing[experiment.name] = smoothedValues[i];
+          stepMap.set(step, existing);
+        });
+      });
+
+      result[metric.name] = Array.from(stepMap.values()).sort(
+        (a, b) => (a.step as number) - (b.step as number)
+      );
+    }
+
+    return result;
+  }, [allMetrics, selectedExperiments, experiments, visibleMetrics, smoothing]);
+
+  const fullscreenMetricData = fullscreenMetric ? chartDataByMetric[fullscreenMetric] || [] : [];
+
+  if (!projectId) {
+    return (
+      <div className="flex flex-col items-center justify-center h-[calc(100vh-8rem)] gap-4">
+        <AlertCircle className="w-12 h-12 text-muted-foreground" />
+        <h2 className="text-lg font-medium">No Project Selected</h2>
+        <p className="text-muted-foreground text-center max-w-md">
+          Click on the logo in the sidebar to select a project and view its metrics.
+        </p>
+      </div>
+    );
+  }
+
+  if (projectLoading || experimentsLoading || metricsLoading) {
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          title="Scalars"
+          description="Compare metrics across experiments"
+        />
+        <ListSkeleton count={3} />
+      </div>
+    );
+  }
+
+  const gridCols = visibleMetrics.length === 1 ? 1 : visibleMetrics.length === 2 ? 2 : 
+    visibleMetrics.length <= 4 ? 2 : 3;
+
+  return (
+    <div className="flex h-[calc(100vh-5rem)] gap-4">
+      <Card className="w-72 flex-shrink-0 flex flex-col">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">Controls</CardTitle>
+        </CardHeader>
+        <CardContent className="flex-1 overflow-hidden flex flex-col gap-4">
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">Smoothing</Label>
+            <div className="flex items-center gap-3">
+              <Slider
+                value={[smoothing]}
+                onValueChange={handleSmoothingChange}
+                onValueCommit={handleSmoothingCommit}
+                min={0}
+                max={0.99}
+                step={0.01}
+                className="flex-1"
+                data-testid="slider-smoothing"
+              />
+              <span className="text-sm font-mono w-10 text-right">
+                {smoothing.toFixed(2)}
+              </span>
+            </div>
+          </div>
+
+          <Separator />
+
+          <div className="space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <Label className="text-sm font-medium">Experiments</Label>
+              <div className="flex gap-1">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 px-2 text-xs"
+                  onClick={selectAllExperiments}
+                  data-testid="button-select-all-experiments"
+                >
+                  All
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 px-2 text-xs"
+                  onClick={clearAllExperiments}
+                  data-testid="button-clear-all-experiments"
+                >
+                  None
+                </Button>
+              </div>
+            </div>
+            <ScrollArea className="h-40">
+              <div className="space-y-1 pr-3">
+                {experiments.map((experiment, index) => (
+                  <div
+                    key={experiment.id}
+                    className="flex items-center gap-2 py-1"
+                  >
+                    <Checkbox
+                      id={`exp-${index}`}
+                      checked={selectedExperimentIndices.has(index)}
+                      onCheckedChange={() => toggleExperiment(index)}
+                      data-testid={`checkbox-experiment-${index}`}
+                    />
+                    <div
+                      className="w-3 h-3 rounded-full flex-shrink-0"
+                      style={{ backgroundColor: CHART_COLORS[index % CHART_COLORS.length] }}
+                    />
+                    <label
+                      htmlFor={`exp-${index}`}
+                      className="text-sm truncate cursor-pointer flex-1"
+                      title={experiment.name}
+                    >
+                      {experiment.name}
+                    </label>
+                  </div>
+                ))}
+              </div>
+            </ScrollArea>
+          </div>
+
+          <Separator />
+
+          <div className="space-y-2 flex-1 min-h-0">
+            <div className="flex items-center justify-between gap-2">
+              <Label className="text-sm font-medium">Metrics</Label>
+              {hiddenMetrics.size > 0 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 px-2 text-xs"
+                  onClick={showAllMetrics}
+                  data-testid="button-show-all-metrics"
+                >
+                  Show All
+                </Button>
+              )}
+            </div>
+            <ScrollArea className="h-32">
+              <div className="space-y-1 pr-3">
+                {allLoggedMetricNames.map((metricName) => (
+                  <div
+                    key={metricName}
+                    className="flex items-center gap-1 py-1"
+                  >
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 flex-shrink-0"
+                      onClick={() => toggleMetric(metricName)}
+                      data-testid={`button-toggle-metric-${metricName}`}
+                    >
+                      {hiddenMetrics.has(metricName) ? (
+                        <EyeOff className="w-3 h-3 text-muted-foreground" />
+                      ) : (
+                        <Eye className="w-3 h-3" />
+                      )}
+                    </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <div
+                          className="flex items-center gap-1 flex-1 min-w-0 px-1 py-0.5 rounded-md cursor-pointer hover-elevate"
+                          data-testid={`dropdown-metric-${metricName}`}
+                        >
+                          <span 
+                            className={`text-sm truncate flex-1 ${hiddenMetrics.has(metricName) ? 'text-muted-foreground line-through' : ''}`}
+                            title={metricName}
+                          >
+                            {metricName}
+                          </span>
+                          <ChevronDown className="w-3 h-3 text-muted-foreground flex-shrink-0" />
+                        </div>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="start">
+                        <DropdownMenuItem 
+                          onClick={() => showOnlyMetric(metricName)}
+                          data-testid={`menu-only-metric-${metricName}`}
+                        >
+                          <Eye className="w-4 h-4 mr-2" />
+                          Show Only This
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem 
+                          onClick={() => setFullscreenMetric(metricName)}
+                          disabled={hiddenMetrics.has(metricName)}
+                          data-testid={`menu-expand-metric-${metricName}`}
+                        >
+                          <Maximize2 className="w-4 h-4 mr-2" />
+                          Expand
+                        </DropdownMenuItem>
+                        <DropdownMenuItem 
+                          onClick={() => resetDomain(metricName)}
+                          disabled={!metricDomains[metricName]}
+                          data-testid={`menu-reset-zoom-metric-${metricName}`}
+                        >
+                          <RotateCcw className="w-4 h-4 mr-2" />
+                          Reset Zoom
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                ))}
+              </div>
+            </ScrollArea>
+          </div>
+
+          <Separator />
+
+          <div className="space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <Label className="text-sm font-medium">Zoom</Label>
+              {Object.values(metricDomains).some(d => d !== null) && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 px-2 text-xs"
+                  onClick={resetAllDomains}
+                  data-testid="button-reset-all-zoom"
+                >
+                  Reset All
+                </Button>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Drag on chart to zoom. Double-click to reset. Use toolbar for pan/zoom modes.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
+      <div className="flex-1 overflow-auto">
+        <div className="mb-4">
+          <PageHeader
+            title="Scalars"
+            description={`Metrics visualization for "${project?.name}" - ${selectedExperiments.length} experiments selected`}
+          />
+        </div>
+
+        {selectedExperiments.length === 0 ? (
+          <EmptyState
+            icon={BarChart3}
+            title="Select experiments"
+            description="Choose one or more experiments from the sidebar to compare their metrics."
+          />
+        ) : visibleMetrics.length === 0 ? (
+          <EmptyState
+            icon={BarChart3}
+            title="No metrics visible"
+            description="All metrics are hidden. Click 'Show All' to display them."
+          />
+        ) : (
+          <div 
+            className="grid gap-4" 
+            style={{ gridTemplateColumns: `repeat(${gridCols}, minmax(0, 1fr))` }}
+          >
+            {visibleMetrics.map((metric) => {
+              const data = chartDataByMetric[metric.name] || [];
+              const hasData = data.length > 0;
+              const domain = metricDomains[metric.name] || null;
+
+              return (
+                <Card key={metric.name} data-testid={`card-metric-${metric.name}`}>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm flex items-center justify-between gap-2">
+                      <span className="truncate">{metric.name}</span>
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        {domain && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6"
+                            onClick={() => resetDomain(metric.name)}
+                            title="Reset zoom"
+                            data-testid={`button-reset-zoom-${metric.name}`}
+                          >
+                            <RotateCcw className="w-3 h-3" />
+                          </Button>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6"
+                          onClick={() => setFullscreenMetric(metric.name)}
+                          title="Expand"
+                          data-testid={`button-expand-${metric.name}`}
+                        >
+                          <Maximize2 className="w-3 h-3" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6"
+                          onClick={() => toggleMetric(metric.name)}
+                          title="Hide"
+                          data-testid={`button-hide-metric-${metric.name}`}
+                        >
+                          <EyeOff className="w-3 h-3" />
+                        </Button>
+                      </div>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {!hasData ? (
+                      <div className="h-48 flex items-center justify-center text-sm text-muted-foreground">
+                        No data for selected experiments
+                      </div>
+                    ) : (
+                      <MetricChart
+                        metricName={metric.name}
+                        data={data}
+                        experiments={experiments}
+                        selectedExperiments={selectedExperiments}
+                        allExperiments={experiments}
+                        height={200}
+                        showBrush={true}
+                        domain={domain}
+                        onDomainChange={(d) => handleDomainChange(metric.name, d)}
+                        onExpand={() => setFullscreenMetric(metric.name)}
+                        onReset={() => resetDomain(metric.name)}
+                      />
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      <Dialog open={!!fullscreenMetric} onOpenChange={(open) => !open && setFullscreenMetric(null)}>
+        <DialogContent className="max-w-6xl w-[90vw] h-[80vh]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center justify-between gap-4">
+              <span>{fullscreenMetric}</span>
+              <div className="flex items-center gap-2">
+                {fullscreenMetric && metricDomains[fullscreenMetric] && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => fullscreenMetric && resetDomain(fullscreenMetric)}
+                    data-testid="button-reset-zoom-fullscreen"
+                  >
+                    <RotateCcw className="w-4 h-4 mr-2" />
+                    Reset Zoom
+                  </Button>
+                )}
+              </div>
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 min-h-0">
+            {fullscreenMetric && (
+              <MetricChart
+                metricName={fullscreenMetric}
+                data={fullscreenMetricData}
+                experiments={experiments}
+                selectedExperiments={selectedExperiments}
+                allExperiments={experiments}
+                height={500}
+                showBrush={true}
+                domain={metricDomains[fullscreenMetric] || null}
+                onDomainChange={(d) => handleDomainChange(fullscreenMetric, d)}
+                isFullscreen={true}
+              />
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
