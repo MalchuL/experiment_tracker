@@ -13,7 +13,7 @@ export function useAllMetrics(projectId?: string): UseAllMetricsResult {
     const { experiments } = useExperiments(projectId);
 
     const { data: allMetrics, isLoading } = useQuery<Record<string, Metric[]>>({
-        queryKey: projectId && experiments ? [`projects/${projectId}/all-metrics`, experiments.map(e => e.id)] : [],
+        queryKey: projectId && experiments ? [QUERY_KEYS.METRICS.BY_PROJECT(projectId)] : [],
         queryFn: async () => {
             if (!experiments || experiments.length === 0) return {};
             

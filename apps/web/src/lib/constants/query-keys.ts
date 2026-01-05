@@ -17,6 +17,7 @@ export const QUERY_KEYS = {
     },
     METRICS: {
         GET: (experimentId: string) => `experiments/${experimentId}/metrics`,
+        BY_PROJECT: (projectId: string) => `projects/${projectId}/metrics`,
     },
     EVIDENCE: {
         GET: (experimentId: string) => `experiments/${experimentId}/evidence`,
