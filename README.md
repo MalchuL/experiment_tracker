@@ -2,6 +2,7 @@
 
 `sudo -u postgres psql` - Opens default postgres user
 `ALTER ROLE myuser SUPERUSER;` - Grant permission to create extension
+`CREATE DATABASE experiment_tracker WITH OWNER = myuser;`
 `export DATABASE_URL="postgresql://myuser:myuser@localhost:5432/experiment_tracker"` - Create db for specific user
 
 # Run Backend 
