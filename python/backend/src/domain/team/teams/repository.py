@@ -1,6 +1,7 @@
 from typing import List
 import uuid
 from lib.db.base_repository import BaseRepository
+from lib.types import UUID_TYPE
 from models import Team, User
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -23,7 +24,7 @@ class TeamRepository(BaseRepository[Team]):
         return list(teams)
 
     async def get_team_member_if_accessible(
-        self, user_id: uuid.UUID | str, team_id: uuid.UUID | str
+        self, user_id: UUID_TYPE, team_id: UUID_TYPE
     ) -> TeamMember | None:
         query = (
             select(TeamMember)

@@ -1,16 +1,14 @@
 from typing import List, Optional, Protocol
 import uuid
 from lib.db.base_repository import BaseRepository
+from lib.types import UUID_TYPE
 from models import Project, User
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from domain.team.teams.repository import TeamRepository
-
-
-class UserProtocol(Protocol):
-    id: uuid.UUID | str
+from lib.protocols.user_protocol import UserProtocol
 
 
 class ProjectRepository(BaseRepository[Project]):
@@ -46,11 +44,9 @@ class ProjectRepository(BaseRepository[Project]):
         return list(projects)
 
     async def get_project_if_accessible(
-        self, user: UserProtocol, project_id: str | uuid.UUID
-    ) -> Optional[Project]:
+        self, user: UserProtocol, project_id: UUID_TYPE
+    ) -> Project | None:
         team_ids = await self._get_user_team_ids(user)
-        if isinstance(project_id, str):
-            project_id = uuid.UUID(project_id)
 
         conditions = [Project.owner_id == user.id]
         if team_ids:
