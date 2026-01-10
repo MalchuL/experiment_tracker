@@ -8,7 +8,9 @@ from typing import Protocol
 
 
 class HasId(Protocol):
-    id: UUID
+    @property
+    def id(self) -> UUID:
+        pass
 
 
 T = TypeVar("T", bound=HasId)
@@ -39,6 +41,8 @@ class BaseRepository(Generic[T]):
                 id = UUIDType(id)
             except (ValueError, AttributeError):
                 pass  # Keep as string if conversion fails
+        if "id" in kwargs:
+            del kwargs["id"]
 
         stmt = update(self.model).where(self.model.id == id).values(**kwargs)  # type: ignore[arg-type]
         await self.db.execute(stmt)
