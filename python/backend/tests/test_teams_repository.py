@@ -451,3 +451,282 @@ class TestTeamRepository:
         assert result.id == test_team.id
         assert result.name == "Upserted Name"
         assert result.description == "Upserted Description"
+
+    async def test_get_team_member_if_accessible_exists_with_uuid(
+        self,
+        team_repository: TeamRepository,
+        db_session: AsyncSession,
+        test_user: User,
+        test_user_2: User,
+    ):
+        """Test getting a team member when it exists using UUID objects."""
+        # Create a team owned by test_user_2
+        team = Team(
+            id=None,
+            name="Team for Member Test",
+            description="Team for testing member access",
+            owner_id=test_user_2.id,
+        )
+        db_session.add(team)
+        await db_session.flush()
+        await db_session.refresh(team)
+
+        # Add test_user as a member
+        team_member = TeamMember(
+            id=None,
+            team_id=team.id,
+            user_id=test_user.id,
+        )
+        db_session.add(team_member)
+        await db_session.flush()
+        await db_session.refresh(team_member)
+
+        # Get the team member using UUID objects
+        result = await team_repository.get_team_member_if_accessible(
+            test_user.id, team.id
+        )
+
+        assert result is not None
+        assert result.id == team_member.id
+        assert result.user_id == test_user.id
+        assert result.team_id == team.id
+
+    async def test_get_team_member_if_accessible_exists_with_string_uuid(
+        self,
+        team_repository: TeamRepository,
+        db_session: AsyncSession,
+        test_user: User,
+        test_user_2: User,
+    ):
+        """Test getting a team member when it exists using string UUIDs."""
+        # Create a team owned by test_user_2
+        team = Team(
+            id=None,
+            name="Team for Member Test String",
+            description="Team for testing member access with strings",
+            owner_id=test_user_2.id,
+        )
+        db_session.add(team)
+        await db_session.flush()
+        await db_session.refresh(team)
+
+        # Add test_user as a member
+        team_member = TeamMember(
+            id=None,
+            team_id=team.id,
+            user_id=test_user.id,
+        )
+        db_session.add(team_member)
+        await db_session.flush()
+        await db_session.refresh(team_member)
+
+        # Get the team member using string UUIDs
+        result = await team_repository.get_team_member_if_accessible(
+            str(test_user.id), str(team.id)
+        )
+
+        assert result is not None
+        assert result.id == team_member.id
+        assert result.user_id == test_user.id
+        assert result.team_id == team.id
+
+    async def test_get_team_member_if_accessible_exists_with_mixed_uuid_types(
+        self,
+        team_repository: TeamRepository,
+        db_session: AsyncSession,
+        test_user: User,
+        test_user_2: User,
+    ):
+        """Test getting a team member when it exists using mixed UUID and string."""
+        # Create a team owned by test_user_2
+        team = Team(
+            id=None,
+            name="Team for Member Test Mixed",
+            description="Team for testing member access with mixed types",
+            owner_id=test_user_2.id,
+        )
+        db_session.add(team)
+        await db_session.flush()
+        await db_session.refresh(team)
+
+        # Add test_user as a member
+        team_member = TeamMember(
+            id=None,
+            team_id=team.id,
+            user_id=test_user.id,
+        )
+        db_session.add(team_member)
+        await db_session.flush()
+        await db_session.refresh(team_member)
+
+        # Get the team member using mixed types (UUID for user_id, string for team_id)
+        result = await team_repository.get_team_member_if_accessible(
+            test_user.id, str(team.id)
+        )
+
+        assert result is not None
+        assert result.id == team_member.id
+        assert result.user_id == test_user.id
+        assert result.team_id == team.id
+
+        # Also test the reverse (string for user_id, UUID for team_id)
+        result2 = await team_repository.get_team_member_if_accessible(
+            str(test_user.id), team.id
+        )
+
+        assert result2 is not None
+        assert result2.id == team_member.id
+        assert result2.user_id == test_user.id
+        assert result2.team_id == team.id
+
+    async def test_get_team_member_if_accessible_not_found_with_uuid(
+        self,
+        team_repository: TeamRepository,
+        db_session: AsyncSession,
+        test_user: User,
+        test_user_2: User,
+    ):
+        """Test getting a team member when it doesn't exist using UUID objects."""
+        # Create a team owned by test_user_2
+        team = Team(
+            id=None,
+            name="Team Without Member",
+            description="Team that test_user is not a member of",
+            owner_id=test_user_2.id,
+        )
+        db_session.add(team)
+        await db_session.flush()
+        await db_session.refresh(team)
+
+        # Try to get a team member that doesn't exist
+        result = await team_repository.get_team_member_if_accessible(
+            test_user.id, team.id
+        )
+
+        assert result is None
+
+    async def test_get_team_member_if_accessible_not_found_with_string_uuid(
+        self,
+        team_repository: TeamRepository,
+        db_session: AsyncSession,
+        test_user: User,
+        test_user_2: User,
+    ):
+        """Test getting a team member when it doesn't exist using string UUIDs."""
+        # Create a team owned by test_user_2
+        team = Team(
+            id=None,
+            name="Team Without Member String",
+            description="Team that test_user is not a member of (string test)",
+            owner_id=test_user_2.id,
+        )
+        db_session.add(team)
+        await db_session.flush()
+        await db_session.refresh(team)
+
+        # Try to get a team member that doesn't exist using string UUIDs
+        result = await team_repository.get_team_member_if_accessible(
+            str(test_user.id), str(team.id)
+        )
+
+        assert result is None
+
+    async def test_get_team_member_if_accessible_not_found_nonexistent_ids(
+        self, team_repository: TeamRepository
+    ):
+        """Test getting a team member with non-existent user and team IDs."""
+        non_existent_user_id = uuid4()
+        non_existent_team_id = uuid4()
+
+        # Try to get a team member with non-existent IDs
+        result = await team_repository.get_team_member_if_accessible(
+            non_existent_user_id, non_existent_team_id
+        )
+
+        assert result is None
+
+        # Also test with string UUIDs
+        result2 = await team_repository.get_team_member_if_accessible(
+            str(non_existent_user_id), str(non_existent_team_id)
+        )
+
+        assert result2 is None
+
+    async def test_get_team_member_if_accessible_wrong_user(
+        self,
+        team_repository: TeamRepository,
+        db_session: AsyncSession,
+        test_user: User,
+        test_user_2: User,
+    ):
+        """Test getting a team member with wrong user ID."""
+        # Create a team owned by test_user_2
+        team = Team(
+            id=None,
+            name="Team for Wrong User Test",
+            description="Team for testing wrong user access",
+            owner_id=test_user_2.id,
+        )
+        db_session.add(team)
+        await db_session.flush()
+        await db_session.refresh(team)
+
+        # Add test_user_2 as a member (not test_user)
+        team_member = TeamMember(
+            id=None,
+            team_id=team.id,
+            user_id=test_user_2.id,
+        )
+        db_session.add(team_member)
+        await db_session.flush()
+        await db_session.refresh(team_member)
+
+        # Try to get team member with test_user (who is not a member)
+        result = await team_repository.get_team_member_if_accessible(
+            test_user.id, team.id
+        )
+
+        assert result is None
+
+    async def test_get_team_member_if_accessible_wrong_team(
+        self,
+        team_repository: TeamRepository,
+        db_session: AsyncSession,
+        test_user: User,
+        test_user_2: User,
+    ):
+        """Test getting a team member with wrong team ID."""
+        # Create two teams
+        team1 = Team(
+            id=None,
+            name="Team 1",
+            description="First team",
+            owner_id=test_user_2.id,
+        )
+        team2 = Team(
+            id=None,
+            name="Team 2",
+            description="Second team",
+            owner_id=test_user_2.id,
+        )
+        db_session.add_all([team1, team2])
+        await db_session.flush()
+        await db_session.refresh(team1)
+        await db_session.refresh(team2)
+
+        # Add test_user as a member of team1 only
+        team_member = TeamMember(
+            id=None,
+            team_id=team1.id,
+            user_id=test_user.id,
+        )
+        db_session.add(team_member)
+        await db_session.flush()
+        await db_session.refresh(team_member)
+
+        # Try to get team member with team2 (where test_user is not a member)
+        result = await team_repository.get_team_member_if_accessible(
+            test_user.id, team2.id
+        )
+
+        assert result is None

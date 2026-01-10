@@ -1,4 +1,5 @@
 from typing import List
+import uuid
 from lib.db.base_repository import BaseRepository
 from models import Team, User
 from sqlalchemy import select
@@ -20,3 +21,14 @@ class TeamRepository(BaseRepository[Team]):
         result = await self.db.execute(query)
         teams = result.scalars().all()
         return list(teams)
+
+    async def get_team_member_if_accessible(
+        self, user_id: uuid.UUID | str, team_id: uuid.UUID | str
+    ) -> TeamMember | None:
+        query = (
+            select(TeamMember)
+            .where(TeamMember.user_id == user_id, TeamMember.team_id == team_id)
+            .limit(1)
+        )
+        result = await self.db.execute(query)
+        return result.scalar_one_or_none()
