@@ -17,7 +17,10 @@ class DtoConverter[T: BaseModel]:
         Returns:
             dict: Dictionary representation of the DTO
         """
-        return dto.model_dump(by_alias=False, mode="json")
+        if hasattr(dto, "model_dump"):
+            return dto.model_dump(by_alias=False, mode="json")
+        else:
+            return dict(dto)
 
     def dto_to_json_dict_with_json_case(self, dto: T) -> dict:
         """Convert DTO to JSON dictionary with serialization casing
@@ -30,7 +33,10 @@ class DtoConverter[T: BaseModel]:
         Returns:
             dict: JSON dictionary representation of the DTO
         """
-        return dto.model_dump(by_alias=True, mode="json")
+        if hasattr(dto, "model_dump"):
+            return dto.model_dump(by_alias=True, mode="json")
+        else:
+            return dict(dto)
 
     def dict_with_json_case_to_dto(self, data: dict | Any) -> T:
         """Convert dict to DTO with any casing
@@ -45,7 +51,10 @@ class DtoConverter[T: BaseModel]:
         Returns:
             DTO: DTO representation of the dictionary
         """
-        return self.dto_type.model_validate(data)
+        if hasattr(self.dto_type, "model_validate"):
+            return self.dto_type.model_validate(data)
+        else:
+            return self.dto_type(**data)
 
     def dto_to_partial_dict_with_dto_case(self, dto: T) -> dict:
         """Convert DTO to partial dict with same casing as the DTO
@@ -58,4 +67,7 @@ class DtoConverter[T: BaseModel]:
         Returns:
             dict: Partial dictionary representation of the DTO
         """
-        return dto.model_dump(by_alias=False, mode="json", exclude_unset=True)
+        if hasattr(dto, "model_dump"):
+            return dto.model_dump(by_alias=False, mode="json", exclude_unset=True)
+        else:
+            return dict(dto)

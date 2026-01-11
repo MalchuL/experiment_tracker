@@ -13,6 +13,7 @@ model_config = ConfigDict(
         serialization_alias=to_camel,  # Output: first_name -> firstName
     ),
     extra="forbid",
+    populate_by_name=True,
 )
 
 
@@ -43,9 +44,12 @@ class ProjectBaseDTO(BaseModel):
 
 class ProjectDTO(ProjectBaseDTO):
     id: UUID
+    owner_id: UUID
     created_at: datetime
     experiment_count: int = 0
     hypothesis_count: int = 0
+    team_id: Optional[UUID] = None
+    team_name: Optional[str] = None
 
     model_config = model_config
 

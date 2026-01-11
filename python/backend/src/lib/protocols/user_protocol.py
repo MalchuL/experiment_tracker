@@ -3,4 +3,6 @@ from uuid import UUID
 
 
 class UserProtocol(Protocol):
-    id: UUID | str
+    @property
+    def id(self) -> UUID | str:
+        pass

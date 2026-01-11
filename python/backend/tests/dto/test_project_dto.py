@@ -19,6 +19,7 @@ class TestProjectDTO:
         "name": "test_project",
         "description": "test_description",
         "owner": "test_owner",
+        "ownerId": "123e4567-e89b-12d3-a456-426614174000",
         "id": "123e4567-e89b-12d3-a456-426614174000",
         "createdAt": "2021-01-01T00:00:00Z",
         "experimentCount": 12,

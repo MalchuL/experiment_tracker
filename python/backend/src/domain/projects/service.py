@@ -5,6 +5,7 @@ from domain.projects.mapper import (
     ProjectMapper,
     SchemaToDTOProps,
 )
+from lib.dto_converter import DtoConverter
 from lib.protocols.user_protocol import UserProtocol
 from lib.types import UUID_TYPE
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -30,7 +31,18 @@ class ProjectService:
         except Exception as e:
             await self.project_repository.rollback()
             raise e
-        return self.project_mapper.project_schema_to_dto(project_model)
+        # When creating a project, the counts are 0
+        props = SchemaToDTOProps(
+            experiment_count=0,
+            hypothesis_count=0,
+        )
+        project_model = await self.project_repository.get_project_if_accessible(
+            user, project_model.id
+        )
+        return self.project_mapper.project_schema_to_dto(
+            project_model,
+            props,
+        )
 
     async def update_project(
         self, user: UserProtocol, project_id: UUID_TYPE, data: ProjectUpdateDTO

@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from domain.projects.dto import ProjectCreateDTO, ProjectDTO, ProjectUpdateDTO
 from domain.projects.utils import default_metrics
+from lib.dto_converter import DtoConverter
 from models import Project
 from typing import List, Optional, Sequence, Dict, Any
 from uuid import UUID
@@ -41,14 +42,14 @@ class ProjectMapper:
             name=project.name,
             description=project.description,
             owner=owner_str,
-            ownerId=str(project.owner_id),
-            createdAt=project.created_at.isoformat() if project.created_at else "",
+            owner_id=str(project.owner_id),
+            created_at=project.created_at.isoformat() if project.created_at else "",
             metrics=project.metrics or [],
             settings=project.settings or {},
-            experimentCount=props.experiment_count,
-            hypothesisCount=props.hypothesis_count,
-            teamId=str(project.team_id) if project.team_id else None,
-            teamName=project.team.name if project.team else None,
+            experiment_count=props.experiment_count,
+            hypothesis_count=props.hypothesis_count,
+            team_id=str(project.team_id) if project.team_id else None,
+            team_name=project.team.name if project.team else None,
         )
 
     def project_list_schema_to_dto(
@@ -71,20 +72,16 @@ class ProjectMapper:
     ) -> Project:
         """Convert ProjectCreateDTO to Project model"""
         # Convert metrics from Pydantic models to dicts
+        converter = DtoConverter[ProjectCreateDTO](ProjectCreateDTO)
         metrics: List[Dict[str, Any]] = []
         if dto.metrics:
             metrics = [
-                m.model_dump() if hasattr(m, "model_dump") else dict(m)
-                for m in dto.metrics
+                converter.dto_to_json_dict_with_json_case(m) for m in dto.metrics
             ]
 
         # Convert settings from Pydantic model to dict
         if dto.settings:
-            settings = (
-                dto.settings.model_dump()
-                if hasattr(dto.settings, "model_dump")
-                else dict(dto.settings)
-            )
+            settings = converter.dto_to_dict_with_dto_case(dto.settings)
         else:
             settings = default_metrics()  # Returns default settings dict
 
@@ -94,7 +91,7 @@ class ProjectMapper:
             name=dto.name,
             description=dto.description,
             owner_id=props.owner_id,
-            team_id=UUID(dto.teamId) if dto.teamId else None,
+            team_id=dto.team_id if dto.team_id else None,
             metrics=metrics,
             settings=settings,
         )
@@ -106,31 +103,30 @@ class ProjectMapper:
         Convert ProjectUpdateDTO to a dictionary of updates for repository.update()
         Only includes fields that are actually provided (not None)
         """
-        updates: Dict[str, Any] = {}
-
-        if dto.name is not None:
-            updates["name"] = dto.name
-
-        if dto.description is not None:
-            updates["description"] = dto.description
-
-        # Note: owner is a relationship, not a column, so we can't update it directly
-        # To change the owner, you would need to update owner_id, which is not in UpdateDTO
-        # If dto.owner is provided, we ignore it as it's not updatable via this endpoint
-
-        # Convert metrics from Pydantic models to dicts if provided
-        if dto.metrics is not None:
-            updates["metrics"] = [
-                m.model_dump() if hasattr(m, "model_dump") else dict(m)
-                for m in dto.metrics
-            ]
-
-        # Convert settings from Pydantic model to dict if provided
-        if dto.settings is not None:
-            updates["settings"] = (
-                dto.settings.model_dump()
-                if hasattr(dto.settings, "model_dump")
-                else dict(dto.settings)
-            )
+        converter = DtoConverter[ProjectUpdateDTO](ProjectUpdateDTO)
+        converted_dto = converter.dto_to_partial_dict_with_dto_case(dto)
+        updates = {}
+        if "name" in converted_dto:
+            updates["name"] = converted_dto["name"]
+        if "description" in converted_dto:
+            updates["description"] = converted_dto["description"]
+        if "owner" in converted_dto:
+            raise ValueError("Owner cannot be updated")
+        if "metrics" in converted_dto:
+            metrics = []
+            for m in converted_dto["metrics"]:
+                metric = {
+                    "name": m["name"],
+                    "direction": m["direction"],
+                    "aggregation": m["aggregation"],
+                }
+                metrics.append(metric)
+            updates["metrics"] = metrics
+        if "settings" in converted_dto:
+            settings = {
+                "naming_pattern": converted_dto["settings"]["naming_pattern"],
+                "display_metrics": converted_dto["settings"]["display_metrics"],
+            }
+            updates["settings"] = settings
 
         return updates
