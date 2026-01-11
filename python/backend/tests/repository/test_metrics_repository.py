@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from models import Metric, Experiment, Project, User, Team, TeamMember, MetricDirection
 from domain.metrics.repository import MetricRepository
 from domain.projects.repository import UserProtocol
+from lib.db.error import DBNotFoundError
 
 
 class TestMetricRepository:
@@ -176,11 +177,10 @@ class TestMetricRepository:
     async def test_get_by_id_not_found(
         self, metric_repository: MetricRepository
     ):
-        """Test retrieving a non-existent metric returns None."""
+        """Test retrieving a non-existent metric raises DBNotFoundError."""
         non_existent_id = uuid4()
-        retrieved_metric = await metric_repository.get_by_id(non_existent_id)
-
-        assert retrieved_metric is None
+        with pytest.raises(DBNotFoundError):
+            await metric_repository.get_by_id(non_existent_id)
 
     async def test_update_metric(
         self,
@@ -418,8 +418,8 @@ class TestMetricRepository:
         await metric_repository.delete(metric_id_str)
 
         # Verify metric is deleted
-        deleted_metric = await metric_repository.get_by_id(metric.id)
-        assert deleted_metric is None
+        with pytest.raises(DBNotFoundError):
+            await metric_repository.get_by_id(metric.id)
 
     async def test_delete_metric_with_uuid_object(
         self,
@@ -447,8 +447,8 @@ class TestMetricRepository:
         await metric_repository.delete(metric.id)
 
         # Verify metric is deleted
-        deleted_metric = await metric_repository.get_by_id(metric.id)
-        assert deleted_metric is None
+        with pytest.raises(DBNotFoundError):
+            await metric_repository.get_by_id(metric.id)
 
     async def test_upsert_create_new(
         self,
@@ -540,11 +540,10 @@ class TestMetricRepository:
     async def test_get_single_not_found(
         self, metric_repository: MetricRepository
     ):
-        """Test get_single returns None for non-existent metric."""
+        """Test get_single raises DBNotFoundError for non-existent metric."""
         non_existent_id = uuid4()
-        retrieved_metric = await metric_repository.get_single(non_existent_id)
-
-        assert retrieved_metric is None
+        with pytest.raises(DBNotFoundError):
+            await metric_repository.get_single(non_existent_id)
 
     # Custom Methods Tests
 

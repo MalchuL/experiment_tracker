@@ -4,6 +4,7 @@ Tests for ProjectRepository.
 
 from typing import NamedTuple
 import uuid
+from lib.db.error import DBNotFoundError
 import pytest
 from uuid import uuid4
 from datetime import datetime, timezone
@@ -727,20 +728,18 @@ class TestProjectRepository:
         assert retrieved_project.name == project.name
 
     async def test_get_by_id_not_found(self, project_repository: ProjectRepository):
-        """Test retrieving a non-existent project returns None."""
+        """Test retrieving a non-existent project raises DBNotFoundError."""
         non_existent_id = uuid4()
-        retrieved_project = await project_repository.get_by_id(non_existent_id)
-
-        assert retrieved_project is None
+        with pytest.raises(DBNotFoundError):
+            await project_repository.get_by_id(non_existent_id)
 
     async def test_get_by_id_not_found_with_string_uuid(
         self, project_repository: ProjectRepository
     ):
-        """Test retrieving a non-existent project returns None when using string UUID."""
+        """Test retrieving a non-existent project raises DBNotFoundError when using string UUID."""
         non_existent_id_str = str(uuid4())
-        retrieved_project = await project_repository.get_by_id(non_existent_id_str)
-
-        assert retrieved_project is None
+        with pytest.raises(DBNotFoundError):
+            await project_repository.get_by_id(non_existent_id_str)
 
     async def test_update_project(
         self,
@@ -990,8 +989,8 @@ class TestProjectRepository:
         await project_repository.delete(project_id_str)
 
         # Verify project is deleted
-        deleted_project = await project_repository.get_by_id(project.id)
-        assert deleted_project is None
+        with pytest.raises(DBNotFoundError):
+            await project_repository.get_by_id(project.id)
 
     async def test_delete_project_with_uuid_object(
         self,
@@ -1019,8 +1018,8 @@ class TestProjectRepository:
         await project_repository.delete(project.id)
 
         # Verify project is deleted
-        deleted_project = await project_repository.get_by_id(project.id)
-        assert deleted_project is None
+        with pytest.raises(DBNotFoundError):
+            await project_repository.get_by_id(project.id)
 
     async def test_upsert_create_new(
         self, project_repository: ProjectRepository, test_user: User
@@ -1106,8 +1105,7 @@ class TestProjectRepository:
         assert retrieved_project.name == project.name
 
     async def test_get_single_not_found(self, project_repository: ProjectRepository):
-        """Test get_single returns None for non-existent project."""
+        """Test get_single raises DBNotFoundError for non-existent project."""
         non_existent_id = uuid4()
-        retrieved_project = await project_repository.get_single(non_existent_id)
-
-        assert retrieved_project is None
+        with pytest.raises(DBNotFoundError):
+            await project_repository.get_single(non_existent_id)

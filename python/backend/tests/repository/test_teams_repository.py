@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from models import Team, TeamMember, User
 from domain.team.teams.repository import TeamRepository
+from lib.db.error import DBNotFoundError
 
 
 class TestTeamRepository:
@@ -99,20 +100,18 @@ class TestTeamRepository:
         assert retrieved_team.owner_id == test_team.owner_id
 
     async def test_get_by_id_not_found(self, team_repository: TeamRepository):
-        """Test retrieving a non-existent team returns None."""
+        """Test retrieving a non-existent team raises DBNotFoundError."""
         non_existent_id = uuid4()
-        retrieved_team = await team_repository.get_by_id(non_existent_id)
-
-        assert retrieved_team is None
+        with pytest.raises(DBNotFoundError):
+            await team_repository.get_by_id(non_existent_id)
 
     async def test_get_by_id_not_found_with_string_uuid(
         self, team_repository: TeamRepository
     ):
-        """Test retrieving a non-existent team returns None when using string UUID."""
+        """Test retrieving a non-existent team raises DBNotFoundError when using string UUID."""
         non_existent_id_str = str(uuid4())
-        retrieved_team = await team_repository.get_by_id(non_existent_id_str)
-
-        assert retrieved_team is None
+        with pytest.raises(DBNotFoundError):
+            await team_repository.get_by_id(non_existent_id_str)
 
     async def test_update_team(self, team_repository: TeamRepository, test_team: Team):
         """Test updating a team using UUID object."""
@@ -213,8 +212,8 @@ class TestTeamRepository:
         await team_repository.delete(delete_id)
 
         # Verify team is deleted
-        deleted_team = await team_repository.get_by_id(test_team.id)
-        assert deleted_team is None
+        with pytest.raises(DBNotFoundError):
+            await team_repository.get_by_id(test_team.id)
 
     async def test_delete_team_with_uuid_object(
         self, team_repository: TeamRepository, db_session, test_user: User
@@ -239,8 +238,8 @@ class TestTeamRepository:
         await team_repository.delete(team.id)
 
         # Verify team is deleted
-        deleted_team = await team_repository.get_by_id(team.id)
-        assert deleted_team is None
+        with pytest.raises(DBNotFoundError):
+            await team_repository.get_by_id(team.id)
 
     async def test_get_accessible_teams_single_member(
         self,

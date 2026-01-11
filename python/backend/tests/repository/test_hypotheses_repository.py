@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from models import Hypothesis, Project, User, Team, TeamMember, HypothesisStatus
 from domain.hypotheses.repository import HypothesisRepository
 from domain.projects.repository import UserProtocol
+from lib.db.error import DBNotFoundError
 
 
 class TestHypothesisRepository:
@@ -207,11 +208,10 @@ class TestHypothesisRepository:
     async def test_get_by_id_not_found(
         self, hypothesis_repository: HypothesisRepository
     ):
-        """Test retrieving a non-existent hypothesis returns None."""
+        """Test retrieving a non-existent hypothesis raises DBNotFoundError."""
         non_existent_id = uuid4()
-        retrieved_hypothesis = await hypothesis_repository.get_by_id(non_existent_id)
-
-        assert retrieved_hypothesis is None
+        with pytest.raises(DBNotFoundError):
+            await hypothesis_repository.get_by_id(non_existent_id)
 
     async def test_update_hypothesis(
         self,
@@ -535,8 +535,8 @@ class TestHypothesisRepository:
         await hypothesis_repository.delete(hypothesis_id_str)
 
         # Verify hypothesis is deleted
-        deleted_hypothesis = await hypothesis_repository.get_by_id(hypothesis.id)
-        assert deleted_hypothesis is None
+        with pytest.raises(DBNotFoundError):
+            await hypothesis_repository.get_by_id(hypothesis.id)
 
     async def test_delete_hypothesis_with_uuid_object(
         self,
@@ -575,8 +575,8 @@ class TestHypothesisRepository:
         await hypothesis_repository.delete(hypothesis.id)
 
         # Verify hypothesis is deleted
-        deleted_hypothesis = await hypothesis_repository.get_by_id(hypothesis.id)
-        assert deleted_hypothesis is None
+        with pytest.raises(DBNotFoundError):
+            await hypothesis_repository.get_by_id(hypothesis.id)
 
     async def test_upsert_create_new(
         self,
@@ -700,11 +700,10 @@ class TestHypothesisRepository:
     async def test_get_single_not_found(
         self, hypothesis_repository: HypothesisRepository
     ):
-        """Test get_single returns None for non-existent hypothesis."""
+        """Test get_single raises DBNotFoundError for non-existent hypothesis."""
         non_existent_id = uuid4()
-        retrieved_hypothesis = await hypothesis_repository.get_single(non_existent_id)
-
-        assert retrieved_hypothesis is None
+        with pytest.raises(DBNotFoundError):
+            await hypothesis_repository.get_single(non_existent_id)
 
     # Custom Methods Tests
 

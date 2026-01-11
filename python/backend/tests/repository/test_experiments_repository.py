@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from models import Experiment, Project, User, Team, TeamMember, ExperimentStatus
 from domain.experiments.repository import ExperimentRepository
 from domain.projects.repository import UserProtocol
+from lib.db.error import DBNotFoundError
 
 
 class TestExperimentRepository:
@@ -205,11 +206,10 @@ class TestExperimentRepository:
     async def test_get_by_id_not_found(
         self, experiment_repository: ExperimentRepository
     ):
-        """Test retrieving a non-existent experiment returns None."""
+        """Test retrieving a non-existent experiment raises DBNotFoundError."""
         non_existent_id = uuid4()
-        retrieved_experiment = await experiment_repository.get_by_id(non_existent_id)
-
-        assert retrieved_experiment is None
+        with pytest.raises(DBNotFoundError):
+            await experiment_repository.get_by_id(non_existent_id)
 
     async def test_update_experiment(
         self,
@@ -523,8 +523,8 @@ class TestExperimentRepository:
         await experiment_repository.delete(experiment_id_str)
 
         # Verify experiment is deleted
-        deleted_experiment = await experiment_repository.get_by_id(experiment.id)
-        assert deleted_experiment is None
+        with pytest.raises(DBNotFoundError):
+            await experiment_repository.get_by_id(experiment.id)
 
     async def test_delete_experiment_with_uuid_object(
         self,
@@ -562,8 +562,8 @@ class TestExperimentRepository:
         await experiment_repository.delete(experiment.id)
 
         # Verify experiment is deleted
-        deleted_experiment = await experiment_repository.get_by_id(experiment.id)
-        assert deleted_experiment is None
+        with pytest.raises(DBNotFoundError):
+            await experiment_repository.get_by_id(experiment.id)
 
     async def test_upsert_create_new(
         self,
@@ -683,11 +683,10 @@ class TestExperimentRepository:
     async def test_get_single_not_found(
         self, experiment_repository: ExperimentRepository
     ):
-        """Test get_single returns None for non-existent experiment."""
+        """Test get_single raises DBNotFoundError for non-existent experiment."""
         non_existent_id = uuid4()
-        retrieved_experiment = await experiment_repository.get_single(non_existent_id)
-
-        assert retrieved_experiment is None
+        with pytest.raises(DBNotFoundError):
+            await experiment_repository.get_single(non_existent_id)
 
     # Custom Methods Tests
 

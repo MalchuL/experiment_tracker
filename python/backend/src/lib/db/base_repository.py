@@ -3,8 +3,10 @@ from uuid import UUID
 from models import Base
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, update, delete
+from sqlalchemy import insert, select, update, delete
 from typing import Protocol
+from sqlalchemy.exc import NoResultFound
+from lib.db.error import DBNotFoundError
 
 
 class HasId(Protocol):
@@ -49,12 +51,18 @@ class BaseRepository(Generic[T]):
         await self.db.flush()
         # Return the updated object
         result = await self.db.execute(select(self.model).where(self.model.id == id))  # type: ignore[arg-type]
-        obj = result.scalar_one()
+        try:
+            obj = result.scalar_one()
+        except NoResultFound as e:
+            raise DBNotFoundError(f"Object with id {id} not found") from e
         return obj
 
-    async def get_by_id(self, id: str | UUID) -> Optional[T]:
+    async def get_by_id(self, id: str | UUID) -> T:
         result = await self.db.execute(select(self.model).where(self.model.id == id))  # type: ignore[arg-type]
-        return result.scalar_one_or_none()
+        try:
+            return result.scalar_one()
+        except NoResultFound as e:
+            raise DBNotFoundError(f"Object with id {id} not found") from e
 
     async def upsert(self, obj: T) -> T:
         # Check if object exists
@@ -78,11 +86,12 @@ class BaseRepository(Generic[T]):
         return list(result.scalars().all())
 
     async def delete(self, id: str | UUID) -> None:
+        await self.get_by_id(id)
         stmt = delete(self.model).where(self.model.id == id)  # type: ignore[arg-type]
         await self.db.execute(stmt)
         await self.db.flush()
 
-    async def get_single(self, id: str | UUID) -> Optional[T]:
+    async def get_single(self, id: str | UUID) -> T:
         return await self.get_by_id(id)
 
     async def commit(self) -> None:
