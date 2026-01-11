@@ -26,6 +26,8 @@ class TeamRepository(BaseRepository[Team]):
     async def get_team_member_if_accessible(
         self, user_id: UUID_TYPE, team_id: UUID_TYPE
     ) -> TeamMember | None:
+        if team_id is None:
+            raise ValueError("Team ID is required")
         query = (
             select(TeamMember)
             .where(TeamMember.user_id == user_id, TeamMember.team_id == team_id)

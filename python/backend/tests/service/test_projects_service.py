@@ -2,12 +2,15 @@
 Tests for ProjectService.
 """
 
+from domain.projects.errors import ProjectNotAccessibleError
+from fastapi_users import db
 from lib.db.error import DBNotFoundError
 import pytest
-from uuid import uuid4
+from uuid import UUID, uuid4
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from models import Project, User, Team, TeamMember, Experiment, Hypothesis
+from models import Project, User, Team, TeamMember, Experiment, Hypothesis, TeamRole
 from domain.projects.service import ProjectService
 from domain.projects.dto import (
     ProjectCreateDTO,
@@ -16,12 +19,13 @@ from domain.projects.dto import (
     ProjectSettingsDTO,
 )
 from models import MetricDirection, MetricAggregation
+from domain.projects.repository import ProjectRepository
 
 
 class TestProjectService:
     """Test suite for ProjectService."""
 
-    @pytest.fixture
+    @pytest.fixture(scope="function")
     def project_service(self, db_session: AsyncSession) -> ProjectService:
         """Create a ProjectService instance."""
         return ProjectService(db_session)
@@ -35,7 +39,6 @@ class TestProjectService:
         create_dto = ProjectCreateDTO(
             name="New Project",
             description="A new project description",
-            owner="test@example.com",
             metrics=[],
             settings=ProjectSettingsDTO(),
             team_id=None,
@@ -46,7 +49,9 @@ class TestProjectService:
         assert result.id is not None
         assert result.name == "New Project"
         assert result.description == "A new project description"
-        assert result.owner == test_user.email or result.owner == str(test_user.id)
+        assert result.owner.email == test_user.email
+        assert result.owner.id == test_user.id
+        assert result.owner.display_name == test_user.display_name
         assert result.experiment_count == 0
         assert result.hypothesis_count == 0
 
@@ -66,7 +71,6 @@ class TestProjectService:
         create_dto = ProjectCreateDTO(
             name="Project with Metrics",
             description="Project with custom metrics",
-            owner="test@example.com",
             metrics=metrics,
             settings=ProjectSettingsDTO(),
             team_id=None,
@@ -96,14 +100,32 @@ class TestProjectService:
             description="Test team",
             owner_id=test_user_2.id,
         )
+
         db_session.add(team)
         await db_session.flush()
         await db_session.refresh(team)
 
+        team_member = TeamMember(
+            id=None,
+            team_id=team.id,
+            user_id=test_user_2.id,
+            role=TeamRole.MEMBER,
+        )
+        db_session.add(team_member)
+        await db_session.flush()
+        await db_session.refresh(team_member)
+        print(
+            "team_member.id",
+            team_member.id,
+            "test_user.id",
+            test_user_2.id,
+            "team.id",
+            team.id,
+        )
+
         create_dto = ProjectCreateDTO(
             name="Team Project",
             description="Project in team",
-            owner="test@example.com",
             metrics=[],
             settings=ProjectSettingsDTO(),
             team_id=team.id,
@@ -114,7 +136,14 @@ class TestProjectService:
         assert result.id is not None
         # Note: ProjectDTO doesn't have team_id/team_name fields in the DTO definition
         # The mapper may set them, but we'll check owner and other fields instead
-        assert result.owner == test_user_2.email or result.owner == str(test_user_2.id)
+        assert result.owner.email == test_user_2.email
+        assert result.owner.id == test_user_2.id
+        assert result.owner.display_name == test_user_2.display_name
+
+        test_user1_project = await project_service.get_project_if_accessible(
+            test_user, result.id
+        )
+        assert test_user1_project is None
 
     async def test_create_project_rollback_on_error(
         self,
@@ -128,7 +157,6 @@ class TestProjectService:
         create_dto = ProjectCreateDTO(
             name="Project",
             description="Test",
-            owner="test@example.com",
             metrics=[],
             settings=ProjectSettingsDTO(),
             team_id=None,
@@ -140,14 +168,14 @@ class TestProjectService:
         async def mock_create(*args, **kwargs):
             raise ValueError("Simulated error")
 
-        project_service.project_repository.create = mock_create
+        project_service.project_repository.create = mock_create  # type: ignore[assignment]
 
         # Attempt to create project
         with pytest.raises(ValueError, match="Simulated error"):
             await project_service.create_project(test_user, create_dto)
 
         # Restore original method
-        project_service.project_repository.create = original_create
+        project_service.project_repository.create = original_create  # type: ignore[assignment]
 
         # Verify no project was created (check count)
         from domain.projects.repository import ProjectRepository
@@ -187,7 +215,9 @@ class TestProjectService:
         assert result.id == project.id
         assert result.name == "Updated Project"
         assert result.description == "Updated description"
-        assert result.owner == test_user.email or result.owner == str(test_user.id)
+        assert result.owner.email == test_user.email
+        assert result.owner.id == test_user.id
+        assert result.owner.display_name == test_user.display_name
 
     async def test_update_project_partial_update(
         self,
@@ -318,8 +348,13 @@ class TestProjectService:
         nonexistent_id = uuid4()
         update_dto = ProjectUpdateDTO(name="Updated Name")
 
+        async def mock_rollback():
+            pass
+
+        project_service.project_repository.rollback = mock_rollback
+
         with pytest.raises(
-            DBNotFoundError, match=f"Object with id {nonexistent_id} not found"
+            ProjectNotAccessibleError, match=f"Project {nonexistent_id} not accessible"
         ):
             await project_service.update_project(test_user, nonexistent_id, update_dto)
 
@@ -345,13 +380,20 @@ class TestProjectService:
 
         update_dto = ProjectUpdateDTO(name="Updated Name")
 
-        with pytest.raises(ValueError, match="not found or not accessible"):
+        async def mock_rollback():
+            pass
+
+        project_service.project_repository.rollback = mock_rollback
+
+        with pytest.raises(
+            ProjectNotAccessibleError, match=f"Project {project.id} not accessible"
+        ):
             await project_service.update_project(test_user, project.id, update_dto)
 
     async def test_update_project_rollback_on_error(
         self,
         project_service: ProjectService,
-        db_session: AsyncSession,
+        # db_session: AsyncSession,
         test_user: User,
     ):
         """Test that transaction is rolled back on error during update."""
@@ -363,10 +405,11 @@ class TestProjectService:
             owner_id=test_user.id,
             team_id=None,
         )
+        db_session = project_service.db
         db_session.add(project)
         await db_session.flush()
+        project_id = project.id
         await db_session.refresh(project)
-        await db_session.commit()
 
         # Mock the repository update to raise an error
         original_update = project_service.project_repository.update
@@ -374,22 +417,26 @@ class TestProjectService:
         async def mock_update(*args, **kwargs):
             raise ValueError("Simulated update error")
 
+        async def mock_rollback():
+            pass
+
         project_service.project_repository.update = mock_update
+        project_service.project_repository.rollback = mock_rollback
 
         update_dto = ProjectUpdateDTO(name="Updated Name")
 
         # Attempt to update project
         with pytest.raises(ValueError, match="Simulated update error"):
-            await project_service.update_project(test_user, project.id, update_dto)
+            await project_service.update_project(test_user, project_id, update_dto)
 
         # Restore original method
         project_service.project_repository.update = original_update
 
         # Verify project was not updated
-        from domain.projects.repository import ProjectRepository
+        # Query for the project again since the object might be detached after rollback
 
         repo = ProjectRepository(db_session)
-        updated_project = await repo.get_by_id(project.id)
+        updated_project = await repo.get_by_id(project_id)
         assert updated_project is not None
         assert updated_project.name == "Original Project"
 
@@ -584,7 +631,9 @@ class TestProjectService:
         assert result is not None
         assert result.id == project.id
         assert result.name == "Owned Project"
-        assert result.owner == test_user.email or result.owner == str(test_user.id)
+        assert result.owner.email == test_user.email
+        assert result.owner.id == test_user.id
+        assert result.owner.display_name == test_user.display_name
 
     async def test_get_project_if_accessible_via_team(
         self,
@@ -632,7 +681,8 @@ class TestProjectService:
         assert result.id == project.id
         # Note: ProjectDTO doesn't have team_id/team_name fields in the DTO definition
         # The mapper may set them, but we'll check owner and other fields instead
-        assert result.owner == test_user_2.email or result.owner == str(test_user_2.id)
+        assert result.owner.email == test_user_2.email
+        assert result.owner.id == test_user_2.id
 
     async def test_get_project_if_accessible_not_accessible(
         self,

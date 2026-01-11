@@ -5,17 +5,22 @@ from domain.projects.mapper import (
     ProjectMapper,
     SchemaToDTOProps,
 )
+from domain.projects.errors import ProjectNotAccessibleError, ProjectPermissionError
 from lib.dto_converter import DtoConverter
 from lib.protocols.user_protocol import UserProtocol
 from lib.types import UUID_TYPE
 from sqlalchemy.ext.asyncio import AsyncSession
 from domain.projects.dto import ProjectDTO, ProjectCreateDTO, ProjectUpdateDTO
+from domain.team.teams.repository import TeamRepository
+from domain.team.teams.access import AccessService
 
 
 class ProjectService:
     def __init__(self, db: AsyncSession):
         self.db = db
         self.project_repository = ProjectRepository(db)
+        self.team_repository = TeamRepository(db)
+        self.access_service = AccessService(db)
         self.project_mapper = ProjectMapper()
 
     async def create_project(
@@ -23,6 +28,15 @@ class ProjectService:
     ) -> ProjectDTO:
         try:
             props = CreateDTOToSchemaProps(owner_id=user.id)
+            if data.team_id:
+                team_rights = await self.access_service.get_team_rights(
+                    user, data.team_id
+                )
+                print(team_rights.access, data.team_id)
+                if not team_rights.can_edit:
+                    raise ProjectNotAccessibleError(
+                        f"Project {data.team_id} not accessible"
+                    )
             project_model = self.project_mapper.project_create_dto_to_schema(
                 data, props
             )
@@ -51,17 +65,32 @@ class ProjectService:
         try:
             # Convert DTO to update dictionary
             update_dict = self.project_mapper.project_update_dto_to_update_dict(data)
-
+            project_model = await self.project_repository.get_project_if_accessible(
+                user, project_id
+            )
+            if not project_model:
+                raise ProjectNotAccessibleError(f"Project {project_id} not accessible")
+            # Check if the user has permission to update the project
+            if project_model.team_id:
+                team_rights = await self.access_service.get_team_rights(
+                    user, project_model.team_id
+                )
+                if not team_rights.can_edit:
+                    raise ProjectPermissionError(
+                        f"User {user.id} does not have permission to update project {project_id}"
+                    )
             # Update the project in the repository
             await self.project_repository.update(project_id, **update_dict)
             await self.project_repository.commit()
-
+            # TODO check if this is needed, maybe update another way?
             # Fetch the updated project with relationships loaded
             updated_project = await self.project_repository.get_project_if_accessible(
                 user, project_id
             )
             if not updated_project:
-                raise ValueError(f"Project {project_id} not found or not accessible")
+                raise ProjectNotAccessibleError(
+                    f"Project {project_id} not found or not accessible"
+                )
 
             # Convert to DTO with counts
             experiment_count = (

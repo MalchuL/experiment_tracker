@@ -17,6 +17,21 @@ model_config = ConfigDict(
 )
 
 
+class ProjectOwnerDTO(BaseModel):
+    id: UUID
+    email: Optional[str] = None
+    display_name: Optional[str] = None
+
+    model_config = model_config
+
+
+class ProjectTeamDTO(BaseModel):
+    id: UUID
+    name: Optional[str] = None
+
+    model_config = model_config
+
+
 class ProjectMetricDTO(BaseModel):
     name: str
     direction: MetricDirection
@@ -35,7 +50,6 @@ class ProjectSettingsDTO(BaseModel):
 class ProjectBaseDTO(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
     description: str = Field(default="", max_length=500)
-    owner: str = Field(..., min_length=1)
     metrics: List[ProjectMetricDTO] = []
     settings: ProjectSettingsDTO = ProjectSettingsDTO()
 
@@ -44,12 +58,11 @@ class ProjectBaseDTO(BaseModel):
 
 class ProjectDTO(ProjectBaseDTO):
     id: UUID
-    owner_id: UUID
+    owner: ProjectOwnerDTO
     created_at: datetime
     experiment_count: int = 0
     hypothesis_count: int = 0
-    team_id: Optional[UUID] = None
-    team_name: Optional[str] = None
+    team: Optional[ProjectTeamDTO] = None
 
     model_config = model_config
 
@@ -57,7 +70,6 @@ class ProjectDTO(ProjectBaseDTO):
 class ProjectUpdateDTO(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=100)
     description: Optional[str] = Field(None, max_length=500)
-    owner: Optional[str] = None
     metrics: Optional[List[ProjectMetricDTO]] = None
     settings: Optional[ProjectSettingsDTO] = None
 

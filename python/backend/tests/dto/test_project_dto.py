@@ -18,8 +18,15 @@ class TestProjectDTO:
     INPUT_DATA = {
         "name": "test_project",
         "description": "test_description",
-        "owner": "test_owner",
-        "ownerId": "123e4567-e89b-12d3-a456-426614174000",
+        "owner": {
+            "id": "123e4567-e89b-12d3-a456-426614174000",
+            "email": "test@example.com",
+            "displayName": "Test User",
+        },
+        "team": {
+            "id": "123e4567-e89b-12d3-a456-426614174000",
+            "name": "Test Team",
+        },
         "id": "123e4567-e89b-12d3-a456-426614174000",
         "createdAt": "2021-01-01T00:00:00Z",
         "experimentCount": 12,
@@ -43,7 +50,11 @@ class TestProjectDTO:
         dto = converter.dict_with_json_case_to_dto(self.INPUT_DATA)
         assert dto.name == self.INPUT_DATA["name"]
         assert dto.description == self.INPUT_DATA["description"]
-        assert dto.owner == self.INPUT_DATA["owner"]
+        assert str(dto.owner.id) == self.INPUT_DATA["owner"]["id"]
+        assert dto.owner.email == self.INPUT_DATA["owner"]["email"]
+        assert dto.owner.display_name == self.INPUT_DATA["owner"]["displayName"]
+        assert str(dto.team.id) == self.INPUT_DATA["team"]["id"]
+        assert dto.team.name == self.INPUT_DATA["team"]["name"]
         assert dto.metrics[0].name == self.INPUT_DATA["metrics"][0]["name"]
         assert dto.metrics[0].direction == self.INPUT_DATA["metrics"][0]["direction"]
         assert (
@@ -64,7 +75,7 @@ class TestProjectDTO:
     def test_project_dto_serialization(self):
         converter = DtoConverter[ProjectDTO](ProjectDTO)
         dto = converter.dict_with_json_case_to_dto(self.INPUT_DATA)
-        dumped_data = dto.model_dump(by_alias=True, mode="json")
+        dumped_data = converter.dto_to_json_dict_with_json_case(dto)
         assert dumped_data["name"] == self.INPUT_DATA["name"]
         assert dumped_data["description"] == self.INPUT_DATA["description"]
         assert dumped_data["owner"] == self.INPUT_DATA["owner"]
@@ -81,7 +92,11 @@ class TestProjectDTO:
         dto = converter.dict_with_json_case_to_dto(dumped_data)
         assert dto.name == dumped_data["name"]
         assert dto.description == dumped_data["description"]
-        assert dto.owner == dumped_data["owner"]
+        assert str(dto.owner.id) == dumped_data["owner"]["id"]
+        assert dto.owner.email == dumped_data["owner"]["email"]
+        assert dto.owner.display_name == dumped_data["owner"]["displayName"]
+        assert str(dto.team.id) == dumped_data["team"]["id"]
+        assert dto.team.name == dumped_data["team"]["name"]
         assert dto.metrics[0].name == dumped_data["metrics"][0]["name"]
         assert dto.metrics[0].direction == dumped_data["metrics"][0]["direction"]
         assert dto.metrics[0].aggregation == dumped_data["metrics"][0]["aggregation"]
@@ -184,7 +199,7 @@ class TestProjectUpdateDTO:
         dto = converter.dict_with_json_case_to_dto(self.INPUT_DATA)
         assert dto.name == self.INPUT_DATA["name"]
         assert dto.description == self.INPUT_DATA["description"]
-        assert dto.owner == None
+        assert not hasattr(dto, "owner")
         assert dto.metrics[0].name == self.INPUT_DATA["metrics"][0]["name"]
         assert dto.metrics[0].direction == self.INPUT_DATA["metrics"][0]["direction"]
         assert (
@@ -233,7 +248,6 @@ class TestProjectCreateDTO:
     INPUT_DATA = {
         "name": "test_project",
         "description": "test_description",
-        "owner": "test_owner",
         "teamId": "123e4567-e89b-12d3-a456-426614174000",
         "metrics": [
             {

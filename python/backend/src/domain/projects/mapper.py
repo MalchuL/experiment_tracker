@@ -1,5 +1,11 @@
 from dataclasses import dataclass
-from domain.projects.dto import ProjectCreateDTO, ProjectDTO, ProjectUpdateDTO
+from domain.projects.dto import (
+    ProjectCreateDTO,
+    ProjectDTO,
+    ProjectOwnerDTO,
+    ProjectTeamDTO,
+    ProjectUpdateDTO,
+)
 from domain.projects.utils import default_metrics
 from lib.dto_converter import DtoConverter
 from models import Project
@@ -30,26 +36,31 @@ class ProjectMapper:
     ) -> ProjectDTO:
         """Convert Project model to ProjectDTO"""
 
-        # Extract owner name/email from relationship
-        owner_str = (
-            getattr(project.owner, "email", None)
-            or getattr(project.owner, "display_name", None)
-            or str(project.owner_id)
+        owner = ProjectOwnerDTO(
+            id=project.owner.id,
+            email=project.owner.email,
+            display_name=project.owner.display_name,
         )
+
+        if project.team_id:
+            team = ProjectTeamDTO(
+                id=project.team.id,
+                name=project.team.name,
+            )
+        else:
+            team = None
 
         return ProjectDTO(
             id=str(project.id),
             name=project.name,
             description=project.description,
-            owner=owner_str,
-            owner_id=str(project.owner_id),
+            owner=owner,
             created_at=project.created_at.isoformat() if project.created_at else "",
             metrics=project.metrics or [],
             settings=project.settings or {},
             experiment_count=props.experiment_count,
             hypothesis_count=props.hypothesis_count,
-            team_id=str(project.team_id) if project.team_id else None,
-            team_name=project.team.name if project.team else None,
+            team=team,
         )
 
     def project_list_schema_to_dto(

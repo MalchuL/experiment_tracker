@@ -98,4 +98,5 @@ class BaseRepository(Generic[T]):
         await self.db.commit()
 
     async def rollback(self) -> None:
-        await self.db.rollback()
+        if self.db.in_transaction():
+            await self.db.rollback()
