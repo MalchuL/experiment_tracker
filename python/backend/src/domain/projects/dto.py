@@ -6,15 +6,7 @@ from typing import Optional, List, Any
 from datetime import datetime
 from models import MetricDirection, MetricAggregation
 
-
-model_config = ConfigDict(
-    alias_generator=AliasGenerator(
-        validation_alias=to_camel,  # Input: FirstName -> first_name
-        serialization_alias=to_camel,  # Output: first_name -> firstName
-    ),
-    extra="forbid",
-    populate_by_name=True,
-)
+from lib.dto_config import model_config
 
 
 class ProjectOwnerDTO(BaseModel):
@@ -22,14 +14,14 @@ class ProjectOwnerDTO(BaseModel):
     email: Optional[str] = None
     display_name: Optional[str] = None
 
-    model_config = model_config
+    model_config = model_config()
 
 
 class ProjectTeamDTO(BaseModel):
     id: UUID
     name: Optional[str] = None
 
-    model_config = model_config
+    model_config = model_config()
 
 
 class ProjectMetricDTO(BaseModel):
@@ -37,14 +29,14 @@ class ProjectMetricDTO(BaseModel):
     direction: MetricDirection
     aggregation: MetricAggregation
 
-    model_config = model_config
+    model_config = model_config()
 
 
 class ProjectSettingsDTO(BaseModel):
     naming_pattern: str = "{num}_from_{parent}_{change}"
     display_metrics: List[str] = []
 
-    model_config = model_config
+    model_config = model_config()
 
 
 class ProjectBaseDTO(BaseModel):
@@ -53,7 +45,7 @@ class ProjectBaseDTO(BaseModel):
     metrics: List[ProjectMetricDTO] = []
     settings: ProjectSettingsDTO = ProjectSettingsDTO()
 
-    model_config = model_config
+    model_config = model_config()
 
 
 class ProjectDTO(ProjectBaseDTO):
@@ -64,7 +56,7 @@ class ProjectDTO(ProjectBaseDTO):
     hypothesis_count: int = 0
     team: Optional[ProjectTeamDTO] = None
 
-    model_config = model_config
+    model_config = model_config()
 
 
 class ProjectUpdateDTO(BaseModel):
@@ -73,10 +65,10 @@ class ProjectUpdateDTO(BaseModel):
     metrics: Optional[List[ProjectMetricDTO]] = None
     settings: Optional[ProjectSettingsDTO] = None
 
-    model_config = model_config
+    model_config = model_config()
 
 
 class ProjectCreateDTO(ProjectBaseDTO):
     team_id: Optional[UUID] = None
 
-    model_config = model_config
+    model_config = model_config()
