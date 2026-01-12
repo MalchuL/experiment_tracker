@@ -46,16 +46,11 @@ class BaseRepository(Generic[T]):
         if "id" in kwargs:
             del kwargs["id"]
 
-        stmt = update(self.model).where(self.model.id == id).values(**kwargs)  # type: ignore[arg-type]
-        await self.db.execute(stmt)
+        stmt = update(self.model).where(self.model.id == id).values(**kwargs).returning(self.model)  # type: ignore[arg-type]
+        result = await self.db.execute(stmt)
         await self.db.flush()
         # Return the updated object
-        result = await self.db.execute(select(self.model).where(self.model.id == id))  # type: ignore[arg-type]
-        try:
-            obj = result.scalar_one()
-        except NoResultFound as e:
-            raise DBNotFoundError(f"Object with id {id} not found") from e
-        return obj
+        return result.scalar_one()
 
     async def get_by_id(self, id: str | UUID) -> T:
         result = await self.db.execute(select(self.model).where(self.model.id == id))  # type: ignore[arg-type]

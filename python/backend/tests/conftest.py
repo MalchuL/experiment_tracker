@@ -243,7 +243,10 @@ async def db_session(test_engine: AsyncEngine) -> AsyncGenerator[AsyncSession, N
             finally:
                 # Always rollback to clean up test data
                 # This ensures test isolation
-                await transaction.rollback()
+                try:
+                    await transaction.rollback()
+                except Exception:
+                    pass
 
 
 @pytest.fixture
