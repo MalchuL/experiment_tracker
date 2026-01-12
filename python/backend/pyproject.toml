@@ -15,6 +15,7 @@ dependencies = [
   "pydantic-settings>=2.2.1",
   "httpx>=0.27.0",
   "rich>=13.7.1",
+  "advanced-alchemy>=1.8.2",
 ]
 
 [project.optional-dependencies]

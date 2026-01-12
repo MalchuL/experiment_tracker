@@ -28,10 +28,18 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship, DeclarativeBase, Mapped, mapped_column
 from fastapi_users.db import SQLAlchemyBaseUserTableUUID
+from advanced_alchemy.base import UUIDBase as AdvancedUUIDBase
 
 
 class Base(DeclarativeBase):
     pass
+
+
+class UUIDBase(Base, AdvancedUUIDBase):
+    __abstract__ = True
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
 
 
 class TeamRole(str, Enum):
@@ -67,12 +75,9 @@ class MetricDirection(str, Enum):
     MAXIMIZE = "maximize"
 
 
-class TeamMember(Base):
+class TeamMember(UUIDBase):
     __tablename__ = "team_members"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
     team_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("teams.id", ondelete="CASCADE"), nullable=False
     )
@@ -107,19 +112,15 @@ class User(SQLAlchemyBaseUserTableUUID, Base):
         secondary="team_members",
         back_populates="members",
         lazy="raise",
-        overlaps="member_links,members",
     )
     owned_teams: Mapped[List["Team"]] = relationship(
         "Team", back_populates="owner", foreign_keys="Team.owner_id", lazy="raise"
     )
 
 
-class Team(Base):
+class Team(UUIDBase):
     __tablename__ = "teams"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     description: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     owner_id: Mapped[uuid.UUID] = mapped_column(
@@ -130,30 +131,26 @@ class Team(Base):
     owner: Mapped["User"] = relationship(
         "User", back_populates="owned_teams", foreign_keys=[owner_id]
     )
-    members: Mapped[List["User"]] = relationship(
-        "User",
-        secondary="team_members",
-        back_populates="teams",
-        lazy="raise",
-        overlaps="member_links,teams",
-    )
     member_links: Mapped[List["TeamMember"]] = relationship(
         "TeamMember",
         back_populates="team",
         lazy="raise",
         overlaps="members,teams",
     )
+    members: Mapped[List["User"]] = relationship(
+        "User",
+        secondary="team_members",
+        back_populates="teams",
+        lazy="raise",
+    )
     projects: Mapped[List["Project"]] = relationship(
         "Project", back_populates="team", lazy="raise"
     )
 
 
-class Project(Base):
+class Project(UUIDBase):
     __tablename__ = "projects"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     description: Mapped[str] = mapped_column(String(500), default="")
     owner_id: Mapped[uuid.UUID] = mapped_column(
@@ -184,12 +181,9 @@ class Project(Base):
     )
 
 
-class Experiment(Base):
+class Experiment(UUIDBase):
     __tablename__ = "experiments"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
     project_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("projects.id", ondelete="CASCADE"),
@@ -232,12 +226,9 @@ class Experiment(Base):
     )
 
 
-class Hypothesis(Base):
+class Hypothesis(UUIDBase):
     __tablename__ = "hypotheses"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
     project_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("projects.id", ondelete="CASCADE"),
@@ -261,12 +252,9 @@ class Hypothesis(Base):
     )
 
 
-class Metric(Base):
+class Metric(UUIDBase):
     __tablename__ = "metrics"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
     experiment_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("experiments.id", ondelete="CASCADE"),
