@@ -800,3 +800,27 @@ class TestProjectService:
         assert result is not None
         assert result.experiment_count == 0
         assert result.hypothesis_count == 0
+
+    async def test_delete_project_success(
+        self,
+        project_service: ProjectService,
+        db_session: AsyncSession,
+        test_user: User,
+    ):
+        """Test deleting a project."""
+        project = Project(
+            id=None,
+            name="Project to Delete",
+            description="This project will be deleted",
+            owner_id=test_user.id,
+            team_id=None,
+        )
+        db_session.add(project)
+        await db_session.flush()
+        await db_session.refresh(project)
+
+        result = await project_service.delete_project(test_user, project.id)
+        assert result is True
+
+        result = await project_service.get_project_if_accessible(test_user, project.id)
+        assert result is None

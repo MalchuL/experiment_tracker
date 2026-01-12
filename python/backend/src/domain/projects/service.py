@@ -145,3 +145,19 @@ class ProjectService:
             experiment_count=experiment_count, hypothesis_count=hypothesis_count
         )
         return self.project_mapper.project_schema_to_dto(project_model, props)
+
+    async def delete_project(self, user: UserProtocol, project_id: UUID_TYPE) -> bool:
+        try:
+            project_model = await self.project_repository.get_by_id(project_id)
+            if not project_model:
+                raise ProjectNotAccessibleError(f"Project {project_id} not found")
+            if project_model.owner_id != user.id:
+                raise ProjectPermissionError(
+                    f"User {user.id} does not have permission to delete project {project_id}"
+                )
+            await self.project_repository.delete(project_id)
+            await self.project_repository.commit()
+            return True
+        except Exception as e:
+            await self.project_repository.rollback()
+            raise e
