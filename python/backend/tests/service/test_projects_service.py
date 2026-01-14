@@ -815,10 +815,10 @@ class TestProjectService:
             owner_id=test_user.id,
             team_id=None,
         )
+        assert db_session is project_service.db
         db_session.add(project)
         await db_session.flush()
         await db_session.refresh(project)
-
         result = await project_service.delete_project(test_user, project.id)
         assert result is True
 
