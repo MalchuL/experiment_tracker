@@ -26,48 +26,61 @@ class ListOptions(BaseModel):
     offset: int = 0
 
 
-class BaseRepository(SQLAlchemyAsyncRepository[T]):
+class BaseRepository(Generic[T]):
     def __init__(self, db: AsyncSession, model: Type[T]):
         self.db = db
         self.model_type = model
-        super().__init__(session=db)
+        self.advanced_alchemy_repository = self._create_advanced_alchemy_repository(
+            db, model
+        )
+
+    class Repository(SQLAlchemyAsyncRepository[T]):
+        def __init__(self, model_type: Type[T], *args, **kwargs):
+            self.model_type = model_type
+            super().__init__(*args, **kwargs)
+
+    def _create_advanced_alchemy_repository(
+        self, session: AsyncSession, model: Type[T]
+    ) -> SQLAlchemyAsyncRepository[T]:
+        repo = self.Repository(
+            session=session,
+            model_type=model,
+        )
+        return repo
 
     async def create(self, obj: T) -> T:
-        return await self.add(obj, auto_refresh=True)
+        return await self.advanced_alchemy_repository.add(obj, auto_refresh=True)
 
     async def update(self, id: str | UUID, **kwargs) -> T:
         # Convert string UUID to UUID object if needed for proper comparison
         from uuid import UUID as UUIDType
 
-        if isinstance(id, str):
-            try:
-                id = UUIDType(id)
-            except (ValueError, AttributeError):
-                pass  # Keep as string if conversion fails
         if "id" in kwargs:
             del kwargs["id"]
         existing_obj = await self.get_by_id(id)
         for key, value in kwargs.items():
             setattr(existing_obj, key, value)
-        return await super().update(existing_obj)
+        return await self.advanced_alchemy_repository.update(existing_obj)
 
     async def get_by_id(self, id: str | UUID) -> T:
         try:
-            return await super().get_one(self.model_type.id == id)
+            return await self.advanced_alchemy_repository.get_one(
+                self.model_type.id == id
+            )
         except NotFoundError as e:
             raise DBNotFoundError(f"Object with id {id} not found") from e
 
     async def upsert(self, obj: T) -> T:
-        return await super().upsert(obj, auto_refresh=True)
+        return await self.advanced_alchemy_repository.upsert(obj, auto_refresh=True)
 
     async def list(self, options: ListOptions = ListOptions()) -> List[T]:
-        return await super().list(
+        return await self.advanced_alchemy_repository.list(
             LimitOffset(offset=options.offset, limit=options.limit)
         )
 
     async def delete(self, id: str | UUID) -> None:
         try:
-            return await super().delete(id)
+            return await self.advanced_alchemy_repository.delete(id)
         except NotFoundError as e:
             raise DBNotFoundError(f"Object with id {id} not found") from e
 
@@ -75,8 +88,8 @@ class BaseRepository(SQLAlchemyAsyncRepository[T]):
         return await self.get_by_id(id)
 
     async def commit(self) -> None:
-        await self.session.commit()
+        await self.db.commit()
 
     async def rollback(self) -> None:
-        if self.session.in_transaction():
-            await self.session.rollback()
+        if self.db.in_transaction():
+            await self.db.rollback()
