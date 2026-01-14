@@ -253,7 +253,7 @@ class TestProjectRepository:
 
         # Get accessible projects
         accessible_projects = await project_repository.get_accessible_projects(
-            test_user  # type: ignore[arg-type]
+            test_user, sort_by=("created_at", True)  # type: ignore[arg-type]
         )
 
         # Find our projects in the list

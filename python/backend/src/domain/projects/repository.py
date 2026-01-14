@@ -6,7 +6,7 @@ from models import Project, User
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
-
+from advanced_alchemy.repository.typing import OrderingPair
 from domain.team.teams.repository import TeamRepository
 from lib.protocols.user_protocol import UserProtocol
 
@@ -20,48 +20,52 @@ class ProjectRepository(BaseRepository[Project]):
         teams = await self.team_repository.get_accessible_teams(user)
         return [team.id for team in teams]
 
-    async def get_accessible_projects(self, user: UserProtocol) -> List[Project]:
+    async def get_accessible_projects(
+        self,
+        user: UserProtocol,
+        sort_by: OrderingPair | None = None,
+        full_load: bool = True,
+    ) -> List[Project]:
         team_ids = await self._get_user_team_ids(user)
 
         conditions = [Project.owner_id == user.id]
         if team_ids:
             conditions.append(Project.team_id.in_(team_ids))
 
-        query = (
-            select(Project)
-            .options(
+        if full_load:
+            options = [
                 selectinload(Project.owner),
                 selectinload(Project.experiments),
                 selectinload(Project.hypotheses),
                 selectinload(Project.team),
-            )
-            .where(or_(*conditions))
-            .order_by(Project.created_at.desc())
-        )
+            ]
+        else:
+            options = []
 
-        result = await self.db.execute(query)
-        projects = result.scalars().all()
-        return list(projects)
+        result = await self.advanced_alchemy_repository.list(
+            or_(*conditions), load=options, order_by=sort_by
+        )
+        return result
 
     async def get_project_if_accessible(
-        self, user: UserProtocol, project_id: UUID_TYPE
+        self, user: UserProtocol, project_id: UUID_TYPE, full_load: bool = True
     ) -> Project | None:
         team_ids = await self._get_user_team_ids(user)
 
         conditions = [Project.owner_id == user.id]
         if team_ids:
             conditions.append(Project.team_id.in_(team_ids))
-
-        query = (
-            select(Project)
-            .options(
+        if full_load:
+            options = [
                 selectinload(Project.owner),
                 selectinload(Project.experiments),
                 selectinload(Project.hypotheses),
                 selectinload(Project.team),
-            )
-            .where(Project.id == project_id, or_(*conditions))
-        )
+            ]
+        else:
+            options = []
 
-        result = await self.db.execute(query)
-        return result.scalar_one_or_none()
+        result = await self.advanced_alchemy_repository.get_one_or_none(
+            Project.id == project_id, or_(*conditions), load=options
+        )
+        return result
