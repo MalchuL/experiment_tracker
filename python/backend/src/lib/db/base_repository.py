@@ -14,7 +14,7 @@ from advanced_alchemy.repository import SQLAlchemyAsyncRepository
 
 class HasId(Protocol):
     @property
-    def id(self) -> UUID:
+    def id(self) -> UUID | str:
         pass
 
 

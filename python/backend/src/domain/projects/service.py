@@ -32,7 +32,6 @@ class ProjectService:
                 team_rights = await self.access_service.get_team_rights(
                     user, data.team_id
                 )
-                print(team_rights.access, data.team_id)
                 if not team_rights.can_edit:
                     raise ProjectNotAccessibleError(
                         f"Project {data.team_id} not accessible"
