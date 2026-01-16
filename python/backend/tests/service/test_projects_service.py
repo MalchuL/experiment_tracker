@@ -2,7 +2,7 @@
 Tests for ProjectService.
 """
 
-from domain.projects.errors import ProjectNotAccessibleError
+from domain.projects.errors import ProjectNotAccessibleError, ProjectPermissionError
 from fastapi_users import db
 from lib.db.error import DBNotFoundError
 import pytest
@@ -20,6 +20,7 @@ from domain.projects.dto import (
 )
 from models import MetricDirection, MetricAggregation
 from domain.projects.repository import ProjectRepository
+from domain.team.teams.access import Access, Rights
 
 
 class TestProjectService:
@@ -144,6 +145,37 @@ class TestProjectService:
             test_user, result.id
         )
         assert test_user1_project is None
+
+    async def test_create_project_with_team_no_access(
+        self,
+        project_service: ProjectService,
+        db_session: AsyncSession,
+        test_user: User,
+        test_user_2: User,
+    ):
+        """Test creating a project in a team without membership fails."""
+        team = Team(
+            id=None,
+            name="Private Team",
+            description="Private team",
+            owner_id=test_user_2.id,
+        )
+        db_session.add(team)
+        await db_session.flush()
+        await db_session.refresh(team)
+
+        create_dto = ProjectCreateDTO(
+            name="Blocked Project",
+            description="Project in team",
+            metrics=[],
+            settings=ProjectSettingsDTO(),
+            team_id=team.id,
+        )
+
+        with pytest.raises(
+            ProjectNotAccessibleError, match=f"Project {team.id} not accessible"
+        ):
+            await project_service.create_project(test_user, create_dto)
 
     async def test_create_project_rollback_on_error(
         self,
@@ -389,6 +421,64 @@ class TestProjectService:
             ProjectNotAccessibleError, match=f"Project {project.id} not accessible"
         ):
             await project_service.update_project(test_user, project.id, update_dto)
+
+    async def test_update_project_team_no_edit_permission(
+        self,
+        project_service: ProjectService,
+        db_session: AsyncSession,
+        test_user: User,
+        test_user_2: User,
+    ):
+        """Test updating a team project without edit rights raises error."""
+        team = Team(
+            id=None,
+            name="Team Project",
+            description="Team project",
+            owner_id=test_user_2.id,
+        )
+        db_session.add(team)
+        await db_session.flush()
+        await db_session.refresh(team)
+
+        member = TeamMember(
+            id=None,
+            team_id=team.id,
+            user_id=test_user.id,
+            role=TeamRole.MEMBER,
+        )
+        db_session.add(member)
+        await db_session.flush()
+
+        project = Project(
+            id=None,
+            name="Team Project",
+            description="Description",
+            owner_id=test_user_2.id,
+            team_id=team.id,
+        )
+        db_session.add(project)
+        await db_session.flush()
+        await db_session.refresh(project)
+
+        original_get_team_rights = project_service.access_service.get_team_rights
+
+        async def mock_get_team_rights(*args, **kwargs):
+            return Rights(access=Access.NONE)
+
+        project_service.access_service.get_team_rights = (  # type: ignore[assignment]
+            mock_get_team_rights
+        )
+
+        update_dto = ProjectUpdateDTO(name="Updated Name")
+        with pytest.raises(
+            ProjectPermissionError,
+            match=f"User {test_user.id} does not have permission to update project {project.id}",
+        ):
+            await project_service.update_project(test_user, project.id, update_dto)
+
+        project_service.access_service.get_team_rights = (  # type: ignore[assignment]
+            original_get_team_rights
+        )
 
     async def test_update_project_rollback_on_error(
         self,
@@ -824,3 +914,38 @@ class TestProjectService:
 
         result = await project_service.get_project_if_accessible(test_user, project.id)
         assert result is None
+
+    async def test_delete_project_not_found(
+        self,
+        project_service: ProjectService,
+        test_user: User,
+    ):
+        """Test deleting a non-existent project raises an error."""
+        nonexistent_id = uuid4()
+        with pytest.raises(DBNotFoundError, match="Object with id"):
+            await project_service.delete_project(test_user, nonexistent_id)
+
+    async def test_delete_project_not_owner(
+        self,
+        project_service: ProjectService,
+        db_session: AsyncSession,
+        test_user: User,
+        test_user_2: User,
+    ):
+        """Test deleting a project without ownership raises error."""
+        project = Project(
+            id=None,
+            name="Other Project",
+            description="Owned by someone else",
+            owner_id=test_user_2.id,
+            team_id=None,
+        )
+        db_session.add(project)
+        await db_session.flush()
+        await db_session.refresh(project)
+
+        with pytest.raises(
+            ProjectPermissionError,
+            match=f"User {test_user.id} does not have permission to delete project {project.id}",
+        ):
+            await project_service.delete_project(test_user, project.id)

@@ -1,4 +1,5 @@
 from uuid import UUID
+from domain.experiments.utils import DEFAULT_EXPERIMENT_NAME_PATTERN
 from pydantic import AliasGenerator, BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel, to_snake
 
@@ -33,7 +34,7 @@ class ProjectMetricDTO(BaseModel):
 
 
 class ProjectSettingsDTO(BaseModel):
-    naming_pattern: str = "{num}_from_{parent}_{change}"
+    naming_pattern: str = DEFAULT_EXPERIMENT_NAME_PATTERN
     display_metrics: List[str] = []
 
     model_config = model_config()

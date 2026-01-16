@@ -1,56 +1,67 @@
+from datetime import datetime
+from uuid import UUID
+from lib.types import UUID_TYPE
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
 from models import ExperimentStatus
 
+from lib.dto_config import model_config
 
-class ExperimentBase(BaseModel):
-    projectId: str = Field(..., min_length=1)
+
+class ExperimentBaseDTO(BaseModel):
+    project_id: UUID
     name: str = Field(..., min_length=1, max_length=100)
     description: str = Field(default="", max_length=1000)
     status: ExperimentStatus = ExperimentStatus.PLANNED
-    parentExperimentId: Optional[str] = None
+    parent_experiment_id: Optional[UUID_TYPE] = None
     features: Dict[str, Any] = {}
-    gitDiff: Optional[str] = None
+    git_diff: Optional[str] = None
     color: Optional[str] = None
     order: Optional[int] = None
 
-
-class ExperimentCreate(ExperimentBase):
-    pass
+    model_config = model_config()
 
 
-class ExperimentUpdate(BaseModel):
+class ExperimentParseResultDTO(BaseModel):
+    num: Optional[str] = None
+    parent: Optional[str] = None
+    change: Optional[str] = None
+
+    model_config = model_config()
+
+
+class ExperimentCreateDTO(ExperimentBaseDTO):
+    parent_experiment_name: Optional[str] = None
+
+    model_config = model_config()
+
+
+class ExperimentUpdateDTO(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=100)
     description: Optional[str] = Field(None, max_length=1000)
+    parent_experiment_id: Optional[UUID_TYPE] = None
     color: Optional[str] = None
     status: Optional[ExperimentStatus] = None
     features: Optional[Dict[str, Any]] = None
-    gitDiff: Optional[str] = None
+    git_diff: Optional[str] = None
     progress: Optional[int] = None
     order: Optional[int] = None
 
+    model_config = model_config()
 
-class Experiment(BaseModel):
-    id: str
-    projectId: str
-    name: str
-    description: str
-    status: ExperimentStatus
-    parentExperimentId: Optional[str]
-    rootExperimentId: Optional[str]
-    features: Dict[str, Any]
-    featuresDiff: Optional[Dict[str, Any]]
-    gitDiff: Optional[str]
+
+class ExperimentDTO(ExperimentBaseDTO):
+    id: UUID
+    features_diff: Optional[Dict[str, Any]]
     progress: int
-    color: str
-    order: int
-    createdAt: str
-    startedAt: Optional[str]
-    completedAt: Optional[str]
+    created_at: datetime
+    started_at: Optional[datetime]
+    completed_at: Optional[datetime]
 
-    class Config:
-        from_attributes = True
+    model_config = model_config()
 
 
-class ExperimentReorder(BaseModel):
-    experimentIds: List[str]
+class ExperimentReorderDTO(BaseModel):
+    experiment_ids: List[UUID]
+
+    model_config = model_config()

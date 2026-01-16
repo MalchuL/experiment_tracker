@@ -877,6 +877,69 @@ class TestExperimentRepository:
         # Experiment 2 (created later) should come before Experiment 1
         assert experiment2_idx < experiment1_idx
 
+    async def test_get_accessible_experiments_with_list_options(
+        self,
+        experiment_repository: ExperimentRepository,
+        db_session: AsyncSession,
+        test_user: User,
+    ):
+        """Test accessible experiments respects list options (limit/offset)."""
+        from lib.db.base_repository import ListOptions
+
+        project = Project(
+            id=None,
+            name="Test Project",
+            description="Test project description",
+            owner_id=test_user.id,
+            team_id=None,
+        )
+        db_session.add(project)
+        await db_session.flush()
+        await db_session.refresh(project)
+
+        import asyncio
+
+        experiment1 = Experiment(
+            id=None,
+            project_id=project.id,
+            name="Experiment 1",
+            description="First experiment",
+        )
+        db_session.add(experiment1)
+        await db_session.flush()
+        await db_session.refresh(experiment1)
+
+        await asyncio.sleep(0.01)
+
+        experiment2 = Experiment(
+            id=None,
+            project_id=project.id,
+            name="Experiment 2",
+            description="Second experiment",
+        )
+        db_session.add(experiment2)
+        await db_session.flush()
+        await db_session.refresh(experiment2)
+
+        await asyncio.sleep(0.01)
+
+        experiment3 = Experiment(
+            id=None,
+            project_id=project.id,
+            name="Experiment 3",
+            description="Third experiment",
+        )
+        db_session.add(experiment3)
+        await db_session.flush()
+        await db_session.refresh(experiment3)
+
+        accessible_experiments = await experiment_repository.get_accessible_experiments(
+            test_user, ListOptions(limit=1, offset=1)  # type: ignore[arg-type]
+        )
+
+        assert len(accessible_experiments) == 1
+        assert accessible_experiments[0].id == experiment2.id
+
     async def test_get_accessible_experiments_no_access(
         self,
         experiment_repository: ExperimentRepository,
