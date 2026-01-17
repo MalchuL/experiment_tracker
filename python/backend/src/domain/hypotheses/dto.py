@@ -1,35 +1,44 @@
+from datetime import datetime
+from uuid import UUID
 from pydantic import BaseModel, Field
 from typing import Optional, List
 from models import HypothesisStatus
 
+from lib.dto_config import model_config
 
-class HypothesisBase(BaseModel):
-    projectId: str = Field(..., min_length=1)
+
+class HypothesisBaseDTO(BaseModel):
+    project_id: UUID
     title: str = Field(..., min_length=1, max_length=200)
     description: str = Field(default="", max_length=1000)
     author: str = Field(..., min_length=1)
     status: HypothesisStatus = HypothesisStatus.PROPOSED
-    targetMetrics: List[str] = []
+    target_metrics: List[str] = []
     baseline: str = "root"
 
+    model_config = model_config()
 
-class HypothesisCreate(HypothesisBase):
+
+class HypothesisCreateDTO(HypothesisBaseDTO):
     pass
 
+    model_config = model_config()
 
-class HypothesisUpdate(BaseModel):
+
+class HypothesisUpdateDTO(BaseModel):
     title: Optional[str] = Field(None, min_length=1, max_length=200)
     description: Optional[str] = Field(None, max_length=1000)
     author: Optional[str] = None
     status: Optional[HypothesisStatus] = None
-    targetMetrics: Optional[List[str]] = None
+    target_metrics: Optional[List[str]] = None
     baseline: Optional[str] = None
 
+    model_config = model_config()
 
-class Hypothesis(HypothesisBase):
-    id: str
-    createdAt: str
-    updatedAt: str
 
-    class Config:
-        from_attributes = True
+class HypothesisDTO(HypothesisBaseDTO):
+    id: UUID
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = model_config()
