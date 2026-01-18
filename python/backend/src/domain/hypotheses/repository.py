@@ -9,8 +9,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from domain.projects.repository import ProjectRepository
 from lib.protocols.user_protocol import UserProtocol
-from domain.rbac.defaults import team_roles_with_permission
-from domain.rbac.permissions import PROJECT_VIEW
 from models import (
     Permission,
     Role,
