@@ -55,6 +55,9 @@ class TestProjectRbacStrategy:
         await project_strategy.add_project_member_permissions(
             project.id, test_user.id, TeamRole.MEMBER
         )
+        await project_strategy.add_project_member_permissions(
+            project.id, test_user.id, TeamRole.MEMBER
+        )
 
         repo = PermissionRepository(db_session)
         permissions = await repo.get_permissions(
@@ -132,6 +135,9 @@ class TestTeamRbacStrategy:
             db_session, test_user, team=None, name="Standalone"
         )
 
+        await team_strategy.add_team_member_permissions(
+            team.id, test_user.id, TeamRole.MEMBER
+        )
         await team_strategy.add_team_member_permissions(
             team.id, test_user.id, TeamRole.MEMBER
         )

@@ -27,15 +27,26 @@ class ProjectRbacStrategy:
         self, project_id: UUID, user_id: UUID, role: TeamRole
     ) -> None:
         project_permissions = role_to_project_permissions(role)
+        existing_permissions = await self.permission_repo.get_permissions(
+            user_id=user_id, project_id=project_id
+        )
+        existing_by_action = {
+            permission.action: permission for permission in existing_permissions
+        }
         for action, allowed in project_permissions.items():
-            await self.permission_repo.create_permission(
-                Permission(
-                    user_id=user_id,
-                    action=action,
-                    allowed=allowed,
-                    project_id=project_id,
-                ),
-            )
+            existing = existing_by_action.get(action)
+            if existing is None:
+                await self.permission_repo.create_permission(
+                    Permission(
+                        user_id=user_id,
+                        action=action,
+                        allowed=allowed,
+                        project_id=project_id,
+                    ),
+                )
+            else:
+                existing.allowed = allowed
+                await self.permission_repo.update_permission(existing)
 
     async def remove_project_member_permissions(
         self, project_id: UUID, user_id: UUID

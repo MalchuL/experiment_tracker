@@ -32,15 +32,26 @@ class TeamRbacStrategy:
         self, team_id: UUID, user_id: UUID, role: TeamRole
     ) -> None:
         team_permissions = role_to_team_permissions(role)
+        existing_permissions = await self.permission_repo.get_permissions(
+            user_id=user_id, team_id=team_id
+        )
+        existing_by_action = {
+            permission.action: permission for permission in existing_permissions
+        }
         for action, allowed in team_permissions.items():
-            await self.permission_repo.create_permission(
-                Permission(
-                    user_id=user_id,
-                    action=action,
-                    allowed=allowed,
-                    team_id=team_id,
+            existing = existing_by_action.get(action)
+            if existing is None:
+                await self.permission_repo.create_permission(
+                    Permission(
+                        user_id=user_id,
+                        action=action,
+                        allowed=allowed,
+                        team_id=team_id,
+                    )
                 )
-            )
+            else:
+                existing.allowed = allowed
+                await self.permission_repo.update_permission(existing)
         projects = await self.project_repository.get_projects_by_team(team_id)
         for project in projects:
             await self.project_rbac_strategy.add_project_member_permissions(

@@ -121,6 +121,9 @@ class TestPermissionRepository:
         await permission_repository.add_team_member_permissions(
             team.id, test_user.id, TeamRole.MEMBER
         )
+        await permission_repository.add_team_member_permissions(
+            team.id, test_user.id, TeamRole.MEMBER
+        )
 
         team_permissions = await permission_repository.get_permissions(
             user_id=test_user.id, team_id=team.id
