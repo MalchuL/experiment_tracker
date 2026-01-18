@@ -47,7 +47,6 @@ class AccessService:
         team_member = await self.team_repository.get_team_member_if_accessible(
             user.id, team_id
         )
-        print(team_member, user.id, team_id)
         if not team_member:
             return Rights(access=Access.NONE)
         return Rights(access=self._role_to_access(team_member.role))

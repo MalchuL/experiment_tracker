@@ -23,6 +23,11 @@ class TeamRepository(BaseRepository[Team]):
         teams = result.scalars().all()
         return list(teams)
 
+    async def get_teams_by_ids(self, team_ids: List[UUID_TYPE]) -> List[Team]:
+        if not team_ids:
+            return []
+        return await self.advanced_alchemy_repository.list(Team.id.in_(team_ids))
+
     async def get_team_member_if_accessible(
         self, user_id: UUID_TYPE, team_id: UUID_TYPE
     ) -> TeamMember | None:

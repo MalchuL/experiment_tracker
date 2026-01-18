@@ -14,13 +14,11 @@ def utc_now() -> datetime:
 
 
 from sqlalchemy import (
-    Column,
     String,
     Boolean,
     DateTime,
     ForeignKey,
     Enum as SQLEnum,
-    Table,
     Integer,
     Float,
     Text,
@@ -29,6 +27,7 @@ from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship, DeclarativeBase, Mapped, mapped_column
 from fastapi_users.db import SQLAlchemyBaseUserTableUUID
 from advanced_alchemy.base import UUIDBase as AdvancedUUIDBase
+from sqlalchemy import Index
 
 
 class Base(DeclarativeBase):
@@ -270,4 +269,49 @@ class Metric(UUIDBase):
 
     experiment: Mapped["Experiment"] = relationship(
         "Experiment", back_populates="metrics", lazy="raise"
+    )
+
+
+class Permission(UUIDBase):
+    """
+    Отдельная запись для каждого права.
+    Например: "Alex может создавать эксперименты в Team Alpha".
+    """
+
+    __tablename__ = "permissions"
+
+    # Кто? (user_id)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+
+    # Где? (team_id или project_id)
+    team_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("teams.id", ondelete="SET NULL"),
+        nullable=True,
+        default=None,
+    )
+    project_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("projects.id", ondelete="SET NULL"),
+        nullable=True,
+        default=None,
+    )
+
+    # Какое право?
+    action: Mapped[str] = mapped_column(
+        String(255), nullable=False
+    )  # "create_experiment", "delete_metric"
+
+    # Включено/выключено?
+    allowed: Mapped[bool] = mapped_column(Boolean, default=True)
+
+    # Временные рамки (опционально)
+    expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+
+    # Индексы для скорости
+    __table_args__ = (
+        Index("ix_permissions_user_team", user_id, team_id),
+        Index("ix_permissions_user_action", user_id, action),
     )
