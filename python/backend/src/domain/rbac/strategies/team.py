@@ -21,6 +21,13 @@ class TeamRbacStrategy:
         self.permission_repo = PermissionRepository(db, auto_commit=auto_commit)
         self.project_rbac_strategy = ProjectRbacStrategy(db, auto_commit=False)
 
+    def _normalize_actions(self, actions: List[str] | str | None) -> List[str] | None:
+        if actions is None:
+            return None
+        if isinstance(actions, str):
+            return [actions]
+        return actions
+
     async def add_team_member_permissions(
         self, team_id: UUID, user_id: UUID, role: TeamRole
     ) -> None:
@@ -76,3 +83,22 @@ class TeamRbacStrategy:
             )
         if self.auto_commit:
             await self.db.commit()
+
+    async def get_user_accessible_teams(
+        self, user_id: UUID, actions: List[str] | str | None = None
+    ) -> List[Team]:
+
+        conditions = []
+        normalized_actions = self._normalize_actions(actions)
+        if normalized_actions is not None:
+            conditions.append(Permission.action.in_(normalized_actions))
+        permissions_ids = await self.permission_repo.advanced_alchemy_repository.list(
+            Permission.user_id == user_id,
+            Permission.team_id.is_not(None),
+            *conditions,
+            statement=select(Permission.team_id).distinct(),
+        )
+        if not permissions_ids:
+            return []
+        team_ids = [permission_id for permission_id in permissions_ids]
+        return await self.team_repository.get_teams_by_ids(team_ids)

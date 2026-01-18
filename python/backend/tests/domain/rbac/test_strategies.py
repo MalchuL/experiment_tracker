@@ -3,7 +3,7 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from domain.rbac.permissions.project import role_to_project_permissions
-from domain.rbac.permissions.team import role_to_team_permissions
+from domain.rbac.permissions.team import TeamActions, role_to_team_permissions
 from domain.rbac.repository import PermissionRepository
 from domain.rbac.strategies.project import ProjectRbacStrategy
 from domain.rbac.strategies.team import TeamRbacStrategy
@@ -128,6 +128,9 @@ class TestTeamRbacStrategy:
         team = await _create_team(db_session, test_user)
         project1 = await _create_project(db_session, test_user, team=team, name="T1")
         project2 = await _create_project(db_session, test_user, team=team, name="T2")
+        standalone = await _create_project(
+            db_session, test_user, team=None, name="Standalone"
+        )
 
         await team_strategy.add_team_member_permissions(
             team.id, test_user.id, TeamRole.MEMBER
@@ -147,6 +150,10 @@ class TestTeamRbacStrategy:
         )
         assert project_permissions_1
         assert project_permissions_2
+        assert (
+            await repo.get_permissions(user_id=test_user.id, project_id=standalone.id)
+            == []
+        )
 
         await team_strategy.update_team_member_role_permissions(
             team.id, test_user.id, TeamRole.ADMIN
@@ -166,5 +173,61 @@ class TestTeamRbacStrategy:
             await repo.get_permissions(user_id=test_user.id, project_id=project1.id)
             == []
         )
+        assert (
+            await repo.get_permissions(user_id=test_user.id, project_id=standalone.id)
+            == []
+        )
 
-    # TeamRbacStrategy no longer exposes list-access helpers.
+    async def test_get_user_accessible_teams(
+        self,
+        team_strategy: TeamRbacStrategy,
+        db_session: AsyncSession,
+        test_user: User,
+    ) -> None:
+        team = await _create_team(db_session, test_user)
+        repo = PermissionRepository(db_session)
+        await repo.create_permission(
+            Permission(
+                user_id=test_user.id,
+                action=TeamActions.VIEW_TEAM,
+                allowed=True,
+                team_id=team.id,
+            )
+        )
+
+        results = await team_strategy.get_user_accessible_teams(
+            test_user.id, actions=TeamActions.VIEW_TEAM
+        )
+        assert [team_item.id for team_item in results] == [team.id]
+
+    async def test_get_user_accessible_teams_excludes_unrelated(
+        self,
+        team_strategy: TeamRbacStrategy,
+        db_session: AsyncSession,
+        test_user: User,
+        test_user_2: User,
+    ) -> None:
+        accessible_team = await _create_team(db_session, test_user)
+        hidden_team_1 = await _create_team(db_session, test_user_2)
+        hidden_team_2 = await _create_team(db_session, test_user_2)
+
+        await _create_project(
+            db_session, test_user_2, team=hidden_team_1, name="Hidden Project 1"
+        )
+        await _create_project(
+            db_session, test_user_2, team=hidden_team_2, name="Hidden Project 2"
+        )
+
+        repo = PermissionRepository(db_session)
+        await repo.create_permission(
+            Permission(
+                user_id=test_user.id,
+                action=TeamActions.VIEW_TEAM,
+                allowed=True,
+                team_id=accessible_team.id,
+            )
+        )
+        results = await team_strategy.get_user_accessible_teams(
+            test_user.id, actions=TeamActions.VIEW_TEAM
+        )
+        assert {team_item.id for team_item in results} == {accessible_team.id}
