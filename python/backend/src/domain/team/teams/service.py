@@ -30,6 +30,55 @@ class TeamService:
         self.permission_service = PermissionService(db, auto_commit=False)
         self.team_mapper = TeamMapper()
 
+    async def _get_user_role(self, user_id: UUID, team_id: UUID) -> Role | None:
+        try:
+            team = await self.team_repository.get_by_id(team_id)
+        except DBNotFoundError:
+            raise TeamNotFoundError("Team not found")
+        if str(team.owner_id) == str(user_id):
+            return Role.OWNER
+        member = await self.team_repository.get_team_member_if_accessible(
+            user_id, team_id
+        )
+        if member is None:
+            return None
+        return member.role
+
+    async def _check_role(
+        self,
+        editor_user_id: UUID,
+        team_id: UUID,
+        new_role: Role,
+        target_user_id: UUID | None = None,
+    ) -> None:
+        editor_role = await self._get_user_role(editor_user_id, team_id)
+        if editor_role is None:
+            raise TeamAccessDeniedError("You do not have permission to edit roles")
+
+        role_rank = {
+            Role.VIEWER: 0,
+            Role.MEMBER: 1,
+            Role.ADMIN: 2,
+            Role.OWNER: 3,
+        }
+        if role_rank[new_role] >= role_rank[editor_role]:
+            raise TeamAccessDeniedError(
+                "You do not have permission to assign this role"
+            )
+
+        if target_user_id is not None:
+            target_member = await self.team_repository.get_team_member_if_accessible(
+                target_user_id, team_id
+            )
+            if (
+                target_member is not None
+                and target_member.role == Role.ADMIN
+                and new_role != Role.ADMIN
+            ):
+                raise TeamAccessDeniedError(
+                    "You do not have permission to change an admin role"
+                )
+
     # Team
     async def create_team(self, user_id: UUID, dto: TeamCreateDTO) -> TeamReadDTO:
         team = self.team_mapper.team_dto_to_schema(
@@ -37,7 +86,7 @@ class TeamService:
         )
         await self.team_repository.create(team)
         await self.permission_service.add_user_to_team_permissions(
-            user_id, team.id, Role.OWNER
+            user_id, team.id, Role.ADMIN
         )
         await self.permission_service.commit()
         return self.team_mapper.team_schema_to_dto(team)
@@ -73,6 +122,7 @@ class TeamService:
     async def add_team_member(
         self, user_id: UUID, team_member: TeamMemberCreateDTO
     ) -> TeamMemberReadDTO:
+        await self._check_role(user_id, team_member.team_id, team_member.role)
         if not await self.permission_service.has_permission(
             user_id, TeamActions.MANAGE_TEAM, team_member.team_id
         ):
@@ -93,6 +143,7 @@ class TeamService:
         return self.team_mapper.team_member_schema_to_dto(team_member)
 
     async def update_team_member(self, user_id: UUID, dto: TeamMemberUpdateDTO) -> None:
+        await self._check_role(user_id, dto.team_id, dto.role, dto.user_id)
         if not await self.permission_service.has_permission(
             user_id, TeamActions.MANAGE_TEAM, dto.team_id
         ):
@@ -107,6 +158,8 @@ class TeamService:
 
         if team_member is None:
             raise TeamMemberNotFoundError("Team member not found")
+        if team_member.role == Role.ADMIN:
+            raise TeamAccessDeniedError("You do not have permission to update an admin")
         team_member.role = dto.role
         await self.team_repository.update_team_member(team_member)
         await self.permission_service.update_user_team_role_permissions(
@@ -116,7 +169,11 @@ class TeamService:
         return self.team_mapper.team_member_schema_to_dto(team_member)
 
     async def remove_team_member(self, user_id: UUID, dto: TeamMemberDeleteDTO) -> None:
-
+        team_member = await self.team_repository.get_team_member_if_accessible(
+            dto.user_id, dto.team_member_id
+        )
+        if team_member is not None and team_member.role == Role.ADMIN:
+            raise TeamAccessDeniedError("You do not have permission to remove an admin")
         if str(user_id) != str(
             dto.user_id
         ) and not await self.permission_service.has_permission(

@@ -68,7 +68,7 @@ class TestTeamService:
             user_id=test_user.id, team_id=created.id
         )
         permissions_map = {item.action: item.allowed for item in permissions}
-        assert permissions_map == role_to_team_permissions(Role.OWNER)
+        assert permissions_map == role_to_team_permissions(Role.ADMIN)
 
     async def test_update_team_access_denied(
         self, team_service: TeamService, db_session: AsyncSession, test_user: User
@@ -195,6 +195,31 @@ class TestTeamService:
         permissions_map = {item.action: item.allowed for item in permissions}
         assert permissions_map == role_to_team_permissions(Role.ADMIN)
 
+    async def test_update_team_member_admin_not_allowed(
+        self,
+        team_service: TeamService,
+        db_session: AsyncSession,
+        test_user: User,
+        test_user_2: User,
+    ) -> None:
+        team = await _create_team(db_session, test_user)
+        await _grant_manage_permission(db_session, test_user.id, team.id)
+
+        await team_service.add_team_member(
+            test_user.id,
+            TeamMemberCreateDTO(
+                user_id=test_user_2.id, team_id=team.id, role=Role.ADMIN
+            ),
+        )
+
+        with pytest.raises(TeamAccessDeniedError):
+            await team_service.update_team_member(
+                test_user.id,
+                TeamMemberUpdateDTO(
+                    user_id=test_user_2.id, team_id=team.id, role=Role.MEMBER
+                ),
+            )
+
     async def test_update_team_member_missing_raises(
         self,
         team_service: TeamService,
@@ -240,6 +265,29 @@ class TestTeamService:
             test_user_2.id, team.id
         )
         assert remaining is None
+
+    async def test_remove_team_member_admin_not_allowed(
+        self,
+        team_service: TeamService,
+        db_session: AsyncSession,
+        test_user: User,
+        test_user_2: User,
+    ) -> None:
+        team = await _create_team(db_session, test_user)
+        await _grant_manage_permission(db_session, test_user.id, team.id)
+
+        await team_service.add_team_member(
+            test_user.id,
+            TeamMemberCreateDTO(
+                user_id=test_user_2.id, team_id=team.id, role=Role.ADMIN
+            ),
+        )
+
+        with pytest.raises(TeamAccessDeniedError):
+            await team_service.remove_team_member(
+                test_user.id,
+                TeamMemberDeleteDTO(user_id=test_user_2.id, team_member_id=team.id),
+            )
 
     async def test_remove_team_member_requires_manage_permission(
         self,
