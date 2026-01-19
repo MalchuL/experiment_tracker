@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from uuid import UUID
 from domain.rbac.repository import PermissionRepository
 from domain.projects.repository import ProjectRepository
-from models import Permission, Project, TeamRole
+from models import Permission, Project, Role
 
 
 class ProjectRbacStrategy:
@@ -24,7 +24,7 @@ class ProjectRbacStrategy:
         return actions
 
     async def add_project_member_permissions(
-        self, project_id: UUID, user_id: UUID, role: TeamRole
+        self, project_id: UUID, user_id: UUID, role: Role
     ) -> None:
         project_permissions = role_to_project_permissions(role)
         existing_permissions = await self.permission_repo.get_permissions(
@@ -57,7 +57,7 @@ class ProjectRbacStrategy:
         await self.permission_repo.delete_permission(permissions)
 
     async def update_project_member_role_permissions(
-        self, project_id: UUID, user_id: UUID, role: TeamRole
+        self, project_id: UUID, user_id: UUID, role: Role
     ) -> None:
         permissions = await self.permission_repo.get_permissions(
             user_id=user_id, project_id=project_id

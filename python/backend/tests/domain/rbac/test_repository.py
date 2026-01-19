@@ -6,7 +6,7 @@ from domain.rbac.error import InvalidScopeError
 from domain.rbac.permissions.project import ProjectActions, role_to_project_permissions
 from domain.rbac.permissions.team import TeamActions, role_to_team_permissions
 from domain.rbac.repository import PermissionRepository
-from models import Permission, Project, Team, TeamRole, User
+from models import Permission, Project, Team, Role, User
 
 
 async def _create_team(db_session: AsyncSession, owner: User) -> Team:
@@ -119,23 +119,21 @@ class TestPermissionRepository:
         standalone = await _create_project(db_session, test_user_2)
 
         await permission_repository.add_team_member_permissions(
-            team.id, test_user.id, TeamRole.MEMBER
+            team.id, test_user.id, Role.MEMBER
         )
         await permission_repository.add_team_member_permissions(
-            team.id, test_user.id, TeamRole.MEMBER
+            team.id, test_user.id, Role.MEMBER
         )
 
         team_permissions = await permission_repository.get_permissions(
             user_id=test_user.id, team_id=team.id
         )
-        assert len(team_permissions) == len(role_to_team_permissions(TeamRole.MEMBER))
+        assert len(team_permissions) == len(role_to_team_permissions(Role.MEMBER))
 
         project_permissions = await permission_repository.get_permissions(
             user_id=test_user.id, project_id=project_1.id
         )
-        assert len(project_permissions) == len(
-            role_to_project_permissions(TeamRole.MEMBER)
-        )
+        assert len(project_permissions) == len(role_to_project_permissions(Role.MEMBER))
         assert await permission_repository.get_permissions(
             user_id=test_user.id, project_id=project_2.id
         )
@@ -147,7 +145,7 @@ class TestPermissionRepository:
         )
 
         await permission_repository.update_team_member_role_permissions(
-            team.id, test_user.id, TeamRole.ADMIN
+            team.id, test_user.id, Role.ADMIN
         )
         updated_team_permissions = await permission_repository.get_permissions(
             user_id=test_user.id, team_id=team.id
@@ -156,7 +154,7 @@ class TestPermissionRepository:
             permission.action: permission.allowed
             for permission in updated_team_permissions
         }
-        assert updated_map == role_to_team_permissions(TeamRole.ADMIN)
+        assert updated_map == role_to_team_permissions(Role.ADMIN)
 
         await permission_repository.remove_team_member_permissions(
             team.id, test_user.id

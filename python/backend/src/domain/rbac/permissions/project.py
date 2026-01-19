@@ -1,6 +1,6 @@
 from typing import Dict, Iterable
 
-from models import TeamRole
+from models import Role
 
 
 class ProjectActions:
@@ -49,19 +49,19 @@ def _build_permissions(allowed_actions: Iterable[str]) -> Dict[str, bool]:
     return {action: action in allowed_set for action in PROJECT_ACTIONS}
 
 
-def role_to_project_permissions(role: TeamRole) -> Dict[str, bool]:
+def role_to_project_permissions(role: Role) -> Dict[str, bool]:
     match role:
-        case TeamRole.OWNER:
+        case Role.OWNER:
             return _build_permissions(PROJECT_ACTIONS)
-        case TeamRole.ADMIN:
+        case Role.ADMIN:
             return _build_permissions(PROJECT_ACTIONS)
-        case TeamRole.MEMBER:
+        case Role.MEMBER:
             allowed = set(PROJECT_ACTIONS) - {
                 ProjectActions.EDIT_PROJECT,
                 ProjectActions.DELETE_PROJECT,
             }
             return _build_permissions(allowed)
-        case TeamRole.VIEWER:
+        case Role.VIEWER:
             allowed = {
                 ProjectActions.VIEW_PROJECT,
                 ProjectActions.VIEW_EXPERIMENT,

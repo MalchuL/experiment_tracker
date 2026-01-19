@@ -3,7 +3,7 @@ from typing import Optional, List
 from pydantic import BaseModel
 from datetime import datetime
 
-from models import TeamRole
+from models import Role
 from lib.dto_config import model_config
 
 
@@ -31,7 +31,7 @@ class TeamUpdateDTO(TeamBase):
 class TeamMemberBase(BaseModel):
     user_id: uuid.UUID
     team_id: uuid.UUID
-    role: TeamRole
+    role: Role
 
 
 class TeamMemberReadDTO(TeamMemberBase):

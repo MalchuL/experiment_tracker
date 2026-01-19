@@ -41,7 +41,7 @@ class UUIDBase(Base, AdvancedUUIDBase):
     )
 
 
-class TeamRole(str, Enum):
+class Role(str, Enum):
     OWNER = "owner"
     ADMIN = "admin"
     MEMBER = "member"
@@ -83,8 +83,8 @@ class TeamMember(UUIDBase):
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
-    role: Mapped[TeamRole] = mapped_column(
-        SQLEnum(TeamRole), default=TeamRole.MEMBER, nullable=False
+    role: Mapped[Role] = mapped_column(
+        SQLEnum(Role), default=Role.MEMBER, nullable=False
     )
     joined_at: Mapped[datetime] = mapped_column(
         DateTime, default=utc_now, nullable=False

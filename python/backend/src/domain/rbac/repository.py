@@ -5,7 +5,7 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from lib.db.base_repository import BaseRepository
-from models import Permission, Project, Team, TeamRole
+from models import Permission, Project, Team, Role
 
 from .error import InvalidIdError, InvalidScopeError
 
@@ -128,7 +128,7 @@ class PermissionRepository(BaseRepository[Permission]):
 
     # Strategy proxies
     async def add_project_member_permissions(
-        self, project_id: UUID, user_id: UUID, role: TeamRole
+        self, project_id: UUID, user_id: UUID, role: Role
     ) -> None:
         from .strategies.project import ProjectRbacStrategy
 
@@ -144,7 +144,7 @@ class PermissionRepository(BaseRepository[Permission]):
         await strategy.remove_project_member_permissions(project_id, user_id)
 
     async def update_project_member_role_permissions(
-        self, project_id: UUID, user_id: UUID, role: TeamRole
+        self, project_id: UUID, user_id: UUID, role: Role
     ) -> None:
         from .strategies.project import ProjectRbacStrategy
 
@@ -160,7 +160,7 @@ class PermissionRepository(BaseRepository[Permission]):
         return await strategy.get_user_accessible_projects(user_id, actions=actions)
 
     async def add_team_member_permissions(
-        self, team_id: UUID, user_id: UUID, role: TeamRole
+        self, team_id: UUID, user_id: UUID, role: Role
     ) -> None:
         from .strategies.team import TeamRbacStrategy
 
@@ -176,7 +176,7 @@ class PermissionRepository(BaseRepository[Permission]):
         await strategy.remove_team_member_permissions(team_id, user_id)
 
     async def update_team_member_role_permissions(
-        self, team_id: UUID, user_id: UUID, role: TeamRole
+        self, team_id: UUID, user_id: UUID, role: Role
     ) -> None:
         from .strategies.team import TeamRbacStrategy
 

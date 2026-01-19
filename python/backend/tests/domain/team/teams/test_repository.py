@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from domain.team.teams.errors import TeamMemberNotFoundError
 from domain.team.teams.repository import TeamRepository
-from models import Team, TeamMember, TeamRole, User
+from models import Team, TeamMember, Role, User
 
 
 async def _create_team(
@@ -40,7 +40,7 @@ class TestTeamRepository:
             id=None,
             team_id=team.id,
             user_id=test_user_2.id,
-            role=TeamRole.MEMBER,
+            role=Role.MEMBER,
         )
         created = await team_repository.add_team_member(member)
         assert created.id is not None
@@ -49,21 +49,19 @@ class TestTeamRepository:
             test_user_2.id, team.id
         )
         assert fetched is not None
-        assert fetched.role == TeamRole.MEMBER
+        assert fetched.role == Role.MEMBER
 
-        created.role = TeamRole.ADMIN
+        created.role = Role.ADMIN
         await team_repository.update_team_member(created)
         updated = await team_repository.get_team_member_if_accessible(
             test_user_2.id, team.id
         )
         assert updated is not None
-        assert updated.role == TeamRole.ADMIN
+        assert updated.role == Role.ADMIN
 
         await team_repository.delete_team_member(test_user_2.id, team.id)
         assert (
-            await team_repository.get_team_member_if_accessible(
-                test_user_2.id, team.id
-            )
+            await team_repository.get_team_member_if_accessible(test_user_2.id, team.id)
             is None
         )
 
@@ -85,7 +83,7 @@ class TestTeamRepository:
                 id=None,
                 team_id=accessible_team.id,
                 user_id=test_user.id,
-                role=TeamRole.MEMBER,
+                role=Role.MEMBER,
             )
         )
         await db_session.flush()

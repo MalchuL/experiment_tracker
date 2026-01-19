@@ -9,7 +9,7 @@ from domain.rbac.permissions.team import role_to_team_permissions
 from domain.rbac.repository import PermissionRepository
 from domain.rbac.strategies.project import ProjectRbacStrategy
 from domain.team.teams.repository import TeamRepository
-from models import Permission, Team, TeamRole
+from models import Permission, Team, Role
 
 
 class TeamRbacStrategy:
@@ -29,7 +29,7 @@ class TeamRbacStrategy:
         return actions
 
     async def add_team_member_permissions(
-        self, team_id: UUID, user_id: UUID, role: TeamRole
+        self, team_id: UUID, user_id: UUID, role: Role
     ) -> None:
         team_permissions = role_to_team_permissions(role)
         existing_permissions = await self.permission_repo.get_permissions(
@@ -77,7 +77,7 @@ class TeamRbacStrategy:
             await self.db.commit()
 
     async def update_team_member_role_permissions(
-        self, team_id: UUID, user_id: UUID, role: TeamRole
+        self, team_id: UUID, user_id: UUID, role: Role
     ) -> None:
         permissions = await self.permission_repo.get_permissions(
             user_id=user_id, team_id=team_id

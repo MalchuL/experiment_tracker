@@ -19,7 +19,7 @@ from domain.team.teams.errors import (
 )
 from domain.team.teams.service import TeamService
 from domain.team.teams.repository import TeamRepository
-from models import Team, TeamMember, TeamRole, User
+from models import Team, TeamMember, Role, User
 
 
 async def _create_team(
@@ -37,9 +37,7 @@ async def _create_team(
     return team
 
 
-async def _grant_manage_permission(
-    db_session: AsyncSession, user_id, team_id
-) -> None:
+async def _grant_manage_permission(db_session: AsyncSession, user_id, team_id) -> None:
     permission_service = PermissionService(db_session, auto_commit=True)
     await permission_service.add_permission(
         user_id=user_id,
@@ -70,7 +68,7 @@ class TestTeamService:
             user_id=test_user.id, team_id=created.id
         )
         permissions_map = {item.action: item.allowed for item in permissions}
-        assert permissions_map == role_to_team_permissions(TeamRole.OWNER)
+        assert permissions_map == role_to_team_permissions(Role.OWNER)
 
     async def test_update_team_access_denied(
         self, team_service: TeamService, db_session: AsyncSession, test_user: User
@@ -125,20 +123,20 @@ class TestTeamService:
         await _grant_manage_permission(db_session, test_user.id, team.id)
 
         dto = TeamMemberCreateDTO(
-            user_id=test_user_2.id, team_id=team.id, role=TeamRole.MEMBER
+            user_id=test_user_2.id, team_id=team.id, role=Role.MEMBER
         )
         created = await team_service.add_team_member(test_user.id, dto)
 
         assert created.user_id == test_user_2.id
         assert created.team_id == team.id
-        assert created.role == TeamRole.MEMBER
+        assert created.role == Role.MEMBER
 
         permission_repo = PermissionRepository(db_session)
         permissions = await permission_repo.get_permissions(
             user_id=test_user_2.id, team_id=team.id
         )
         permissions_map = {item.action: item.allowed for item in permissions}
-        assert permissions_map == role_to_team_permissions(TeamRole.MEMBER)
+        assert permissions_map == role_to_team_permissions(Role.MEMBER)
 
     async def test_add_team_member_existing_raises(
         self,
@@ -155,13 +153,13 @@ class TestTeamService:
                 id=None,
                 team_id=team.id,
                 user_id=test_user_2.id,
-                role=TeamRole.MEMBER,
+                role=Role.MEMBER,
             )
         )
         await db_session.flush()
 
         dto = TeamMemberCreateDTO(
-            user_id=test_user_2.id, team_id=team.id, role=TeamRole.MEMBER
+            user_id=test_user_2.id, team_id=team.id, role=Role.MEMBER
         )
         with pytest.raises(TeamMemberAlreadyExistsError):
             await team_service.add_team_member(test_user.id, dto)
@@ -179,14 +177,14 @@ class TestTeamService:
         await team_service.add_team_member(
             test_user.id,
             TeamMemberCreateDTO(
-                user_id=test_user_2.id, team_id=team.id, role=TeamRole.MEMBER
+                user_id=test_user_2.id, team_id=team.id, role=Role.MEMBER
             ),
         )
 
         await team_service.update_team_member(
             test_user.id,
             TeamMemberUpdateDTO(
-                user_id=test_user_2.id, team_id=team.id, role=TeamRole.ADMIN
+                user_id=test_user_2.id, team_id=team.id, role=Role.ADMIN
             ),
         )
 
@@ -195,7 +193,7 @@ class TestTeamService:
             user_id=test_user_2.id, team_id=team.id
         )
         permissions_map = {item.action: item.allowed for item in permissions}
-        assert permissions_map == role_to_team_permissions(TeamRole.ADMIN)
+        assert permissions_map == role_to_team_permissions(Role.ADMIN)
 
     async def test_update_team_member_missing_raises(
         self,
@@ -211,7 +209,7 @@ class TestTeamService:
             await team_service.update_team_member(
                 test_user.id,
                 TeamMemberUpdateDTO(
-                    user_id=test_user_2.id, team_id=team.id, role=TeamRole.ADMIN
+                    user_id=test_user_2.id, team_id=team.id, role=Role.ADMIN
                 ),
             )
 
@@ -228,7 +226,7 @@ class TestTeamService:
         await team_service.add_team_member(
             test_user.id,
             TeamMemberCreateDTO(
-                user_id=test_user_2.id, team_id=team.id, role=TeamRole.MEMBER
+                user_id=test_user_2.id, team_id=team.id, role=Role.MEMBER
             ),
         )
 
@@ -257,7 +255,7 @@ class TestTeamService:
                 id=None,
                 team_id=team.id,
                 user_id=test_user_2.id,
-                role=TeamRole.MEMBER,
+                role=Role.MEMBER,
             )
         )
         await db_session.flush()

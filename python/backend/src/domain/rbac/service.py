@@ -5,7 +5,7 @@ from typing import Dict, List, Optional
 
 from domain.rbac.strategies.project import ProjectRbacStrategy
 from domain.rbac.strategies.team import TeamRbacStrategy
-from models import Permission, TeamRole
+from models import Permission, Role
 
 from .repository import PermissionRepository
 from .dto import PermissionDTO, PermissionListDTO
@@ -86,7 +86,7 @@ class PermissionService:
 
     # Team permissions
     async def add_user_to_team_permissions(
-        self, user_id: UUID, team_id: UUID, role: TeamRole
+        self, user_id: UUID, team_id: UUID, role: Role
     ) -> None:
         team_strategy = TeamRbacStrategy(self.db, auto_commit=self.auto_commit)
         await team_strategy.add_team_member_permissions(team_id, user_id, role)
@@ -98,14 +98,14 @@ class PermissionService:
         await team_strategy.remove_team_member_permissions(team_id, user_id)
 
     async def update_user_team_role_permissions(
-        self, user_id: UUID, team_id: UUID, role: TeamRole
+        self, user_id: UUID, team_id: UUID, role: Role
     ) -> None:
         team_strategy = TeamRbacStrategy(self.db, auto_commit=self.auto_commit)
         await team_strategy.update_team_member_role_permissions(team_id, user_id, role)
 
     # Project permissions
     async def add_user_to_project_permissions(
-        self, user_id: UUID, project_id: UUID, role: TeamRole
+        self, user_id: UUID, project_id: UUID, role: Role
     ) -> None:
         project_strategy = ProjectRbacStrategy(self.db, auto_commit=self.auto_commit)
         await project_strategy.add_project_member_permissions(project_id, user_id, role)
@@ -117,7 +117,7 @@ class PermissionService:
         await project_strategy.remove_project_member_permissions(project_id, user_id)
 
     async def update_user_project_role_permissions(
-        self, user_id: UUID, project_id: UUID, role: TeamRole
+        self, user_id: UUID, project_id: UUID, role: Role
     ) -> None:
         project_strategy = ProjectRbacStrategy(self.db, auto_commit=self.auto_commit)
         await project_strategy.update_project_member_role_permissions(

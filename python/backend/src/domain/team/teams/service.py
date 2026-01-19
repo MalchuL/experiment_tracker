@@ -20,7 +20,7 @@ from .dto import (
     TeamUpdateDTO,
 )
 from .mapper import TeamMapper, CreateDTOToSchemaProps
-from models import TeamRole
+from models import Role
 
 
 class TeamService:
@@ -37,7 +37,7 @@ class TeamService:
         )
         await self.team_repository.create(team)
         await self.permission_service.add_user_to_team_permissions(
-            user_id, team.id, TeamRole.OWNER
+            user_id, team.id, Role.OWNER
         )
         await self.permission_service.commit()
         return self.team_mapper.team_schema_to_dto(team)

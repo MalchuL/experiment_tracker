@@ -6,7 +6,7 @@ from domain.rbac.error import InvalidScopeError
 from domain.rbac.permissions.project import role_to_project_permissions
 from domain.rbac.permissions.team import TeamActions, role_to_team_permissions
 from domain.rbac.service import PermissionService
-from models import Project, Team, TeamRole, User
+from models import Project, Team, Role, User
 
 
 async def _create_team(db_session: AsyncSession, owner: User) -> Team:
@@ -95,15 +95,13 @@ class TestPermissionService:
         project2 = await _create_project(db_session, test_user, team, "Project B")
 
         await permission_service.add_user_to_team_permissions(
-            user_id=test_user.id, team_id=team.id, role=TeamRole.MEMBER
+            user_id=test_user.id, team_id=team.id, role=Role.MEMBER
         )
 
         team_permissions = await permission_service.get_permissions(
             user_id=test_user.id, team_id=team.id
         )
-        assert len(team_permissions.data) == len(
-            role_to_team_permissions(TeamRole.MEMBER)
-        )
+        assert len(team_permissions.data) == len(role_to_team_permissions(Role.MEMBER))
 
         project_permissions_1 = await permission_service.get_permissions(
             user_id=test_user.id, project_id=project1.id
@@ -112,14 +110,14 @@ class TestPermissionService:
             user_id=test_user.id, project_id=project2.id
         )
         assert len(project_permissions_1.data) == len(
-            role_to_project_permissions(TeamRole.MEMBER)
+            role_to_project_permissions(Role.MEMBER)
         )
         assert len(project_permissions_2.data) == len(
-            role_to_project_permissions(TeamRole.MEMBER)
+            role_to_project_permissions(Role.MEMBER)
         )
 
         await permission_service.update_user_team_role_permissions(
-            user_id=test_user.id, team_id=team.id, role=TeamRole.ADMIN
+            user_id=test_user.id, team_id=team.id, role=Role.ADMIN
         )
         updated_team_permissions = await permission_service.get_permissions(
             user_id=test_user.id, team_id=team.id
@@ -127,7 +125,7 @@ class TestPermissionService:
         updated_map = {
             item.action: item.allowed for item in updated_team_permissions.data
         }
-        assert updated_map == role_to_team_permissions(TeamRole.ADMIN)
+        assert updated_map == role_to_team_permissions(Role.ADMIN)
 
         await permission_service.remove_user_from_team_permissions(
             user_id=test_user.id, team_id=team.id

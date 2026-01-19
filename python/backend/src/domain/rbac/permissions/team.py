@@ -1,6 +1,6 @@
 from typing import Dict, Iterable
 
-from models import TeamRole
+from models import Role
 
 
 class TeamActions:
@@ -27,15 +27,15 @@ def _build_permissions(allowed_actions: Iterable[str]) -> Dict[str, bool]:
     return {action: action in allowed_set for action in TEAM_ACTIONS}
 
 
-def role_to_team_permissions(role: TeamRole) -> Dict[str, bool]:
+def role_to_team_permissions(role: Role) -> Dict[str, bool]:
     match role:
-        case TeamRole.OWNER:
+        case Role.OWNER:
             return _build_permissions(TEAM_ACTIONS)
-        case TeamRole.ADMIN:
+        case Role.ADMIN:
             return _build_permissions(TEAM_ACTIONS)
-        case TeamRole.MEMBER:
+        case Role.MEMBER:
             allowed = {TeamActions.VIEW_PROJECT, TeamActions.VIEW_TEAM}
             return _build_permissions(allowed)
-        case TeamRole.VIEWER:
+        case Role.VIEWER:
             allowed = {TeamActions.VIEW_PROJECT, TeamActions.VIEW_TEAM}
             return _build_permissions(allowed)
