@@ -10,7 +10,16 @@ from uuid import UUID, uuid4
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from models import Project, User, Team, TeamMember, Experiment, Hypothesis, TeamRole
+from models import (
+    Permission,
+    Project,
+    Role,
+    User,
+    Team,
+    TeamMember,
+    Experiment,
+    Hypothesis,
+)
 from domain.projects.service import ProjectService
 from domain.projects.dto import (
     ProjectCreateDTO,
@@ -20,7 +29,7 @@ from domain.projects.dto import (
 )
 from models import MetricDirection, MetricAggregation
 from domain.projects.repository import ProjectRepository
-from domain.team.teams.access import Access, Rights
+from domain.rbac.permissions import ProjectActions, TeamActions
 
 
 class TestProjectService:
@@ -110,7 +119,7 @@ class TestProjectService:
             id=None,
             team_id=team.id,
             user_id=test_user_2.id,
-            role=TeamRole.MEMBER,
+            role=Role.MEMBER,
         )
         db_session.add(team_member)
         await db_session.flush()
@@ -131,6 +140,16 @@ class TestProjectService:
             settings=ProjectSettingsDTO(),
             team_id=team.id,
         )
+
+        permission = Permission(
+            id=None,
+            user_id=test_user_2.id,
+            team_id=team.id,
+            action=TeamActions.CREATE_PROJECT,
+            allowed=True,
+        )
+        db_session.add(permission)
+        await db_session.flush()
 
         result = await project_service.create_project(test_user_2, create_dto)
 
@@ -444,7 +463,7 @@ class TestProjectService:
             id=None,
             team_id=team.id,
             user_id=test_user.id,
-            role=TeamRole.MEMBER,
+            role=Role.MEMBER,
         )
         db_session.add(member)
         await db_session.flush()
@@ -460,25 +479,12 @@ class TestProjectService:
         await db_session.flush()
         await db_session.refresh(project)
 
-        original_get_team_rights = project_service.access_service.get_team_rights
-
-        async def mock_get_team_rights(*args, **kwargs):
-            return Rights(access=Access.NONE)
-
-        project_service.access_service.get_team_rights = (  # type: ignore[assignment]
-            mock_get_team_rights
-        )
-
         update_dto = ProjectUpdateDTO(name="Updated Name")
         with pytest.raises(
             ProjectPermissionError,
             match=f"User {test_user.id} does not have permission to update project {project.id}",
         ):
             await project_service.update_project(test_user, project.id, update_dto)
-
-        project_service.access_service.get_team_rights = (  # type: ignore[assignment]
-            original_get_team_rights
-        )
 
     async def test_update_project_rollback_on_error(
         self,
@@ -614,6 +620,39 @@ class TestProjectService:
         project_ids = [str(p.id) for p in results]
         assert str(project1.id) in project_ids
         assert str(project2.id) in project_ids
+
+    async def test_get_accessible_projects_via_permissions(
+        self,
+        project_service: ProjectService,
+        db_session: AsyncSession,
+        test_user: User,
+        test_user_2: User,
+    ):
+        """Test getting projects accessible via explicit project permissions."""
+        project = Project(
+            id=None,
+            name="Permission Project",
+            description="Project with explicit permissions",
+            owner_id=test_user_2.id,
+            team_id=None,
+        )
+        db_session.add(project)
+        await db_session.flush()
+        await db_session.refresh(project)
+
+        permission = Permission(
+            id=None,
+            user_id=test_user.id,
+            action=ProjectActions.VIEW_PROJECT,
+            allowed=True,
+            project_id=project.id,
+        )
+        db_session.add(permission)
+        await db_session.flush()
+
+        results = await project_service.get_accessible_projects(test_user)
+        project_ids = [p.id for p in results]
+        assert project.id in project_ids
 
     async def test_get_accessible_projects_with_counts(
         self,
@@ -773,6 +812,39 @@ class TestProjectService:
         # The mapper may set them, but we'll check owner and other fields instead
         assert result.owner.email == test_user_2.email
         assert result.owner.id == test_user_2.id
+
+    async def test_get_project_if_accessible_via_permissions(
+        self,
+        project_service: ProjectService,
+        db_session: AsyncSession,
+        test_user: User,
+        test_user_2: User,
+    ):
+        """Test getting a project accessible via explicit project permissions."""
+        project = Project(
+            id=None,
+            name="Permission Project",
+            description="Project with explicit permissions",
+            owner_id=test_user_2.id,
+            team_id=None,
+        )
+        db_session.add(project)
+        await db_session.flush()
+        await db_session.refresh(project)
+
+        permission = Permission(
+            id=None,
+            user_id=test_user.id,
+            action=ProjectActions.VIEW_PROJECT,
+            allowed=True,
+            project_id=project.id,
+        )
+        db_session.add(permission)
+        await db_session.flush()
+
+        result = await project_service.get_project_if_accessible(test_user, project.id)
+        assert result is not None
+        assert result.id == project.id
 
     async def test_get_project_if_accessible_not_accessible(
         self,

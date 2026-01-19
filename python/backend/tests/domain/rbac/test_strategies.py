@@ -84,7 +84,7 @@ class TestProjectRbacStrategy:
         )
         assert remaining == []
 
-    async def test_get_user_accessible_projects_with_action_filter(
+    async def test_get_user_accessible_projects_ids_with_action_filter(
         self,
         project_strategy: ProjectRbacStrategy,
         db_session: AsyncSession,
@@ -105,16 +105,147 @@ class TestProjectRbacStrategy:
         await repo.create_permission(
             Permission(
                 user_id=test_user.id,
+                action="project.view",
+                allowed=False,
+                project_id=project2.id,
+            )
+        )
+        await repo.create_permission(
+            Permission(
+                user_id=test_user.id,
                 action="project.edit",
                 allowed=True,
                 project_id=project2.id,
             )
         )
 
-        results = await project_strategy.get_user_accessible_projects(
+        results = await project_strategy.get_user_accessible_projects_ids(
             test_user.id, actions="project.view"
         )
-        assert {project.id for project in results} == {project1.id}
+        assert set(results) == {project1.id}
+
+    async def test_is_user_accessible_project_checks_single_id(
+        self,
+        project_strategy: ProjectRbacStrategy,
+        db_session: AsyncSession,
+        test_user: User,
+    ) -> None:
+        project_view = await _create_project(db_session, test_user, name="Project X")
+        project_edit = await _create_project(db_session, test_user, name="Project Y")
+
+        repo = PermissionRepository(db_session)
+        await repo.create_permission(
+            Permission(
+                user_id=test_user.id,
+                action="project.view",
+                allowed=True,
+                project_id=project_view.id,
+            )
+        )
+        await repo.create_permission(
+            Permission(
+                user_id=test_user.id,
+                action="project.edit",
+                allowed=True,
+                project_id=project_edit.id,
+            )
+        )
+        await repo.create_permission(
+            Permission(
+                user_id=test_user.id,
+                action="project.view",
+                allowed=False,
+                project_id=project_edit.id,
+            )
+        )
+
+        assert (
+            await project_strategy.is_user_accessible_project(
+                test_user.id, project_view.id, actions="project.view"
+            )
+            is True
+        )
+        assert (
+            await project_strategy.is_user_accessible_project(
+                test_user.id, project_edit.id, actions="project.view"
+            )
+            is False
+        )
+
+    async def test_is_user_accessible_project_denied_when_not_allowed(
+        self,
+        project_strategy: ProjectRbacStrategy,
+        db_session: AsyncSession,
+        test_user: User,
+    ) -> None:
+        project = await _create_project(db_session, test_user, name="Denied Project")
+        repo = PermissionRepository(db_session)
+        await repo.create_permission(
+            Permission(
+                user_id=test_user.id,
+                action="project.view",
+                allowed=False,
+                project_id=project.id,
+            )
+        )
+
+        assert (
+            await project_strategy.is_user_accessible_project(
+                test_user.id, project.id, actions="project.view"
+            )
+            is False
+        )
+        results = await project_strategy.get_user_accessible_projects_ids(
+            test_user.id, actions="project.view"
+        )
+        assert results == []
+
+    async def test_get_user_accessible_projects_ids_mixed_access(
+        self,
+        project_strategy: ProjectRbacStrategy,
+        db_session: AsyncSession,
+        test_user: User,
+    ) -> None:
+        allowed_project = await _create_project(
+            db_session, test_user, name="Allowed Project"
+        )
+        denied_project = await _create_project(
+            db_session, test_user, name="Denied Project"
+        )
+        other_action_project = await _create_project(
+            db_session, test_user, name="Other Action Project"
+        )
+
+        repo = PermissionRepository(db_session)
+        await repo.create_permission(
+            Permission(
+                user_id=test_user.id,
+                action="project.view",
+                allowed=True,
+                project_id=allowed_project.id,
+            )
+        )
+        await repo.create_permission(
+            Permission(
+                user_id=test_user.id,
+                action="project.view",
+                allowed=False,
+                project_id=denied_project.id,
+            )
+        )
+        await repo.create_permission(
+            Permission(
+                user_id=test_user.id,
+                action="project.edit",
+                allowed=True,
+                project_id=other_action_project.id,
+            )
+        )
+
+        results = await project_strategy.get_user_accessible_projects_ids(
+            test_user.id, actions="project.view"
+        )
+        assert set(results) == {allowed_project.id}
 
 
 class TestTeamRbacStrategy:
@@ -204,7 +335,7 @@ class TestTeamRbacStrategy:
         results = await team_strategy.get_user_accessible_teams(
             test_user.id, actions=TeamActions.VIEW_TEAM
         )
-        assert [team_item.id for team_item in results] == [team.id]
+        assert results == [team.id]
 
     async def test_get_user_accessible_teams_excludes_unrelated(
         self,
@@ -236,4 +367,4 @@ class TestTeamRbacStrategy:
         results = await team_strategy.get_user_accessible_teams(
             test_user.id, actions=TeamActions.VIEW_TEAM
         )
-        assert {team_item.id for team_item in results} == {accessible_team.id}
+        assert set(results) == {accessible_team.id}

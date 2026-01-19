@@ -178,7 +178,7 @@ class TestPermissionRepository:
             == []
         )
 
-    async def test_get_user_accessible_projects_proxy_filters_actions(
+    async def test_get_user_accessible_projects_ids_proxy_filters_actions(
         self,
         permission_repository: PermissionRepository,
         db_session: AsyncSession,
@@ -204,10 +204,53 @@ class TestPermissionRepository:
             )
         )
 
-        results = await permission_repository.get_user_accessible_projects(
+        results = await permission_repository.get_user_accessible_projects_ids(
             test_user.id, actions=ProjectActions.VIEW_PROJECT
         )
-        assert {project.id for project in results} == {project_view.id}
+        assert set(results) == {project_view.id}
+
+    async def test_is_user_accessible_project_checks_single_id(
+        self,
+        permission_repository: PermissionRepository,
+        db_session: AsyncSession,
+        test_user: User,
+    ) -> None:
+        project_view = await _create_project(db_session, test_user)
+        project_edit = await _create_project(db_session, test_user)
+
+        await permission_repository.create_permission(
+            Permission(
+                user_id=test_user.id,
+                action=ProjectActions.VIEW_PROJECT,
+                allowed=True,
+                project_id=project_view.id,
+            )
+        )
+        await permission_repository.create_permission(
+            Permission(
+                user_id=test_user.id,
+                action=ProjectActions.EDIT_PROJECT,
+                allowed=True,
+                project_id=project_edit.id,
+            )
+        )
+
+        assert (
+            await permission_repository.is_user_accessible_project(
+                test_user.id,
+                project_view.id,
+                actions=ProjectActions.VIEW_PROJECT,
+            )
+            is True
+        )
+        assert (
+            await permission_repository.is_user_accessible_project(
+                test_user.id,
+                project_edit.id,
+                actions=ProjectActions.VIEW_PROJECT,
+            )
+            is False
+        )
 
     async def test_get_user_accessible_teams_proxy_excludes_unrelated(
         self,
@@ -239,4 +282,4 @@ class TestPermissionRepository:
         results = await permission_repository.get_user_accessible_teams(
             test_user.id, actions=TeamActions.VIEW_TEAM
         )
-        assert {team.id for team in results} == {accessible_team.id}
+        assert set(results) == {accessible_team.id}

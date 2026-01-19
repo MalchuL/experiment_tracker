@@ -1,36 +1,34 @@
-from typing import List, Optional, Protocol
-import uuid
+from typing import List
 from lib.db.base_repository import BaseRepository
 from lib.types import UUID_TYPE
-from models import Project, User
-from sqlalchemy import or_, select
+from models import Project
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from advanced_alchemy.repository.typing import OrderingPair
-from domain.team.teams.repository import TeamRepository
+from domain.rbac.permissions import ProjectActions
+from domain.rbac.repository import PermissionRepository
 from lib.protocols.user_protocol import UserProtocol
 
 
 class ProjectRepository(BaseRepository[Project]):
     def __init__(self, db: AsyncSession):
         super().__init__(db, Project)
-        self.team_repository = TeamRepository(db)
-
-    async def _get_user_team_ids(self, user: UserProtocol) -> List[uuid.UUID]:
-        teams = await self.team_repository.get_accessible_teams(user)
-        return [team.id for team in teams]
+        self.permission_repository = PermissionRepository(db, auto_commit=False)
 
     async def get_accessible_projects(
         self,
         user: UserProtocol,
+        actions: list[str] | str | None = ProjectActions.VIEW_PROJECT,
         sort_by: OrderingPair | None = None,
         full_load: bool = True,
     ) -> List[Project]:
-        team_ids = await self._get_user_team_ids(user)
-
-        conditions = [Project.owner_id == user.id]
-        if team_ids:
-            conditions.append(Project.team_id.in_(team_ids))
+        permission_project_ids = (
+            await self.permission_repository.get_user_accessible_projects_ids(
+                user.id, actions=actions
+            )
+        )
+        if not permission_project_ids:
+            return []
 
         if full_load:
             options = [
@@ -42,19 +40,17 @@ class ProjectRepository(BaseRepository[Project]):
         else:
             options = []
 
-        result = await self.advanced_alchemy_repository.list(
-            or_(*conditions), load=options, order_by=sort_by
+        return await self.advanced_alchemy_repository.list(
+            Project.id.in_(permission_project_ids), load=options, order_by=sort_by
         )
-        return result
 
     async def get_project_if_accessible(
-        self, user: UserProtocol, project_id: UUID_TYPE, full_load: bool = True
+        self,
+        user: UserProtocol,
+        project_id: UUID_TYPE,
+        actions: list[str] | str | None = ProjectActions.VIEW_PROJECT,
+        full_load: bool = True,
     ) -> Project | None:
-        team_ids = await self._get_user_team_ids(user)
-
-        conditions = [Project.owner_id == user.id]
-        if team_ids:
-            conditions.append(Project.team_id.in_(team_ids))
         if full_load:
             options = [
                 selectinload(Project.owner),
@@ -64,11 +60,25 @@ class ProjectRepository(BaseRepository[Project]):
             ]
         else:
             options = []
+        if await self.is_user_accessible_project(user, project_id, actions=actions):
+            if full_load:
+                return await self.advanced_alchemy_repository.get_one_or_none(
+                    Project.id == project_id, load=options
+                )
+            return await self.advanced_alchemy_repository.get_one_or_none(
+                Project.id == project_id
+            )
+        return None
 
-        result = await self.advanced_alchemy_repository.get_one_or_none(
-            Project.id == project_id, or_(*conditions), load=options
+    async def is_user_accessible_project(
+        self,
+        user: UserProtocol,
+        project_id: UUID_TYPE,
+        actions: list[str] | str | None = ProjectActions.VIEW_PROJECT,
+    ) -> bool:
+        return await self.permission_repository.is_user_accessible_project(
+            user.id, project_id, actions=actions
         )
-        return result
 
     async def get_projects_by_team(self, team_id: UUID_TYPE) -> List[Project]:
         return await self.advanced_alchemy_repository.list(Project.team_id == team_id)

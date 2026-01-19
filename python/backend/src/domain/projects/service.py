@@ -6,21 +6,21 @@ from domain.projects.mapper import (
     SchemaToDTOProps,
 )
 from domain.projects.errors import ProjectNotAccessibleError, ProjectPermissionError
+from domain.rbac.permissions import ProjectActions, TeamActions
+from domain.rbac.service import PermissionService
 from lib.dto_converter import DtoConverter
 from lib.protocols.user_protocol import UserProtocol
 from lib.types import UUID_TYPE
 from sqlalchemy.ext.asyncio import AsyncSession
 from domain.projects.dto import ProjectDTO, ProjectCreateDTO, ProjectUpdateDTO
-from domain.team.teams.repository import TeamRepository
-from domain.team.teams.access import AccessService
+from models import Role
 
 
 class ProjectService:
     def __init__(self, db: AsyncSession):
         self.db = db
         self.project_repository = ProjectRepository(db)
-        self.team_repository = TeamRepository(db)
-        self.access_service = AccessService(db)
+        self.permission_service = PermissionService(db, auto_commit=False)
         self.project_mapper = ProjectMapper()
 
     async def create_project(
@@ -28,18 +28,22 @@ class ProjectService:
     ) -> ProjectDTO:
         try:
             props = CreateDTOToSchemaProps(owner_id=user.id)
-            if data.team_id:
-                team_rights = await self.access_service.get_team_rights(
-                    user, data.team_id
+            if data.team_id and not await self.permission_service.has_permission(
+                user_id=user.id,
+                team_id=data.team_id,
+                action=TeamActions.CREATE_PROJECT,
+            ):
+                raise ProjectNotAccessibleError(
+                    f"Project {data.team_id} not accessible"
                 )
-                if not team_rights.can_edit:
-                    raise ProjectNotAccessibleError(
-                        f"Project {data.team_id} not accessible"
-                    )
             project_model = self.project_mapper.project_create_dto_to_schema(
                 data, props
             )
             await self.project_repository.create(project_model)
+            if not data.team_id:
+                await self.permission_service.add_user_to_project_permissions(
+                    user.id, project_model.id, Role.ADMIN
+                )
             await self.project_repository.commit()
         except Exception as e:
             await self.project_repository.rollback()
@@ -70,14 +74,17 @@ class ProjectService:
             if not project_model:
                 raise ProjectNotAccessibleError(f"Project {project_id} not accessible")
             # Check if the user has permission to update the project
-            if project_model.team_id:
-                team_rights = await self.access_service.get_team_rights(
-                    user, project_model.team_id
+            if (
+                project_model.team_id
+                and not await self.permission_service.has_permission(
+                    user_id=user.id,
+                    team_id=project_model.team_id,
+                    action=TeamActions.CREATE_PROJECT,
                 )
-                if not team_rights.can_edit:
-                    raise ProjectPermissionError(
-                        f"User {user.id} does not have permission to update project {project_id}"
-                    )
+            ):
+                raise ProjectPermissionError(
+                    f"User {user.id} does not have permission to update project {project_id}"
+                )
             # Update the project in the repository
             await self.project_repository.update(project_id, **update_dict)
             await self.project_repository.commit()
@@ -106,8 +113,14 @@ class ProjectService:
             await self.project_repository.rollback()
             raise e
 
-    async def get_accessible_projects(self, user: UserProtocol) -> List[ProjectDTO]:
-        project_models = await self.project_repository.get_accessible_projects(user)
+    async def get_accessible_projects(
+        self,
+        user: UserProtocol,
+        actions: list[str] | str | None = ProjectActions.VIEW_PROJECT,
+    ) -> List[ProjectDTO]:
+        project_models = await self.project_repository.get_accessible_projects(
+            user, actions=actions
+        )
         experiment_counts = [
             len(project.experiments) if project.experiments else 0
             for project in project_models
@@ -127,10 +140,13 @@ class ProjectService:
         return self.project_mapper.project_list_schema_to_dto(project_models, props)
 
     async def get_project_if_accessible(
-        self, user: UserProtocol, project_id: UUID_TYPE
+        self,
+        user: UserProtocol,
+        project_id: UUID_TYPE,
+        actions: list[str] | str | None = ProjectActions.VIEW_PROJECT,
     ) -> ProjectDTO | None:
         project_model = await self.project_repository.get_project_if_accessible(
-            user, project_id
+            user, project_id, actions=actions
         )
         if not project_model:
             return None
@@ -144,6 +160,16 @@ class ProjectService:
             experiment_count=experiment_count, hypothesis_count=hypothesis_count
         )
         return self.project_mapper.project_schema_to_dto(project_model, props)
+
+    async def is_user_accessible_project(
+        self,
+        user: UserProtocol,
+        project_id: UUID_TYPE,
+        actions: list[str] | str | None = ProjectActions.VIEW_PROJECT,
+    ) -> bool:
+        return await self.project_repository.is_user_accessible_project(
+            user, project_id, actions=actions
+        )
 
     async def delete_project(self, user: UserProtocol, project_id: UUID_TYPE) -> bool:
         try:

@@ -10,7 +10,8 @@ from uuid import uuid4
 from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from models import Project, User, Team, TeamMember
+from domain.rbac.permissions import ProjectActions
+from models import Permission, Project, User, Team, TeamMember
 from domain.projects.repository import ProjectRepository, UserProtocol
 
 
@@ -21,6 +22,19 @@ class TestProjectRepository:
     def project_repository(self, db_session: AsyncSession) -> ProjectRepository:
         """Create a ProjectRepository instance."""
         return ProjectRepository(db_session)
+
+    async def _grant_project_view(
+        self, db_session: AsyncSession, user_id: uuid.UUID, project_id: uuid.UUID
+    ) -> None:
+        permission = Permission(
+            id=None,
+            user_id=user_id,
+            action=ProjectActions.VIEW_PROJECT,
+            allowed=True,
+            project_id=project_id,
+        )
+        db_session.add(permission)
+        await db_session.flush()
 
     async def test_get_accessible_projects_owned_by_user(
         self,
@@ -48,6 +62,12 @@ class TestProjectRepository:
         await db_session.flush()
         await db_session.refresh(project1)
         await db_session.refresh(project2)
+        await self._grant_project_view(db_session, test_user.id, project1.id)
+        await self._grant_project_view(db_session, test_user.id, project2.id)
+        await self._grant_project_view(db_session, test_user.id, project1.id)
+        await self._grant_project_view(db_session, test_user.id, project2.id)
+        await self._grant_project_view(db_session, test_user.id, project1.id)
+        await self._grant_project_view(db_session, test_user.id, project2.id)
 
         # Get accessible projects
         accessible_projects = await project_repository.get_accessible_projects(
@@ -177,6 +197,8 @@ class TestProjectRepository:
         await db_session.flush()
         await db_session.refresh(owned_project)
         await db_session.refresh(team_project)
+        await self._grant_project_view(db_session, test_user.id, owned_project.id)
+        await self._grant_project_view(db_session, test_user.id, team_project.id)
 
         # Get accessible projects
         accessible_projects = await project_repository.get_accessible_projects(
@@ -213,8 +235,7 @@ class TestProjectRepository:
             test_user  # type: ignore[arg-type]
         )
 
-        project_ids = [p.id for p in accessible_projects]
-        assert inaccessible_project.id not in project_ids
+        assert accessible_projects == []
 
     async def test_get_accessible_projects_ordered_by_created_at_desc(
         self,
@@ -234,6 +255,7 @@ class TestProjectRepository:
         db_session.add(project1)
         await db_session.flush()
         await db_session.refresh(project1)
+        await self._grant_project_view(db_session, test_user.id, project1.id)
 
         # Small delay to ensure different timestamps
         import asyncio
@@ -250,6 +272,7 @@ class TestProjectRepository:
         db_session.add(project2)
         await db_session.flush()
         await db_session.refresh(project2)
+        await self._grant_project_view(db_session, test_user.id, project2.id)
 
         # Get accessible projects
         accessible_projects = await project_repository.get_accessible_projects(
@@ -286,6 +309,7 @@ class TestProjectRepository:
         db_session.add(project)
         await db_session.flush()
         await db_session.refresh(project)
+        await self._grant_project_view(db_session, test_user.id, project.id)
 
         # Get accessible projects
         accessible_projects = await project_repository.get_accessible_projects(
@@ -320,6 +344,8 @@ class TestProjectRepository:
         db_session.add(project)
         await db_session.flush()
         await db_session.refresh(project)
+        await self._grant_project_view(db_session, test_user.id, project.id)
+        await self._grant_project_view(db_session, test_user.id, project.id)
 
         # Get project by ID
         retrieved_project = await project_repository.get_project_if_accessible(
@@ -370,6 +396,9 @@ class TestProjectRepository:
         db_session.add(project)
         await db_session.flush()
         await db_session.refresh(project)
+        await self._grant_project_view(db_session, test_user.id, project.id)
+        await self._grant_project_view(db_session, test_user.id, project.id)
+        await self._grant_project_view(db_session, test_user.id, project.id)
 
         # Get project by ID
         retrieved_project = await project_repository.get_project_if_accessible(
@@ -424,6 +453,8 @@ class TestProjectRepository:
         db_session.add(project)
         await db_session.flush()
         await db_session.refresh(project)
+        await self._grant_project_view(db_session, test_user.id, project.id)
+        await self._grant_project_view(db_session, test_user.id, project.id)
 
         # Get project using string UUID
         project_id_str = str(project.id)
@@ -464,6 +495,7 @@ class TestProjectRepository:
         db_session.add(project)
         await db_session.flush()
         await db_session.refresh(project)
+        await self._grant_project_view(db_session, test_user.id, project.id)
 
         # Get project
         retrieved_project = await project_repository.get_project_if_accessible(
@@ -516,6 +548,7 @@ class TestProjectRepository:
         db_session.add(project)
         await db_session.flush()
         await db_session.refresh(project)
+        await self._grant_project_view(db_session, test_user.id, project.id)
 
         # Get project
         retrieved_project = await project_repository.get_project_if_accessible(

@@ -4,15 +4,13 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from uuid import UUID
 from domain.rbac.repository import PermissionRepository
-from domain.projects.repository import ProjectRepository
-from models import Permission, Project, Role
+from models import Permission, Role
 
 
 class ProjectRbacStrategy:
     def __init__(self, db: AsyncSession, auto_commit: bool = False):
         self.db = db
         self.permission_repo = PermissionRepository(db, auto_commit=auto_commit)
-        self.project_repository = ProjectRepository(db)
         self.auto_commit = auto_commit
 
     @staticmethod
@@ -67,10 +65,10 @@ class ProjectRbacStrategy:
             permission.allowed = new_permissions[permission.action]
             await self.permission_repo.update_permission(permission)
 
-    async def get_user_accessible_projects(
+    async def get_user_accessible_projects_ids(
         self, user_id: UUID, actions: List[str] | str | None = None
-    ) -> List[Project]:
-        conditions = []
+    ) -> List[UUID]:
+        conditions = [Permission.allowed.is_(True)]
         normalized_actions = self._normalize_actions(actions)
         if normalized_actions is not None:
             conditions.append(Permission.action.in_(normalized_actions))
@@ -83,5 +81,24 @@ class ProjectRbacStrategy:
         if not permissions_ids:
             return []
 
-        project_ids = [permission_id for permission_id in permissions_ids]
-        return await self.project_repository.get_projects_by_ids(project_ids)
+        return [permission_id for permission_id in permissions_ids]
+
+    async def is_user_accessible_project(
+        self,
+        user_id: UUID,
+        project_id: UUID,
+        actions: List[str] | str | None = None,
+    ) -> bool:
+        conditions = [
+            Permission.user_id == user_id,
+            Permission.project_id == project_id,
+            Permission.allowed.is_(True),
+        ]
+        normalized_actions = self._normalize_actions(actions)
+        if normalized_actions is not None:
+            conditions.append(Permission.action.in_(normalized_actions))
+        result = await self.permission_repo.advanced_alchemy_repository.list(
+            *conditions,
+            statement=select(Permission.project_id).distinct(),
+        )
+        return len(result) > 0
