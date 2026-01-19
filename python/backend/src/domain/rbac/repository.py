@@ -11,7 +11,7 @@ from .error import InvalidIdError, InvalidScopeError
 
 
 class PermissionRepository(BaseRepository[Permission]):
-    def __init__(self, db: AsyncSession, auto_commit: bool = True):
+    def __init__(self, db: AsyncSession, auto_commit: bool = False):
         self.auto_commit = auto_commit
         super().__init__(db, Permission)
 

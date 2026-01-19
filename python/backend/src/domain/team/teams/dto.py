@@ -4,6 +4,7 @@ from pydantic import BaseModel
 from datetime import datetime
 
 from models import TeamRole
+from lib.dto_config import model_config
 
 
 class TeamBase(BaseModel):
@@ -11,40 +12,42 @@ class TeamBase(BaseModel):
     description: Optional[str] = None
 
 
-class TeamCreate(TeamBase):
-    pass
-
-
-class TeamUpdate(BaseModel):
-    name: Optional[str] = None
-    description: Optional[str] = None
-
-
-class TeamMemberRead(BaseModel):
+class TeamReadDTO(TeamBase):
     id: uuid.UUID
-    email: str
-    display_name: Optional[str] = None
-    role: TeamRole
-    joined_at: datetime
-
-    class Config:
-        from_attributes = True
-
-
-class TeamRead(TeamBase):
-    id: uuid.UUID
-    owner_id: uuid.UUID
     created_at: datetime
-    members: List[TeamMemberRead] = []
-
-    class Config:
-        from_attributes = True
+    owner_id: uuid.UUID
+    model_config = model_config()
 
 
-class TeamMemberAdd(BaseModel):
-    email: str
-    role: TeamRole = TeamRole.MEMBER
+class TeamCreateDTO(TeamBase):
+    model_config = model_config()
 
 
-class TeamMemberUpdateRole(BaseModel):
+class TeamUpdateDTO(TeamBase):
+    id: uuid.UUID
+    model_config = model_config()
+
+
+class TeamMemberBase(BaseModel):
+    user_id: uuid.UUID
+    team_id: uuid.UUID
     role: TeamRole
+
+
+class TeamMemberReadDTO(TeamMemberBase):
+    id: uuid.UUID
+    model_config = model_config()
+
+
+class TeamMemberCreateDTO(TeamMemberBase):
+    model_config = model_config()
+
+
+class TeamMemberUpdateDTO(TeamMemberBase):
+    model_config = model_config()
+
+
+class TeamMemberDeleteDTO(BaseModel):
+    user_id: uuid.UUID
+    team_member_id: uuid.UUID
+    model_config = model_config()

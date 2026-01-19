@@ -19,6 +19,7 @@ class HasId(Protocol):
 
 
 T = TypeVar("T", bound=HasId)
+R = TypeVar("R", bound=HasId)
 
 
 class ListOptions(BaseModel):
@@ -40,8 +41,8 @@ class BaseRepository(Generic[T]):
             super().__init__(*args, **kwargs)
 
     def _create_advanced_alchemy_repository(
-        self, session: AsyncSession, model: Type[T]
-    ) -> SQLAlchemyAsyncRepository[T]:
+        self, session: AsyncSession, model: Type[R]
+    ) -> SQLAlchemyAsyncRepository[R]:
         repo = self.Repository(
             session=session,
             model_type=model,

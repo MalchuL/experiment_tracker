@@ -1,5 +1,6 @@
 from typing import List
 import uuid
+from domain.team.teams.errors import TeamMemberNotFoundError
 from lib.db.base_repository import BaseRepository
 from lib.types import UUID_TYPE
 from models import Team, User
@@ -12,6 +13,28 @@ from models import TeamMember
 class TeamRepository(BaseRepository[Team]):
     def __init__(self, db: AsyncSession):
         super().__init__(db, Team)
+        self.team_member_repository = self._create_advanced_alchemy_repository(
+            db, TeamMember
+        )
+
+    async def add_team_member(self, member: TeamMember) -> TeamMember:
+        return await self.team_member_repository.add(member, auto_refresh=True)
+
+    async def update_team_member(self, member: TeamMember) -> TeamMember:
+        return await self.team_member_repository.update(member, auto_refresh=True)
+
+    async def delete_team_member(
+        self, user_id: UUID_TYPE, team_member_id: UUID_TYPE
+    ) -> None:
+        team_member = await self.team_member_repository.get_one_or_none(
+            TeamMember.user_id == user_id,
+            TeamMember.team_id == team_member_id,
+        )
+        if team_member is None:
+            raise TeamMemberNotFoundError("Team member not found")
+        await self.team_member_repository.delete(
+            team_member.id,
+        )
 
     async def get_accessible_teams(self, user: User) -> List[Team]:
         query = (
@@ -33,10 +56,7 @@ class TeamRepository(BaseRepository[Team]):
     ) -> TeamMember | None:
         if team_id is None:
             raise ValueError("Team ID is required")
-        query = (
-            select(TeamMember)
-            .where(TeamMember.user_id == user_id, TeamMember.team_id == team_id)
-            .limit(1)
+        return await self.team_member_repository.get_one_or_none(
+            TeamMember.user_id == user_id,
+            TeamMember.team_id == team_id,
         )
-        result = await self.db.execute(query)
-        return result.scalar_one_or_none()
