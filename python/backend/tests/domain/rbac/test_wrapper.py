@@ -60,12 +60,8 @@ class TestPermissionChecker:
         )
 
         checker = PermissionChecker(db_session)
-        assert (
-            await checker.can_edit_project(test_user.id, project.id)
-        ) is True
-        assert (
-            await checker.can_delete_project(test_user.id, project.id)
-        ) is False
+        assert (await checker.can_edit_project(test_user.id, project.id)) is True
+        assert (await checker.can_delete_project(test_user.id, project.id)) is False
 
     async def test_team_action_wrappers(
         self,
