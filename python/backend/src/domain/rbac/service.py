@@ -4,6 +4,7 @@ from uuid import UUID
 from typing import Dict, List, Optional
 
 from domain.projects.repository import ProjectRepository
+from domain.rbac.error import InvalidScopeError
 from domain.team.teams.repository import TeamRepository
 from domain.rbac.permissions.project import role_to_project_permissions
 from domain.rbac.permissions.team import role_to_team_permissions
@@ -15,8 +16,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 
 class PermissionService:
+    """Service for RBAC permissions and role-based grants.
+
+    Team member roles generate both team-scoped and project-scoped permissions.
+    """
 
     def __init__(self, db: AsyncSession, auto_commit: bool = True):
+        """Initialize permission service with a database session."""
         self.db = db
         self.repo = PermissionRepository(db, auto_commit=False)
         self.project_repo = ProjectRepository(db)
@@ -30,15 +36,7 @@ class PermissionService:
         team_id: UUID | None = None,
         project_id: UUID | None = None,
     ) -> None:
-        """Create a new permission.
-
-        Args:
-            user_id (UUID): The id of the user.
-            action (str): The action to grant permission for.
-            allowed (bool, optional): Whether the permission is granted. Defaults to True.
-            team_id (UUID | None, optional): The id of the team. Defaults to None.
-            project_id (UUID | None, optional): The id of the project. Defaults to None.
-        """
+        """Create a new permission scoped to a team or project."""
         await self.repo.create_permission(
             Permission(
                 user_id=user_id,
@@ -58,6 +56,7 @@ class PermissionService:
         project_id: UUID | None = None,
         actions: list[str] | str | None = None,
     ) -> PermissionListDTO:
+        """Fetch permissions matching the provided filters."""
         permissions = await self.repo.get_permissions(
             user_id=user_id,
             team_id=team_id,
@@ -84,6 +83,27 @@ class PermissionService:
         team_id: UUID | None = None,
         project_id: UUID | None = None,
     ) -> bool:
+        """Check whether a user is allowed to perform an action.
+        Args:
+            user_id (UUID): The id of the user.
+            action (str): The action to grant permission for.
+            team_id (UUID | None, optional): The id of the team. Defaults to None.
+            project_id (UUID | None, optional): The id of the project. Defaults to None.
+        Resolution order project_id:
+        1) If project_id is provided, check project-scoped permissions first.
+           - If any project permissions exist for the action, they decide the result.
+           - If no project permissions exist, and the project belongs to a team,
+             fall back to team-scoped permissions for that team.
+        2) If project_id is not provided, check only team-scoped permissions.
+
+        Resolution order team_id:
+        1) If team_id is provided, check team-scoped permissions first.
+           - If any team permissions exist for the action, they decide the result.
+        """
+        if project_id is not None and team_id is not None:
+            raise InvalidScopeError(
+                "Only one of project_id or team_id can be provided."
+            )
         if project_id is None:
             permissions = await self.repo.get_permissions(
                 user_id=user_id, team_id=team_id, project_id=None, actions=action
@@ -109,6 +129,11 @@ class PermissionService:
     async def add_user_to_team_permissions(
         self, user_id: UUID, team_id: UUID, role: Role
     ) -> None:
+        """Grant team member permissions for a role.
+
+        This creates both team permissions and project permissions so that
+        team membership also grants project-level actions by default.
+        """
         # Combine team and project permissions which is default behavior for team members
         team_permissions = role_to_team_permissions(role) | role_to_project_permissions(
             role
@@ -139,6 +164,7 @@ class PermissionService:
     async def remove_user_from_team_permissions(
         self, user_id: UUID, team_id: UUID
     ) -> None:
+        """Remove all team-scoped permissions and related project permissions."""
         permissions = await self.repo.get_permissions(user_id=user_id, team_id=team_id)
         await self.repo.delete_permission(permissions)
 
@@ -155,6 +181,7 @@ class PermissionService:
     async def update_user_team_role_permissions(
         self, user_id: UUID, team_id: UUID, role: Role
     ) -> None:
+        """Update team and project permissions for a team member role."""
         permissions = await self.repo.get_permissions(user_id=user_id, team_id=team_id)
         new_permissions = role_to_team_permissions(role) | role_to_project_permissions(
             role
@@ -170,6 +197,7 @@ class PermissionService:
     async def add_user_to_project_permissions(
         self, user_id: UUID, project_id: UUID, role: Role
     ) -> None:
+        """Grant project-scoped permissions for a role."""
         project_permissions = role_to_project_permissions(role)
         existing_permissions = await self.repo.get_permissions(
             user_id=user_id, project_id=project_id
@@ -197,6 +225,7 @@ class PermissionService:
     async def remove_user_from_project_permissions(
         self, user_id: UUID, project_id: UUID
     ) -> None:
+        """Remove all project-scoped permissions for a user."""
         permissions = await self.repo.get_permissions(
             user_id=user_id, project_id=project_id
         )
@@ -207,6 +236,7 @@ class PermissionService:
     async def update_user_project_role_permissions(
         self, user_id: UUID, project_id: UUID, role: Role
     ) -> None:
+        """Update project-scoped permissions for a user role."""
         permissions = await self.repo.get_permissions(
             user_id=user_id, project_id=project_id
         )
@@ -218,4 +248,5 @@ class PermissionService:
             await self.db.commit()
 
     async def commit(self) -> None:
+        """Commit the current transaction."""
         await self.db.commit()

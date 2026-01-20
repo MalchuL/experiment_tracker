@@ -12,7 +12,10 @@ from .error import InvalidIdError, InvalidScopeError
 
 
 class PermissionRepository(BaseRepository[Permission]):
+    """Repository for CRUD and scoped queries on permissions."""
+
     def __init__(self, db: AsyncSession, auto_commit: bool = False):
+        """Initialize repository with DB session and commit behavior."""
         self.auto_commit = auto_commit
         super().__init__(db, Permission)
 
@@ -21,6 +24,7 @@ class PermissionRepository(BaseRepository[Permission]):
         team_id: Optional[UUID],
         project_id: Optional[UUID],
     ) -> None:
+        """Validate that exactly one scope is provided."""
         if not team_id and not project_id:
             raise InvalidScopeError("Either team_id or project_id must be provided.")
         if team_id and project_id:
@@ -34,12 +38,14 @@ class PermissionRepository(BaseRepository[Permission]):
         team_id: UUID | None,
         project_id: UUID | None,
     ) -> list:
+        """Return SQLAlchemy filters for scope matching."""
         return [
             Permission.team_id == team_id,
             Permission.project_id == project_id,
         ]
 
     def _normalize_actions(self, actions: list[str] | str | None) -> list[str] | None:
+        """Normalize action filters to a list."""
         if actions is None:
             return None
         if isinstance(actions, str):
@@ -55,9 +61,7 @@ class PermissionRepository(BaseRepository[Permission]):
         project_id: Optional[UUID] = None,
         actions: list[str] | str | None = None,
     ) -> list[Permission]:
-        """
-        Get all permissions for a user by scope.
-        """
+        """Get permissions by scope and optional filters."""
         conditions = []
         if permission_id is not None:
             if (user_id, team_id, project_id, actions) != (None, None, None, None):
@@ -87,6 +91,7 @@ class PermissionRepository(BaseRepository[Permission]):
         return await self.advanced_alchemy_repository.list(*conditions)
 
     async def create_permission(self, permission: Permission) -> Permission:
+        """Create a permission record after validating scope."""
         self._validate_scope(
             team_id=permission.team_id, project_id=permission.project_id
         )
@@ -95,6 +100,7 @@ class PermissionRepository(BaseRepository[Permission]):
         )
 
     async def update_permission(self, permission: Permission) -> Permission:
+        """Update a permission record after validating scope."""
         self._validate_scope(
             team_id=permission.team_id, project_id=permission.project_id
         )
@@ -106,6 +112,7 @@ class PermissionRepository(BaseRepository[Permission]):
         self,
         id: UUID | str | list[UUID | str] | Permission | list[Permission],
     ) -> None:
+        """Delete permission records by id or model instances."""
         if isinstance(id, (UUID, str)):
             await self.advanced_alchemy_repository.delete(
                 id, auto_commit=self.auto_commit
@@ -134,6 +141,7 @@ class PermissionRepository(BaseRepository[Permission]):
     async def get_user_accessible_teams(
         self, user_id: UUID, actions: list[str] | str | None = None
     ) -> list[UUID]:
+        """Return team ids where the user has allowed permissions."""
         conditions = []
         normalized_actions = self._normalize_actions(actions)
         if normalized_actions is not None:

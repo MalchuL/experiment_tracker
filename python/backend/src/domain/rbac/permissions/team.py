@@ -4,6 +4,8 @@ from models import Role
 
 
 class TeamActions:
+    """Team-scoped action identifiers."""
+
     CREATE_PROJECT = "projects.create"
     DELETE_PROJECT = "projects.delete"
     VIEW_PROJECT = "projects.view"
@@ -23,11 +25,13 @@ TEAM_ACTIONS = (
 
 
 def _build_permissions(allowed_actions: Iterable[str]) -> Dict[str, bool]:
+    """Build a map of all team actions to allowed flags."""
     allowed_set = set(allowed_actions)
     return {action: action in allowed_set for action in TEAM_ACTIONS}
 
 
 def role_to_team_permissions(role: Role) -> Dict[str, bool]:
+    """Return team permissions for a role."""
     match role:
         case Role.OWNER:
             return _build_permissions(TEAM_ACTIONS)

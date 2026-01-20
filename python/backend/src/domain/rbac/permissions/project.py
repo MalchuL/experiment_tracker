@@ -4,6 +4,8 @@ from models import Role
 
 
 class ProjectActions:
+    """Project-scoped action identifiers."""
+
     # Current Project
     EDIT_PROJECT = "project.edit"
     DELETE_PROJECT = "project.delete"
@@ -45,11 +47,13 @@ PROJECT_ACTIONS = (
 
 
 def _build_permissions(allowed_actions: Iterable[str]) -> Dict[str, bool]:
+    """Build a map of all project actions to allowed flags."""
     allowed_set = set(allowed_actions)
     return {action: action in allowed_set for action in PROJECT_ACTIONS}
 
 
 def role_to_project_permissions(role: Role) -> Dict[str, bool]:
+    """Return project permissions for a role."""
     match role:
         case Role.OWNER:
             return _build_permissions(PROJECT_ACTIONS)
