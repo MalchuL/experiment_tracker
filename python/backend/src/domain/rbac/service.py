@@ -3,8 +3,10 @@ from collections import defaultdict
 from uuid import UUID
 from typing import Dict, List, Optional
 
-from domain.rbac.strategies.project import ProjectRbacStrategy
-from domain.rbac.strategies.team import TeamRbacStrategy
+from domain.projects.repository import ProjectRepository
+from domain.team.teams.repository import TeamRepository
+from domain.rbac.permissions.project import role_to_project_permissions
+from domain.rbac.permissions.team import role_to_team_permissions
 from models import Permission, Role
 
 from .repository import PermissionRepository
@@ -16,7 +18,8 @@ class PermissionService:
 
     def __init__(self, db: AsyncSession, auto_commit: bool = True):
         self.db = db
-        self.repo = PermissionRepository(db, auto_commit=auto_commit)
+        self.repo = PermissionRepository(db, auto_commit=False)
+        self.project_repo = ProjectRepository(db)
         self.auto_commit = auto_commit
 
     async def add_permission(
@@ -45,6 +48,8 @@ class PermissionService:
                 project_id=project_id,
             )
         )
+        if self.auto_commit:
+            await self.db.commit()
 
     async def get_permissions(
         self,
@@ -79,50 +84,138 @@ class PermissionService:
         team_id: UUID | None = None,
         project_id: UUID | None = None,
     ) -> bool:
-        permissions = await self.repo.get_permissions(
-            user_id=user_id, team_id=team_id, project_id=project_id, actions=action
+        if project_id is None:
+            permissions = await self.repo.get_permissions(
+                user_id=user_id, team_id=team_id, project_id=None, actions=action
+            )
+            return any(permission.allowed for permission in permissions)
+
+        project_permissions = await self.repo.get_permissions(
+            user_id=user_id, project_id=project_id, actions=action
         )
-        return any(permission.allowed for permission in permissions)
+        if project_permissions:
+            return any(permission.allowed for permission in project_permissions)
+
+        project = await self.project_repo.get_by_id(project_id)
+        if project.team_id is None:
+            return False
+
+        team_permissions = await self.repo.get_permissions(
+            user_id=user_id, team_id=project.team_id, actions=action
+        )
+        return any(permission.allowed for permission in team_permissions)
 
     # Team permissions
     async def add_user_to_team_permissions(
         self, user_id: UUID, team_id: UUID, role: Role
     ) -> None:
-        team_strategy = TeamRbacStrategy(self.db, auto_commit=self.auto_commit)
-        await team_strategy.add_team_member_permissions(team_id, user_id, role)
+        # Combine team and project permissions which is default behavior for team members
+        team_permissions = role_to_team_permissions(role) | role_to_project_permissions(
+            role
+        )
+        existing_permissions = await self.repo.get_permissions(
+            user_id=user_id, team_id=team_id
+        )
+        existing_by_action = {
+            permission.action: permission for permission in existing_permissions
+        }
+        for action, allowed in team_permissions.items():
+            existing = existing_by_action.get(action)
+            if existing is None:
+                await self.repo.create_permission(
+                    Permission(
+                        user_id=user_id,
+                        action=action,
+                        allowed=allowed,
+                        team_id=team_id,
+                    )
+                )
+            else:
+                existing.allowed = allowed
+                await self.repo.update_permission(existing)
+        if self.auto_commit:
+            await self.db.commit()
 
     async def remove_user_from_team_permissions(
         self, user_id: UUID, team_id: UUID
     ) -> None:
-        team_strategy = TeamRbacStrategy(self.db, auto_commit=self.auto_commit)
-        await team_strategy.remove_team_member_permissions(team_id, user_id)
+        permissions = await self.repo.get_permissions(user_id=user_id, team_id=team_id)
+        await self.repo.delete_permission(permissions)
+
+        projects = await self.project_repo.get_projects_by_team(team_id=team_id)
+        for project in projects:
+            permissions = await self.repo.get_permissions(
+                user_id=user_id, project_id=project.id
+            )
+            if permissions:
+                await self.repo.delete_permission(permissions)
+        if self.auto_commit:
+            await self.db.commit()
 
     async def update_user_team_role_permissions(
         self, user_id: UUID, team_id: UUID, role: Role
     ) -> None:
-        team_strategy = TeamRbacStrategy(self.db, auto_commit=self.auto_commit)
-        await team_strategy.update_team_member_role_permissions(team_id, user_id, role)
+        permissions = await self.repo.get_permissions(user_id=user_id, team_id=team_id)
+        new_permissions = role_to_team_permissions(role) | role_to_project_permissions(
+            role
+        )
+        for permission in permissions:
+            permission.allowed = new_permissions[permission.action]
+            await self.repo.update_permission(permission)
+
+        if self.auto_commit:
+            await self.db.commit()
 
     # Project permissions
     async def add_user_to_project_permissions(
         self, user_id: UUID, project_id: UUID, role: Role
     ) -> None:
-        project_strategy = ProjectRbacStrategy(self.db, auto_commit=self.auto_commit)
-        await project_strategy.add_project_member_permissions(project_id, user_id, role)
+        project_permissions = role_to_project_permissions(role)
+        existing_permissions = await self.repo.get_permissions(
+            user_id=user_id, project_id=project_id
+        )
+        existing_by_action = {
+            permission.action: permission for permission in existing_permissions
+        }
+        for action, allowed in project_permissions.items():
+            existing = existing_by_action.get(action)
+            if existing is None:
+                await self.repo.create_permission(
+                    Permission(
+                        user_id=user_id,
+                        action=action,
+                        allowed=allowed,
+                        project_id=project_id,
+                    ),
+                )
+            else:
+                existing.allowed = allowed
+                await self.repo.update_permission(existing)
+        if self.auto_commit:
+            await self.db.commit()
 
     async def remove_user_from_project_permissions(
         self, user_id: UUID, project_id: UUID
     ) -> None:
-        project_strategy = ProjectRbacStrategy(self.db, auto_commit=self.auto_commit)
-        await project_strategy.remove_project_member_permissions(project_id, user_id)
+        permissions = await self.repo.get_permissions(
+            user_id=user_id, project_id=project_id
+        )
+        await self.repo.delete_permission(permissions)
+        if self.auto_commit:
+            await self.db.commit()
 
     async def update_user_project_role_permissions(
         self, user_id: UUID, project_id: UUID, role: Role
     ) -> None:
-        project_strategy = ProjectRbacStrategy(self.db, auto_commit=self.auto_commit)
-        await project_strategy.update_project_member_role_permissions(
-            project_id, user_id, role
+        permissions = await self.repo.get_permissions(
+            user_id=user_id, project_id=project_id
         )
+        new_permissions = role_to_project_permissions(role)
+        for permission in permissions:
+            permission.allowed = new_permissions[permission.action]
+            await self.repo.update_permission(permission)
+        if self.auto_commit:
+            await self.db.commit()
 
     async def commit(self) -> None:
         await self.db.commit()

@@ -23,14 +23,14 @@ async def _create_team(db_session: AsyncSession, owner: User) -> Team:
 
 
 async def _create_project(
-    db_session: AsyncSession, owner: User, team: Team, name: str
+    db_session: AsyncSession, owner: User, team: Team | None, name: str
 ) -> Project:
     project = Project(
         id=None,
         name=name,
         description="Service project",
         owner_id=owner.id,
-        team_id=team.id,
+        team_id=team.id if team else None,
     )
     db_session.add(project)
     await db_session.flush()
@@ -101,7 +101,10 @@ class TestPermissionService:
         team_permissions = await permission_service.get_permissions(
             user_id=test_user.id, team_id=team.id
         )
-        assert len(team_permissions.data) == len(role_to_team_permissions(Role.MEMBER))
+        expected_team_actions = role_to_team_permissions(
+            Role.MEMBER
+        ) | role_to_project_permissions(Role.MEMBER)
+        assert len(team_permissions.data) == len(expected_team_actions)
 
         project_permissions_1 = await permission_service.get_permissions(
             user_id=test_user.id, project_id=project1.id
@@ -109,12 +112,8 @@ class TestPermissionService:
         project_permissions_2 = await permission_service.get_permissions(
             user_id=test_user.id, project_id=project2.id
         )
-        assert len(project_permissions_1.data) == len(
-            role_to_project_permissions(Role.MEMBER)
-        )
-        assert len(project_permissions_2.data) == len(
-            role_to_project_permissions(Role.MEMBER)
-        )
+        assert project_permissions_1.data == []
+        assert project_permissions_2.data == []
 
         await permission_service.update_user_team_role_permissions(
             user_id=test_user.id, team_id=team.id, role=Role.ADMIN
@@ -125,7 +124,10 @@ class TestPermissionService:
         updated_map = {
             item.action: item.allowed for item in updated_team_permissions.data
         }
-        assert updated_map == role_to_team_permissions(Role.ADMIN)
+        expected_updated_actions = role_to_team_permissions(
+            Role.ADMIN
+        ) | role_to_project_permissions(Role.ADMIN)
+        assert updated_map == expected_updated_actions
 
         await permission_service.remove_user_from_team_permissions(
             user_id=test_user.id, team_id=team.id
@@ -140,6 +142,125 @@ class TestPermissionService:
                 user_id=test_user.id, project_id=project1.id
             )
         ).data == []
+
+    async def test_manage_project_permissions_for_member(
+        self,
+        permission_service: PermissionService,
+        db_session: AsyncSession,
+        test_user: User,
+    ) -> None:
+        project = await _create_project(db_session, test_user, None, "Project A")
+
+        await permission_service.add_user_to_project_permissions(
+            user_id=test_user.id, project_id=project.id, role=Role.MEMBER
+        )
+        await permission_service.add_user_to_project_permissions(
+            user_id=test_user.id, project_id=project.id, role=Role.MEMBER
+        )
+
+        project_permissions = await permission_service.get_permissions(
+            user_id=test_user.id, project_id=project.id
+        )
+        assert len(project_permissions.data) == len(
+            role_to_project_permissions(Role.MEMBER)
+        )
+
+        await permission_service.update_user_project_role_permissions(
+            user_id=test_user.id, project_id=project.id, role=Role.VIEWER
+        )
+        updated_permissions = await permission_service.get_permissions(
+            user_id=test_user.id, project_id=project.id
+        )
+        updated_map = {item.action: item.allowed for item in updated_permissions.data}
+        assert updated_map == role_to_project_permissions(Role.VIEWER)
+
+        await permission_service.remove_user_from_project_permissions(
+            user_id=test_user.id, project_id=project.id
+        )
+        assert (
+            await permission_service.get_permissions(
+                user_id=test_user.id, project_id=project.id
+            )
+        ).data == []
+
+    async def test_project_permission_with_team_falls_back_to_team_when_missing(
+        self,
+        permission_service: PermissionService,
+        db_session: AsyncSession,
+        test_user: User,
+    ) -> None:
+        team = await _create_team(db_session, test_user)
+        project = await _create_project(db_session, test_user, team, "Team Project")
+
+        await permission_service.add_permission(
+            user_id=test_user.id,
+            action=TeamActions.VIEW_TEAM,
+            allowed=True,
+            team_id=team.id,
+        )
+
+        assert (
+            await permission_service.has_permission(
+                test_user.id, TeamActions.VIEW_TEAM, project_id=project.id
+            )
+            is True
+        )
+
+    async def test_project_permission_denies_even_if_team_allows(
+        self,
+        permission_service: PermissionService,
+        db_session: AsyncSession,
+        test_user: User,
+    ) -> None:
+        team = await _create_team(db_session, test_user)
+        project = await _create_project(
+            db_session, test_user, team, "Restricted Project"
+        )
+
+        await permission_service.add_permission(
+            user_id=test_user.id,
+            action=TeamActions.VIEW_TEAM,
+            allowed=True,
+            team_id=team.id,
+        )
+        await permission_service.add_permission(
+            user_id=test_user.id,
+            action=TeamActions.VIEW_TEAM,
+            allowed=False,
+            project_id=project.id,
+        )
+
+        assert (
+            await permission_service.has_permission(
+                test_user.id, TeamActions.VIEW_TEAM, project_id=project.id
+            )
+            is False
+        )
+
+    async def test_project_without_team_only_checks_project_permissions(
+        self,
+        permission_service: PermissionService,
+        db_session: AsyncSession,
+        test_user: User,
+    ) -> None:
+        team = await _create_team(db_session, test_user)
+        project = await _create_project(
+            db_session, test_user, None, "Standalone Project"
+        )
+
+        await permission_service.add_permission(
+            user_id=test_user.id,
+            action=TeamActions.VIEW_TEAM,
+            allowed=True,
+            team_id=team.id,
+        )
+
+        assert (
+            await permission_service.has_permission(
+                test_user.id, TeamActions.VIEW_TEAM, project_id=project.id
+            )
+            is False
+        )
 
     async def test_get_permissions_requires_scope(
         self, permission_service: PermissionService

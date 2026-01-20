@@ -1,11 +1,12 @@
 # repositories/permission_repository.py
-from typing import Optional
+from typing import Optional, Sequence
 from uuid import UUID
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from lib.db.base_repository import BaseRepository
-from models import Permission, Role
+from models import Permission
 
 from .error import InvalidIdError, InvalidScopeError
 
@@ -38,6 +39,13 @@ class PermissionRepository(BaseRepository[Permission]):
             Permission.project_id == project_id,
         ]
 
+    def _normalize_actions(self, actions: list[str] | str | None) -> list[str] | None:
+        if actions is None:
+            return None
+        if isinstance(actions, str):
+            return [actions]
+        return actions
+
     async def get_permissions(
         self,
         *,
@@ -49,9 +57,6 @@ class PermissionRepository(BaseRepository[Permission]):
     ) -> list[Permission]:
         """
         Get all permissions for a user by scope.
-        1. If team_id and project_id are not provided, return all permissions for the user.
-        2. If team_id or project_id is not None, return all permissions for the user in a given scope (team_id or project_id).
-        3. If actions are provided, return all permissions for the user with the given actions.
         """
         conditions = []
         if permission_id is not None:
@@ -126,80 +131,24 @@ class PermissionRepository(BaseRepository[Permission]):
         else:
             raise InvalidIdError("Invalid id type")
 
-    # Strategy proxies
-    async def add_project_member_permissions(
-        self, project_id: UUID, user_id: UUID, role: Role
-    ) -> None:
-        from .strategies.project import ProjectRbacStrategy
-
-        strategy = ProjectRbacStrategy(self.db, auto_commit=self.auto_commit)
-        await strategy.add_project_member_permissions(project_id, user_id, role)
-
-    async def remove_project_member_permissions(
-        self, project_id: UUID, user_id: UUID
-    ) -> None:
-        from .strategies.project import ProjectRbacStrategy
-
-        strategy = ProjectRbacStrategy(self.db, auto_commit=self.auto_commit)
-        await strategy.remove_project_member_permissions(project_id, user_id)
-
-    async def update_project_member_role_permissions(
-        self, project_id: UUID, user_id: UUID, role: Role
-    ) -> None:
-        from .strategies.project import ProjectRbacStrategy
-
-        strategy = ProjectRbacStrategy(self.db, auto_commit=self.auto_commit)
-        await strategy.update_project_member_role_permissions(project_id, user_id, role)
-
-    async def get_user_accessible_projects_ids(
-        self, user_id: UUID, actions: list[str] | str | None = None
-    ) -> list[UUID]:
-        from .strategies.project import ProjectRbacStrategy
-
-        strategy = ProjectRbacStrategy(self.db, auto_commit=self.auto_commit)
-        return await strategy.get_user_accessible_projects_ids(user_id, actions=actions)
-
-    async def is_user_accessible_project(
-        self,
-        user_id: UUID,
-        project_id: UUID,
-        actions: list[str] | str | None = None,
-    ) -> bool:
-        from .strategies.project import ProjectRbacStrategy
-
-        strategy = ProjectRbacStrategy(self.db, auto_commit=self.auto_commit)
-        return await strategy.is_user_accessible_project(
-            user_id, project_id, actions=actions
-        )
-
-    async def add_team_member_permissions(
-        self, team_id: UUID, user_id: UUID, role: Role
-    ) -> None:
-        from .strategies.team import TeamRbacStrategy
-
-        strategy = TeamRbacStrategy(self.db, auto_commit=self.auto_commit)
-        await strategy.add_team_member_permissions(team_id, user_id, role)
-
-    async def remove_team_member_permissions(
-        self, team_id: UUID, user_id: UUID
-    ) -> None:
-        from .strategies.team import TeamRbacStrategy
-
-        strategy = TeamRbacStrategy(self.db, auto_commit=self.auto_commit)
-        await strategy.remove_team_member_permissions(team_id, user_id)
-
-    async def update_team_member_role_permissions(
-        self, team_id: UUID, user_id: UUID, role: Role
-    ) -> None:
-        from .strategies.team import TeamRbacStrategy
-
-        strategy = TeamRbacStrategy(self.db, auto_commit=self.auto_commit)
-        await strategy.update_team_member_role_permissions(team_id, user_id, role)
-
     async def get_user_accessible_teams(
         self, user_id: UUID, actions: list[str] | str | None = None
     ) -> list[UUID]:
-        from .strategies.team import TeamRbacStrategy
-
-        strategy = TeamRbacStrategy(self.db, auto_commit=self.auto_commit)
-        return await strategy.get_user_accessible_teams(user_id, actions=actions)
+        conditions = []
+        normalized_actions = self._normalize_actions(actions)
+        if normalized_actions is not None:
+            conditions.append(Permission.action.in_(normalized_actions))
+        permissions_ids = await self.db.execute(
+            select(Permission.team_id)
+            .distinct()
+            .where(
+                Permission.user_id == user_id,
+                Permission.team_id.is_not(None),
+                *conditions,
+            )
+        )
+        return [
+            permission_id
+            for permission_id in permissions_ids.scalars().all()
+            if permission_id is not None
+        ]
