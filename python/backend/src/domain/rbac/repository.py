@@ -138,11 +138,11 @@ class PermissionRepository(BaseRepository[Permission]):
         else:
             raise InvalidIdError("Invalid id type")
 
-    async def get_user_accessible_teams(
+    async def get_user_accessible_teams_ids(
         self, user_id: UUID, actions: list[str] | str | None = None
     ) -> list[UUID]:
         """Return team ids where the user has allowed permissions."""
-        conditions = []
+        conditions = [Permission.allowed.is_(True)]
         normalized_actions = self._normalize_actions(actions)
         if normalized_actions is not None:
             conditions.append(Permission.action.in_(normalized_actions))
@@ -154,6 +154,27 @@ class PermissionRepository(BaseRepository[Permission]):
                 Permission.team_id.is_not(None),
                 *conditions,
             )
+        )
+        return [
+            permission_id
+            for permission_id in permissions_ids.scalars().all()
+            if permission_id is not None
+        ]
+
+    async def get_user_projects_exists_permissions_ids(
+        self, user_id: UUID, actions: list[str] | str | None = None
+    ) -> list[UUID]:
+        """Return project ids that have allowed permissions for the user."""
+        conditions = [
+            Permission.user_id == user_id,
+            Permission.project_id.is_not(None),
+            Permission.allowed.is_(True),
+        ]
+        normalized_actions = self._normalize_actions(actions)
+        if normalized_actions is not None:
+            conditions.append(Permission.action.in_(normalized_actions))
+        permissions_ids = await self.db.execute(
+            select(Permission.project_id).distinct().where(*conditions)
         )
         return [
             permission_id

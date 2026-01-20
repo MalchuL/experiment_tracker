@@ -3,7 +3,10 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from domain.rbac.error import InvalidScopeError
-from domain.rbac.permissions.project import role_to_project_permissions
+from domain.rbac.permissions.project import (
+    ProjectActions,
+    role_to_project_permissions,
+)
 from domain.rbac.permissions.team import TeamActions, role_to_team_permissions
 from domain.rbac.service import PermissionService
 from models import Project, Team, Role, User
@@ -261,6 +264,99 @@ class TestPermissionService:
             )
             is False
         )
+
+    async def test_get_user_accessible_project_ids_merges_team_and_project_permissions(
+        self,
+        permission_service: PermissionService,
+        db_session: AsyncSession,
+        test_user: User,
+        test_user_2: User,
+    ) -> None:
+        team = await _create_team(db_session, test_user_2)
+        team_project = await _create_project(
+            db_session, test_user_2, team, "Team Project"
+        )
+        standalone_project = await _create_project(
+            db_session, test_user_2, None, "Standalone Project"
+        )
+        other_team = await _create_team(db_session, test_user_2)
+        other_team_project = await _create_project(
+            db_session, test_user_2, other_team, "Other Team Project"
+        )
+
+        await permission_service.add_permission(
+            user_id=test_user.id,
+            action=TeamActions.VIEW_TEAM,
+            allowed=True,
+            team_id=team.id,
+        )
+        await permission_service.add_permission(
+            user_id=test_user.id,
+            action=ProjectActions.VIEW_PROJECT,
+            allowed=True,
+            project_id=standalone_project.id,
+        )
+
+        project_ids = await permission_service.get_user_accessible_project_ids(
+            test_user.id
+        )
+        assert set(project_ids) == {team_project.id, standalone_project.id}
+        assert other_team_project.id not in project_ids
+
+    async def test_get_user_accessible_project_ids_excludes_denied_permissions(
+        self,
+        permission_service: PermissionService,
+        db_session: AsyncSession,
+        test_user: User,
+        test_user_2: User,
+    ) -> None:
+        project = await _create_project(db_session, test_user_2, None, "Denied Project")
+        await permission_service.add_permission(
+            user_id=test_user.id,
+            action=ProjectActions.VIEW_PROJECT,
+            allowed=False,
+            project_id=project.id,
+        )
+
+        project_ids = await permission_service.get_user_accessible_project_ids(
+            test_user.id
+        )
+        assert project_ids == []
+
+    async def test_get_user_accessible_team_ids_filters_actions(
+        self,
+        permission_service: PermissionService,
+        db_session: AsyncSession,
+        test_user: User,
+        test_user_2: User,
+    ) -> None:
+        team_view = await _create_team(db_session, test_user_2)
+        team_manage = await _create_team(db_session, test_user_2)
+        team_denied = await _create_team(db_session, test_user_2)
+
+        await permission_service.add_permission(
+            user_id=test_user.id,
+            action=TeamActions.VIEW_TEAM,
+            allowed=True,
+            team_id=team_view.id,
+        )
+        await permission_service.add_permission(
+            user_id=test_user.id,
+            action=TeamActions.MANAGE_TEAM,
+            allowed=True,
+            team_id=team_manage.id,
+        )
+        await permission_service.add_permission(
+            user_id=test_user.id,
+            action=TeamActions.VIEW_TEAM,
+            allowed=False,
+            team_id=team_denied.id,
+        )
+
+        team_ids = await permission_service.get_user_accessible_team_ids(
+            test_user.id, actions=TeamActions.VIEW_TEAM
+        )
+        assert set(team_ids) == {team_view.id}
 
     async def test_get_permissions_requires_scope(
         self, permission_service: PermissionService

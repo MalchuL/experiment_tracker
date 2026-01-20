@@ -132,7 +132,7 @@ class TestPermissionRepository:
             )
         )
 
-        results = await permission_repository.get_user_accessible_teams(
+        results = await permission_repository.get_user_accessible_teams_ids(
             test_user.id, actions=TeamActions.VIEW_TEAM
         )
         assert set(results) == {accessible_team.id}

@@ -5,7 +5,6 @@ from typing import Dict, List, Optional
 
 from domain.projects.repository import ProjectRepository
 from domain.rbac.error import InvalidScopeError
-from domain.team.teams.repository import TeamRepository
 from domain.rbac.permissions.project import role_to_project_permissions
 from domain.rbac.permissions.team import role_to_team_permissions
 from models import Permission, Role
@@ -124,6 +123,29 @@ class PermissionService:
             user_id=user_id, team_id=project.team_id, actions=action
         )
         return any(permission.allowed for permission in team_permissions)
+
+    async def get_user_accessible_project_ids(
+        self, user_id: UUID, actions: list[str] | str | None = None
+    ) -> list[UUID]:
+        """Return project ids accessible via permissions or team permissions."""
+        project_ids = set(
+            await self.repo.get_user_projects_exists_permissions_ids(
+                user_id, actions=actions
+            )
+        )
+        team_ids = await self.repo.get_user_accessible_teams_ids(
+            user_id, actions=actions
+        )
+        for team_id in team_ids:
+            projects = await self.project_repo.get_projects_by_team(team_id=team_id)
+            project_ids.update(project.id for project in projects)
+        return list(project_ids)
+
+    async def get_user_accessible_team_ids(
+        self, user_id: UUID, actions: list[str] | str | None = None
+    ) -> list[UUID]:
+        """Return team ids where the user has allowed permissions."""
+        return await self.repo.get_user_accessible_teams_ids(user_id, actions=actions)
 
     # Team permissions
     async def add_user_to_team_permissions(
