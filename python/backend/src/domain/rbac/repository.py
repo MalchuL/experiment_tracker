@@ -164,7 +164,11 @@ class PermissionRepository(BaseRepository[Permission]):
     async def get_user_projects_exists_permissions_ids(
         self, user_id: UUID, actions: list[str] | str | None = None
     ) -> list[UUID]:
-        """Return project ids that have allowed permissions for the user."""
+        """
+        Return project ids that have allowed permissions for the user.
+        IMPORTANT: This method returns only project ids that have allowed permissions,
+        it does not check if the user has access to the project or TEAM MEMBERSHIP.
+        """
         conditions = [
             Permission.user_id == user_id,
             Permission.project_id.is_not(None),
