@@ -17,8 +17,8 @@ from uuid import UUID
 class SchemaToDTOProps:
     """Props for converting Project schema to DTO"""
 
-    experiment_count: int = 0
-    hypothesis_count: int = 0
+    experiment_count: int | None = None
+    hypothesis_count: int | None = None
 
 
 @dataclass

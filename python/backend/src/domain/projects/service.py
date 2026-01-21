@@ -6,8 +6,10 @@ from domain.projects.mapper import (
     SchemaToDTOProps,
 )
 from domain.projects.errors import ProjectNotAccessibleError, ProjectPermissionError
-from domain.rbac.permissions import ProjectActions, TeamActions
+from lib.db.error import DBNotFoundError
+from domain.rbac.permissions import ProjectActions
 from domain.rbac.service import PermissionService
+from domain.rbac.wrapper import PermissionChecker
 from lib.dto_converter import DtoConverter
 from lib.protocols.user_protocol import UserProtocol
 from lib.types import UUID_TYPE
@@ -21,25 +23,36 @@ class ProjectService:
         self.db = db
         self.project_repository = ProjectRepository(db)
         self.permission_service = PermissionService(db, auto_commit=False)
+        self.permission_checker = PermissionChecker(db)
         self.project_mapper = ProjectMapper()
+
+    async def get_accessible_project_ids(
+        self, user: UserProtocol, actions: list[str] | str | None
+    ) -> list[UUID_TYPE]:
+        permission_project_ids = (
+            await self.permission_service.get_user_accessible_project_ids(
+                user.id, actions=actions
+            )
+        )
+        return list(permission_project_ids)
 
     async def create_project(
         self, user: UserProtocol, data: ProjectCreateDTO
     ) -> ProjectDTO:
         try:
             props = CreateDTOToSchemaProps(owner_id=user.id)
-            if data.team_id and not await self.permission_service.has_permission(
-                user_id=user.id,
-                team_id=data.team_id,
-                action=TeamActions.CREATE_PROJECT,
+            # Check if the user is allowed to create a project in the team
+            if data.team_id and not await self.permission_checker.can_create_project(
+                user.id, data.team_id
             ):
                 raise ProjectNotAccessibleError(
-                    f"Project {data.team_id} not accessible"
+                    f"You are not allowed to create a project in team {data.team_id}"
                 )
             project_model = self.project_mapper.project_create_dto_to_schema(
                 data, props
             )
             await self.project_repository.create(project_model)
+            # If the project is not in a team, add the user to the project permissions
             if not data.team_id:
                 await self.permission_service.add_user_to_project_permissions(
                     user.id, project_model.id, Role.ADMIN
@@ -53,8 +66,9 @@ class ProjectService:
             experiment_count=0,
             hypothesis_count=0,
         )
-        project_model = await self.project_repository.get_project_if_accessible(
-            user, project_model.id
+        created_project_id = project_model.id
+        project_model = await self.project_repository.get_project_by_id(
+            created_project_id, full_load=True
         )
         return self.project_mapper.project_schema_to_dto(
             project_model,
@@ -68,47 +82,22 @@ class ProjectService:
         try:
             # Convert DTO to update dictionary
             update_dict = self.project_mapper.project_update_dto_to_update_dict(data)
-            project_model = await self.project_repository.get_project_if_accessible(
-                user, project_id
-            )
-            if not project_model:
+            try:
+                project_model = await self.project_repository.get_by_id(project_id)
+            except DBNotFoundError:
                 raise ProjectNotAccessibleError(f"Project {project_id} not accessible")
-            # Check if the user has permission to update the project
-            if (
-                project_model.team_id
-                and not await self.permission_service.has_permission(
-                    user_id=user.id,
-                    team_id=project_model.team_id,
-                    action=TeamActions.CREATE_PROJECT,
-                )
-            ):
+            if not await self.permission_checker.can_edit_project(user.id, project_id):
                 raise ProjectPermissionError(
                     f"User {user.id} does not have permission to update project {project_id}"
                 )
             # Update the project in the repository
-            await self.project_repository.update(project_id, **update_dict)
+            updated_project = await self.project_repository.update(
+                project_id, **update_dict
+            )
             await self.project_repository.commit()
-            # TODO check if this is needed, maybe update another way?
-            # Fetch the updated project with relationships loaded
-            updated_project = await self.project_repository.get_project_if_accessible(
-                user, project_id
+            return self.project_mapper.project_schema_to_dto(
+                updated_project, SchemaToDTOProps()
             )
-            if not updated_project:
-                raise ProjectNotAccessibleError(
-                    f"Project {project_id} not found or not accessible"
-                )
-
-            # Convert to DTO with counts
-            experiment_count = (
-                len(updated_project.experiments) if updated_project.experiments else 0
-            )
-            hypothesis_count = (
-                len(updated_project.hypotheses) if updated_project.hypotheses else 0
-            )
-            props = SchemaToDTOProps(
-                experiment_count=experiment_count, hypothesis_count=hypothesis_count
-            )
-            return self.project_mapper.project_schema_to_dto(updated_project, props)
         except Exception as e:
             await self.project_repository.rollback()
             raise e
@@ -118,8 +107,11 @@ class ProjectService:
         user: UserProtocol,
         actions: list[str] | str | None = ProjectActions.VIEW_PROJECT,
     ) -> List[ProjectDTO]:
-        project_models = await self.project_repository.get_accessible_projects(
-            user, actions=actions
+        project_ids = await self.get_accessible_project_ids(user, actions)
+        if not project_ids:
+            return []
+        project_models = await self.project_repository.get_projects_by_ids(
+            project_ids, full_load=True
         )
         experiment_counts = [
             len(project.experiments) if project.experiments else 0
@@ -145,8 +137,10 @@ class ProjectService:
         project_id: UUID_TYPE,
         actions: list[str] | str | None = ProjectActions.VIEW_PROJECT,
     ) -> ProjectDTO | None:
-        project_model = await self.project_repository.get_project_if_accessible(
-            user, project_id, actions=actions
+        if not await self.is_user_accessible_project(user, project_id, actions=actions):
+            return None
+        project_model = await self.project_repository.get_project_by_id(
+            project_id, full_load=True
         )
         if not project_model:
             return None
@@ -167,16 +161,24 @@ class ProjectService:
         project_id: UUID_TYPE,
         actions: list[str] | str | None = ProjectActions.VIEW_PROJECT,
     ) -> bool:
-        return await self.project_repository.is_user_accessible_project(
-            user, project_id, actions=actions
-        )
+        if actions is None:
+            actions = ProjectActions.VIEW_PROJECT
+        actions_list = [actions] if isinstance(actions, str) else actions
+        for action in actions_list:
+            try:
+                if await self.permission_service.has_permission(
+                    user_id=user.id, project_id=project_id, action=action
+                ):
+                    return True
+            except DBNotFoundError:
+                return False
+        return False
 
     async def delete_project(self, user: UserProtocol, project_id: UUID_TYPE) -> bool:
         try:
-            project_model = await self.project_repository.get_by_id(project_id)
-            if not project_model:
-                raise ProjectNotAccessibleError(f"Project {project_id} not found")
-            if project_model.owner_id != user.id:
+            if not await self.permission_checker.can_delete_project(
+                user.id, project_id
+            ):
                 raise ProjectPermissionError(
                     f"User {user.id} does not have permission to delete project {project_id}"
                 )
