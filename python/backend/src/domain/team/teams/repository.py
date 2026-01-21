@@ -1,5 +1,5 @@
 from typing import List
-import uuid
+from uuid import UUID
 from domain.team.teams.errors import TeamMemberNotFoundError
 from lib.db.base_repository import BaseRepository
 from lib.types import UUID_TYPE
@@ -11,17 +11,42 @@ from models import TeamMember
 
 
 class TeamRepository(BaseRepository[Team]):
-    def __init__(self, db: AsyncSession):
+    def __init__(self, db: AsyncSession, auto_commit: bool = True):
         super().__init__(db, Team)
+        self.auto_commit = auto_commit
         self.team_member_repository = self._create_advanced_alchemy_repository(
             db, TeamMember
         )
 
+    async def create(self, obj: Team) -> Team:
+        return await self.advanced_alchemy_repository.add(
+            obj, auto_refresh=True, auto_commit=self.auto_commit
+        )
+
+    async def update(self, id: str | UUID, **kwargs) -> Team:
+        if "id" in kwargs:
+            del kwargs["id"]
+        existing_obj = await self.get_by_id(id)
+        for key, value in kwargs.items():
+            setattr(existing_obj, key, value)
+        return await self.advanced_alchemy_repository.update(
+            existing_obj, auto_commit=self.auto_commit
+        )
+
+    async def delete(self, id: str | UUID) -> None:
+        return await self.advanced_alchemy_repository.delete(
+            id, auto_commit=self.auto_commit
+        )
+
     async def add_team_member(self, member: TeamMember) -> TeamMember:
-        return await self.team_member_repository.add(member, auto_refresh=True)
+        return await self.team_member_repository.add(
+            member, auto_refresh=True, auto_commit=self.auto_commit
+        )
 
     async def update_team_member(self, member: TeamMember) -> TeamMember:
-        return await self.team_member_repository.update(member, auto_refresh=True)
+        return await self.team_member_repository.update(
+            member, auto_refresh=True, auto_commit=self.auto_commit
+        )
 
     async def delete_team_member(
         self, user_id: UUID_TYPE, team_member_id: UUID_TYPE
@@ -33,7 +58,7 @@ class TeamRepository(BaseRepository[Team]):
         if team_member is None:
             raise TeamMemberNotFoundError("Team member not found")
         await self.team_member_repository.delete(
-            team_member.id,
+            team_member.id, auto_commit=self.auto_commit
         )
 
     async def get_accessible_teams(self, user: User) -> List[Team]:

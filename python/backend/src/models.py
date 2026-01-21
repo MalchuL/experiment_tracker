@@ -135,15 +135,20 @@ class Team(UUIDBase):
         back_populates="team",
         lazy="raise",
         overlaps="members,teams",
+        passive_deletes=True,
     )
     members: Mapped[List["User"]] = relationship(
         "User",
         secondary="team_members",
         back_populates="teams",
         lazy="raise",
+        passive_deletes=True,
     )
     projects: Mapped[List["Project"]] = relationship(
-        "Project", back_populates="team", lazy="raise"
+        "Project",
+        back_populates="team",
+        lazy="raise",
+        passive_deletes=True,
     )
 
 

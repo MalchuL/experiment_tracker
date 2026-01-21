@@ -1,4 +1,5 @@
 import pytest
+from uuid import uuid4
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -46,6 +47,22 @@ async def _grant_manage_permission(db_session: AsyncSession, user_id, team_id) -
         allowed=True,
         team_id=team_id,
     )
+
+
+async def _create_user(db_session: AsyncSession, email_prefix: str) -> User:
+    user = User(
+        id=None,
+        email=f"{email_prefix}-{uuid4()}@example.com",
+        hashed_password="hashed",
+        is_active=True,
+        is_superuser=False,
+        is_verified=False,
+        display_name=f"{email_prefix} user",
+    )
+    db_session.add(user)
+    await db_session.flush()
+    await db_session.refresh(user)
+    return user
 
 
 class TestTeamService:
@@ -170,6 +187,312 @@ class TestTeamService:
         )
         with pytest.raises(TeamMemberAlreadyExistsError):
             await team_service.add_team_member(test_user.id, dto)
+
+    async def test_admin_can_manage_team_members(
+        self,
+        team_service: TeamService,
+        db_session: AsyncSession,
+        test_user: User,
+        test_user_2: User,
+    ) -> None:
+        test_user_3 = await _create_user(db_session, "admin-member")
+        created_team = await team_service.create_team(
+            test_user.id,
+            TeamCreateDTO(name="Admin Team", description="Admin managed"),
+        )
+        await team_service.add_team_member(
+            test_user.id,
+            TeamMemberCreateDTO(
+                user_id=test_user_2.id, team_id=created_team.id, role=Role.ADMIN
+            ),
+        )
+
+        added = await team_service.add_team_member(
+            test_user_2.id,
+            TeamMemberCreateDTO(
+                user_id=test_user_3.id, team_id=created_team.id, role=Role.MEMBER
+            ),
+        )
+        assert added.user_id == test_user_3.id
+
+        await team_service.update_team_member(
+            test_user_2.id,
+            TeamMemberUpdateDTO(
+                user_id=test_user_3.id, team_id=created_team.id, role=Role.VIEWER
+            ),
+        )
+        team_repository = TeamRepository(db_session)
+        updated_member = await team_repository.get_team_member_if_accessible(
+            test_user_3.id, created_team.id
+        )
+        assert updated_member is not None
+        assert updated_member.role == Role.VIEWER
+
+        await team_service.remove_team_member(
+            test_user_2.id,
+            TeamMemberDeleteDTO(user_id=test_user_3.id, team_member_id=created_team.id),
+        )
+        remaining = await team_repository.get_team_member_if_accessible(
+            test_user_3.id, created_team.id
+        )
+        assert remaining is None
+
+    async def test_member_cannot_manage_team_members(
+        self,
+        team_service: TeamService,
+        db_session: AsyncSession,
+        test_user: User,
+        test_user_2: User,
+    ) -> None:
+        test_user_3 = await _create_user(db_session, "member-target")
+        created_team = await team_service.create_team(
+            test_user.id,
+            TeamCreateDTO(name="Member Team", description="Member managed"),
+        )
+        await team_service.add_team_member(
+            test_user.id,
+            TeamMemberCreateDTO(
+                user_id=test_user_2.id, team_id=created_team.id, role=Role.MEMBER
+            ),
+        )
+        await team_service.add_team_member(
+            test_user.id,
+            TeamMemberCreateDTO(
+                user_id=test_user_3.id, team_id=created_team.id, role=Role.MEMBER
+            ),
+        )
+
+        with pytest.raises(TeamAccessDeniedError):
+            await team_service.add_team_member(
+                test_user_2.id,
+                TeamMemberCreateDTO(
+                    user_id=test_user.id, team_id=created_team.id, role=Role.VIEWER
+                ),
+            )
+
+        with pytest.raises(TeamAccessDeniedError):
+            await team_service.update_team_member(
+                test_user_2.id,
+                TeamMemberUpdateDTO(
+                    user_id=test_user_3.id,
+                    team_id=created_team.id,
+                    role=Role.VIEWER,
+                ),
+            )
+
+        with pytest.raises(TeamAccessDeniedError):
+            await team_service.remove_team_member(
+                test_user_2.id,
+                TeamMemberDeleteDTO(
+                    user_id=test_user_3.id, team_member_id=created_team.id
+                ),
+            )
+
+    async def test_viewer_cannot_manage_team_members(
+        self,
+        team_service: TeamService,
+        db_session: AsyncSession,
+        test_user: User,
+        test_user_2: User,
+    ) -> None:
+        test_user_3 = await _create_user(db_session, "viewer-target")
+        created_team = await team_service.create_team(
+            test_user.id,
+            TeamCreateDTO(name="Viewer Team", description="Viewer managed"),
+        )
+        await team_service.add_team_member(
+            test_user.id,
+            TeamMemberCreateDTO(
+                user_id=test_user_2.id, team_id=created_team.id, role=Role.VIEWER
+            ),
+        )
+        await team_service.add_team_member(
+            test_user.id,
+            TeamMemberCreateDTO(
+                user_id=test_user_3.id, team_id=created_team.id, role=Role.MEMBER
+            ),
+        )
+
+        with pytest.raises(TeamAccessDeniedError):
+            await team_service.add_team_member(
+                test_user_2.id,
+                TeamMemberCreateDTO(
+                    user_id=test_user.id, team_id=created_team.id, role=Role.VIEWER
+                ),
+            )
+
+        with pytest.raises(TeamAccessDeniedError):
+            await team_service.update_team_member(
+                test_user_2.id,
+                TeamMemberUpdateDTO(
+                    user_id=test_user_3.id,
+                    team_id=created_team.id,
+                    role=Role.VIEWER,
+                ),
+            )
+
+        with pytest.raises(TeamAccessDeniedError):
+            await team_service.remove_team_member(
+                test_user_2.id,
+                TeamMemberDeleteDTO(
+                    user_id=test_user_3.id, team_member_id=created_team.id
+                ),
+            )
+
+    async def test_non_member_cannot_manage_team_members(
+        self,
+        team_service: TeamService,
+        db_session: AsyncSession,
+        test_user: User,
+        test_user_2: User,
+    ) -> None:
+        test_user_3 = await _create_user(db_session, "non-member")
+        created_team = await team_service.create_team(
+            test_user.id,
+            TeamCreateDTO(name="Non-member Team", description="Non-member managed"),
+        )
+        await team_service.add_team_member(
+            test_user.id,
+            TeamMemberCreateDTO(
+                user_id=test_user_2.id, team_id=created_team.id, role=Role.MEMBER
+            ),
+        )
+
+        with pytest.raises(TeamAccessDeniedError):
+            await team_service.add_team_member(
+                test_user_3.id,
+                TeamMemberCreateDTO(
+                    user_id=test_user_3.id, team_id=created_team.id, role=Role.MEMBER
+                ),
+            )
+
+        with pytest.raises(TeamAccessDeniedError):
+            await team_service.update_team_member(
+                test_user_3.id,
+                TeamMemberUpdateDTO(
+                    user_id=test_user_2.id,
+                    team_id=created_team.id,
+                    role=Role.VIEWER,
+                ),
+            )
+
+        with pytest.raises(TeamAccessDeniedError):
+            await team_service.remove_team_member(
+                test_user_3.id,
+                TeamMemberDeleteDTO(
+                    user_id=test_user_2.id, team_member_id=created_team.id
+                ),
+            )
+
+    async def test_admin_can_update_team(
+        self,
+        team_service: TeamService,
+        db_session: AsyncSession,
+        test_user: User,
+        test_user_2: User,
+    ) -> None:
+        created_team = await team_service.create_team(
+            test_user.id,
+            TeamCreateDTO(name="Managed Team", description="Managed"),
+        )
+        await team_service.add_team_member(
+            test_user.id,
+            TeamMemberCreateDTO(
+                user_id=test_user_2.id, team_id=created_team.id, role=Role.ADMIN
+            ),
+        )
+        admin_user_id = test_user_2.id
+        team_id = created_team.id
+
+        updated = await team_service.update_team(
+            admin_user_id,
+            TeamUpdateDTO(
+                id=team_id,
+                name="Updated by admin",
+                description="Updated",
+            ),
+        )
+        assert updated.name == "Updated by admin"
+
+    async def test_member_and_viewer_cannot_update_or_delete_team(
+        self,
+        team_service: TeamService,
+        db_session: AsyncSession,
+        test_user: User,
+        test_user_2: User,
+    ) -> None:
+        test_user_3 = await _create_user(db_session, "viewer-user")
+        created_team = await team_service.create_team(
+            test_user.id,
+            TeamCreateDTO(name="Restricted Team", description="Restricted"),
+        )
+        await team_service.add_team_member(
+            test_user.id,
+            TeamMemberCreateDTO(
+                user_id=test_user_2.id, team_id=created_team.id, role=Role.MEMBER
+            ),
+        )
+        await team_service.add_team_member(
+            test_user.id,
+            TeamMemberCreateDTO(
+                user_id=test_user_3.id, team_id=created_team.id, role=Role.VIEWER
+            ),
+        )
+
+        with pytest.raises(TeamAccessDeniedError):
+            await team_service.update_team(
+                test_user_2.id,
+                TeamUpdateDTO(
+                    id=created_team.id,
+                    name="Blocked update",
+                    description="Blocked",
+                ),
+            )
+        with pytest.raises(TeamAccessDeniedError):
+            await team_service.update_team(
+                test_user_3.id,
+                TeamUpdateDTO(
+                    id=created_team.id,
+                    name="Blocked update",
+                    description="Blocked",
+                ),
+            )
+
+        with pytest.raises(TeamAccessDeniedError):
+            await team_service.delete_team(test_user_2.id, created_team.id)
+        with pytest.raises(TeamAccessDeniedError):
+            await team_service.delete_team(test_user_3.id, created_team.id)
+
+    async def test_admin_can_delete_team(
+        self,
+        db_session: AsyncSession,
+        monkeypatch,
+        test_user: User,
+        test_user_2: User,
+    ) -> None:
+        async def _commit_called(*args, **kwargs):
+            raise RuntimeError("commit called")
+
+        monkeypatch.setattr(db_session, "commit", _commit_called)
+
+        team_service = TeamService(db_session, auto_commit=False)
+        created_team = await team_service.create_team(
+            test_user.id,
+            TeamCreateDTO(name="Deletable Team", description="Admin delete"),
+        )
+        await team_service.add_team_member(
+            test_user.id,
+            TeamMemberCreateDTO(
+                user_id=test_user_2.id, team_id=created_team.id, role=Role.ADMIN
+            ),
+        )
+
+        await team_service.delete_team(test_user_2.id, created_team.id)
+        with pytest.raises(RuntimeError, match="commit called"):
+            await db_session.commit()
+
+        remaining = await db_session.get(Team, created_team.id)
+        assert remaining is None
 
     async def test_update_team_member_updates_permissions(
         self,
