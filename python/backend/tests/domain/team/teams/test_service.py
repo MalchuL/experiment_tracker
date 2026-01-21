@@ -3,6 +3,7 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from domain.rbac.permissions.team import TeamActions, role_to_team_permissions
+from domain.rbac.permissions.project import role_to_project_permissions
 from domain.rbac.repository import PermissionRepository
 from domain.rbac.service import PermissionService
 from domain.team.teams.dto import (
@@ -68,7 +69,10 @@ class TestTeamService:
             user_id=test_user.id, team_id=created.id
         )
         permissions_map = {item.action: item.allowed for item in permissions}
-        assert permissions_map == role_to_team_permissions(Role.ADMIN)
+        expected_permissions = role_to_team_permissions(
+            Role.ADMIN
+        ) | role_to_project_permissions(Role.ADMIN)
+        assert permissions_map == expected_permissions
 
     async def test_update_team_access_denied(
         self, team_service: TeamService, db_session: AsyncSession, test_user: User
@@ -136,7 +140,10 @@ class TestTeamService:
             user_id=test_user_2.id, team_id=team.id
         )
         permissions_map = {item.action: item.allowed for item in permissions}
-        assert permissions_map == role_to_team_permissions(Role.MEMBER)
+        expected_permissions = role_to_team_permissions(
+            Role.MEMBER
+        ) | role_to_project_permissions(Role.MEMBER)
+        assert permissions_map == expected_permissions
 
     async def test_add_team_member_existing_raises(
         self,
@@ -193,7 +200,10 @@ class TestTeamService:
             user_id=test_user_2.id, team_id=team.id
         )
         permissions_map = {item.action: item.allowed for item in permissions}
-        assert permissions_map == role_to_team_permissions(Role.ADMIN)
+        expected_permissions = role_to_team_permissions(
+            Role.ADMIN
+        ) | role_to_project_permissions(Role.ADMIN)
+        assert permissions_map == expected_permissions
 
     async def test_update_team_member_admin_not_allowed(
         self,

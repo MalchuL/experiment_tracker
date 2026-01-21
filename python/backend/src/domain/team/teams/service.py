@@ -1,7 +1,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from domain.team.teams.repository import TeamRepository
 from domain.rbac.service import PermissionService
-from domain.rbac.permissions import TeamActions
+from domain.rbac.wrapper import PermissionChecker
 from uuid import UUID
 from domain.team.teams.errors import (
     TeamMemberAlreadyExistsError,
@@ -28,6 +28,7 @@ class TeamService:
         self.db = db
         self.team_repository = TeamRepository(db)
         self.permission_service = PermissionService(db, auto_commit=False)
+        self.permission_checker = PermissionChecker(db)
         self.team_mapper = TeamMapper()
 
     async def _get_user_role(self, user_id: UUID, team_id: UUID) -> Role | None:
@@ -92,9 +93,7 @@ class TeamService:
         return self.team_mapper.team_schema_to_dto(team)
 
     async def update_team(self, user_id: UUID, dto: TeamUpdateDTO) -> TeamReadDTO:
-        if not await self.permission_service.has_permission(
-            user_id=user_id, team_id=dto.id, action=TeamActions.MANAGE_TEAM
-        ):
+        if not await self.permission_checker.can_manage_team(user_id, dto.id):
             raise TeamAccessDeniedError("You do not have permission to update a team")
         try:
             await self.team_repository.get_by_id(dto.id)
@@ -107,9 +106,7 @@ class TeamService:
         return self.team_mapper.team_schema_to_dto(team)
 
     async def delete_team(self, user_id: UUID, team_id: UUID) -> None:
-        if not await self.permission_service.has_permission(
-            user_id=user_id, team_id=team_id, action=TeamActions.MANAGE_TEAM
-        ):
+        if not await self.permission_checker.can_manage_team(user_id, team_id):
             raise TeamAccessDeniedError("You do not have permission to delete a team")
         try:
             await self.team_repository.get_by_id(team_id)
@@ -123,8 +120,8 @@ class TeamService:
         self, user_id: UUID, team_member: TeamMemberCreateDTO
     ) -> TeamMemberReadDTO:
         await self._check_role(user_id, team_member.team_id, team_member.role)
-        if not await self.permission_service.has_permission(
-            user_id, TeamActions.MANAGE_TEAM, team_member.team_id
+        if not await self.permission_checker.can_manage_team(
+            user_id, team_member.team_id
         ):
             raise TeamAccessDeniedError(
                 "You do not have permission to add a team member"
@@ -144,9 +141,7 @@ class TeamService:
 
     async def update_team_member(self, user_id: UUID, dto: TeamMemberUpdateDTO) -> None:
         await self._check_role(user_id, dto.team_id, dto.role, dto.user_id)
-        if not await self.permission_service.has_permission(
-            user_id, TeamActions.MANAGE_TEAM, dto.team_id
-        ):
+        if not await self.permission_checker.can_manage_team(user_id, dto.team_id):
             raise TeamAccessDeniedError(
                 "You do not have permission to add a team member"
             )
@@ -176,8 +171,8 @@ class TeamService:
             raise TeamAccessDeniedError("You do not have permission to remove an admin")
         if str(user_id) != str(
             dto.user_id
-        ) and not await self.permission_service.has_permission(
-            user_id, TeamActions.MANAGE_TEAM, dto.team_member_id
+        ) and not await self.permission_checker.can_manage_team(
+            user_id, dto.team_member_id
         ):
             raise TeamAccessDeniedError(
                 "You do not have permission to remove a team member"
