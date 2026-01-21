@@ -1,3 +1,5 @@
+from uuid import uuid4
+
 import pytest
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -366,3 +368,45 @@ class TestPermissionService:
             match="At least one of user_id, team_id, project_id must be provided.",
         ):
             await permission_service.get_permissions()
+
+    async def test_nonexistent_ids_have_no_permissions_or_access(
+        self, permission_service: PermissionService
+    ) -> None:
+        missing_user_id = uuid4()
+        missing_team_id = uuid4()
+        missing_project_id = uuid4()
+
+        team_permissions = await permission_service.get_permissions(
+            user_id=missing_user_id, team_id=missing_team_id
+        )
+        assert team_permissions.data == []
+
+        project_permissions = await permission_service.get_permissions(
+            user_id=missing_user_id, project_id=missing_project_id
+        )
+        assert project_permissions.data == []
+
+        assert (
+            await permission_service.has_permission(
+                missing_user_id, TeamActions.VIEW_TEAM, team_id=missing_team_id
+            )
+            is False
+        )
+        assert (
+            await permission_service.has_permission(
+                missing_user_id,
+                ProjectActions.VIEW_PROJECT,
+                project_id=missing_project_id,
+            )
+            is False
+        )
+
+        accessible_projects = await permission_service.get_user_accessible_project_ids(
+            missing_user_id
+        )
+        assert accessible_projects == []
+
+        accessible_teams = await permission_service.get_user_accessible_team_ids(
+            missing_user_id
+        )
+        assert accessible_teams == []
