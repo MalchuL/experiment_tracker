@@ -8,7 +8,7 @@ class TeamActions:
 
     CREATE_PROJECT = "projects.create"
     DELETE_PROJECT = "projects.delete"
-    VIEW_PROJECT = "projects.view"
+    VIEW_PROJECTS = "projects.view"
     MANAGE_TEAM = "teams.manage"
     DELETE_TEAM = "teams.delete"
     VIEW_TEAM = "teams.view"
@@ -17,7 +17,7 @@ class TeamActions:
 TEAM_ACTIONS = (
     TeamActions.CREATE_PROJECT,
     TeamActions.DELETE_PROJECT,
-    TeamActions.VIEW_PROJECT,
+    TeamActions.VIEW_PROJECTS,
     TeamActions.MANAGE_TEAM,
     TeamActions.DELETE_TEAM,
     TeamActions.VIEW_TEAM,
@@ -38,8 +38,8 @@ def role_to_team_permissions(role: Role) -> Dict[str, bool]:
         case Role.ADMIN:
             return _build_permissions(TEAM_ACTIONS)
         case Role.MEMBER:
-            allowed = {TeamActions.VIEW_PROJECT, TeamActions.VIEW_TEAM}
+            allowed = {TeamActions.VIEW_PROJECTS, TeamActions.VIEW_TEAM}
             return _build_permissions(allowed)
         case Role.VIEWER:
-            allowed = {TeamActions.VIEW_PROJECT, TeamActions.VIEW_TEAM}
+            allowed = {TeamActions.VIEW_PROJECTS, TeamActions.VIEW_TEAM}
             return _build_permissions(allowed)

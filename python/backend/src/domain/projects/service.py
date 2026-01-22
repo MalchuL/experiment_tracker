@@ -94,9 +94,16 @@ class ProjectService:
             updated_project = await self.project_repository.update(
                 project_id, **update_dict
             )
+            updated_project = await self.project_repository.get_project_by_id(
+                project_id, full_load=True
+            )
             await self.project_repository.commit()
             return self.project_mapper.project_schema_to_dto(
-                updated_project, SchemaToDTOProps()
+                updated_project,
+                SchemaToDTOProps(
+                    experiment_count=len(updated_project.experiments),
+                    hypothesis_count=len(updated_project.hypotheses),
+                ),
             )
         except Exception as e:
             await self.project_repository.rollback()

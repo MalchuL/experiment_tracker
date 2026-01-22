@@ -154,7 +154,7 @@ class PermissionChecker:
         return await self.permission_service.has_permission(
             user_id=user_id,
             team_id=team_id,
-            action=TeamActions.VIEW_PROJECT,
+            action=TeamActions.VIEW_PROJECTS,
         )
 
     async def can_manage_team(self, user_id: UUID, team_id: UUID) -> bool:
