@@ -59,7 +59,7 @@ class ExperimentMapper:
         return [self.experiment_schema_to_dto(experiment) for experiment in experiments]
 
     def experiment_create_dto_to_schema(
-        self, experiment: ExperimentDTO, props: CreateDTOToSchemaProps
+        self, experiment: ExperimentCreateDTO, props: CreateDTOToSchemaProps
     ) -> Experiment:
         return Experiment(
             project_id=experiment.project_id,
