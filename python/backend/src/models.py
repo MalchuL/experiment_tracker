@@ -158,7 +158,7 @@ class Project(UUIDBase):
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     description: Mapped[str] = mapped_column(String(500), default="")
     owner_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=False
     )
     team_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         UUID(as_uuid=True), ForeignKey("teams.id", ondelete="SET NULL"), nullable=True
@@ -212,6 +212,9 @@ class Experiment(UUIDBase):
     progress: Mapped[int] = mapped_column(Integer, default=0)
     color: Mapped[str] = mapped_column(String(20), default="#3b82f6")
     order: Mapped[int] = mapped_column(Integer, default=0)
+    started_by: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
     started_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)

@@ -16,6 +16,7 @@ from lib.types import UUID_TYPE
 from sqlalchemy.ext.asyncio import AsyncSession
 from domain.projects.dto import ProjectDTO, ProjectCreateDTO, ProjectUpdateDTO
 from models import Role
+from domain.team.teams.repository import TeamRepository
 
 
 class ProjectService:
@@ -24,6 +25,7 @@ class ProjectService:
         self.project_repository = ProjectRepository(db)
         self.permission_service = PermissionService(db, auto_commit=False)
         self.permission_checker = PermissionChecker(db)
+        self.team_repository = TeamRepository(db)
         self.project_mapper = ProjectMapper()
 
     async def get_accessible_project_ids(
@@ -40,7 +42,6 @@ class ProjectService:
         self, user: UserProtocol, data: ProjectCreateDTO
     ) -> ProjectDTO:
         try:
-            props = CreateDTOToSchemaProps(owner_id=user.id)
             # Check if the user is allowed to create a project in the team
             if data.team_id and not await self.permission_checker.can_create_project(
                 user.id, data.team_id
@@ -48,6 +49,11 @@ class ProjectService:
                 raise ProjectNotAccessibleError(
                     f"You are not allowed to create a project in team {data.team_id}"
                 )
+            if data.team_id:
+                team = await self.team_repository.get_by_id(data.team_id)
+                props = CreateDTOToSchemaProps(owner_id=team.owner_id)
+            else:
+                props = CreateDTOToSchemaProps(owner_id=user.id)
             project_model = self.project_mapper.project_create_dto_to_schema(
                 data, props
             )

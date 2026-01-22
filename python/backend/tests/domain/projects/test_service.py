@@ -384,3 +384,31 @@ class TestProjectService:
 
         project_ids = {project.id for project in projects}
         assert team_project.id in project_ids
+
+    async def test_create_project_sets_team_owner_as_project_owner(
+        self,
+        project_service: ProjectService,
+        db_session: AsyncSession,
+        test_user: User,
+        test_user_2: User,
+    ) -> None:
+        team_service = TeamService(db_session)
+        team = await team_service.create_team(
+            test_user.id, TeamCreateDTO(name="Owned Team", description="Owned team")
+        )
+        permission_service = PermissionService(db_session, auto_commit=True)
+        await permission_service.add_permission(
+            user_id=test_user_2.id,
+            action=TeamActions.CREATE_PROJECT,
+            allowed=True,
+            team_id=team.id,
+        )
+        dto = ProjectCreateDTO(
+            name="Created by member",
+            description="Project created by non-owner",
+            team_id=team.id,
+        )
+
+        created = await project_service.create_project(test_user_2, dto)
+
+        assert created.owner.id == team.owner_id
