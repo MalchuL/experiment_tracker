@@ -229,10 +229,21 @@ class TestProjectService:
         )
 
         result = await project_service.get_project_if_accessible(test_user, project.id)
-        assert await project_service.is_user_accessible_project(
-            test_user,
-            project.id,
-            actions=ProjectActions.VIEW_PROJECT,
+        assert (
+            await project_service.is_user_accessible_project(
+                test_user,
+                project.id,
+                actions=ProjectActions.CREATE_EXPERIMENT,
+            )
+            == False
+        )
+        assert (
+            await project_service.is_user_accessible_project(
+                test_user,
+                project.id,
+                actions=ProjectActions.VIEW_PROJECT,
+            )
+            == True
         )
 
         assert result is not None

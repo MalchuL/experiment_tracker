@@ -78,14 +78,14 @@ class PermissionService:
     async def has_permission(
         self,
         user_id: UUID,
-        actions: str | list[str],
+        actions: str | list[str] | None,
         team_id: UUID | None = None,
         project_id: UUID | None = None,
     ) -> bool:
         """Check whether a user is allowed to perform an action.
         Args:
             user_id (UUID): The id of the user.
-            action (str): The action to grant permission for.
+            actions (str | list[str] | None): The actions to grant permission for.
             team_id (UUID | None, optional): The id of the team. Defaults to None.
             project_id (UUID | None, optional): The id of the project. Defaults to None.
         Resolution order project_id:
