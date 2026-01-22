@@ -1,5 +1,9 @@
+from turtle import update
 from typing import List
-from .error import ExperimentNotAccessibleError
+
+from domain.projects.dto import ProjectDTO, ProjectDataDTO
+from models import Project
+from .error import ExperimentNamePatternNotSetError, ExperimentNotAccessibleError
 from domain.projects.errors import ProjectNotAccessibleError
 from lib.db.base_repository import ListOptions
 from lib.protocols.user_protocol import UserProtocol
@@ -12,17 +16,33 @@ from .dto import (
     ExperimentParseResultDTO,
     ExperimentUpdateDTO,
 )
-from .utils import parse_experiment_name
+from .utils import DEFAULT_EXPERIMENT_NAME_PATTERN, parse_experiment_name
 from .mapper import CreateDTOToSchemaProps, ExperimentMapper
 from domain.projects.service import ProjectService
+from domain.rbac.permissions import ProjectActions
+from domain.rbac.wrapper import PermissionChecker
+from lib.db.error import DBNotFoundError
+from domain.projects.repository import ProjectRepository
+from domain.utils.project_based_service import ProjectBasedService
 
 
-class ExperimentService:
+class ExperimentService(ProjectBasedService):
     def __init__(self, db: AsyncSession):
-        self.db = db
+        super().__init__(db)
         self.experiment_repository = ExperimentRepository(db)
-        self.project_service = ProjectService(db)
         self.experiment_mapper = ExperimentMapper()
+        self.permission_checker = PermissionChecker(db)
+
+    def _get_project_naming_pattern(self, project: ProjectDataDTO) -> str:
+        settings = project.settings or {}
+        if hasattr(settings, "naming_pattern"):
+            return settings.naming_pattern
+        if isinstance(settings, dict):
+            if "naming_pattern" in settings:
+                return settings["naming_pattern"]
+        raise ExperimentNamePatternNotSetError(
+            f"Project {project.id} has no naming pattern"
+        )
 
     async def parse_experiment_name(
         self, name: str, pattern: str
@@ -34,10 +54,10 @@ class ExperimentService:
     async def parse_experiment_name_from_project(
         self, user: UserProtocol, project_id: UUID_TYPE, name: str
     ) -> ExperimentParseResultDTO:
-        project = await self.project_service.get_project_if_accessible(user, project_id)
-        if not project:
-            raise ProjectNotAccessibleError(f"Project {project_id} not accessible")
-        pattern = project.settings.naming_pattern
+        project = await self._get_project_if_accessible(
+            user, project_id, ProjectActions.VIEW_EXPERIMENT
+        )
+        pattern = self._get_project_naming_pattern(project)
         return await self.parse_experiment_name(name, pattern)
 
     async def get_parent_id_if_accessible(
@@ -45,16 +65,16 @@ class ExperimentService:
     ) -> UUID_TYPE | None:
         """Get parent experiment id if accessible by experiment name"""
         # Get project pattern
-        project = await self.project_service.get_project_if_accessible(user, project_id)
-        if not project:
-            raise ProjectNotAccessibleError(f"Project {project_id} not accessible")
-        pattern = project.settings.naming_pattern
+        project = await self._get_project_if_accessible(
+            user, project_id, ProjectActions.VIEW_EXPERIMENT
+        )
+        pattern = self._get_project_naming_pattern(project)
         # Get the parent number from the experiment name
         parent_num = (await self.parse_experiment_name(name, pattern)).parent
 
         # Get all experiments in project
         experiments = await self.experiment_repository.get_experiments_by_project(
-            user, project_id
+            project_id
         )
         if not experiments:
             return None
@@ -66,16 +86,10 @@ class ExperimentService:
                 return experiment.id
         return None
 
-    async def get_accessible_experiments(
-        self, user: UserProtocol
-    ) -> List[ExperimentDTO]:
-        experiments = await self.experiment_repository.get_accessible_experiments(user)
-        return self.experiment_mapper.experiment_list_schema_to_dto(experiments)
-
     async def get_recent_experiments(
         self, user: UserProtocol, limit: int = 10
     ) -> List[ExperimentDTO]:
-        experiments = await self.experiment_repository.get_accessible_experiments(
+        experiments = await self.experiment_repository.get_user_experiments(
             user, ListOptions(limit=limit, offset=0)
         )
         return self.experiment_mapper.experiment_list_schema_to_dto(experiments)
@@ -83,21 +97,24 @@ class ExperimentService:
     async def get_experiment_if_accessible(
         self, user: UserProtocol, experiment_id: UUID_TYPE
     ) -> ExperimentDTO | None:
-        experiment = await self.experiment_repository.get_experiment_if_accessible(
-            user, experiment_id
-        )
-        if not experiment:
-            return None
+        experiment = await self.experiment_repository.get_by_id(experiment_id)
+        if not await self.permission_checker.can_view_experiment(
+            user.id, experiment.project_id
+        ):
+            raise ExperimentNotAccessibleError(
+                f"Experiment {experiment_id} not accessible"
+            )
         return self.experiment_mapper.experiment_schema_to_dto(experiment)
 
     async def create_experiment(
         self, user: UserProtocol, data: ExperimentCreateDTO
     ) -> ExperimentDTO:
-        project = await self.project_service.get_project_if_accessible(
-            user, data.project_id
-        )
-        if not project:
-            raise ProjectNotAccessibleError(f"Project {data.project_id} not accessible")
+        if not await self.permission_checker.can_create_experiment(
+            user.id, data.project_id
+        ):
+            raise ExperimentNotAccessibleError(
+                f"You are not allowed to create an experiment in project {data.project_id}"
+            )
         if data.parent_experiment_name:
             parent_id = await self.get_parent_id_if_accessible(
                 user,
@@ -110,24 +127,17 @@ class ExperimentService:
         experiment = self.experiment_mapper.experiment_create_dto_to_schema(data, props)
         await self.experiment_repository.create(experiment)
         await self.experiment_repository.commit()
-        experiment = await self.experiment_repository.get_experiment_if_accessible(
-            user, experiment.id
-        )
-        if not experiment:
-            raise ExperimentNotAccessibleError(
-                f"Experiment {experiment.id} not accessible"
-            )
         return self.experiment_mapper.experiment_schema_to_dto(experiment)
 
     async def update_experiment(
         self, user: UserProtocol, experiment_id: UUID_TYPE, data: ExperimentUpdateDTO
     ) -> ExperimentDTO:
-        experiment = await self.experiment_repository.get_experiment_if_accessible(
-            user, experiment_id
-        )
-        if not experiment:
+        experiment = await self.experiment_repository.get_by_id(experiment_id)
+        if not await self.permission_checker.can_edit_experiment(
+            user.id, experiment.project_id
+        ):
             raise ExperimentNotAccessibleError(
-                f"Experiment {experiment_id} not accessible"
+                f"You are not allowed to edit experiment {experiment_id}"
             )
         updates = self.experiment_mapper.experiment_update_dto_to_update_dict(data)
         result = await self.experiment_repository.update(experiment_id, **updates)
@@ -138,12 +148,12 @@ class ExperimentService:
     async def delete_experiment(
         self, user: UserProtocol, experiment_id: UUID_TYPE
     ) -> bool:
-        experiment = await self.experiment_repository.get_experiment_if_accessible(
-            user, experiment_id
-        )
-        if not experiment:
+        experiment = await self.experiment_repository.get_by_id(experiment_id)
+        if not await self.permission_checker.can_delete_experiment(
+            user.id, experiment.project_id
+        ):
             raise ExperimentNotAccessibleError(
-                f"Experiment {experiment_id} not accessible"
+                f"You are not allowed to delete experiment {experiment_id}"
             )
         await self.experiment_repository.delete(experiment_id)
         await self.experiment_repository.commit()
@@ -152,12 +162,27 @@ class ExperimentService:
     async def reorder_experiments(
         self, user: UserProtocol, project_id: UUID_TYPE, data: List[UUID_TYPE]
     ) -> bool:
+        if not await self.permission_checker.can_edit_experiment(user.id, project_id):
+            raise ExperimentNotAccessibleError(
+                f"You are not allowed to edit experiments in project {project_id}"
+            )
         experiments = await self.experiment_repository.get_experiments_by_project(
-            user, project_id
+            project_id
         )
-        if not experiments:
-            raise ExperimentNotAccessibleError(f"Project {project_id} not accessible")
         for i, experiment_id in enumerate(data):
+            experiment = next(
+                (e for e in experiments if str(e.id) == str(experiment_id)), None
+            )
+            if not experiment:
+                raise ExperimentNotAccessibleError(
+                    f"Experiment {experiment_id} not found in project {project_id}"
+                )
+            if not await self.permission_checker.can_edit_experiment(
+                user.id, experiment.project_id
+            ):
+                raise ExperimentNotAccessibleError(
+                    f"You are not allowed to edit experiment {experiment_id}"
+                )
             await self.experiment_repository.update(experiment_id, order=i)
         await self.experiment_repository.commit()
         return True

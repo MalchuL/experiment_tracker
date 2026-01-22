@@ -213,7 +213,10 @@ class Experiment(UUIDBase):
     color: Mapped[str] = mapped_column(String(20), default="#3b82f6")
     order: Mapped[int] = mapped_column(Integer, default=0)
     started_by: Mapped[Optional[uuid.UUID]] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        default=None,
     )
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
     started_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)

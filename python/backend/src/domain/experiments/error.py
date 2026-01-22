@@ -12,3 +12,9 @@ class ExperimentNotAccessibleError(ExperimentError):
     """Error raised when a experiment is not accessible."""
 
     pass
+
+
+class ExperimentNamePatternNotSetError(ExperimentError):
+    """Error raised when a experiment name pattern is not set."""
+
+    pass
