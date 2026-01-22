@@ -10,6 +10,8 @@ from domain.rbac.permissions.project import ProjectActions, role_to_project_perm
 from domain.rbac.permissions.team import TeamActions
 from domain.rbac.repository import PermissionRepository
 from domain.rbac.service import PermissionService
+from domain.team.teams.dto import TeamCreateDTO, TeamMemberCreateDTO
+from domain.team.teams.service import TeamService
 from models import Project, Role, Team, User
 
 
@@ -188,7 +190,8 @@ class TestProjectService:
         )
 
         projects = await project_service.get_accessible_projects(
-            test_user, actions=ProjectActions.VIEW_PROJECT
+            test_user,
+            actions=[ProjectActions.VIEW_PROJECT, TeamActions.VIEW_PROJECTS],
         )
 
         project_ids = {project.id for project in projects}
@@ -288,3 +291,78 @@ class TestProjectService:
 
         assert deleted is True
         assert await db_session.get(Project, project.id) is None
+
+    async def test_team_service_owner_can_create_team_project(
+        self,
+        project_service: ProjectService,
+        db_session: AsyncSession,
+        test_user: User,
+    ) -> None:
+        team_service = TeamService(db_session)
+        team = await team_service.create_team(
+            test_user.id, TeamCreateDTO(name="Owner Team", description="Owned")
+        )
+        dto = ProjectCreateDTO(
+            name="Owner Project", description="Owned project", team_id=team.id
+        )
+
+        created = await project_service.create_project(test_user, dto)
+
+        assert created.team is not None
+        assert created.team.id == team.id
+
+    async def test_team_service_admin_can_delete_team_project(
+        self,
+        project_service: ProjectService,
+        db_session: AsyncSession,
+        test_user: User,
+        test_user_2: User,
+    ) -> None:
+        team_service = TeamService(db_session)
+        team = await team_service.create_team(
+            test_user.id, TeamCreateDTO(name="Admin Team", description="Admin owned")
+        )
+        await team_service.add_team_member(
+            test_user.id,
+            TeamMemberCreateDTO(
+                user_id=test_user_2.id, team_id=team.id, role=Role.ADMIN
+            ),
+        )
+        dto = ProjectCreateDTO(
+            name="Admin Project", description="Admin project", team_id=team.id
+        )
+        created = await project_service.create_project(test_user, dto)
+
+        deleted = await project_service.delete_project(test_user_2, created.id)
+
+        assert deleted is True
+        assert await db_session.get(Project, created.id) is None
+
+    async def test_team_service_member_can_view_team_projects(
+        self,
+        project_service: ProjectService,
+        db_session: AsyncSession,
+        test_user: User,
+        test_user_2: User,
+    ) -> None:
+        team_service = TeamService(db_session)
+        team = await team_service.create_team(
+            test_user.id, TeamCreateDTO(name="Member Team", description="Members")
+        )
+        await team_service.add_team_member(
+            test_user.id,
+            TeamMemberCreateDTO(
+                user_id=test_user_2.id, team_id=team.id, role=Role.MEMBER
+            ),
+        )
+        dto = ProjectCreateDTO(
+            name="Member Project", description="Member project", team_id=team.id
+        )
+        team_project = await project_service.create_project(test_user, dto)
+
+        projects = await project_service.get_accessible_projects(
+            test_user_2, actions=ProjectActions.VIEW_PROJECT
+        )
+
+        project_ids = {project.id for project in projects}
+        assert team_project.id in project_ids
