@@ -78,7 +78,7 @@ class PermissionService:
     async def has_permission(
         self,
         user_id: UUID,
-        action: str,
+        actions: str | list[str],
         team_id: UUID | None = None,
         project_id: UUID | None = None,
     ) -> bool:
@@ -105,12 +105,12 @@ class PermissionService:
             )
         if project_id is None:
             permissions = await self.repo.get_permissions(
-                user_id=user_id, team_id=team_id, project_id=None, actions=action
+                user_id=user_id, team_id=team_id, project_id=None, actions=actions
             )
             return any(permission.allowed for permission in permissions)
 
         project_permissions = await self.repo.get_permissions(
-            user_id=user_id, project_id=project_id, actions=action
+            user_id=user_id, project_id=project_id, actions=actions
         )
         if project_permissions:
             return any(permission.allowed for permission in project_permissions)
@@ -120,7 +120,7 @@ class PermissionService:
             return False
 
         team_permissions = await self.repo.get_permissions(
-            user_id=user_id, team_id=project.team_id, actions=action
+            user_id=user_id, team_id=project.team_id, actions=actions
         )
         return any(permission.allowed for permission in team_permissions)
 

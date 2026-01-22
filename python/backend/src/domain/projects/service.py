@@ -171,15 +171,9 @@ class ProjectService:
         if actions is None:
             actions = ProjectActions.VIEW_PROJECT
         actions_list = [actions] if isinstance(actions, str) else actions
-        for action in actions_list:
-            try:
-                if await self.permission_service.has_permission(
-                    user_id=user.id, project_id=project_id, action=action
-                ):
-                    return True
-            except DBNotFoundError:
-                return False
-        return False
+        return await self.permission_service.has_permission(
+            user_id=user.id, project_id=project_id, actions=actions_list
+        )
 
     async def delete_project(self, user: UserProtocol, project_id: UUID_TYPE) -> bool:
         try:

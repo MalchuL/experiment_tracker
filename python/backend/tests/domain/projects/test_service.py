@@ -1,5 +1,6 @@
 from uuid import uuid4
 
+from lib.db.error import DBNotFoundError
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -228,6 +229,11 @@ class TestProjectService:
         )
 
         result = await project_service.get_project_if_accessible(test_user, project.id)
+        assert await project_service.is_user_accessible_project(
+            test_user,
+            project.id,
+            actions=ProjectActions.VIEW_PROJECT,
+        )
 
         assert result is not None
         assert result.id == project.id
@@ -254,12 +260,13 @@ class TestProjectService:
         )
 
         assert allowed is True
-        assert (
-            await project_service.is_user_accessible_project(
-                test_user, uuid4(), actions=ProjectActions.VIEW_PROJECT
+        with pytest.raises(DBNotFoundError):
+            assert (
+                await project_service.is_user_accessible_project(
+                    test_user, uuid4(), actions=ProjectActions.VIEW_PROJECT
+                )
+                is False
             )
-            is False
-        )
 
     async def test_delete_project_permission_denied(
         self,

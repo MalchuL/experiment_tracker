@@ -17,7 +17,7 @@ class PermissionChecker:
         return await self.permission_service.has_permission(
             user_id=user_id,
             project_id=project_id,
-            action=ProjectActions.EDIT_PROJECT,
+            actions=ProjectActions.EDIT_PROJECT,
         )
 
     async def can_delete_project(self, user_id: UUID, project_id: UUID) -> bool:
@@ -25,7 +25,7 @@ class PermissionChecker:
         return await self.permission_service.has_permission(
             user_id=user_id,
             project_id=project_id,
-            action=ProjectActions.DELETE_PROJECT,
+            actions=ProjectActions.DELETE_PROJECT,
         )
 
     async def can_view_project(self, user_id: UUID, project_id: UUID) -> bool:
@@ -33,7 +33,7 @@ class PermissionChecker:
         return await self.permission_service.has_permission(
             user_id=user_id,
             project_id=project_id,
-            action=ProjectActions.VIEW_PROJECT,
+            actions=ProjectActions.VIEW_PROJECT,
         )
 
     async def can_create_experiment(self, user_id: UUID, project_id: UUID) -> bool:
@@ -41,7 +41,7 @@ class PermissionChecker:
         return await self.permission_service.has_permission(
             user_id=user_id,
             project_id=project_id,
-            action=ProjectActions.CREATE_EXPERIMENT,
+            actions=ProjectActions.CREATE_EXPERIMENT,
         )
 
     async def can_edit_experiment(self, user_id: UUID, project_id: UUID) -> bool:
@@ -49,7 +49,7 @@ class PermissionChecker:
         return await self.permission_service.has_permission(
             user_id=user_id,
             project_id=project_id,
-            action=ProjectActions.EDIT_EXPERIMENT,
+            actions=ProjectActions.EDIT_EXPERIMENT,
         )
 
     async def can_delete_experiment(self, user_id: UUID, project_id: UUID) -> bool:
@@ -57,7 +57,7 @@ class PermissionChecker:
         return await self.permission_service.has_permission(
             user_id=user_id,
             project_id=project_id,
-            action=ProjectActions.DELETE_EXPERIMENT,
+            actions=ProjectActions.DELETE_EXPERIMENT,
         )
 
     async def can_view_experiment(self, user_id: UUID, project_id: UUID) -> bool:
@@ -65,7 +65,7 @@ class PermissionChecker:
         return await self.permission_service.has_permission(
             user_id=user_id,
             project_id=project_id,
-            action=ProjectActions.VIEW_EXPERIMENT,
+            actions=ProjectActions.VIEW_EXPERIMENT,
         )
 
     async def can_create_hypothesis(self, user_id: UUID, project_id: UUID) -> bool:
@@ -73,7 +73,7 @@ class PermissionChecker:
         return await self.permission_service.has_permission(
             user_id=user_id,
             project_id=project_id,
-            action=ProjectActions.CREATE_HYPOTHESIS,
+            actions=ProjectActions.CREATE_HYPOTHESIS,
         )
 
     async def can_edit_hypothesis(self, user_id: UUID, project_id: UUID) -> bool:
@@ -81,7 +81,7 @@ class PermissionChecker:
         return await self.permission_service.has_permission(
             user_id=user_id,
             project_id=project_id,
-            action=ProjectActions.EDIT_HYPOTHESIS,
+            actions=ProjectActions.EDIT_HYPOTHESIS,
         )
 
     async def can_delete_hypothesis(self, user_id: UUID, project_id: UUID) -> bool:
@@ -89,7 +89,7 @@ class PermissionChecker:
         return await self.permission_service.has_permission(
             user_id=user_id,
             project_id=project_id,
-            action=ProjectActions.DELETE_HYPOTHESIS,
+            actions=ProjectActions.DELETE_HYPOTHESIS,
         )
 
     async def can_view_hypothesis(self, user_id: UUID, project_id: UUID) -> bool:
@@ -97,7 +97,7 @@ class PermissionChecker:
         return await self.permission_service.has_permission(
             user_id=user_id,
             project_id=project_id,
-            action=ProjectActions.VIEW_HYPOTHESIS,
+            actions=ProjectActions.VIEW_HYPOTHESIS,
         )
 
     async def can_create_metric(self, user_id: UUID, project_id: UUID) -> bool:
@@ -105,7 +105,7 @@ class PermissionChecker:
         return await self.permission_service.has_permission(
             user_id=user_id,
             project_id=project_id,
-            action=ProjectActions.CREATE_METRIC,
+            actions=ProjectActions.CREATE_METRIC,
         )
 
     async def can_edit_metric(self, user_id: UUID, project_id: UUID) -> bool:
@@ -113,7 +113,7 @@ class PermissionChecker:
         return await self.permission_service.has_permission(
             user_id=user_id,
             project_id=project_id,
-            action=ProjectActions.EDIT_METRIC,
+            actions=ProjectActions.EDIT_METRIC,
         )
 
     async def can_delete_metric(self, user_id: UUID, project_id: UUID) -> bool:
@@ -121,7 +121,7 @@ class PermissionChecker:
         return await self.permission_service.has_permission(
             user_id=user_id,
             project_id=project_id,
-            action=ProjectActions.DELETE_METRIC,
+            actions=ProjectActions.DELETE_METRIC,
         )
 
     async def can_view_metric(self, user_id: UUID, project_id: UUID) -> bool:
@@ -129,7 +129,7 @@ class PermissionChecker:
         return await self.permission_service.has_permission(
             user_id=user_id,
             project_id=project_id,
-            action=ProjectActions.VIEW_METRIC,
+            actions=ProjectActions.VIEW_METRIC,
         )
 
     # Team-scoped permissions
@@ -138,7 +138,7 @@ class PermissionChecker:
         return await self.permission_service.has_permission(
             user_id=user_id,
             team_id=team_id,
-            action=TeamActions.CREATE_PROJECT,
+            actions=TeamActions.CREATE_PROJECT,
         )
 
     async def can_delete_team_project(self, user_id: UUID, team_id: UUID) -> bool:
@@ -146,7 +146,7 @@ class PermissionChecker:
         return await self.permission_service.has_permission(
             user_id=user_id,
             team_id=team_id,
-            action=TeamActions.DELETE_PROJECT,
+            actions=TeamActions.DELETE_PROJECT,
         )
 
     async def can_view_team_projects(self, user_id: UUID, team_id: UUID) -> bool:
@@ -154,7 +154,7 @@ class PermissionChecker:
         return await self.permission_service.has_permission(
             user_id=user_id,
             team_id=team_id,
-            action=TeamActions.VIEW_PROJECTS,
+            actions=TeamActions.VIEW_PROJECTS,
         )
 
     async def can_manage_team(self, user_id: UUID, team_id: UUID) -> bool:
@@ -162,7 +162,7 @@ class PermissionChecker:
         return await self.permission_service.has_permission(
             user_id=user_id,
             team_id=team_id,
-            action=TeamActions.MANAGE_TEAM,
+            actions=TeamActions.MANAGE_TEAM,
         )
 
     async def can_delete_team(self, user_id: UUID, team_id: UUID) -> bool:
@@ -170,7 +170,7 @@ class PermissionChecker:
         return await self.permission_service.has_permission(
             user_id=user_id,
             team_id=team_id,
-            action=TeamActions.DELETE_TEAM,
+            actions=TeamActions.DELETE_TEAM,
         )
 
     async def can_view_team(self, user_id: UUID, team_id: UUID) -> bool:
@@ -178,5 +178,5 @@ class PermissionChecker:
         return await self.permission_service.has_permission(
             user_id=user_id,
             team_id=team_id,
-            action=TeamActions.VIEW_TEAM,
+            actions=TeamActions.VIEW_TEAM,
         )
