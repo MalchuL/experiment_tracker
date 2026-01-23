@@ -14,6 +14,8 @@ class PermissionChecker:
     # Project-scoped permissions
     async def can_edit_project(self, user_id: UUID, project_id: UUID) -> bool:
         """Return whether the user can edit a project."""
+        if project_id is None or user_id is None:
+            return False
         return await self.permission_service.has_permission(
             user_id=user_id,
             project_id=project_id,
@@ -22,6 +24,8 @@ class PermissionChecker:
 
     async def can_delete_project(self, user_id: UUID, project_id: UUID) -> bool:
         """Return whether the user can delete a project."""
+        if project_id is None or user_id is None:
+            return False
         return await self.permission_service.has_permission(
             user_id=user_id,
             project_id=project_id,
@@ -30,6 +34,8 @@ class PermissionChecker:
 
     async def can_view_project(self, user_id: UUID, project_id: UUID) -> bool:
         """Return whether the user can view a project."""
+        if project_id is None or user_id is None:
+            return False
         return await self.permission_service.has_permission(
             user_id=user_id,
             project_id=project_id,
@@ -38,6 +44,8 @@ class PermissionChecker:
 
     async def can_create_experiment(self, user_id: UUID, project_id: UUID) -> bool:
         """Return whether the user can create experiments in a project."""
+        if project_id is None or user_id is None:
+            return False
         return await self.permission_service.has_permission(
             user_id=user_id,
             project_id=project_id,
@@ -46,6 +54,8 @@ class PermissionChecker:
 
     async def can_edit_experiment(self, user_id: UUID, project_id: UUID) -> bool:
         """Return whether the user can edit experiments in a project."""
+        if project_id is None or user_id is None:
+            return False
         return await self.permission_service.has_permission(
             user_id=user_id,
             project_id=project_id,
@@ -54,6 +64,8 @@ class PermissionChecker:
 
     async def can_delete_experiment(self, user_id: UUID, project_id: UUID) -> bool:
         """Return whether the user can delete experiments in a project."""
+        if project_id is None or user_id is None:
+            return False
         return await self.permission_service.has_permission(
             user_id=user_id,
             project_id=project_id,
@@ -62,6 +74,8 @@ class PermissionChecker:
 
     async def can_view_experiment(self, user_id: UUID, project_id: UUID) -> bool:
         """Return whether the user can view experiments in a project."""
+        if project_id is None or user_id is None:
+            return False
         return await self.permission_service.has_permission(
             user_id=user_id,
             project_id=project_id,
@@ -70,6 +84,8 @@ class PermissionChecker:
 
     async def can_create_hypothesis(self, user_id: UUID, project_id: UUID) -> bool:
         """Return whether the user can create hypotheses in a project."""
+        if project_id is None or user_id is None:
+            return False
         return await self.permission_service.has_permission(
             user_id=user_id,
             project_id=project_id,
@@ -78,6 +94,8 @@ class PermissionChecker:
 
     async def can_edit_hypothesis(self, user_id: UUID, project_id: UUID) -> bool:
         """Return whether the user can edit hypotheses in a project."""
+        if project_id is None or user_id is None:
+            return False
         return await self.permission_service.has_permission(
             user_id=user_id,
             project_id=project_id,
@@ -86,6 +104,8 @@ class PermissionChecker:
 
     async def can_delete_hypothesis(self, user_id: UUID, project_id: UUID) -> bool:
         """Return whether the user can delete hypotheses in a project."""
+        if project_id is None or user_id is None:
+            return False
         return await self.permission_service.has_permission(
             user_id=user_id,
             project_id=project_id,
@@ -94,6 +114,8 @@ class PermissionChecker:
 
     async def can_view_hypothesis(self, user_id: UUID, project_id: UUID) -> bool:
         """Return whether the user can view hypotheses in a project."""
+        if project_id is None or user_id is None:
+            return False
         return await self.permission_service.has_permission(
             user_id=user_id,
             project_id=project_id,
@@ -102,6 +124,8 @@ class PermissionChecker:
 
     async def can_create_metric(self, user_id: UUID, project_id: UUID) -> bool:
         """Return whether the user can create metrics in a project."""
+        if project_id is None or user_id is None:
+            return False
         return await self.permission_service.has_permission(
             user_id=user_id,
             project_id=project_id,
@@ -110,6 +134,8 @@ class PermissionChecker:
 
     async def can_edit_metric(self, user_id: UUID, project_id: UUID) -> bool:
         """Return whether the user can edit metrics in a project."""
+        if project_id is None or user_id is None:
+            return False
         return await self.permission_service.has_permission(
             user_id=user_id,
             project_id=project_id,
@@ -118,6 +144,8 @@ class PermissionChecker:
 
     async def can_delete_metric(self, user_id: UUID, project_id: UUID) -> bool:
         """Return whether the user can delete metrics in a project."""
+        if project_id is None or user_id is None:
+            return False
         return await self.permission_service.has_permission(
             user_id=user_id,
             project_id=project_id,
@@ -126,6 +154,8 @@ class PermissionChecker:
 
     async def can_view_metric(self, user_id: UUID, project_id: UUID) -> bool:
         """Return whether the user can view metrics in a project."""
+        if project_id is None or user_id is None:
+            return False
         return await self.permission_service.has_permission(
             user_id=user_id,
             project_id=project_id,
@@ -135,6 +165,8 @@ class PermissionChecker:
     # Team-scoped permissions
     async def can_create_project(self, user_id: UUID, team_id: UUID) -> bool:
         """Return whether the user can create projects within a team."""
+        if team_id is None or user_id is None:
+            return False
         return await self.permission_service.has_permission(
             user_id=user_id,
             team_id=team_id,
@@ -143,6 +175,8 @@ class PermissionChecker:
 
     async def can_delete_team_project(self, user_id: UUID, team_id: UUID) -> bool:
         """Return whether the user can delete team projects."""
+        if team_id is None or user_id is None:
+            return False
         return await self.permission_service.has_permission(
             user_id=user_id,
             team_id=team_id,
@@ -151,6 +185,8 @@ class PermissionChecker:
 
     async def can_view_team_projects(self, user_id: UUID, team_id: UUID) -> bool:
         """Return whether the user can view team projects."""
+        if team_id is None or user_id is None:
+            return False
         return await self.permission_service.has_permission(
             user_id=user_id,
             team_id=team_id,
@@ -159,6 +195,8 @@ class PermissionChecker:
 
     async def can_manage_team(self, user_id: UUID, team_id: UUID) -> bool:
         """Return whether the user can manage the team."""
+        if team_id is None or user_id is None:
+            return False
         return await self.permission_service.has_permission(
             user_id=user_id,
             team_id=team_id,
@@ -167,6 +205,8 @@ class PermissionChecker:
 
     async def can_delete_team(self, user_id: UUID, team_id: UUID) -> bool:
         """Return whether the user can delete the team."""
+        if team_id is None or user_id is None:
+            return False
         return await self.permission_service.has_permission(
             user_id=user_id,
             team_id=team_id,
@@ -175,6 +215,8 @@ class PermissionChecker:
 
     async def can_view_team(self, user_id: UUID, team_id: UUID) -> bool:
         """Return whether the user can view the team."""
+        if team_id is None or user_id is None:
+            return False
         return await self.permission_service.has_permission(
             user_id=user_id,
             team_id=team_id,
