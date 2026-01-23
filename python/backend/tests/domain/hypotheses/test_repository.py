@@ -50,9 +50,7 @@ async def _create_hypothesis(
 
 class TestHypothesisRepository:
     @pytest.fixture
-    def hypothesis_repository(
-        self, db_session: AsyncSession
-    ) -> HypothesisRepository:
+    def hypothesis_repository(self, db_session: AsyncSession) -> HypothesisRepository:
         return HypothesisRepository(db_session)
 
     async def test_get_hypotheses_by_project_filters(
