@@ -1,4 +1,5 @@
-from domain.projects.repository import ProjectRepository, UserProtocol
+from domain.projects.repository import ProjectRepository
+from lib.protocols.user_protocol import UserProtocol
 from lib.db.base_repository import BaseRepository
 from models import Metric
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -6,6 +7,7 @@ from lib.types import UUID_TYPE
 from domain.experiments.repository import ExperimentRepository
 from typing import List
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 
 
 class MetricRepository(BaseRepository[Metric]):
@@ -15,14 +17,22 @@ class MetricRepository(BaseRepository[Metric]):
         self.project_repository = ProjectRepository(db)
 
     async def get_metrics_by_experiment(
-        self, user: UserProtocol, experiment_id: UUID_TYPE
+        self,
+        experiment_id: UUID_TYPE | list[UUID_TYPE],
+        full_load: bool = False,
     ) -> List[Metric]:
-        experiment = await self.experiment_repository.get_experiment_if_accessible(
-            user, experiment_id
+        conditions = []
+        if isinstance(experiment_id, (list, tuple)):
+            conditions.append(Metric.experiment_id.in_(experiment_id))
+        else:
+            conditions.append(Metric.experiment_id == experiment_id)
+        if full_load:
+            load = [selectinload(Metric.experiment)]
+        else:
+            load = []
+        metrics = await self.advanced_alchemy_repository.list(
+            *conditions,
+            order_by=Metric.created_at.desc(),
+            load=load,
         )
-        if not experiment:
-            return []
-
-        query = select(Metric).where(Metric.experiment_id == experiment.id)
-        result = await self.db.execute(query)
-        return result.scalars().all()
+        return metrics
