@@ -62,6 +62,7 @@ class ExperimentDTO(ExperimentBaseDTO):
 
 
 class ExperimentReorderDTO(BaseModel):
+    project_id: UUID
     experiment_ids: List[UUID]
 
     model_config = model_config()
