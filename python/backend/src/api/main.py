@@ -1,7 +1,7 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from api.routes.temp import router as temp_router
+from api.routes.api import router as api_router
 from config.settings import get_settings
 from db.database import create_db_and_tables
 
@@ -23,7 +23,7 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
-    app.include_router(temp_router, prefix=settings.api_prefix)
+    app.include_router(api_router, prefix=settings.api_prefix)
     return app
 
 
