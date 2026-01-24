@@ -9,6 +9,10 @@ def build_async_database_url(url: str) -> str:
             "Example: DATABASE_URL='postgresql://username:password@localhost:5432/experiment_tracker'"
         )
 
+    # For SQLite, return as-is without parsing
+    if url.startswith("sqlite"):
+        return url
+
     if url.startswith("postgres://"):
         url = url.replace("postgres://", "postgresql+asyncpg://", 1)
     elif url.startswith("postgresql://"):
