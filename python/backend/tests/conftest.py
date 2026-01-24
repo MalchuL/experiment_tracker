@@ -27,11 +27,8 @@ from domain.team.teams.repository import TeamRepository
 from db.utils import build_async_database_url
 
 # Use in-memory SQLite database for tests by default
-DEFAULT_TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
-TEST_DATABASE_URL = (
-    os.getenv("TEST_DATABASE_URL", DEFAULT_TEST_DATABASE_URL)
-    or DEFAULT_TEST_DATABASE_URL
-)
+DEFAULT_DATABASE_UR = "sqlite+aiosqlite:///:memory:"
+TEST_DATABASE_URL = os.getenv("DATABASE_UR", DEFAULT_DATABASE_UR) or DEFAULT_DATABASE_UR
 
 
 # Replace JSONB columns with JSON for SQLite compatibility
