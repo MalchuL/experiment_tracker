@@ -1,0 +1,100 @@
+from typing import List
+from uuid import UUID
+
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from api.routes.auth import current_active_user
+from db.database import get_async_session
+from models import User
+
+from .dto import ProjectCreateDTO, ProjectDTO, ProjectUpdateDTO
+from .errors import ProjectNotAccessibleError, ProjectPermissionError
+from .service import ProjectService
+
+router = APIRouter(prefix="/projects", tags=["projects"])
+
+
+def _raise_project_http_error(error: Exception) -> None:
+    if isinstance(error, ProjectPermissionError):
+        raise HTTPException(status_code=403, detail=str(error))
+    if isinstance(error, ProjectNotAccessibleError):
+        raise HTTPException(status_code=404, detail=str(error))
+    raise HTTPException(status_code=400, detail=str(error))
+
+
+@router.get("", response_model=List[ProjectDTO])
+async def get_all_projects(
+    user: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_async_session),
+):
+    service = ProjectService(session)
+    try:
+        return await service.get_accessible_projects(user)
+    except Exception as exc:  # noqa: BLE001
+        _raise_project_http_error(exc)
+
+
+@router.get("/{project_id}", response_model=ProjectDTO)
+async def get_project(
+    project_id: UUID,
+    user: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_async_session),
+):
+    service = ProjectService(session)
+    try:
+        project = await service.get_project_if_accessible(user, project_id)
+    except Exception as exc:  # noqa: BLE001
+        _raise_project_http_error(exc)
+    if project is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return project
+
+
+@router.post("", response_model=ProjectDTO)
+async def create_project(
+    data: ProjectCreateDTO,
+    user: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_async_session),
+):
+    service = ProjectService(session)
+    try:
+        return await service.create_project(user, data)
+    except Exception as exc:  # noqa: BLE001
+        _raise_project_http_error(exc)
+
+
+@router.patch("/{project_id}", response_model=ProjectDTO)
+async def update_project(
+    project_id: UUID,
+    data: ProjectUpdateDTO,
+    user: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_async_session),
+):
+    service = ProjectService(session)
+    try:
+        return await service.update_project(user, project_id, data)
+    except Exception as exc:  # noqa: BLE001
+        _raise_project_http_error(exc)
+
+
+@router.delete("/{project_id}")
+async def delete_project(
+    project_id: UUID,
+    user: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_async_session),
+):
+    service = ProjectService(session)
+    try:
+        success = await service.delete_project(user, project_id)
+    except Exception as exc:  # noqa: BLE001
+        _raise_project_http_error(exc)
+    if not success:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return {"success": True}
+
+
+# TODO: implement service methods for these routes
+# - GET /projects/{project_id}/experiments
+# - GET /projects/{project_id}/hypotheses
+# - GET /projects/{project_id}/metrics
