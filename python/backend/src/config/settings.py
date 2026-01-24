@@ -1,6 +1,8 @@
 from functools import lru_cache
 from pydantic_settings import BaseSettings
 
+from pprint import pprint
+
 
 class Settings(BaseSettings):
     api_prefix: str = "/api"
@@ -10,9 +12,13 @@ class Settings(BaseSettings):
 
     class Config:
         env_prefix = ""
-        env_file = None
+        env_file = ".env"
+        env_file_encoding = "utf-8"
 
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
     return Settings()
+
+
+pprint(get_settings().model_dump())
