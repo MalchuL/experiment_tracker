@@ -15,7 +15,7 @@ export default function ProjectDashboard() {
   const { project, isLoading } = useCurrentProject();
 
   const projectId = project?.id;
-  const { stats, statsIsLoading } = useStats();
+  const { stats, statsIsLoading } = useStats(projectId);
 
   const { experiments: recentExperiments, recentExperimentsIsLoading: experimentsLoading } = useRecentExperiments(projectId);
 

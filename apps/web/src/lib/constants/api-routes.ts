@@ -51,7 +51,7 @@ export const API_ROUTES = {
     },
   
     DASHBOARD: {
-      STATS: "/api/dashboard/stats",
+      STATS: (projectId: string) => `/api/dashboard/project/${projectId}/stats`,
     },
   
     PROJECTS: {

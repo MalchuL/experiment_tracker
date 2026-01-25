@@ -4,7 +4,7 @@ export const QUERY_KEYS = {
         GET_BY_ID: (projectId: string) => `projects/${projectId}`,
     },
     DASHBOARD: {
-        STATS: "/dashboard/stats",
+        STATS: (projectId: string) => `dashboard/project/${projectId}/stats`,
     },
     EXPERIMENTS: {
         RECENT: (projectId: string, limit?: number | undefined, offset?: number | undefined) => `experiments/recent?projectId=${projectId}&limit=${limit}&offset=${offset}`,

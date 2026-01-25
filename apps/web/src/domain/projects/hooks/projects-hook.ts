@@ -32,7 +32,6 @@ export function useProjects() {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.PROJECTS.LIST] });
-            queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.DASHBOARD.STATS] });
         },
     });
 
@@ -43,10 +42,9 @@ export function useProjects() {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.PROJECTS.LIST] });
-            queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.DASHBOARD.STATS] });
         }
     });
-    
+
     return {
         projects,
         isLoading,

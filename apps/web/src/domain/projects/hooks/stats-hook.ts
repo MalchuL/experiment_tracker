@@ -8,10 +8,11 @@ export interface StatsHookResult {
     statsIsLoading: boolean;
 }
 
-export function useStats() {
+export function useStats(projectId?: string) {
     const { data: stats, isLoading } = useQuery<DashboardStats>({
-        queryKey: [QUERY_KEYS.DASHBOARD.STATS],
-        queryFn: () => projectsService.getDashboardStats(),
+        queryKey: [QUERY_KEYS.DASHBOARD.STATS(projectId!)],
+        queryFn: () => projectsService.getDashboardStats(projectId!),
+        enabled: !!projectId,
     });
     return { stats, statsIsLoading: isLoading };
 }

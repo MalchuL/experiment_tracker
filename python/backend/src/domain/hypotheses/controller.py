@@ -35,6 +35,20 @@ async def get_all_hypotheses(
         _raise_hypothesis_http_error(exc)
 
 
+# TODO Cover with tests
+@router.get("/recent", response_model=List[HypothesisDTO])
+async def get_recent_hypotheses(
+    projectId: UUID,
+    limit: int = 10,
+    user: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_async_session),
+):
+    print(projectId)
+    print(user)
+    service = HypothesisService(session)
+    return await service.get_hypotheses_by_project(user, projectId)
+
+
 @router.get("/{hypothesis_id}", response_model=HypothesisDTO)
 async def get_hypothesis(
     hypothesis_id: UUID,
@@ -89,7 +103,3 @@ async def delete_hypothesis(
     if not success:
         raise HTTPException(status_code=404, detail="Hypothesis not found")
     return {"success": True}
-
-
-# TODO: implement service methods for these routes
-# - GET /hypotheses/recent

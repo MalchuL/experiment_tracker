@@ -34,8 +34,8 @@ export default function Hypotheses() {
         if (projectId) {
           queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.HYPOTHESES.BY_PROJECT(projectId)] });
           queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.HYPOTHESES.RECENT(projectId)] });
+          queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.DASHBOARD.STATS(projectId)] });
         }
-        queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.DASHBOARD.STATS] });
         queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.PROJECTS.LIST] });
         toast({
           title: "Hypothesis deleted",
@@ -55,8 +55,8 @@ export default function Hypotheses() {
   const onCreateSuccess = useCallback(() => {
     if (projectId) {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.HYPOTHESES.BY_PROJECT(projectId)] });
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.DASHBOARD.STATS(projectId)] });
     }
-    queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.DASHBOARD.STATS] });
     queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.PROJECTS.LIST] });
     toast({
       title: "Hypothesis created",

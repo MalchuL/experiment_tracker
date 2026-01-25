@@ -15,7 +15,7 @@ export interface ProjectsService {
   create: (project: InsertProject) => Promise<Project>;
   update: (id: string, updates: UpdateProject) => Promise<Project>;
   delete: (id: string) => Promise<void>;
-  getDashboardStats: () => Promise<DashboardStats>;
+  getDashboardStats: (id: string) => Promise<DashboardStats>;
 }
 
 export const projectsService: ProjectsService = {
@@ -61,8 +61,8 @@ export const projectsService: ProjectsService = {
     return response.data;
   },
 
-  getDashboardStats: async (): Promise<DashboardStats> => {
-    const response = await serviceClients.api.get<DashboardStats>(API_ROUTES.DASHBOARD.STATS);
+  getDashboardStats: async (id: string): Promise<DashboardStats> => {
+    const response = await serviceClients.api.get<DashboardStats>(API_ROUTES.DASHBOARD.STATS(id));
     return response.data;
   },
 };

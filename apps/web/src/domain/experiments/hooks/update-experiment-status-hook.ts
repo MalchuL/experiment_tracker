@@ -43,10 +43,10 @@ export function useUpdateExperimentStatus(
         queryClient.invalidateQueries({
           queryKey: [QUERY_KEYS.EXPERIMENTS.BY_PROJECT(projectId)],
         });
+        queryClient.invalidateQueries({
+          queryKey: [QUERY_KEYS.DASHBOARD.STATS(projectId)],
+        });
       }
-      queryClient.invalidateQueries({
-        queryKey: [QUERY_KEYS.DASHBOARD.STATS],
-      });
     },
   });
 

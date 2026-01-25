@@ -31,12 +31,12 @@ class HypothesisService(ProjectBasedService):
         return self.hypothesis_mapper.hypothesis_list_schema_to_dto(hypotheses)
 
     async def get_hypotheses_by_project(
-        self, user: UserProtocol, project_id: UUID_TYPE
+        self, user: UserProtocol, project_id: UUID_TYPE, limit: int | None = None
     ) -> List[HypothesisDTO]:
         if not await self.permission_checker.can_view_hypothesis(user.id, project_id):
             raise ProjectNotAccessibleError(f"Project {project_id} not accessible")
         hypotheses = await self.hypothesis_repository.get_hypotheses_by_project(
-            project_id
+            project_id, limit
         )
         return self.hypothesis_mapper.hypothesis_list_schema_to_dto(hypotheses)
 

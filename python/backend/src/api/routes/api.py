@@ -6,6 +6,7 @@ from domain.hypotheses.controller import router as hypotheses_router
 from domain.metrics.controller import router as metrics_router
 from domain.projects.controller import router as projects_router
 from domain.team.teams.controller import router as teams_router
+from domain.projects.dashboard.controller import router as dashboard_router
 
 router = APIRouter()
 
@@ -16,4 +17,5 @@ router.include_router(experiments_router, prefix=API_PREFIX)
 router.include_router(hypotheses_router, prefix=API_PREFIX)
 router.include_router(metrics_router, prefix=API_PREFIX)
 router.include_router(teams_router, prefix=API_PREFIX)
+router.include_router(dashboard_router, prefix=API_PREFIX)
 router.include_router(auth_router)
