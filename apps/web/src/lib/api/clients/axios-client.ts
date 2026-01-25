@@ -65,6 +65,7 @@ export function createServiceClient(config: ServiceConfig): AxiosInstance {
   client.interceptors.response.use(
     (response) => response,
     (error) => {
+      // TODO: In some 401 errors, the error.response is not present. Fix this
       if (error.response?.status === 401) {
         // Clear token on unauthorized
         if (typeof document !== "undefined") {

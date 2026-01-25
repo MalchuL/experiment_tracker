@@ -17,13 +17,20 @@ export interface AuthHookResult {
     isAuthenticated: boolean;
     login(payload: LoginPayload, options?: AuthHookOptions): Promise<void>;
     register(payload: SignUpPayload, options?: AuthHookOptions): Promise<void>;
-    updateUser(payload: User, options?: AuthHookOptions): Promise<void>;
+    updateUser(payload: User, options?: AuthHookOptions): Promise<User>;
     logout(options?: AuthHookOptions): Promise<void>;
     error: Error | null;
 }
 
 export function useAuthService(): AuthHookResult {
     const { user, isLoading, token, setToken, isAuthenticated, setUser, setIsLoading, setIsAuthenticated } = useAuthStore();
+    // TODO: Implement normal auth flow
+    const clearAuth = useCallback(() => {
+        setUser(null);
+        setToken(null);
+        setIsAuthenticated(false);
+    }, [setIsAuthenticated, setToken, setUser]);
+
     // User Query
     const {
         isLoading: queryIsLoading,
@@ -32,9 +39,15 @@ export function useAuthService(): AuthHookResult {
         queryKey: ["auth", token],
         queryFn: async () => {
             // guard if not user, skip the request
-            const data = await authService.getUser();
-            setUser(data);
-            return data;
+            try {
+                const data = await authService.getUser();
+                setUser(data);
+                return data;
+            } catch (err) {
+                // Treat missing axios error.response as unauthorized and clear auth
+                clearAuth();
+                throw err;
+            }
         },
         enabled: user === null && !!token && !isLoading,
         staleTime: 1000 * 60 * 5,

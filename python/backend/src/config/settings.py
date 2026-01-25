@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     database_url: str = "sqlite+aiosqlite:///./data.db"
     jwt_secret: str = "CHANGE-ME-IN-PRODUCTION-SECRET-KEY-12345"
     app_name: str = "Experiment Tracker"
+    allowed_origins: str = "*"
 
     class Config:
         env_prefix = ""
