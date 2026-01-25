@@ -1,11 +1,13 @@
-from typing import List
+from typing import Dict, List
 from uuid import UUID
 
 from domain.hypotheses.dto import HypothesisDTO
 from domain.experiments.dto import ExperimentDTO
 from domain.experiments.service import ExperimentService
 from domain.hypotheses.service import HypothesisService
-from domain.metrics.service import MetricDTO, MetricService
+from domain.metrics.dto import Metric as MetricDTO
+from domain.metrics.service import MetricService
+from lib.types import UUID_TYPE
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -66,13 +68,20 @@ async def get_project_hypotheses(
         _raise_project_http_error(exc)
 
 
-@router.get("/{project_id}/metrics", response_model=List[MetricDTO])
+@router.get(
+    "/{project_id}/metrics",
+    response_model=Dict[UUID_TYPE, Dict[str, MetricDTO]],
+)
 async def get_aggregatedproject_metrics(
     project_id: UUID,
     user: User = Depends(current_active_user),
     session: AsyncSession = Depends(get_async_session),
 ):
-    raise NotImplementedError
+    service = MetricService(session)
+    try:
+        return await service.get_aggregated_metrics_for_project(user, project_id)
+    except Exception as exc:  # noqa: BLE001
+        _raise_project_http_error(exc)
 
 
 @router.get("/{project_id}", response_model=ProjectDTO)

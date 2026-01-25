@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Literal, Sequence
 from advanced_alchemy.filters import LimitOffset
 from lib.db.base_repository import BaseRepository, ListOptions
 from lib.types import UUID_TYPE
@@ -6,6 +6,10 @@ from models import Experiment
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from lib.protocols.user_protocol import UserProtocol
+from sqlalchemy.orm import selectinload
+
+
+LoadOptions = Sequence[Literal["project", "metrics"]] | bool
 
 
 class ExperimentRepository(BaseRepository[Experiment]):
@@ -30,9 +34,16 @@ class ExperimentRepository(BaseRepository[Experiment]):
         return result
 
     async def get_experiments_by_project(
-        self, project_id: UUID_TYPE
+        self, project_id: UUID_TYPE, full_load: LoadOptions = False
     ) -> List[Experiment]:
+        if isinstance(full_load, Sequence):
+            load = [selectinload(getattr(Experiment, option)) for option in full_load]
+        elif full_load:
+            load = [selectinload(Experiment.project), selectinload(Experiment.metrics)]
+        else:
+            load = []
         experiments = await self.advanced_alchemy_repository.list(
             Experiment.project_id == project_id,
+            load=load,
         )
         return experiments

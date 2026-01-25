@@ -1,11 +1,13 @@
-from typing import Iterable, List
+from typing import Dict, Iterable, List
 
 from domain.experiments.repository import ExperimentRepository
 from domain.rbac.wrapper import PermissionChecker
 from lib.db.base_repository import DBNotFoundError
 from lib.protocols.user_protocol import UserProtocol
 from lib.types import UUID_TYPE
+from models import MetricAggregation, MetricDirection
 from sqlalchemy.ext.asyncio import AsyncSession
+from domain.projects.service import ProjectService
 
 from .dto import Metric as MetricDTO
 from .dto import MetricCreate, MetricUpdate
@@ -117,3 +119,59 @@ class MetricService:
         await self.metric_repository.delete(metric_id)
         await self.metric_repository.commit()
         return True
+
+    # TODO cover with tests
+    async def get_aggregated_metrics_for_project(
+        self, user: UserProtocol, project_id: UUID_TYPE
+    ) -> Dict[UUID_TYPE, Dict[str, MetricDTO]]:
+
+        if not await self.permission_checker.can_view_metric(user.id, project_id):
+            raise MetricNotAccessibleError(f"Project {project_id} not accessible")
+        # Get project metrics configuration
+        project_service = ProjectService(self.db)
+        project = await project_service.get_project_if_accessible(user, project_id)
+        project_metrics = project.metrics
+
+        # Get experiments and metrics
+        experiment_repository = ExperimentRepository(self.db)
+        experiments = await experiment_repository.get_experiments_by_project(
+            project_id, full_load=["metrics"]
+        )
+        metrics = {}
+        for experiment in experiments:
+            experiment_metrics = {}
+            for project_metric in project_metrics:
+                metric_name = project_metric.name
+                metrics = [
+                    metric
+                    for metric in experiment.metrics
+                    if metric.name == metric_name
+                ]
+                if not metrics:
+                    continue
+
+                aggregation_str = project_metric.aggregation
+                direction_str = project_metric.direction
+                if aggregation_str == MetricAggregation.LAST:
+                    metric = max(metrics, key=lambda m: m.step)
+                elif (
+                    aggregation_str == MetricAggregation.BEST
+                    and direction_str == MetricDirection.MAXIMIZE
+                ):
+                    metric = max(metrics, key=lambda m: m.value)
+                elif (
+                    aggregation_str == MetricAggregation.BEST
+                    and direction_str == MetricDirection.MINIMIZE
+                ):
+                    metric = min(metrics, key=lambda m: m.value)
+                elif aggregation_str == MetricAggregation.AVERAGE:
+                    raise NotImplementedError(f"AVERAGE aggregation is not supported")
+                    # metric = sum(metrics, key=lambda m: m.value) / len(metrics)
+                else:
+                    raise ValueError(f"Invalid aggregation: {aggregation_str}")
+
+                experiment_metrics[metric_name] = (
+                    self.metric_mapper.metric_schema_to_dto(metric)
+                )
+            metrics[experiment.id] = experiment_metrics
+        return metrics
