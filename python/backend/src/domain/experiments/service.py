@@ -186,3 +186,16 @@ class ExperimentService(ProjectBasedService):
             await self.experiment_repository.update(experiment_id, order=i)
         await self.experiment_repository.commit()
         return True
+
+    # TODO cover with tests
+    async def get_experiments_by_project(
+        self, user: UserProtocol, project_id: UUID_TYPE
+    ) -> List[ExperimentDTO]:
+        if not await self.permission_checker.can_view_experiment(user.id, project_id):
+            raise ExperimentNotAccessibleError(
+                f"You are not allowed to view experiments in project {project_id}"
+            )
+        experiments = await self.experiment_repository.get_experiments_by_project(
+            project_id
+        )
+        return self.experiment_mapper.experiment_list_schema_to_dto(experiments)
