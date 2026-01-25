@@ -5,6 +5,7 @@ import { authService } from "../services";
 import { LoginPayload, SignUpPayload } from "../types";
 import { useMutation } from "@tanstack/react-query";
 import { useCallback, useEffect } from "react";
+import { ErrorResponse } from "@/lib/api/error-response";
 
 interface AuthHookOptions {
     onSuccess?: () => void;
@@ -17,20 +18,13 @@ export interface AuthHookResult {
     isAuthenticated: boolean;
     login(payload: LoginPayload, options?: AuthHookOptions): Promise<void>;
     register(payload: SignUpPayload, options?: AuthHookOptions): Promise<void>;
-    updateUser(payload: User, options?: AuthHookOptions): Promise<User>;
+    updateUser(payload: User, options?: AuthHookOptions): Promise<void>;
     logout(options?: AuthHookOptions): Promise<void>;
     error: Error | null;
 }
 
 export function useAuthService(): AuthHookResult {
     const { user, isLoading, token, setToken, isAuthenticated, setUser, setIsLoading, setIsAuthenticated } = useAuthStore();
-    // TODO: Implement normal auth flow
-    const clearAuth = useCallback(() => {
-        setUser(null);
-        setToken(null);
-        setIsAuthenticated(false);
-    }, [setIsAuthenticated, setToken, setUser]);
-
     // User Query
     const {
         isLoading: queryIsLoading,
@@ -39,21 +33,21 @@ export function useAuthService(): AuthHookResult {
         queryKey: ["auth", token],
         queryFn: async () => {
             // guard if not user, skip the request
-            try {
-                const data = await authService.getUser();
-                setUser(data);
-                return data;
-            } catch (err) {
-                // Treat missing axios error.response as unauthorized and clear auth
-                clearAuth();
-                throw err;
-            }
+            const data = await authService.getUser();
+            setUser(data);
+            return data;
         },
         enabled: user === null && !!token && !isLoading,
         staleTime: 1000 * 60 * 5,
         retry: 1,
     });
-    // Login mutation
+    useEffect(() => {
+        // Unauthorized error
+        if (error && error instanceof ErrorResponse && error.status === 401) {
+            setToken(null);        
+        }
+        
+    }, [error]);
     const loginMutation = useMutation({
         mutationFn: async (payload: LoginPayload) => {
             const response = await authService.login(payload);
