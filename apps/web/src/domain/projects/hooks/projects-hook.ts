@@ -46,8 +46,7 @@ export function useProjects() {
             queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.DASHBOARD.STATS] });
         }
     });
-    console.log(error);
-
+    
     return {
         projects,
         isLoading,

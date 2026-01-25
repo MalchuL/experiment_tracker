@@ -20,7 +20,6 @@ interface ProjectCardProps {
 }
 
 export function ProjectCard({ project, onDelete }: ProjectCardProps) {
-  console.log(project);
   return (
     <Link href={FRONTEND_ROUTES.PROJECT_PAGES.OVERVIEW(project.id)}>
       <Card
