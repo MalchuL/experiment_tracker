@@ -1,9 +1,9 @@
 export interface User {
     id: string;
     email: string;
-    display_name: string | null;
-    avatar_url: string | null;
-    is_active: boolean;
-    is_superuser: boolean;
-    is_verified: boolean;
+    displayName: string | null;
+    avatarUrl: string | null;
+    isActive: boolean;
+    isSuperuser: boolean;
+    isVerified: boolean;
 }

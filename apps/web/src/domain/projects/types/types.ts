@@ -1,4 +1,5 @@
 import { MetricDirectionType, MetricAggregationType } from "@/domain/metrics/types";
+import { User } from "@/shared/types/user";
 
 export interface ProjectMetric {
     name: string;
@@ -12,11 +13,13 @@ export interface ProjectMetric {
   }
   
 
+export type ProjectOwner = Pick<User, "id" | "email" | "displayName">;
+
 export interface Project {
     id: string;
     name: string;
     description: string;
-    owner: string;
+    owner: ProjectOwner;
     createdAt: string;
     experimentCount: number;
     hypothesisCount: number;

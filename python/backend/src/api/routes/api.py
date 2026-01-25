@@ -10,9 +10,10 @@ from domain.team.teams.controller import router as teams_router
 router = APIRouter()
 
 # Align paths with legacy backend/routes.py naming.
-router.include_router(projects_router)
-router.include_router(experiments_router)
-router.include_router(hypotheses_router)
-router.include_router(metrics_router)
-router.include_router(teams_router)
+API_PREFIX = "/api"
+router.include_router(projects_router, prefix=API_PREFIX)
+router.include_router(experiments_router, prefix=API_PREFIX)
+router.include_router(hypotheses_router, prefix=API_PREFIX)
+router.include_router(metrics_router, prefix=API_PREFIX)
+router.include_router(teams_router, prefix=API_PREFIX)
 router.include_router(auth_router)

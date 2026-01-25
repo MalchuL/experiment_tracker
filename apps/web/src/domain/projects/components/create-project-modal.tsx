@@ -88,23 +88,6 @@ export function CreateProjectModal({
                 </FormItem>
               )}
             />
-            <FormField
-              control={form.control}
-              name="owner"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Owner</FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder="Your name or team"
-                      data-testid="input-project-owner"
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
             <div className="flex justify-end gap-2">
               <Button
                 type="button"

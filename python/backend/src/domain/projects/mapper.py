@@ -86,9 +86,7 @@ class ProjectMapper:
         converter = DtoConverter[ProjectCreateDTO](ProjectCreateDTO)
         metrics: List[Dict[str, Any]] = []
         if dto.metrics:
-            metrics = [
-                converter.dto_to_json_dict_with_json_case(m) for m in dto.metrics
-            ]
+            metrics = [converter.dto_to_dict_with_dto_case(m) for m in dto.metrics]
 
         # Convert settings from Pydantic model to dict
         if dto.settings:

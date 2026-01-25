@@ -10,7 +10,7 @@ import { ProjectCard } from "@/domain/projects/components/project-card";
 import { ListSkeleton } from "@/components/shared/loading-skeleton";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/lib/hooks/use-toast";
-import { Plus, FolderKanban } from "lucide-react";
+import { Plus, FolderKanban, AlertCircle } from "lucide-react";
 import type { InsertProject } from "@/domain/projects/types";
 import { insertProjectSchema } from "@/domain/projects/schemas";
 import { useProjects } from "@/domain/projects/hooks";
@@ -19,14 +19,13 @@ export default function Projects() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const { toast } = useToast();
 
-  const { projects, isLoading, createProject, deleteProject, creationIsPending } = useProjects();
+  const { projects, isLoading, createProject, deleteProject, creationIsPending, error } = useProjects();
 
   const form = useForm<InsertProject>({
     resolver: zodResolver(insertProjectSchema as any),
     defaultValues: {
       name: "",
       description: "",
-      owner: "researcher",
     },
   });
   // Create project mutation
@@ -82,6 +81,15 @@ export default function Projects() {
     );
   }
 
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <PageHeader title="Projects" description="Manage your research projects" />
+        <EmptyState icon={AlertCircle} title="Error" description="Failed to load projects. Please try again." />
+        <Button onClick={() => window.location.reload()}>Reload</Button>
+      </div>
+    );
+  }
   return (
     <div className="space-y-6">
       <PageHeader

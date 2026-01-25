@@ -15,7 +15,6 @@ export const projectSettingsSchema = z.object({
 export const insertProjectSchema = z.object({
     name: z.string().min(1, "Name is required").max(100),
     description: z.string().max(500).default(""),
-    owner: z.string().min(1, "Owner is required"),
     metrics: z.array(projectMetricSchema).default([]),
     settings: projectSettingsSchema.default({
         namingPattern: "{num}_from_{parent}_{change}",

@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { FolderKanban, FlaskConical, Lightbulb, MoreVertical, Calendar } from "lucide-react";
 import type { Project } from "@/domain/projects/types";
+import { FRONTEND_ROUTES } from "@/lib/constants/frontend-routes";
 
 interface ProjectCardProps {
   project: Project;
@@ -19,8 +20,9 @@ interface ProjectCardProps {
 }
 
 export function ProjectCard({ project, onDelete }: ProjectCardProps) {
+  console.log(project);
   return (
-    <Link href={`/projects/${project.id}`}>
+    <Link href={FRONTEND_ROUTES.PROJECT_PAGES.OVERVIEW(project.id)}>
       <Card
         className="hover-elevate active-elevate-2 cursor-pointer h-full"
         data-testid={`card-project-${project.id}`}
@@ -33,7 +35,7 @@ export function ProjectCard({ project, onDelete }: ProjectCardProps) {
               </div>
               <div className="min-w-0">
                 <h3 className="font-medium truncate">{project.name}</h3>
-                <p className="text-xs text-muted-foreground">{project.owner}</p>
+                <p className="text-xs text-muted-foreground">{project.owner.displayName}</p>
               </div>
             </div>
             <DropdownMenu>

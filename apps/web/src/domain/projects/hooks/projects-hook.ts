@@ -15,11 +15,12 @@ export interface ProjectsHookResult {
     deletionIsPending: boolean;
     createProject: (data: InsertProject, options?: ProjectsHookOptions) => Promise<void>;
     deleteProject: (id: string, options?: ProjectsHookOptions) => Promise<void>;
+    error: Error | null;
 }
 
 export function useProjects() {
     // List projects query
-    const { data: projects, isLoading } = useQuery({
+    const { data: projects, isLoading, error } = useQuery({
         queryKey: [QUERY_KEYS.PROJECTS.LIST],
         queryFn: () => projectsService.getAll(),
     });
@@ -45,6 +46,7 @@ export function useProjects() {
             queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.DASHBOARD.STATS] });
         }
     });
+    console.log(error);
 
     return {
         projects,
@@ -52,6 +54,7 @@ export function useProjects() {
         creationIsPending: createMutation.isPending,
         deletionIsPending: deleteMutation.isPending,
         createProject: createMutation.mutateAsync,
-        deleteProject: deleteMutation.mutateAsync
+        deleteProject: deleteMutation.mutateAsync,
+        error
     };
 }

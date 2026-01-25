@@ -14,6 +14,13 @@ uv sync --extra dev
 uv run uvicorn api.main:app --reload --port 8001
 ```
 
+## Clean Database
+`psql "postgresql://USER:PASSWORD@HOST:PORT/your_db_name"`
+
+-- then run:
+`DROP SCHEMA public CASCADE;`
+`CREATE SCHEMA public;`
+
 ## Database Setup
 
 ### For Development
