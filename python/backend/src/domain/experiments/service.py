@@ -48,9 +48,10 @@ class ExperimentService(ProjectBasedService):
         self, name: str, pattern: str
     ) -> ExperimentParseResultDTO:
         return self.experiment_mapper.experiment_parse_result_to_dto(
-            parse_experiment_name(name, pattern)
+            parse_experiment_name(name, pattern, raise_error=False)
         )
 
+    # TODO add several patterns support to select which one to use
     async def parse_experiment_name_from_project(
         self, user: UserProtocol, project_id: UUID_TYPE, name: str
     ) -> ExperimentParseResultDTO:
@@ -60,8 +61,14 @@ class ExperimentService(ProjectBasedService):
         pattern = self._get_project_naming_pattern(project)
         return await self.parse_experiment_name(name, pattern)
 
+    # TODO cover with tests
+    # TODO For parent name must be used full name
     async def get_parent_id_if_accessible(
-        self, user: UserProtocol, project_id: UUID_TYPE, name: str
+        self,
+        user: UserProtocol,
+        project_id: UUID_TYPE,
+        name: str | None = None,
+        parent_name: str | None = None,
     ) -> UUID_TYPE | None:
         """Get parent experiment id if accessible by experiment name"""
         # Get project pattern
@@ -70,7 +77,15 @@ class ExperimentService(ProjectBasedService):
         )
         pattern = self._get_project_naming_pattern(project)
         # Get the parent number from the experiment name
-        parent_num = (await self.parse_experiment_name(name, pattern)).parent
+        if name:
+            parent_num = (await self.parse_experiment_name(name, pattern)).parent
+        elif parent_name:
+            parent_num = (await self.parse_experiment_name(parent_name, pattern)).num
+        else:
+            return None
+
+        if not parent_num:
+            return None
 
         # Get all experiments in project
         experiments = await self.experiment_repository.get_experiments_by_project(
@@ -82,7 +97,7 @@ class ExperimentService(ProjectBasedService):
         # Find parent experiment
         for experiment in experiments:
             result = await self.parse_experiment_name(experiment.name, pattern)
-            if result.num == parent_num:
+            if result.num and result.num == parent_num:
                 return experiment.id
         return None
 
@@ -116,13 +131,20 @@ class ExperimentService(ProjectBasedService):
                 f"You are not allowed to create an experiment in project {data.project_id}"
             )
         if data.parent_experiment_name:
+            # If parent experiment name is provided, use it to get the parent id
             parent_id = await self.get_parent_id_if_accessible(
                 user,
                 data.project_id,
-                data.parent_experiment_name,
+                parent_name=data.parent_experiment_name,
             )
         else:
-            parent_id = None
+            # TODO cover with tests
+            # Else try to get the parent id from the experiment name
+            parent_id = await self.get_parent_id_if_accessible(
+                user,
+                data.project_id,
+                name=data.name,
+            )
         props = CreateDTOToSchemaProps(owner_id=user.id, parent_experiment_id=parent_id)
         experiment = self.experiment_mapper.experiment_create_dto_to_schema(data, props)
         await self.experiment_repository.create(experiment)

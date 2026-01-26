@@ -36,6 +36,16 @@ def test_parse_experiment_name_missing_fields_defaults_to_empty_strings():
     assert result.change == ""
 
 
+def test_parse_experiment_name_missing_parent_and_change_defaults_to_empty_strings():
+    result = parse_experiment_name(
+        "007_change", DEFAULT_EXPERIMENT_NAME_PATTERN, raise_error=False
+    )
+
+    assert result.num == ""
+    assert result.parent == ""
+    assert result.change == "007_change"
+
+
 def test_concrete_pattern():
     pattern = "{num}_from_{parent}_change_{change}"
     result = parse_experiment_name("42_from_base_model_change_model_change_v2", pattern)

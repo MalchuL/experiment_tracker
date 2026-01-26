@@ -15,7 +15,9 @@ class ExperimentParseResult:
 DEFAULT_EXPERIMENT_NAME_PATTERN = "{num}_from_{parent}_{change}"
 
 
-def parse_experiment_name(name: str, pattern: str) -> ExperimentParseResult:
+def parse_experiment_name(
+    name: str, pattern: str, raise_error: bool = True
+) -> ExperimentParseResult:
     # Convert the pattern like "{num}_from_{parent}_{change}" to regex with named groups
     # Find all field names in the curly braces
     fields = re.findall(r"\{([^{}]+)\}", pattern)
@@ -36,9 +38,12 @@ def parse_experiment_name(name: str, pattern: str) -> ExperimentParseResult:
     regex_pattern += re.escape(pattern[last_pos:])
     match = re.fullmatch(regex_pattern, name)
     if not match:
-        raise ExperimentNameParseError(
-            f"Name '{name}' does not match pattern '{pattern}'"
-        )
+        # TODO remove this when add several patterns support to select which one to use
+        if raise_error:
+            raise ExperimentNameParseError(
+                f"Name '{name}' does not match pattern '{pattern}'"
+            )
+        return ExperimentParseResult(num="", parent="", change=name)
     d = match.groupdict()
     return ExperimentParseResult(
         num=d.get("num", ""), parent=d.get("parent", ""), change=d.get("change", "")
