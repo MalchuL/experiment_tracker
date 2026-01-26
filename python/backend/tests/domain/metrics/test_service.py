@@ -4,7 +4,7 @@ from uuid import uuid4
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from domain.metrics.dto import MetricCreate, MetricUpdate
+from domain.metrics.dto import MetricCreateDTO, MetricUpdateDTO
 from domain.metrics.error import MetricNotAccessibleError, MetricNotFoundError
 from domain.metrics.service import MetricService
 from domain.rbac.permissions import ProjectActions
@@ -130,7 +130,7 @@ class TestMetricService:
     ) -> None:
         project = await _create_project(db_session, test_user)
         experiment = await _create_experiment(db_session, project, "Experiment")
-        dto = MetricCreate(
+        dto = MetricCreateDTO(
             experiment_id=experiment.id,
             name="loss",
             value=1.23,
@@ -156,7 +156,7 @@ class TestMetricService:
             allowed=True,
             project_id=project.id,
         )
-        dto = MetricCreate(
+        dto = MetricCreateDTO(
             experiment_id=experiment.id,
             name="loss",
             value=1.23,
@@ -182,7 +182,7 @@ class TestMetricService:
         project = await _create_project(db_session, test_user)
         experiment = await _create_experiment(db_session, project, "Experiment")
         metric = await _create_metric(db_session, experiment, "accuracy")
-        dto = MetricUpdate(value=0.5)
+        dto = MetricUpdateDTO(value=0.5)
 
         with pytest.raises(MetricNotAccessibleError):
             await metric_service.update_metric(test_user, metric.id, dto)
@@ -203,7 +203,7 @@ class TestMetricService:
             allowed=True,
             project_id=project.id,
         )
-        dto = MetricUpdate(value=0.5, step=4)
+        dto = MetricUpdateDTO(value=0.5, step=4)
 
         updated = await metric_service.update_metric(test_user, metric.id, dto)
 
@@ -213,7 +213,7 @@ class TestMetricService:
     async def test_update_metric_missing_raises(
         self, metric_service: MetricService, test_user: User
     ) -> None:
-        dto = MetricUpdate(value=0.4)
+        dto = MetricUpdateDTO(value=0.4)
         with pytest.raises(MetricNotFoundError):
             await metric_service.update_metric(test_user, uuid4(), dto)
 

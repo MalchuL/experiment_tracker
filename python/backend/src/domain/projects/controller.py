@@ -5,7 +5,7 @@ from domain.hypotheses.dto import HypothesisDTO
 from domain.experiments.dto import ExperimentDTO
 from domain.experiments.service import ExperimentService
 from domain.hypotheses.service import HypothesisService
-from domain.metrics.dto import Metric as MetricDTO
+from domain.metrics.dto import MetricDTO as MetricDTO
 from domain.metrics.service import MetricService
 from lib.types import UUID_TYPE
 from fastapi import APIRouter, Depends, HTTPException

@@ -96,6 +96,8 @@ class ProjectService:
                 raise ProjectPermissionError(
                     f"User {user.id} does not have permission to update project {project_id}"
                 )
+            # TODO: Update metrics and settings if they are provided in the update dictionary
+            # Now this doesn't support for partial updates of metrics and settings (also in mapper).
             # Update the project in the repository
             updated_project = await self.project_repository.update(
                 project_id, **update_dict

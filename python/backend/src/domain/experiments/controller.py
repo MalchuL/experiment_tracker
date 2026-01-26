@@ -1,6 +1,8 @@
 from typing import List
 from uuid import UUID
 
+from domain.metrics.dto import MetricDTO
+from domain.metrics.service import MetricService
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -37,6 +39,19 @@ async def get_recent_experiments(
     service = ExperimentService(session)
     try:
         return await service.get_recent_experiments(user, limit)
+    except Exception as exc:  # noqa: BLE001
+        _raise_experiment_http_error(exc)
+
+
+@router.get("/{experiment_id}/metrics", response_model=List[MetricDTO])
+async def get_experiment_metrics(
+    experiment_id: UUID,
+    user: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_async_session),
+):
+    service = MetricService(session)
+    try:
+        return await service.get_aggregated_metrics_for_experiment(user, experiment_id)
     except Exception as exc:  # noqa: BLE001
         _raise_experiment_http_error(exc)
 
@@ -109,7 +124,3 @@ async def reorder_experiments(
     except Exception as exc:  # noqa: BLE001
         _raise_experiment_http_error(exc)
     return {"success": True}
-
-
-# TODO: implement service methods for these routes
-# - GET /experiments/{experiment_id}/metrics

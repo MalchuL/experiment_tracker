@@ -17,20 +17,20 @@ class MetricBase(BaseModel):
     model_config = model_config()
 
 
-class MetricCreate(MetricBase):
+class MetricCreateDTO(MetricBase):
     pass
 
     model_config = model_config()
 
 
-class Metric(MetricBase):
+class MetricDTO(MetricBase):
     id: UUID_TYPE
     created_at: datetime
 
     model_config = model_config()
 
 
-class MetricUpdate(BaseModel):
+class MetricUpdateDTO(BaseModel):
     name: str | None = Field(None, min_length=1)
     value: float | None = None
     step: int | None = None

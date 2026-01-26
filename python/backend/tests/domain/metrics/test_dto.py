@@ -3,7 +3,7 @@ from datetime import datetime
 import pytest
 from pydantic import ValidationError
 
-from domain.metrics.dto import Metric, MetricCreate, MetricUpdate
+from domain.metrics.dto import MetricDTO, MetricCreateDTO, MetricUpdateDTO
 from lib.dto_converter import DtoConverter
 
 
@@ -19,7 +19,7 @@ class TestMetricDTO:
     }
 
     def test_metric_dto_validation(self):
-        converter = DtoConverter[Metric](Metric)
+        converter = DtoConverter[MetricDTO](MetricDTO)
         dto = converter.dict_with_json_case_to_dto(self.INPUT_DATA)
         assert str(dto.id) == self.INPUT_DATA["id"]
         assert str(dto.experiment_id) == self.INPUT_DATA["experimentId"]
@@ -30,13 +30,13 @@ class TestMetricDTO:
         assert dto.created_at == datetime.fromisoformat(self.INPUT_DATA["createdAt"])
 
     def test_metric_dto_serialization(self):
-        converter = DtoConverter[Metric](Metric)
+        converter = DtoConverter[MetricDTO](MetricDTO)
         dto = converter.dict_with_json_case_to_dto(self.INPUT_DATA)
         dumped = converter.dto_to_json_dict_with_json_case(dto)
         assert dumped == self.INPUT_DATA
 
     def test_metric_dto_extra_forbid(self):
-        converter = DtoConverter[Metric](Metric)
+        converter = DtoConverter[MetricDTO](MetricDTO)
         data = dict(self.INPUT_DATA)
         data["extra"] = "nope"
         with pytest.raises(ValidationError):
@@ -53,7 +53,7 @@ class TestMetricCreateDTO:
     }
 
     def test_metric_create_dto_validation(self):
-        converter = DtoConverter[MetricCreate](MetricCreate)
+        converter = DtoConverter[MetricCreateDTO](MetricCreateDTO)
         dto = converter.dict_with_json_case_to_dto(self.INPUT_DATA)
         assert str(dto.experiment_id) == self.INPUT_DATA["experimentId"]
         assert dto.name == self.INPUT_DATA["name"]
@@ -62,13 +62,13 @@ class TestMetricCreateDTO:
         assert dto.direction == self.INPUT_DATA["direction"]
 
     def test_metric_create_dto_serialization(self):
-        converter = DtoConverter[MetricCreate](MetricCreate)
+        converter = DtoConverter[MetricCreateDTO](MetricCreateDTO)
         dto = converter.dict_with_json_case_to_dto(self.INPUT_DATA)
         dumped = converter.dto_to_json_dict_with_json_case(dto)
         assert dumped == self.INPUT_DATA
 
     def test_metric_create_dto_extra_forbid(self):
-        converter = DtoConverter[MetricCreate](MetricCreate)
+        converter = DtoConverter[MetricCreateDTO](MetricCreateDTO)
         data = dict(self.INPUT_DATA)
         data["extra"] = "nope"
         with pytest.raises(ValidationError):
@@ -84,7 +84,7 @@ class TestMetricUpdateDTO:
     }
 
     def test_metric_update_dto_validation(self):
-        converter = DtoConverter[MetricUpdate](MetricUpdate)
+        converter = DtoConverter[MetricUpdateDTO](MetricUpdateDTO)
         dto = converter.dict_with_json_case_to_dto(self.INPUT_DATA)
         assert dto.name == self.INPUT_DATA["name"]
         assert dto.value == self.INPUT_DATA["value"]
@@ -92,7 +92,7 @@ class TestMetricUpdateDTO:
         assert dto.direction == self.INPUT_DATA["direction"]
 
     def test_metric_update_dto_serialization(self):
-        converter = DtoConverter[MetricUpdate](MetricUpdate)
+        converter = DtoConverter[MetricUpdateDTO](MetricUpdateDTO)
         dto = converter.dict_with_json_case_to_dto(self.INPUT_DATA)
         dumped = converter.dto_to_json_dict_with_json_case(dto)
         assert dumped == self.INPUT_DATA

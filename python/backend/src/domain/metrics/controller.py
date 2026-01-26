@@ -5,7 +5,7 @@ from api.routes.auth import current_active_user
 from db.database import get_async_session
 from models import User
 
-from .dto import Metric, MetricCreate
+from .dto import MetricDTO, MetricCreateDTO
 from .error import MetricNotAccessibleError, MetricNotFoundError
 from .service import MetricService
 
@@ -20,9 +20,9 @@ def _raise_metric_http_error(error: Exception) -> None:
     raise HTTPException(status_code=400, detail=str(error))
 
 
-@router.post("", response_model=Metric)
+@router.post("", response_model=MetricDTO)
 async def create_metric(
-    data: MetricCreate,
+    data: MetricCreateDTO,
     user: User = Depends(current_active_user),
     session: AsyncSession = Depends(get_async_session),
 ):

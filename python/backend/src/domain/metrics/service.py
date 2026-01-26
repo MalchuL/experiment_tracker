@@ -9,8 +9,8 @@ from models import MetricAggregation, MetricDirection
 from sqlalchemy.ext.asyncio import AsyncSession
 from domain.projects.service import ProjectService
 
-from .dto import Metric as MetricDTO
-from .dto import MetricCreate, MetricUpdate
+from .dto import MetricDTO
+from .dto import MetricCreateDTO, MetricUpdateDTO
 from .error import MetricNotAccessibleError, MetricNotFoundError
 from .mapper import MetricMapper
 from .repository import MetricRepository
@@ -53,7 +53,9 @@ class MetricService:
         await self._assert_can_view_metrics(user, project_ids)
         return self.metric_mapper.metric_list_schema_to_dto(metrics)
 
-    async def create_metric(self, user: UserProtocol, data: MetricCreate) -> MetricDTO:
+    async def create_metric(
+        self, user: UserProtocol, data: MetricCreateDTO
+    ) -> MetricDTO:
         try:
             experiment = await self.experiment_repository.get_by_id(data.experiment_id)
         except DBNotFoundError as exc:
@@ -72,7 +74,7 @@ class MetricService:
         return self.metric_mapper.metric_schema_to_dto(metric)
 
     async def update_metric(
-        self, user: UserProtocol, metric_id: UUID_TYPE, data: MetricUpdate
+        self, user: UserProtocol, metric_id: UUID_TYPE, data: MetricUpdateDTO
     ) -> MetricDTO:
         try:
             metric = await self.metric_repository.get_by_id(metric_id)
@@ -119,6 +121,21 @@ class MetricService:
         await self.metric_repository.delete(metric_id)
         await self.metric_repository.commit()
         return True
+
+    # TODO cover with tests
+    async def get_aggregated_metrics_for_experiment(
+        self, user: UserProtocol, experiment_id: UUID_TYPE
+    ) -> List[MetricDTO]:
+
+        metrics = await self.metric_repository.get_metrics_by_experiment(
+            experiment_id, full_load=True
+        )
+        if not metrics:
+            return []
+        project_id = metrics[0].experiment.project_id
+        if not await self.permission_checker.can_view_metric(user.id, project_id):
+            raise MetricNotAccessibleError(f"Project {project_id} not accessible")
+        return metrics
 
     async def get_aggregated_metrics_for_project(
         self, user: UserProtocol, project_id: UUID_TYPE

@@ -2,7 +2,7 @@ from datetime import datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from domain.metrics.dto import MetricCreate, MetricUpdate
+from domain.metrics.dto import MetricCreateDTO, MetricUpdateDTO
 from domain.metrics.mapper import MetricMapper
 from models import Metric as MetricModel
 from models import MetricDirection, Project, User, Experiment
@@ -97,7 +97,7 @@ class TestMetricMapper:
 
     def test_metric_create_dto_to_schema(self):
         mapper = MetricMapper()
-        dto = MetricCreate(
+        dto = MetricCreateDTO(
             experiment_id="223e4567-e89b-12d3-a456-426614174000",
             name="loss",
             value=1.23,
@@ -115,7 +115,7 @@ class TestMetricMapper:
 
     def test_metric_update_dto_to_update_dict(self):
         mapper = MetricMapper()
-        dto = MetricUpdate(
+        dto = MetricUpdateDTO(
             name="updated",
             value=0.8,
             step=2,
