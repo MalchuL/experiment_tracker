@@ -209,7 +209,6 @@ class TestExperimentService:
             project_id=project.id,
             name="2_from_1_seed",
             description="Child",
-            parent_experiment_name="2_from_1_seed",
         )
 
         created = await experiment_service.create_experiment(test_user, dto)
