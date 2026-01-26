@@ -6,6 +6,7 @@ from domain.projects.dto import (
     ProjectSettingsDTO,
     ProjectUpdateDTO,
 )
+from domain.projects.dashboard.dto import DashboardStatsDTO
 from uuid import UUID
 import pytest
 from pydantic import ValidationError
@@ -240,6 +241,37 @@ class TestProjectUpdateDTO:
             dumped_data["settings"]["display_metrics"]
             == self.INPUT_DATA["settings"]["displayMetrics"]
         )
+
+
+class TestDashboardStatsDTO:
+    INPUT_DATA = {
+        "totalExperiments": 5,
+        "runningExperiments": 2,
+        "completedExperiments": 1,
+        "failedExperiments": 2,
+        "totalHypotheses": 3,
+        "supportedHypotheses": 1,
+        "refutedHypotheses": 2,
+    }
+
+    def test_dashboard_stats_dto_validation(self):
+        converter = DtoConverter[DashboardStatsDTO](DashboardStatsDTO)
+        dto = converter.dict_with_json_case_to_dto(self.INPUT_DATA)
+
+        assert dto.totalExperiments == self.INPUT_DATA["totalExperiments"]
+        assert dto.runningExperiments == self.INPUT_DATA["runningExperiments"]
+        assert dto.completedExperiments == self.INPUT_DATA["completedExperiments"]
+        assert dto.failedExperiments == self.INPUT_DATA["failedExperiments"]
+        assert dto.totalHypotheses == self.INPUT_DATA["totalHypotheses"]
+        assert dto.supportedHypotheses == self.INPUT_DATA["supportedHypotheses"]
+        assert dto.refutedHypotheses == self.INPUT_DATA["refutedHypotheses"]
+
+    def test_dashboard_stats_dto_serialization(self):
+        converter = DtoConverter[DashboardStatsDTO](DashboardStatsDTO)
+        dto = converter.dict_with_json_case_to_dto(self.INPUT_DATA)
+        dumped_data = converter.dto_to_json_dict_with_json_case(dto)
+
+        assert dumped_data == self.INPUT_DATA
         assert "created_at" not in dumped_data
         assert "id" not in dumped_data
 

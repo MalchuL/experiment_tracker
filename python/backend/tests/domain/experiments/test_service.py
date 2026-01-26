@@ -324,3 +324,39 @@ class TestExperimentService:
     ) -> None:
         with pytest.raises(DBNotFoundError):
             await experiment_service.get_experiment_if_accessible(test_user, uuid4())
+
+    async def test_get_experiments_by_project_requires_permission(
+        self,
+        experiment_service: ExperimentService,
+        db_session: AsyncSession,
+        test_user: User,
+    ) -> None:
+        project = await _create_project(db_session, test_user)
+        await _create_experiment(db_session, project, "Experiment")
+
+        with pytest.raises(ExperimentNotAccessibleError):
+            await experiment_service.get_experiments_by_project(test_user, project.id)
+
+    async def test_get_experiments_by_project_returns_list(
+        self,
+        experiment_service: ExperimentService,
+        db_session: AsyncSession,
+        test_user: User,
+    ) -> None:
+        project = await _create_project(db_session, test_user)
+        exp_a = await _create_experiment(db_session, project, "Experiment A")
+        exp_b = await _create_experiment(db_session, project, "Experiment B")
+        permission_service = PermissionService(db_session, auto_commit=True)
+        await permission_service.add_permission(
+            user_id=test_user.id,
+            action=ProjectActions.VIEW_EXPERIMENT,
+            allowed=True,
+            project_id=project.id,
+        )
+
+        experiments = await experiment_service.get_experiments_by_project(
+            test_user, project.id
+        )
+
+        experiment_ids = {experiment.id for experiment in experiments}
+        assert experiment_ids == {exp_a.id, exp_b.id}

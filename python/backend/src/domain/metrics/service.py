@@ -120,7 +120,6 @@ class MetricService:
         await self.metric_repository.commit()
         return True
 
-    # TODO cover with tests
     async def get_aggregated_metrics_for_project(
         self, user: UserProtocol, project_id: UUID_TYPE
     ) -> Dict[UUID_TYPE, Dict[str, MetricDTO]]:
@@ -142,28 +141,28 @@ class MetricService:
             experiment_metrics = {}
             for project_metric in project_metrics:
                 metric_name = project_metric.name
-                metrics = [
+                matching_metrics = [
                     metric
                     for metric in experiment.metrics
                     if metric.name == metric_name
                 ]
-                if not metrics:
+                if not matching_metrics:
                     continue
 
                 aggregation_str = project_metric.aggregation
                 direction_str = project_metric.direction
                 if aggregation_str == MetricAggregation.LAST:
-                    metric = max(metrics, key=lambda m: m.step)
+                    metric = max(matching_metrics, key=lambda m: m.step)
                 elif (
                     aggregation_str == MetricAggregation.BEST
                     and direction_str == MetricDirection.MAXIMIZE
                 ):
-                    metric = max(metrics, key=lambda m: m.value)
+                    metric = max(matching_metrics, key=lambda m: m.value)
                 elif (
                     aggregation_str == MetricAggregation.BEST
                     and direction_str == MetricDirection.MINIMIZE
                 ):
-                    metric = min(metrics, key=lambda m: m.value)
+                    metric = min(matching_metrics, key=lambda m: m.value)
                 elif aggregation_str == MetricAggregation.AVERAGE:
                     raise NotImplementedError(f"AVERAGE aggregation is not supported")
                     # metric = sum(metrics, key=lambda m: m.value) / len(metrics)

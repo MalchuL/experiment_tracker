@@ -112,5 +112,4 @@ async def reorder_experiments(
 
 
 # TODO: implement service methods for these routes
-# - GET /experiments
 # - GET /experiments/{experiment_id}/metrics

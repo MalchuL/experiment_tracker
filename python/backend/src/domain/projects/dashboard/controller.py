@@ -13,7 +13,6 @@ router = APIRouter(
 )
 
 
-# TODO cover with tests
 @router.get("/project/{project_id}/stats")
 async def get_dashboard_stats(
     project_id: UUID,

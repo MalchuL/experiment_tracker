@@ -9,7 +9,6 @@ from domain.rbac.wrapper import PermissionChecker
 from domain.projects.errors import ProjectNotAccessibleError
 
 
-# TODO cover with tests
 class DashboardService:
     def __init__(self, session: AsyncSession):
         self.session = session

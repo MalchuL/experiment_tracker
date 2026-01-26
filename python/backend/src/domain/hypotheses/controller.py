@@ -35,7 +35,6 @@ async def get_all_hypotheses(
         _raise_hypothesis_http_error(exc)
 
 
-# TODO Cover with tests
 @router.get("/recent", response_model=List[HypothesisDTO])
 async def get_recent_hypotheses(
     projectId: UUID,
@@ -46,7 +45,7 @@ async def get_recent_hypotheses(
     print(projectId)
     print(user)
     service = HypothesisService(session)
-    return await service.get_hypotheses_by_project(user, projectId)
+    return await service.get_hypotheses_by_project(user, projectId, limit=limit)
 
 
 @router.get("/{hypothesis_id}", response_model=HypothesisDTO)

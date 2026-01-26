@@ -187,7 +187,6 @@ class ExperimentService(ProjectBasedService):
         await self.experiment_repository.commit()
         return True
 
-    # TODO cover with tests
     async def get_experiments_by_project(
         self, user: UserProtocol, project_id: UUID_TYPE
     ) -> List[ExperimentDTO]:

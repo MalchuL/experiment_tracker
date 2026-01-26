@@ -195,3 +195,43 @@ class TestHypothesisControllerAccess:
         response = viewer_client.delete(f"/api/v1/hypotheses/{hypothesis['id']}")
 
         assert response.status_code == 403
+
+    async def test_get_recent_hypotheses_for_project(
+        self, auth_client, test_user: User, test_user_2: User
+    ):
+        owner_client = auth_client(test_user)
+        team_id = _create_team(owner_client)
+        _add_team_member(owner_client, team_id, str(test_user_2.id), role="viewer")
+        project = _create_project(owner_client, team_id)
+        first = owner_client.post(
+            "/api/v1/hypotheses",
+            json={
+                "projectId": project["id"],
+                "title": "First hypothesis",
+                "description": "First description",
+                "author": "owner",
+                "targetMetrics": ["conversion_rate"],
+            },
+        )
+        assert first.status_code == 200
+        second = owner_client.post(
+            "/api/v1/hypotheses",
+            json={
+                "projectId": project["id"],
+                "title": "Second hypothesis",
+                "description": "Second description",
+                "author": "owner",
+                "targetMetrics": ["retention_rate"],
+            },
+        )
+        assert second.status_code == 200
+
+        viewer_client = auth_client(test_user_2)
+        response = viewer_client.get(
+            f"/api/v1/hypotheses/recent?projectId={project['id']}&limit=1"
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 1
+        assert data[0]["id"] == second.json()["id"]
