@@ -4,9 +4,10 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api.routes.auth import current_active_user
+from api.routes.auth import get_current_user_dual, require_api_token_scopes
 from db.database import get_async_session
 from models import User
+from domain.rbac.permissions import ProjectActions
 
 from .dto import HypothesisCreateDTO, HypothesisDTO, HypothesisUpdateDTO
 from .error import HypothesisNotAccessibleError, HypothesisNotFoundError
@@ -25,7 +26,8 @@ def _raise_hypothesis_http_error(error: Exception) -> None:
 
 @router.get("", response_model=List[HypothesisDTO])
 async def get_all_hypotheses(
-    user: User = Depends(current_active_user),
+    user: User = Depends(get_current_user_dual),
+    _: None = Depends(require_api_token_scopes(ProjectActions.VIEW_HYPOTHESIS)),
     session: AsyncSession = Depends(get_async_session),
 ):
     service = HypothesisService(session)
@@ -39,7 +41,8 @@ async def get_all_hypotheses(
 async def get_recent_hypotheses(
     projectId: UUID,
     limit: int = 10,
-    user: User = Depends(current_active_user),
+    user: User = Depends(get_current_user_dual),
+    _: None = Depends(require_api_token_scopes(ProjectActions.VIEW_HYPOTHESIS)),
     session: AsyncSession = Depends(get_async_session),
 ):
     print(projectId)
@@ -51,7 +54,8 @@ async def get_recent_hypotheses(
 @router.get("/{hypothesis_id}", response_model=HypothesisDTO)
 async def get_hypothesis(
     hypothesis_id: UUID,
-    user: User = Depends(current_active_user),
+    user: User = Depends(get_current_user_dual),
+    _: None = Depends(require_api_token_scopes(ProjectActions.VIEW_HYPOTHESIS)),
     session: AsyncSession = Depends(get_async_session),
 ):
     service = HypothesisService(session)
@@ -64,7 +68,8 @@ async def get_hypothesis(
 @router.post("", response_model=HypothesisDTO)
 async def create_hypothesis(
     data: HypothesisCreateDTO,
-    user: User = Depends(current_active_user),
+    user: User = Depends(get_current_user_dual),
+    _: None = Depends(require_api_token_scopes(ProjectActions.CREATE_HYPOTHESIS)),
     session: AsyncSession = Depends(get_async_session),
 ):
     service = HypothesisService(session)
@@ -78,7 +83,8 @@ async def create_hypothesis(
 async def update_hypothesis(
     hypothesis_id: UUID,
     data: HypothesisUpdateDTO,
-    user: User = Depends(current_active_user),
+    user: User = Depends(get_current_user_dual),
+    _: None = Depends(require_api_token_scopes(ProjectActions.EDIT_HYPOTHESIS)),
     session: AsyncSession = Depends(get_async_session),
 ):
     service = HypothesisService(session)
@@ -91,7 +97,8 @@ async def update_hypothesis(
 @router.delete("/{hypothesis_id}")
 async def delete_hypothesis(
     hypothesis_id: UUID,
-    user: User = Depends(current_active_user),
+    user: User = Depends(get_current_user_dual),
+    _: None = Depends(require_api_token_scopes(ProjectActions.DELETE_HYPOTHESIS)),
     session: AsyncSession = Depends(get_async_session),
 ):
     service = HypothesisService(session)

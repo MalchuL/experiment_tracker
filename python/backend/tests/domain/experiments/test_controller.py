@@ -7,7 +7,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api.routes.auth import current_active_user
+from api.routes.auth import get_current_user_dual
 from db.database import get_async_session
 from domain.experiments.controller import router as experiments_router
 from domain.projects.controller import router as projects_router
@@ -35,7 +35,7 @@ def test_app(db_session: AsyncSession, test_user: User) -> FastAPI:
         return test_user
 
     app.dependency_overrides[get_async_session] = override_get_db
-    app.dependency_overrides[current_active_user] = override_current_user
+    app.dependency_overrides[get_current_user_dual] = override_current_user
     return app
 
 
@@ -50,7 +50,7 @@ def auth_client(test_app: FastAPI):
         async def override_current_user():
             return user
 
-        test_app.dependency_overrides[current_active_user] = override_current_user
+        test_app.dependency_overrides[get_current_user_dual] = override_current_user
         return TestClient(test_app)
 
     return _get_auth_client

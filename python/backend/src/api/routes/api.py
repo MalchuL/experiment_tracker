@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 
 from api.routes.auth import router as auth_router
+from domain.api_tokens.controller import router as api_tokens_router
 from domain.experiments.controller import router as experiments_router
 from domain.hypotheses.controller import router as hypotheses_router
 from domain.metrics.controller import router as metrics_router
@@ -19,3 +20,4 @@ router.include_router(metrics_router, prefix=API_PREFIX)
 router.include_router(teams_router, prefix=API_PREFIX)
 router.include_router(dashboard_router, prefix=API_PREFIX)
 router.include_router(auth_router)
+router.include_router(api_tokens_router)

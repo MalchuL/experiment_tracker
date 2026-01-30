@@ -115,6 +115,34 @@ class User(SQLAlchemyBaseUserTableUUID, Base):
     owned_teams: Mapped[List["Team"]] = relationship(
         "Team", back_populates="owner", foreign_keys="Team.owner_id", lazy="raise"
     )
+    api_tokens: Mapped[List["ApiToken"]] = relationship(
+        "ApiToken",
+        back_populates="user",
+        cascade="all, delete-orphan",
+        lazy="raise",
+    )
+
+
+class ApiToken(UUIDBase):
+    __tablename__ = "api_tokens"
+
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    token_hash: Mapped[str] = mapped_column(
+        String(64), nullable=False, unique=True, index=True
+    )
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    scopes: Mapped[list[str]] = mapped_column(JSONB, default=list)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
+    expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    revoked: Mapped[bool] = mapped_column(Boolean, default=False)
+    last_used_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+
+    user: Mapped["User"] = relationship(
+        "User", back_populates="api_tokens", lazy="raise"
+    )
 
 
 class Team(UUIDBase):

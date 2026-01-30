@@ -17,3 +17,6 @@ __pycache__
 .env.test.local
 .env.production.local
 .vscode
+
+# TODO remove after permission update
+python/backend/permission_update.md

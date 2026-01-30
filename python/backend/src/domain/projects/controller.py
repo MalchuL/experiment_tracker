@@ -11,9 +11,11 @@ from lib.types import UUID_TYPE
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api.routes.auth import current_active_user
+from api.routes.auth import get_current_user_dual, require_api_token_scopes
 from db.database import get_async_session
 from models import User
+from domain.rbac.permissions import ProjectActions
+from domain.rbac.permissions.team import TeamActions
 
 from .dto import ProjectCreateDTO, ProjectDTO, ProjectUpdateDTO
 from .errors import ProjectNotAccessibleError, ProjectPermissionError
@@ -32,7 +34,8 @@ def _raise_project_http_error(error: Exception) -> None:
 
 @router.get("", response_model=List[ProjectDTO])
 async def get_all_projects(
-    user: User = Depends(current_active_user),
+    user: User = Depends(get_current_user_dual),
+    _: None = Depends(require_api_token_scopes(ProjectActions.VIEW_PROJECT)),
     session: AsyncSession = Depends(get_async_session),
 ):
     service = ProjectService(session)
@@ -45,7 +48,8 @@ async def get_all_projects(
 @router.get("/{project_id}/experiments", response_model=List[ExperimentDTO])
 async def get_project_experiments(
     project_id: UUID,
-    user: User = Depends(current_active_user),
+    user: User = Depends(get_current_user_dual),
+    _: None = Depends(require_api_token_scopes(ProjectActions.VIEW_EXPERIMENT)),
     session: AsyncSession = Depends(get_async_session),
 ):
     service = ExperimentService(session)
@@ -58,7 +62,8 @@ async def get_project_experiments(
 @router.get("/{project_id}/hypotheses", response_model=List[HypothesisDTO])
 async def get_project_hypotheses(
     project_id: UUID,
-    user: User = Depends(current_active_user),
+    user: User = Depends(get_current_user_dual),
+    _: None = Depends(require_api_token_scopes(ProjectActions.VIEW_HYPOTHESIS)),
     session: AsyncSession = Depends(get_async_session),
 ):
     service = HypothesisService(session)
@@ -74,7 +79,8 @@ async def get_project_hypotheses(
 )
 async def get_aggregatedproject_metrics(
     project_id: UUID,
-    user: User = Depends(current_active_user),
+    user: User = Depends(get_current_user_dual),
+    _: None = Depends(require_api_token_scopes(ProjectActions.VIEW_METRIC)),
     session: AsyncSession = Depends(get_async_session),
 ):
     service = MetricService(session)
@@ -87,7 +93,8 @@ async def get_aggregatedproject_metrics(
 @router.get("/{project_id}", response_model=ProjectDTO)
 async def get_project(
     project_id: UUID,
-    user: User = Depends(current_active_user),
+    user: User = Depends(get_current_user_dual),
+    _: None = Depends(require_api_token_scopes(ProjectActions.VIEW_PROJECT)),
     session: AsyncSession = Depends(get_async_session),
 ):
     service = ProjectService(session)
@@ -103,7 +110,8 @@ async def get_project(
 @router.post("", response_model=ProjectDTO)
 async def create_project(
     data: ProjectCreateDTO,
-    user: User = Depends(current_active_user),
+    user: User = Depends(get_current_user_dual),
+    _: None = Depends(require_api_token_scopes(TeamActions.CREATE_PROJECT)),
     session: AsyncSession = Depends(get_async_session),
 ):
     service = ProjectService(session)
@@ -117,7 +125,8 @@ async def create_project(
 async def update_project(
     project_id: UUID,
     data: ProjectUpdateDTO,
-    user: User = Depends(current_active_user),
+    user: User = Depends(get_current_user_dual),
+    _: None = Depends(require_api_token_scopes(ProjectActions.EDIT_PROJECT)),
     session: AsyncSession = Depends(get_async_session),
 ):
     service = ProjectService(session)
@@ -130,7 +139,8 @@ async def update_project(
 @router.delete("/{project_id}")
 async def delete_project(
     project_id: UUID,
-    user: User = Depends(current_active_user),
+    user: User = Depends(get_current_user_dual),
+    _: None = Depends(require_api_token_scopes(ProjectActions.DELETE_PROJECT)),
     session: AsyncSession = Depends(get_async_session),
 ):
     service = ProjectService(session)

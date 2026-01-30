@@ -1,9 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api.routes.auth import current_active_user
+from api.routes.auth import get_current_user_dual, require_api_token_scopes
 from db.database import get_async_session
 from models import User
+from domain.rbac.permissions import ProjectActions
 
 from .dto import MetricDTO, MetricCreateDTO
 from .error import MetricNotAccessibleError, MetricNotFoundError
@@ -23,7 +24,8 @@ def _raise_metric_http_error(error: Exception) -> None:
 @router.post("", response_model=MetricDTO)
 async def create_metric(
     data: MetricCreateDTO,
-    user: User = Depends(current_active_user),
+    user: User = Depends(get_current_user_dual),
+    _: None = Depends(require_api_token_scopes(ProjectActions.CREATE_METRIC)),
     session: AsyncSession = Depends(get_async_session),
 ):
     service = MetricService(session)

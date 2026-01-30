@@ -6,7 +6,7 @@ from domain.metrics.service import MetricService
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api.routes.auth import current_active_user
+from api.routes.auth import get_current_user_dual, require_api_token_scopes
 from db.database import get_async_session
 from models import User
 
@@ -18,6 +18,7 @@ from .dto import (
 )
 from .error import ExperimentNamePatternNotSetError, ExperimentNotAccessibleError
 from .service import ExperimentService
+from domain.rbac.permissions import ProjectActions
 
 router = APIRouter(prefix="/experiments", tags=["experiments"])
 
@@ -33,7 +34,8 @@ def _raise_experiment_http_error(error: Exception) -> None:
 @router.get("/recent", response_model=List[ExperimentDTO])
 async def get_recent_experiments(
     limit: int = 10,
-    user: User = Depends(current_active_user),
+    user: User = Depends(get_current_user_dual),
+    _: None = Depends(require_api_token_scopes(ProjectActions.VIEW_EXPERIMENT)),
     session: AsyncSession = Depends(get_async_session),
 ):
     service = ExperimentService(session)
@@ -46,7 +48,8 @@ async def get_recent_experiments(
 @router.get("/{experiment_id}/metrics", response_model=List[MetricDTO])
 async def get_experiment_metrics(
     experiment_id: UUID,
-    user: User = Depends(current_active_user),
+    user: User = Depends(get_current_user_dual),
+    _: None = Depends(require_api_token_scopes(ProjectActions.VIEW_METRIC)),
     session: AsyncSession = Depends(get_async_session),
 ):
     service = MetricService(session)
@@ -59,7 +62,8 @@ async def get_experiment_metrics(
 @router.get("/{experiment_id}", response_model=ExperimentDTO)
 async def get_experiment(
     experiment_id: UUID,
-    user: User = Depends(current_active_user),
+    user: User = Depends(get_current_user_dual),
+    _: None = Depends(require_api_token_scopes(ProjectActions.VIEW_EXPERIMENT)),
     session: AsyncSession = Depends(get_async_session),
 ):
     service = ExperimentService(session)
@@ -72,7 +76,8 @@ async def get_experiment(
 @router.post("", response_model=ExperimentDTO)
 async def create_experiment(
     data: ExperimentCreateDTO,
-    user: User = Depends(current_active_user),
+    user: User = Depends(get_current_user_dual),
+    _: None = Depends(require_api_token_scopes(ProjectActions.CREATE_EXPERIMENT)),
     session: AsyncSession = Depends(get_async_session),
 ):
     service = ExperimentService(session)
@@ -86,7 +91,8 @@ async def create_experiment(
 async def update_experiment(
     experiment_id: UUID,
     data: ExperimentUpdateDTO,
-    user: User = Depends(current_active_user),
+    user: User = Depends(get_current_user_dual),
+    _: None = Depends(require_api_token_scopes(ProjectActions.EDIT_EXPERIMENT)),
     session: AsyncSession = Depends(get_async_session),
 ):
     service = ExperimentService(session)
@@ -99,7 +105,8 @@ async def update_experiment(
 @router.delete("/{experiment_id}")
 async def delete_experiment(
     experiment_id: UUID,
-    user: User = Depends(current_active_user),
+    user: User = Depends(get_current_user_dual),
+    _: None = Depends(require_api_token_scopes(ProjectActions.DELETE_EXPERIMENT)),
     session: AsyncSession = Depends(get_async_session),
 ):
     service = ExperimentService(session)
@@ -115,7 +122,8 @@ async def delete_experiment(
 @router.post("/reorder")
 async def reorder_experiments(
     data: ExperimentReorderDTO,
-    user: User = Depends(current_active_user),
+    user: User = Depends(get_current_user_dual),
+    _: None = Depends(require_api_token_scopes(ProjectActions.EDIT_EXPERIMENT)),
     session: AsyncSession = Depends(get_async_session),
 ):
     service = ExperimentService(session)

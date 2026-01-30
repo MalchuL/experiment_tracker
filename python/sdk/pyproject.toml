@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "experiment-tracker-sdk"
+version = "0.1.0"
+description = "Python SDK for Experiment Tracker"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "httpx>=0.27.0",
+  "pydantic>=2.6.0",
+]
+
+[project.scripts]
+experiment-tracker = "experiment_tracker_sdk.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

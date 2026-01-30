@@ -8,7 +8,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { LogOut, Users } from "lucide-react";
+import { Key, LogOut, Users } from "lucide-react";
 import Link from "next/link";
 
 export function UserMenu() {
@@ -39,6 +39,12 @@ export function UserMenu() {
           <Link href="/teams" className="cursor-pointer" data-testid="menu-teams">
             <Users className="mr-2 h-4 w-4" />
             Teams
+          </Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <Link href="/profile/api-tokens" className="cursor-pointer" data-testid="menu-api-tokens">
+            <Key className="mr-2 h-4 w-4" />
+            API Tokens
           </Link>
         </DropdownMenuItem>
         <DropdownMenuSeparator />

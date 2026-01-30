@@ -21,6 +21,14 @@ export const API_ROUTES = {
   
     USERS: {
       ME: "/users/me",
+      API_TOKENS: {
+        LIST: "/users/me/api-tokens",
+        CREATE: "/users/me/api-tokens",
+        BY_ID: {
+          UPDATE: (tokenId: string) => `/users/me/api-tokens/${tokenId}`,
+          DELETE: (tokenId: string) => `/users/me/api-tokens/${tokenId}`,
+        },
+      },
   
       BY_ID: {
         GET: (id: string) => `/users/${id}`,

@@ -3,9 +3,10 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api.routes.auth import current_active_user
+from api.routes.auth import get_current_user_dual, require_api_token_scopes
 from db.database import get_async_session
 from models import User
+from domain.rbac.permissions.team import TeamActions
 
 from .dto import (
     TeamCreateDTO,
@@ -40,7 +41,8 @@ def _raise_team_http_error(error: Exception) -> None:
 @router.post("", response_model=TeamReadDTO)
 async def create_team(
     data: TeamCreateDTO,
-    user: User = Depends(current_active_user),
+    user: User = Depends(get_current_user_dual),
+    _: None = Depends(require_api_token_scopes(TeamActions.MANAGE_TEAM)),
     session: AsyncSession = Depends(get_async_session),
 ):
     service = TeamService(session)
@@ -53,7 +55,8 @@ async def create_team(
 @router.patch("", response_model=TeamReadDTO)
 async def update_team(
     data: TeamUpdateDTO,
-    user: User = Depends(current_active_user),
+    user: User = Depends(get_current_user_dual),
+    _: None = Depends(require_api_token_scopes(TeamActions.MANAGE_TEAM)),
     session: AsyncSession = Depends(get_async_session),
 ):
     service = TeamService(session)
@@ -67,7 +70,8 @@ async def update_team(
 @router.post("/members", response_model=TeamMemberReadDTO)
 async def add_team_member(
     data: TeamMemberCreateDTO,
-    user: User = Depends(current_active_user),
+    user: User = Depends(get_current_user_dual),
+    _: None = Depends(require_api_token_scopes(TeamActions.MANAGE_TEAM)),
     session: AsyncSession = Depends(get_async_session),
 ):
     service = TeamService(session)
@@ -80,7 +84,8 @@ async def add_team_member(
 @router.patch("/members", response_model=TeamMemberReadDTO)
 async def update_team_member(
     data: TeamMemberUpdateDTO,
-    user: User = Depends(current_active_user),
+    user: User = Depends(get_current_user_dual),
+    _: None = Depends(require_api_token_scopes(TeamActions.MANAGE_TEAM)),
     session: AsyncSession = Depends(get_async_session),
 ):
     service = TeamService(session)
@@ -93,7 +98,8 @@ async def update_team_member(
 @router.delete("/members")
 async def remove_team_member(
     data: TeamMemberDeleteDTO,
-    user: User = Depends(current_active_user),
+    user: User = Depends(get_current_user_dual),
+    _: None = Depends(require_api_token_scopes(TeamActions.MANAGE_TEAM)),
     session: AsyncSession = Depends(get_async_session),
 ):
     service = TeamService(session)
@@ -107,7 +113,8 @@ async def remove_team_member(
 @router.delete("/{team_id}")
 async def delete_team(
     team_id: UUID,
-    user: User = Depends(current_active_user),
+    user: User = Depends(get_current_user_dual),
+    _: None = Depends(require_api_token_scopes(TeamActions.DELETE_TEAM)),
     session: AsyncSession = Depends(get_async_session),
 ):
     service = TeamService(session)
