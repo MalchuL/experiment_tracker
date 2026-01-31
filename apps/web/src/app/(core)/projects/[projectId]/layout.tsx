@@ -5,7 +5,7 @@ import { SidebarTrigger } from "@/components/ui/sidebar";
 import { ThemeToggle } from "@/components/shared/theme-toggle";
 import { UserMenu } from "@/components/shared/user-menu";
 import { ProjectProvider } from "@/domain/projects/hooks";
-import { useParams } from "next/navigation";
+import { useParams, usePathname } from "next/navigation";
 
 export default function ProjectLayout({
   children,
@@ -18,6 +18,12 @@ export default function ProjectLayout({
   };
 
   const { projectId } = useParams<{ projectId: string }>();
+  // Dirty hack to get the container class name for the DAG page
+  const pathname = usePathname();
+  const isDagPage = pathname?.endsWith("/dag");
+  const containerClassName = isDagPage
+    ? "w-full max-w-none p-0 h-full flex flex-col"
+    : "container max-w-screen-2xl mx-auto p-6";
 
   return (
     <SidebarProvider style={sidebarStyle as React.CSSProperties}>
@@ -33,9 +39,7 @@ export default function ProjectLayout({
               </div>
             </header>
             <main className="flex-1 overflow-auto">
-              <div className="container max-w-screen-2xl mx-auto p-6">
-                {children}
-              </div>
+              <div className={containerClassName}>{children}</div>
             </main>
           </SidebarInset>
         </ProjectProvider>

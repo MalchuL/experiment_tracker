@@ -333,8 +333,8 @@ export default function DAGView() {
   }
 
   return (
-    <div className="h-[calc(100vh-8rem)] flex flex-col -m-6">
-      <div className="px-6 pt-6 pb-2">
+    <div className="h-full min-h-0 flex flex-col">
+      <div className="w-full max-w-screen-2xl mx-auto px-6 pt-6 pb-2">
         <PageHeader
           title="DAG View"
           description={`Experiment hierarchy for "${project?.name}"`}
