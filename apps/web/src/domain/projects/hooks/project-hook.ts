@@ -11,7 +11,7 @@ export interface ProjectHookOptions {
 }
 
 export interface ProjectHookResult {
-    project: Project;
+    project: Project | undefined;
     isLoading: boolean;
     updateIsPending: boolean;
     deleteIsPending: boolean;
@@ -19,19 +19,20 @@ export interface ProjectHookResult {
     deleteProject: (options?: ProjectHookOptions) => Promise<void>;
 }
 
-export function useProject(projectId: string): ProjectHookResult {
+export function useProject(projectId?: string): ProjectHookResult {
     const { data: project, isLoading } = useQuery({
-        queryKey: [QUERY_KEYS.PROJECTS.GET_BY_ID(projectId)],
-        queryFn: () => projectsService.getById(projectId),
-    }) as { data: Project, isLoading: boolean };
+        queryKey: projectId ? [QUERY_KEYS.PROJECTS.GET_BY_ID(projectId)] : [],
+        queryFn: () => projectsService.getById(projectId!),
+        enabled: !!projectId,
+    });
 
 
     const updateProject = useMutation({
-        mutationFn: (project: UpdateProject) => projectsService.update(projectId, project) as unknown as Promise<void>,
+        mutationFn: (project: UpdateProject) => projectsService.update(projectId!, project) as unknown as Promise<void>,
     });
 
     const deleteProject = useMutation({
-        mutationFn: () => projectsService.delete(projectId) as unknown as Promise<void>,
+        mutationFn: () => projectsService.delete(projectId!) as unknown as Promise<void>,
     });
 
 

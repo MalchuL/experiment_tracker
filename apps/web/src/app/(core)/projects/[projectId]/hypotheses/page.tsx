@@ -27,7 +27,6 @@ export default function Hypotheses() {
   const projectId = project?.id;
   const { hypotheses, isLoading: hypothesesLoading, deleteHypothesis } = useHypotheses(projectId);
   const queryClient = useQueryClient();
-
   const handleDeleteHypothesis = useCallback((hypothesisId: string) => {
     deleteHypothesis(hypothesisId, {
       onSuccess: () => {

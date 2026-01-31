@@ -24,6 +24,13 @@ class RequestQueue:
         max_queue_size: int = 1000,
         poll_interval: float = 0.5,
     ):
+        """Create a background queue for async-like request logging.
+
+        Args:
+            client: httpx client used to send requests.
+            max_queue_size: Max items buffered before blocking.
+            poll_interval: Poll interval in seconds for worker thread.
+        """
         self._client = client
         self._queue: queue.Queue[RequestItem] = queue.Queue(maxsize=max_queue_size)
         self._poll_interval = poll_interval
@@ -32,6 +39,11 @@ class RequestQueue:
         self._thread.start()
 
     def enqueue(self, item: RequestItem) -> None:
+        """Enqueue a request item, blocking if the queue is full.
+
+        Args:
+            item: RequestItem with method/path/payload.
+        """
         if self._queue.full():
             logger.warning("request_queue_full_blocking", extra={"path": item.path})
             # Block until the queue drains to avoid dropping requests.
@@ -39,14 +51,21 @@ class RequestQueue:
         self._queue.put(item, block=True)
 
     def flush(self, timeout: Optional[float] = None) -> None:
+        """Wait for all queued requests to finish sending.
+
+        Args:
+            timeout: Reserved for future timeout handling.
+        """
         self._queue.join()
 
     def close(self) -> None:
+        """Stop the background thread after flushing remaining items."""
         self._stop_event.set()
         self.flush()
         self._thread.join(timeout=2.0)
 
     def _run(self) -> None:
+        """Worker loop that sends queued requests."""
         while not self._stop_event.is_set() or not self._queue.empty():
             try:
                 item = self._queue.get(timeout=self._poll_interval)

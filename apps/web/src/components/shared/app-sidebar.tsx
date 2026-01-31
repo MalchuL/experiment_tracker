@@ -24,8 +24,6 @@ import {
   LayoutDashboard
 } from "lucide-react";
 import { FRONTEND_ROUTES } from "@/lib/constants/frontend-routes";
-import { useParams } from "next/navigation";
-import { useProject } from "@/domain/projects/hooks/project-hook";
 import { useCurrentProject } from '@/domain/projects/hooks/project-provider';
 import { Skeleton } from '../ui/skeleton';
 

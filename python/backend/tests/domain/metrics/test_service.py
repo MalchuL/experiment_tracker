@@ -327,16 +327,17 @@ class TestMetricService:
             test_user, project.id
         )
 
-        assert experiment.id in result
-        experiment_metrics = result[experiment.id]
-        assert set(experiment_metrics.keys()) == {"accuracy", "loss", "score"}
-        assert experiment_metrics["accuracy"].id == metric_accuracy_latest.id
-        assert experiment_metrics["accuracy"].value == metric_accuracy_latest.value
-        assert experiment_metrics["loss"].id == metric_loss_best.id
-        assert experiment_metrics["score"].id == metric_score_best.id
-        assert experiment_metrics["loss"].id != metric_loss_worse.id
-        assert experiment_metrics["accuracy"].id != metric_accuracy_last.id
-        assert experiment_metrics["score"].id != metric_score_worse.id
+        assert len(result) == 3
+        assert {metric.experiment_id for metric in result} == {experiment.id}
+        metrics_by_name = {metric.name: metric for metric in result}
+        assert set(metrics_by_name.keys()) == {"accuracy", "loss", "score"}
+        assert metrics_by_name["accuracy"].id == metric_accuracy_latest.id
+        assert metrics_by_name["accuracy"].value == metric_accuracy_latest.value
+        assert metrics_by_name["loss"].id == metric_loss_best.id
+        assert metrics_by_name["score"].id == metric_score_best.id
+        assert metrics_by_name["loss"].id != metric_loss_worse.id
+        assert metrics_by_name["accuracy"].id != metric_accuracy_last.id
+        assert metrics_by_name["score"].id != metric_score_worse.id
 
     async def test_get_aggregated_metrics_for_project_average_raises(
         self,

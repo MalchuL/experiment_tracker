@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { hypothesisService } from "../services";
 import { QUERY_KEYS } from "@/lib/constants/query-keys";
 import { Hypothesis } from "../types";
+import { useMemo } from "react";
 
 export interface UseHypothesesOptions {
     onSuccess?: () => void;
@@ -36,9 +37,12 @@ export function useHypotheses(projectId?: string): UseHypothesesResult {
         },
     });
 
+    const hypothesesCached = useMemo(() => {
+        return hypotheses || [];
+    }, [hypotheses]);
 
     return {
-        hypotheses: hypotheses ?? [],
+        hypotheses: hypothesesCached,
         isLoading,
         deleteHypothesis: deleteMutation.mutateAsync,
         deleteIsPending: deleteMutation.isPending,

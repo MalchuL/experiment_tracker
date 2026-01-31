@@ -15,6 +15,11 @@ class SDKConfig:
 
 
 def load_config() -> Optional[SDKConfig]:
+    """Load SDK config from disk.
+
+    Returns:
+        SDKConfig if present and valid, otherwise None.
+    """
     if not os.path.exists(CONFIG_PATH):
         return None
     with open(CONFIG_PATH, "r", encoding="utf-8") as handle:
@@ -25,6 +30,15 @@ def load_config() -> Optional[SDKConfig]:
 
 
 def save_config(base_url: str, api_token: str) -> None:
+    """Persist SDK config to the default config path.
+
+    Args:
+        base_url: Backend base URL.
+        api_token: API token string.
+
+    Example:
+        save_config("http://127.0.0.1:8000", "my-token")
+    """
     os.makedirs(CONFIG_DIR, exist_ok=True)
     with open(CONFIG_PATH, "w", encoding="utf-8") as handle:
         json.dump({"base_url": base_url, "api_token": api_token}, handle)

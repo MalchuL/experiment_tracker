@@ -2,6 +2,7 @@ import { QUERY_KEYS } from "@/lib/constants/query-keys";
 import { experimentsService } from "../services";
 import { useQuery } from "@tanstack/react-query";
 import { Experiment } from "../types";
+import { useMemo } from "react";
 
 export interface RecentExperimentsHookResult {
     experiments: Experiment[];
@@ -14,5 +15,8 @@ export function useRecentExperiments(projectId?: string, limit?: number | undefi
         queryFn: () => experimentsService.getRecent(projectId!, limit, offset),
         enabled: Boolean(projectId)
     });
-    return { experiments: experiments ?? [], recentExperimentsIsLoading: isLoading };
+    const experimentsCached = useMemo(() => {
+        return experiments || [];
+    }, [experiments]);
+    return { experiments: experimentsCached, recentExperimentsIsLoading: isLoading };
 }

@@ -25,11 +25,12 @@ import { Experiment } from "../types";
 import { ProjectMetric } from "@/domain/projects/types";
 import { ExperimentTableRow } from "./experiment-table-row";
 import { arrayMove } from "@dnd-kit/sortable";
+import { Metric } from "@/domain/metrics/types";
 
 interface ExperimentsTableProps {
     experiments: Experiment[];
     projectMetrics?: ProjectMetric[];
-    aggregatedMetrics?: Record<string, Record<string, number | null>>;
+    aggregatedMetrics?: Record<string, Metric[]>;
     onExperimentClick: (experimentId: string) => void;
     onReorder: (experimentIds: string[]) => void;
 }

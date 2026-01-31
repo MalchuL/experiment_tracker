@@ -139,7 +139,7 @@ class MetricService:
 
     async def get_aggregated_metrics_for_project(
         self, user: UserProtocol, project_id: UUID_TYPE
-    ) -> Dict[UUID_TYPE, Dict[str, MetricDTO]]:
+    ) -> List[MetricDTO]:
 
         if not await self.permission_checker.can_view_metric(user.id, project_id):
             raise MetricNotAccessibleError(f"Project {project_id} not accessible")
@@ -153,9 +153,8 @@ class MetricService:
         experiments = await experiment_repository.get_experiments_by_project(
             project_id, full_load=["metrics"]
         )
-        metrics = {}
+        metrics = []
         for experiment in experiments:
-            experiment_metrics = {}
             for project_metric in project_metrics:
                 metric_name = project_metric.name
                 matching_metrics = [
@@ -186,8 +185,5 @@ class MetricService:
                 else:
                     raise ValueError(f"Invalid aggregation: {aggregation_str}")
 
-                experiment_metrics[metric_name] = (
-                    self.metric_mapper.metric_schema_to_dto(metric)
-                )
-            metrics[experiment.id] = experiment_metrics
+                metrics.append(self.metric_mapper.metric_schema_to_dto(metric))
         return metrics

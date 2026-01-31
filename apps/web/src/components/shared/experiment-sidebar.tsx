@@ -22,6 +22,7 @@ import {
   GitBranch,
   TrendingUp,
   TrendingDown,
+  RefreshCw,
 } from "lucide-react";
 import { format } from "date-fns";
 import type { Experiment } from "@/domain/experiments/types";
@@ -29,12 +30,13 @@ import type { Metric } from "@/domain/metrics/types";
 import type { Project, ProjectMetric } from "@/domain/projects/types";
 import { useExperimentMetrics } from "@/domain/metrics/hooks";
 import { useProject } from "@/domain/projects/hooks/project-hook";
+import { REFRESH_EXPERIMENT_SIDEBAR_INTERVAL } from "@/lib/constants/rates";
 
 interface ExperimentSidebarProps {
   experimentId: string | null;
   onClose: () => void;
   projectMetrics?: ProjectMetric[];
-  aggregatedMetrics?: Record<string, number | null>;
+  aggregatedMetrics?: Metric[];
 }
 
 export function ExperimentSidebar({
@@ -48,12 +50,14 @@ export function ExperimentSidebar({
   const {
     experiment,
     isLoading: experimentLoading,
+    isFetching: experimentFetching,
     updateIsPending,
     updateExperiment,
-  } = useExperiment(experimentId || "");
+    refetch,
+  } = useExperiment(experimentId || "", { refetchInterval: REFRESH_EXPERIMENT_SIDEBAR_INTERVAL });
 
   const { metrics, isLoading: metricsLoading } = useExperimentMetrics(experimentId || "");
-  const { project } = useProject(experiment?.projectId || "");
+  const { project } = useProject(experiment?.projectId);
 
   const { experiment: parentExperiment } = useExperiment(experiment?.parentExperimentId || "");
 
@@ -149,14 +153,28 @@ export function ExperimentSidebar({
             )}
           </h2>
         </div>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={onClose}
-          data-testid="button-close-sidebar"
-        >
-          <X className="w-4 h-4" />
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => refetch()}
+            disabled={experimentFetching || !experimentId}
+            data-testid="button-refresh-experiment"
+            aria-label="Refresh experiment"
+          >
+            <RefreshCw
+              className={`w-4 h-4 ${experimentFetching ? "animate-spin" : ""}`}
+            />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onClose}
+            data-testid="button-close-sidebar"
+          >
+            <X className="w-4 h-4" />
+          </Button>
+        </div>
       </div>
 
       {experimentLoading ? (
@@ -260,7 +278,7 @@ export function ExperimentSidebar({
                     <CardContent className="px-3 pb-3 pt-0">
                       <div className="space-y-2">
                         {projectMetrics.map((pm) => {
-                          const value = aggregatedMetrics?.[pm.name];
+                          const value = aggregatedMetrics?.find((m) => m.name === pm.name)?.value;
                           return (
                             <div
                               key={pm.name}

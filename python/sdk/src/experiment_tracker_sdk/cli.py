@@ -8,12 +8,27 @@ from .config import load_config, save_config
 
 
 def _get_value(value: Optional[str], prompt: str, secret: bool = False) -> str:
+    """Return provided value or prompt the user for input.
+
+    Args:
+        value: Optional value to use as-is.
+        prompt: Prompt displayed when value is missing.
+        secret: Reserved for future masked input behavior.
+
+    Returns:
+        Resolved string value.
+    """
     if value:
         return value
     return input(prompt).strip()
 
 
 def cmd_init(args: argparse.Namespace) -> None:
+    """Handle `experiment-tracker init` to store SDK config.
+
+    Args:
+        args: Parsed CLI arguments with base_url and api_token.
+    """
     base_url = _get_value(args.base_url, "Base URL: ")
     api_token = _get_value(args.api_token, "API token: ")
     save_config(base_url=base_url, api_token=api_token)
@@ -21,6 +36,11 @@ def cmd_init(args: argparse.Namespace) -> None:
 
 
 def cmd_whoami(args: argparse.Namespace) -> None:
+    """Validate the configured token and print the user profile.
+
+    Args:
+        args: Parsed CLI arguments (unused).
+    """
     config = load_config()
     if config is None:
         raise SystemExit("Config not found. Run `experiment-tracker init`.")
@@ -34,6 +54,11 @@ def cmd_whoami(args: argparse.Namespace) -> None:
 
 
 def cmd_ping(args: argparse.Namespace) -> None:
+    """Ping the backend base URL to check availability.
+
+    Args:
+        args: Parsed CLI arguments (unused).
+    """
     config = load_config()
     if config is None:
         raise SystemExit("Config not found. Run `experiment-tracker init`.")
@@ -43,6 +68,11 @@ def cmd_ping(args: argparse.Namespace) -> None:
 
 
 def main() -> None:
+    """CLI entrypoint for experiment-tracker commands.
+
+    Example:
+        experiment-tracker init --base-url http://127.0.0.1:8000 --api-token <TOKEN>
+    """
     parser = argparse.ArgumentParser(prog="experiment-tracker")
     subparsers = parser.add_subparsers(dest="command", required=True)
 

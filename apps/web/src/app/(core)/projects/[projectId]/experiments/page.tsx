@@ -7,7 +7,7 @@ import { ListSkeleton } from "@/components/shared/loading-skeleton";
 import { ExperimentSidebar } from "@/components/shared/experiment-sidebar";
 import { Button } from "@/components/ui/button";
 import { useCurrentProject } from "@/domain/projects/hooks";
-import { Plus, FlaskConical, AlertCircle } from "lucide-react";
+import { Plus, FlaskConical, AlertCircle, RefreshCw } from "lucide-react";
 import {
     useExperiments,
     useReorderExperiments,
@@ -15,15 +15,29 @@ import {
 } from "@/domain/experiments/hooks";
 import { CreateExperimentDialog, ExperimentsTable } from "@/domain/experiments/components";
 import { useSelectedExperimentStore } from "@/domain/experiments/store";
+import { REFRESH_EXPERIMENTS_LIST_INTERVAL } from "@/lib/constants/rates";
 
 export default function Experiments() {
   const { project, isLoading: projectLoading } = useCurrentProject();
   const projectId = project?.id;
   const { selectedExperimentId, setSelectedExperimentId } = useSelectedExperimentStore();
-  const { experiments, isLoading: experimentsLoading } = useExperiments(projectId);
-  const { aggregatedMetrics } = useAggregatedMetrics(projectId);
+  const {
+    experiments,
+    isLoading: experimentsLoading,
+    isFetching: experimentsFetching,
+    refetch: refetchExperiments,
+  } = useExperiments(projectId, {
+    refetchInterval: REFRESH_EXPERIMENTS_LIST_INTERVAL,
+  });
+  const {
+    aggregatedMetricsByExperiment,
+    isFetching: metricsFetching,
+    isLoading: metricsLoading,
+    refetch: refetchMetrics,
+  } = useAggregatedMetrics(projectId, {
+    refetchInterval: REFRESH_EXPERIMENTS_LIST_INTERVAL,
+  });
   const { reorderExperiments } = useReorderExperiments(projectId);
-
 
   // Filter metrics by displayMetrics setting
   const filteredMetrics = useMemo(() => {
@@ -38,7 +52,11 @@ export default function Experiments() {
     return [...experiments].sort((a, b) => a.order - b.order);
   }, [experiments]);
 
-  const isLoading = projectLoading || experimentsLoading;
+  const isLoading = projectLoading || experimentsLoading || metricsLoading;
+  const isRefreshing = experimentsFetching || metricsFetching;
+  const handleRefresh = () => {
+    void Promise.all([refetchExperiments(), refetchMetrics()]);
+  };
 
   if (!projectId) {
     return (
@@ -68,10 +86,22 @@ export default function Experiments() {
         description={`Experiments for "${project?.name}". Drag to reorder.`}
         actions={
           projectId ? (
-            <CreateExperimentDialog
-              projectId={projectId}
-              projectName={project?.name}
-            />
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={handleRefresh}
+                disabled={isRefreshing}
+                data-testid="button-refresh-experiments"
+                aria-label="Refresh experiments"
+              >
+                <RefreshCw className={isRefreshing ? "animate-spin" : ""} />
+              </Button>
+              <CreateExperimentDialog
+                projectId={projectId}
+                projectName={project?.name}
+              />
+            </div>
           ) : null
         }
       />
@@ -100,7 +130,7 @@ export default function Experiments() {
         <ExperimentsTable
           experiments={sortedExperiments}
           projectMetrics={filteredMetrics}
-          aggregatedMetrics={aggregatedMetrics}
+          aggregatedMetrics={aggregatedMetricsByExperiment}
           onExperimentClick={setSelectedExperimentId}
           onReorder={reorderExperiments}
         />
@@ -111,7 +141,7 @@ export default function Experiments() {
           experimentId={selectedExperimentId}
           onClose={() => setSelectedExperimentId(null)}
           projectMetrics={filteredMetrics}
-          aggregatedMetrics={aggregatedMetrics?.[selectedExperimentId] || undefined}
+          aggregatedMetrics={aggregatedMetricsByExperiment?.[selectedExperimentId] || undefined}
         />
       )}
     </div>

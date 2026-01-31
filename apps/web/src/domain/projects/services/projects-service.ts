@@ -3,6 +3,7 @@ import type { Experiment } from '@/domain/experiments/types';
 import type { Hypothesis } from '@/domain/hypothesis/types';
 import { serviceClients } from "@/lib/api/clients/axios-client";
 import { API_ROUTES } from "@/lib/constants/api-routes";
+import { Metric } from "@/domain/metrics/types";
 
 
 export interface ProjectsService {
@@ -11,7 +12,7 @@ export interface ProjectsService {
   getExperiments: (id: string) => Promise<Experiment[]>;
   getHypotheses: (id: string) => Promise<Hypothesis[]>;
   reorderExperiments: (id: string, experimentIds: string[]) => Promise<Experiment[]>;
-  getMetrics: (id: string) => Promise<Record<string, Record<string, number | null>>>;
+  getMetrics: (id: string) => Promise<Metric[]>;
   create: (project: InsertProject) => Promise<Project>;
   update: (id: string, updates: UpdateProject) => Promise<Project>;
   delete: (id: string) => Promise<void>;
@@ -56,8 +57,8 @@ export const projectsService: ProjectsService = {
     return response.data;
   },
 
-  getMetrics: async (id: string): Promise<Record<string, Record<string, number | null>>> => {
-    const response = await serviceClients.api.get<Record<string, Record<string, number | null>>>(API_ROUTES.PROJECTS.BY_ID.METRICS(id));
+  getMetrics: async (id: string): Promise<Metric[]> => {
+    const response = await serviceClients.api.get<Metric[]>(API_ROUTES.PROJECTS.BY_ID.METRICS(id));
     return response.data;
   },
 

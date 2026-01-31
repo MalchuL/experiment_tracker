@@ -16,7 +16,7 @@ import { QUERY_KEYS } from "@/lib/constants/query-keys";
 export default function ProjectSettings() {
   const { project: currentProject, isLoading: projectLoading } = useCurrentProject();
   const projectId = currentProject?.id;
-  const { project, isLoading, updateProject, updateIsPending } = useProject(projectId || "");
+  const { project, isLoading, updateProject, updateIsPending } = useProject(projectId);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 

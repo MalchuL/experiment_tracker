@@ -75,7 +75,7 @@ async def get_project_hypotheses(
 
 @router.get(
     "/{project_id}/metrics",
-    response_model=Dict[UUID_TYPE, Dict[str, MetricDTO]],
+    response_model=List[MetricDTO],
 )
 async def get_aggregatedproject_metrics(
     project_id: UUID,

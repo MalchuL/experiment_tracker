@@ -1,0 +1,3 @@
+export const REFRESH_EXPERIMENT_SIDEBAR_INTERVAL = 10000; // 10 seconds
+
+export const REFRESH_EXPERIMENTS_LIST_INTERVAL = 30000; // 1 minute

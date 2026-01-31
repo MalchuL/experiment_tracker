@@ -34,7 +34,11 @@ import {
   TrendingUp,
   TrendingDown,
   AlertCircle,
+  RefreshCw,
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { REFRESH_EXPERIMENTS_LIST_INTERVAL } from "@/lib/constants/rates";
+import { Metric } from "@/domain/metrics/types";
 
 interface MetricComparison {
   name: string;
@@ -144,9 +148,22 @@ export default function DAGView() {
   const projectId = project?.id;
   const { selectedExperimentId, setSelectedExperimentId } =
     useSelectedExperimentStore();
-  const { experiments, isLoading: experimentsLoading } =
-    useExperiments(projectId);
-  const { aggregatedMetrics } = useAggregatedMetrics(projectId);
+  const {
+    experiments,
+    isLoading: experimentsLoading,
+    isFetching: experimentsFetching,
+    refetch: refetchExperiments,
+  } = useExperiments(projectId, {
+    refetchInterval: REFRESH_EXPERIMENTS_LIST_INTERVAL,
+  });
+  const {
+    aggregatedMetricsByExperiment,
+    isFetching: metricsFetching,
+    isLoading: metricsLoading,
+    refetch: refetchMetrics,
+  } = useAggregatedMetrics(projectId, {
+    refetchInterval: REFRESH_EXPERIMENTS_LIST_INTERVAL,
+  });
 
   // Filter metrics by displayMetrics setting
   const filteredMetrics = useMemo(() => {
@@ -197,10 +214,10 @@ export default function DAGView() {
       const indexInColumn = columnExps.indexOf(exp.id);
       const columnWidth = columnExps.length;
 
-      const expMetrics = aggregatedMetrics?.[exp.id] || {};
-      const parentMetrics = exp.parentExperimentId
-        ? aggregatedMetrics?.[exp.parentExperimentId] || {}
-        : {};
+      const expMetrics = aggregatedMetricsByExperiment?.[exp.id] || [];
+      const parentMetrics: Metric[] = exp.parentExperimentId
+        ? aggregatedMetricsByExperiment?.[exp.parentExperimentId] || []
+        : [];
 
       const metricsToDisplay =
         displayMetrics.length > 0
@@ -210,8 +227,8 @@ export default function DAGView() {
       const metrics: MetricComparison[] = metricsToDisplay.map(
         (metricName) => {
           const pm = projectMetrics.find((m) => m.name === metricName);
-          const value = expMetrics[metricName] ?? null;
-          const parentValue = parentMetrics[metricName] ?? null;
+          const value = expMetrics?.find((m) => m.name === metricName)?.value ?? null;
+          const parentValue = parentMetrics?.find((m) => m.name === metricName)?.value ?? null;
           const direction = pm?.direction || "maximize";
 
           let isBetter: boolean | null = null;
@@ -267,10 +284,10 @@ export default function DAGView() {
       }));
 
     return { initialNodes: nodes, initialEdges: edges };
-  }, [experiments, aggregatedMetrics, project]);
+  }, [experiments, aggregatedMetricsByExperiment, project]);
 
-  const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
-  const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
+  const [nodes, setNodes, onNodesChange] = useNodesState<Node<ExperimentNodeData>>([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
 
   useEffect(() => {
     setNodes(initialNodes);
@@ -284,7 +301,11 @@ export default function DAGView() {
     [setSelectedExperimentId]
   );
 
-  const isLoading = projectLoading || experimentsLoading;
+  const isLoading = projectLoading || experimentsLoading || metricsLoading;
+  const isRefreshing = experimentsFetching || metricsFetching;
+  const handleRefresh = () => {
+    void Promise.all([refetchExperiments(), refetchMetrics()]);
+  };
 
   if (!projectId) {
     return (
@@ -317,6 +338,18 @@ export default function DAGView() {
         <PageHeader
           title="DAG View"
           description={`Experiment hierarchy for "${project?.name}"`}
+          actions={
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+              data-testid="button-refresh-dag"
+              aria-label="Refresh DAG"
+            >
+              <RefreshCw className={isRefreshing ? "animate-spin" : ""} />
+            </Button>
+          }
         />
       </div>
 
@@ -355,7 +388,7 @@ export default function DAGView() {
           onClose={() => setSelectedExperimentId(null)}
           projectMetrics={filteredMetrics}
           aggregatedMetrics={
-            aggregatedMetrics?.[selectedExperimentId] || undefined
+            aggregatedMetricsByExperiment?.[selectedExperimentId] || undefined
           }
         />
       )}

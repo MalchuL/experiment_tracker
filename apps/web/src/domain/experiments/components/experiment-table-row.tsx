@@ -8,12 +8,13 @@ import { GripVertical } from "lucide-react";
 import { Experiment } from "../types";
 import { ProjectMetric } from "@/domain/projects/types";
 import { format } from "date-fns";
+import { Metric } from "@/domain/metrics/types";
 
 interface ExperimentTableRowProps {
     experiment: Experiment;
     onClick: () => void;
     projectMetrics?: ProjectMetric[];
-    expMetrics?: Record<string, number | null>;
+    expMetrics?: Metric[];
     parentName?: string;
 }
 
@@ -86,7 +87,7 @@ export function ExperimentTableRow({
             </TableCell>
             {projectMetrics?.map((metric) => (
                 <TableCell key={metric.name} className="text-right font-mono text-sm">
-                    {formatMetricValue(expMetrics?.[metric.name])}
+                    {formatMetricValue(expMetrics?.find((m) => m.name === metric.name)?.value)}
                 </TableCell>
             ))}
             <TableCell className="text-muted-foreground text-sm">

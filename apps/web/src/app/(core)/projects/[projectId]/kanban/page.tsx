@@ -5,24 +5,39 @@ import { PageHeader } from "@/components/shared/page-header";
 import { ListSkeleton } from "@/components/shared/loading-skeleton";
 import { EmptyState } from "@/components/shared/empty-state";
 import { ExperimentSidebar } from "@/components/shared/experiment-sidebar";
-import { AlertCircle, FlaskConical } from "lucide-react";
+import { AlertCircle, FlaskConical, RefreshCw } from "lucide-react";
 import { useCurrentProject } from "@/domain/projects/hooks";
 import { useExperiments, useAggregatedMetrics, useUpdateExperimentStatus } from "@/domain/experiments/hooks";
 import { useSelectedExperimentStore } from "@/domain/experiments/store";
 import { KanbanBoard } from "@/domain/experiments/components";
 import { ExperimentStatusType } from "@/domain/experiments/types";
 import { useToast } from "@/lib/hooks/use-toast";
+import { Button } from "@/components/ui/button";
+import { REFRESH_EXPERIMENTS_LIST_INTERVAL } from "@/lib/constants/rates";
 
 export default function Kanban() {
   const { project, isLoading: projectLoading } = useCurrentProject();
   const projectId = project?.id;
   const { selectedExperimentId, setSelectedExperimentId } =
     useSelectedExperimentStore();
-  const { experiments, isLoading: experimentsLoading } = useExperiments(projectId);
-  const { aggregatedMetrics } = useAggregatedMetrics(projectId);
+  const {
+    experiments,
+    isLoading: experimentsLoading,
+    isFetching: experimentsFetching,
+    refetch: refetchExperiments,
+  } = useExperiments(projectId, {
+    refetchInterval: REFRESH_EXPERIMENTS_LIST_INTERVAL,
+  });
+  const {
+    aggregatedMetricsByExperiment,
+    isFetching: metricsFetching,
+    isLoading: metricsLoading,
+    refetch: refetchMetrics,
+  } = useAggregatedMetrics(projectId, {
+    refetchInterval: REFRESH_EXPERIMENTS_LIST_INTERVAL,
+  });
   const { updateStatus } = useUpdateExperimentStatus(projectId);
   const { toast } = useToast();
-
   // Filter metrics by displayMetrics setting
   const filteredMetrics = useMemo(() => {
     if (!project?.metrics) return [];
@@ -52,7 +67,11 @@ export default function Kanban() {
     [updateStatus, toast]
   );
 
-  const isLoading = projectLoading || experimentsLoading;
+  const isLoading = projectLoading || experimentsLoading || metricsLoading;
+  const isRefreshing = experimentsFetching || metricsFetching;
+  const handleRefresh = () => {
+    void Promise.all([refetchExperiments(), refetchMetrics()]);
+  };
 
   if (!projectId) {
     return (
@@ -84,6 +103,18 @@ export default function Kanban() {
       <PageHeader
         title="Kanban View"
         description={`Kanban board for "${project?.name}"`}
+        actions={
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+            data-testid="button-refresh-kanban"
+            aria-label="Refresh kanban"
+          >
+            <RefreshCw className={isRefreshing ? "animate-spin" : ""} />
+          </Button>
+        }
       />
 
       {experiments.length === 0 ? (
@@ -110,7 +141,7 @@ export default function Kanban() {
           onClose={() => setSelectedExperimentId(null)}
           projectMetrics={filteredMetrics}
           aggregatedMetrics={
-            aggregatedMetrics?.[selectedExperimentId] || undefined
+            aggregatedMetricsByExperiment?.[selectedExperimentId] || undefined
           }
         />
       )}

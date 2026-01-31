@@ -4,7 +4,7 @@ import { ProjectHookOptions, useProject } from "./project-hook";
 
 
 export interface ProjectProviderType {
-    project: Project;
+    project: Project | undefined;
     isLoading: boolean;
     updateIsPending: boolean;
     deleteIsPending: boolean;
