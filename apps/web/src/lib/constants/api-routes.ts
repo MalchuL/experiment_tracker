@@ -8,32 +8,32 @@ export const API_ROUTES = {
     ROOT: "/",
   
     AUTH: {
-      LOGIN: "/auth/jwt/login",
-      LOGOUT: "/auth/jwt/logout",
-      REGISTER: "/auth/register",
+      LOGIN: "api/auth/jwt/login",
+      LOGOUT: "api/auth/jwt/logout",
+      REGISTER: "api/auth/register",
   
-      FORGOT_PASSWORD: "/auth/forgot-password",
-      RESET_PASSWORD: "/auth/reset-password",
+      FORGOT_PASSWORD: "api/auth/forgot-password",
+      RESET_PASSWORD: "api/auth/reset-password",
   
-      REQUEST_VERIFY_TOKEN: "/auth/request-verify-token",
-      VERIFY: "/auth/verify",
+      REQUEST_VERIFY_TOKEN: "api/auth/request-verify-token",
+      VERIFY: "api/auth/verify",
     },
   
     USERS: {
-      ME: "/users/me",
+      ME: "api/users/me",
       API_TOKENS: {
-        LIST: "/users/me/api-tokens",
-        CREATE: "/users/me/api-tokens",
+        LIST: "api/users/me/api-tokens",
+        CREATE: "api/users/me/api-tokens",
         BY_ID: {
-          UPDATE: (tokenId: string) => `/users/me/api-tokens/${tokenId}`,
-          DELETE: (tokenId: string) => `/users/me/api-tokens/${tokenId}`,
+          UPDATE: (tokenId: string) => `api/users/me/api-tokens/${tokenId}`,
+          DELETE: (tokenId: string) => `api/users/me/api-tokens/${tokenId}`,
         },
       },
   
       BY_ID: {
-        GET: (id: string) => `/users/${id}`,
-        PATCH: (id: string) => `/users/${id}`,
-        DELETE: (id: string) => `/users/${id}`,
+        GET: (id: string) => `api/users/${id}`,
+        PATCH: (id: string) => `api/users/${id}`,
+        DELETE: (id: string) => `api/users/${id}`,
       },
     },
   
