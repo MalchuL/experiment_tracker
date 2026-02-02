@@ -2,7 +2,7 @@ from typing import AsyncGenerator
 
 import asyncpg
 from config import get_settings
-from .utils import build_async_database_url, build_async_postgres_database_url
+from .utils import build_async_database_url, build_async_asyncpg_url
 from fastapi import Depends
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import (
@@ -31,10 +31,8 @@ async def get_async_session() -> AsyncGenerator[AsyncSession, None]:
             yield session
 
 
-async def get_async_connection() -> AsyncGenerator[AsyncConnection, None]:
-    conn = await asyncpg.connect(
-        dsn=build_async_postgres_database_url(get_settings().QUEST_DB_URL)
-    )
+async def get_asyncpg_connection() -> AsyncGenerator[asyncpg.Connection, None]:
+    conn = await asyncpg.connect(build_async_asyncpg_url(get_settings().QUEST_DB_URL))
     yield conn
 
 
