@@ -1,0 +1,32 @@
+[project]
+name = "scalars-service"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "malchul", email = "vladislaw.sorockin@yandex.ru" }
+]
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.128.0",
+    "httpx>=0.28.1",
+    "numpy>=2.4.2",
+    "pandas>=3.0.0",
+    "psycopg2-binary>=2.9.11",
+    "pydantic>=2.12.5",
+    "pydantic-settings>=2.12.0",
+    "python-multipart>=0.0.22",
+    "questdb>=4.1.0",
+    "uvicorn>=0.40.0",
+    "sqlalchemy[asyncio]>=2.0.30",
+    "aiosqlite>=0.20.0",
+    "httpx>=0.27.0",
+    "advanced-alchemy>=1.8.2",
+    "questdb-connect>=1.1.4",
+    "asyncpg>=0.31.0",
+]
+
+
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
