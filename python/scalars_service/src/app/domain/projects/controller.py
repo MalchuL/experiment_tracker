@@ -1,11 +1,6 @@
-from config import get_settings
-from db.utils import build_async_asyncpg_url
-from fastapi import APIRouter, HTTPException, Query, Depends, BackgroundTasks
-from typing import List, Optional, Dict
-from datetime import datetime
-import io
-from db.questdb import engine, get_async_session, get_asyncpg_connection
-from sqlalchemy.ext.asyncio import AsyncConnection, AsyncSession
+from fastapi import APIRouter, HTTPException, Depends
+from db.questdb import get_async_session, get_asyncpg_connection
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from .dto import (
     CreateProjectTableDTO,
