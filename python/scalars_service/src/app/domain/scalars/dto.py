@@ -11,7 +11,6 @@ class ExperimentsScalarsPointsResultDTO(BaseModel):
 
 class ScalarsPointsResultDTO(BaseModel):
     data: List[ExperimentsScalarsPointsResultDTO]
-    tags: List[str]
 
 
 class LogScalarRequestDTO(BaseModel):
@@ -22,3 +21,7 @@ class LogScalarRequestDTO(BaseModel):
     step: Optional[int] = None
     tags: Optional[List[str]] = None
     timestamp: Optional[datetime] = None
+
+
+class LogScalarResponseDTO(BaseModel):
+    status: str

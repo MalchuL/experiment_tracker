@@ -7,9 +7,10 @@ from redis.asyncio import Redis
 from redis.exceptions import RedisError
 
 from app.domain.scalars.dto import ScalarsPointsResultDTO
+from app.infrastructure.cache.cache import Cache
 
 
-class ScalarsCache:
+class ScalarsCache(Cache):
     def __init__(
         self,
         redis: Redis,

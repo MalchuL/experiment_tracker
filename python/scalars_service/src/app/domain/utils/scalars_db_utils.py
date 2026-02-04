@@ -145,12 +145,28 @@ class QuestDBScalarsDBUtils:
 
         return f"SELECT {', '.join(select_columns)} FROM {table_name}"
 
-    def build_select_statement_with_experiment_id(
-        self, table_name: str, experiment_id: str
+    def build_select_statement_with_experiment_ids(
+        self, table_name: str, experiment_ids: str | list[str] | tuple[str, ...]
     ) -> str:
+        """Build the select statement for the given table name and experiment IDs.
+
+        Args:
+            table_name (str): The name of the table to select from.
+            experiment_ids (str | list[str] | tuple[str, ...]): The experiment IDs to select.
+
+        Returns:
+            str: The select statement.
+        Example:
+            SELECT timestamp, experiment_id, scalar_name, value, step, tags FROM scalars_123 WHERE experiment_id IN ('experiment_1', 'experiment_2')
+        """
+        if isinstance(experiment_ids, str):
+            experiment_ids = [experiment_ids]
+        experiment_ids_str = ", ".join(
+            [f"'{experiment_id}'" for experiment_id in experiment_ids]
+        )
         return (
             self.build_select_statement(table_name)
-            + f" WHERE experiment_id = '{experiment_id}'"
+            + f" WHERE experiment_id in({experiment_ids_str})"
         )
 
     def build_create_table_statement(self, table_name: str) -> str:
