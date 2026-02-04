@@ -30,7 +30,7 @@ def _build_scalars_cache_key(
     return f"scalars:project:{project_id}:experiment:{experiment_id}:max_points:{max_points}:return_tags:{return_tags}"
 
 
-# TODO: Add cache invalidation when scalar is logged (for case when we get all elements from cache)
+# TODO: Add cache invalidation when scalar is logged (for case when we get all elements from cache (when experiment_id is None)))
 class ScalarsService:
     def __init__(self, conn: asyncpg.Connection, cache: Cache | None = None):
         self.conn = conn
@@ -76,10 +76,11 @@ class ScalarsService:
         if isinstance(experiment_id, str):
             experiment_id = [experiment_id]
 
+        # We already defined result as list, because we will append to it in the loop
+        result = []
         # Try to get from cache
         if self.cache is not None:
             excluded_experiment_ids = []
-            cached_results = []
 
             if experiment_id is None:
                 # Get all scalars from cache
@@ -98,9 +99,12 @@ class ScalarsService:
                     cached_result = await self.cache.get(query_cache_key)
                     if cached_result is not None:
                         excluded_experiment_ids.append(exp_id)
-                        cached_results.append(cached_result)
-                if len(cached_results) == len(experiment_id):
-                    return ScalarsPointsResultDTO(data=cached_results)
+                        result.append(cached_result)
+                if len(result) == len(experiment_id):
+                    return ScalarsPointsResultDTO(data=result)
+                # Remove excluded experiment ids from experiment_id
+                for exp_id in excluded_experiment_ids:
+                    experiment_id.remove(exp_id)  # type: ignore
 
         # If not in cache, get from database
         table_name = SCALARS_DB_UTILS.safe_scalars_table_name(project_id)
@@ -123,7 +127,6 @@ class ScalarsService:
             scalars, return_tags
         )
 
-        result = []
         for exp_id, scalars in result_scalars.items():
             result_item = ExperimentsScalarsPointsResultDTO(
                 experiment_id=exp_id,
@@ -138,6 +141,8 @@ class ScalarsService:
         if self.cache is not None:
             # Set cache for each experiment id
             for result_item in result:
+                if result_item.experiment_id in excluded_experiment_ids:
+                    continue
                 cache_key = _build_scalars_cache_key(
                     project_id, result_item.experiment_id, max_points, return_tags
                 )
