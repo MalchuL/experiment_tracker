@@ -24,9 +24,19 @@ dependencies = [
     "advanced-alchemy>=1.8.2",
     "questdb-connect>=1.1.4",
     "asyncpg>=0.31.0",
+    "redis>=5.0.0",
 ]
 
 
 [build-system]
 requires = ["setuptools", "wheel"]
 build-backend = "setuptools.build_meta"
+
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2",
+]

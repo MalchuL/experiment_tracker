@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 from .routes import router as api_router
 from config import get_settings
 from db.questdb import check_connection
+from db.redis import close_redis_client
 
 
 @asynccontextmanager
@@ -12,6 +13,7 @@ async def lifespan(app: FastAPI):
     print("Connection to QuestDB established")
     yield
     # Shutdown logic can go here
+    await close_redis_client()
 
 
 app = FastAPI(

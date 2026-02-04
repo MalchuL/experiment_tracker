@@ -9,23 +9,10 @@ from .dto import (
     GetProjectTableExistenceDTO,
 )
 import asyncpg
-
-
-import re
+from app.domain.utils.scalars_db_utils import SCALARS_DB_UTILS
 
 
 router = APIRouter(prefix="/projects", tags=["projects"])
-
-
-def safe_scalars_table_name(project_id: str) -> str:
-    """
-    Валидируем имя таблицы: только латиница, цифры, нижнее подчеркивание.
-    Должно начинаться с буквы или нижнего подчеркивания.
-    """
-    name = f"scalars_{project_id}".lower()
-    if not re.match(r"^[a-z_][a-z0-9_]{1,63}$", name):
-        raise HTTPException(status_code=400, detail="Invalid project_id")
-    return name
 
 
 @router.post("")
@@ -34,18 +21,9 @@ async def create_project_scalars_table(
     db: AsyncSession = Depends(get_async_session),
     conn: asyncpg.Connection = Depends(get_asyncpg_connection),
 ):
-    table_name = safe_scalars_table_name(request.project_id)
+    table_name = SCALARS_DB_UTILS.safe_scalars_table_name(request.project_id)
 
-    ddl = f"""
-    CREATE TABLE IF NOT EXISTS {table_name} (
-        timestamp   TIMESTAMP NOT NULL,
-        experiment_id SYMBOL,
-        scalar_name   SYMBOL,
-        value         DOUBLE NOT NULL,
-        step          INT,
-        tags          STRING
-    ) TIMESTAMP(timestamp) PARTITION BY DAY;
-    """
+    ddl = SCALARS_DB_UTILS.build_create_table_statement(table_name)
     # Create table for the provided project ID in the database using SQLAlchemy's metadata
     try:
         await conn.execute(ddl)
@@ -63,9 +41,9 @@ async def get_project_table_existence(
     project_id: str,
     conn: asyncpg.Connection = Depends(get_asyncpg_connection),
 ):
-    table_name = safe_scalars_table_name(project_id)
+    table_name = SCALARS_DB_UTILS.safe_scalars_table_name(project_id)
     try:
-        await conn.fetch(f"SHOW CREATE TABLE {table_name}")
+        await conn.fetch(SCALARS_DB_UTILS.check_table_existence(table_name))
         return GetProjectTableExistenceDTO(
             table_name=table_name, project_id=project_id, exists=True
         )
@@ -79,14 +57,28 @@ async def get_project_table_existence(
         )
 
 
+@router.get("/experiments/{project_id}")
+async def get_project_experiments_ids(
+    project_id: str,
+    conn: asyncpg.Connection = Depends(get_asyncpg_connection),
+):
+    table_name = SCALARS_DB_UTILS.safe_scalars_table_name(project_id)
+    try:
+        return await conn.fetch(SCALARS_DB_UTILS.get_experiments_ids(table_name))
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Error getting experiments IDs: {str(e)}"
+        )
+
+
 @router.delete("/{project_id}")
 async def delete_project_table(
     project_id: str,
     conn: asyncpg.Connection = Depends(get_asyncpg_connection),
 ):
-    table_name = safe_scalars_table_name(project_id)
+    table_name = SCALARS_DB_UTILS.safe_scalars_table_name(project_id)
     try:
-        await conn.execute(f"DROP TABLE {table_name}")
+        await conn.execute(SCALARS_DB_UTILS.build_drop_table_statement(table_name))
         return DeleteProjectTableResponseDTO(
             message=f"Table {table_name} deleted successfully."
         )

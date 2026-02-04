@@ -1,38 +1,19 @@
-from app.domain.projects.controller import safe_scalars_table_name
-from app.domain.scalars.models import scalars_model
-from fastapi import APIRouter, HTTPException, Query, Depends, BackgroundTasks
-from typing import List, Optional, Dict
+from enum import Enum
+from fastapi import APIRouter, Depends, Query
+from db.questdb import get_asyncpg_connection
+from sqlalchemy import Table, MetaData
 from datetime import datetime, timedelta, timezone
-import io
-from db.questdb import engine, get_async_session, get_asyncpg_connection
-from sqlalchemy import Table, MetaData, text
-from sqlalchemy.ext.asyncio import AsyncSession
+from app.domain.utils.scalars_db_utils import SCALARS_DB_UTILS
 import json
 from .dto import (
     LogScalarRequestDTO,
 )
 import asyncpg
+from .service import ScalarsService
 
 router = APIRouter(prefix="/scalars", tags=["scalars"])
 
 metadata = MetaData()
-
-
-def get_table(name):
-    return Table(name, metadata, autoload_with=engine)
-
-
-# await conn.execute(
-#         text(
-#             f"INSERT INTO {table_name} (timestamp, experiment_id, scalar_name, value, step, tags) VALUES ($1, $2, $3, $4, $5, $6)"
-#         ),
-#         request.timestamp,
-#         experiment_id,
-#         request.scalar_name,
-#         request.value,
-#         request.step,
-#         json.dumps(request.tags),
-#     )
 
 
 @router.post("/log/{project_id}/{experiment_id}")
@@ -40,16 +21,15 @@ async def log_scalar(
     project_id: str,
     experiment_id: str,
     request: LogScalarRequestDTO,
-    session: AsyncSession = Depends(get_async_session),
     conn: asyncpg.Connection = Depends(get_asyncpg_connection),
 ):
 
-    table_name = safe_scalars_table_name(project_id)
+    table_name = SCALARS_DB_UTILS.safe_scalars_table_name(project_id)
     timestamp = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(
         microseconds=1000
     )
     await conn.execute(
-        f"INSERT INTO {table_name} (timestamp, experiment_id, scalar_name, value, step, tags) VALUES ($1, $2, $3, $4, $5, $6)",
+        SCALARS_DB_UTILS.build_insert_statement(table_name),
         timestamp,
         experiment_id,
         request.scalar_name,
@@ -60,11 +40,23 @@ async def log_scalar(
     return {"status": "logged"}
 
 
+class Sampling(Enum):
+    RESERVOIR = "reservoir"
+    UNIFORM = "uniform"
+    ALL = "all"
+
+
 @router.get("/get/{project_id}/{experiment_id}")
 async def get_scalars(
     project_id: str,
     experiment_id: str,
-    db: AsyncSession = Depends(get_async_session),
+    sampling: Sampling = Query(default=Sampling.RESERVOIR),
+    max_points: int | None = Query(default=None, ge=1),
+    conn: asyncpg.Connection = Depends(get_asyncpg_connection),
 ):
-    print(db)
-    print(f"Getting scalars for project {project_id} and experiment {experiment_id}")
+
+    service = ScalarsService(conn)
+    result = await service.get_scalars(
+        project_id, experiment_id, max_points, return_tags=True
+    )
+    return result

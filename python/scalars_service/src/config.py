@@ -9,6 +9,12 @@ class Settings(BaseSettings):
     # QuestDB Configuration
     QUEST_DB_URL: str = "localhost:9009"
 
+    # Redis cache configuration
+    REDIS_URL: str = "redis://localhost:6379/0"
+    SCALARS_CACHE_TTL_SECONDS: int = 60
+    SCALARS_CACHE_MAX_SIZE: int = 1000
+    SCALARS_CACHE_ENABLED: bool = True
+
     class Config:
         env_file = ".env"
 
