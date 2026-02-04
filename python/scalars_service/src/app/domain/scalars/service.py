@@ -1,11 +1,13 @@
 from collections import defaultdict
 from datetime import datetime, timezone
-from typing import Literal
+from typing import Any, Literal
 from app.domain.scalars.dto import (
     ExperimentsScalarsPointsResultDTO,
     LogScalarRequestDTO,
-    ScalarsPointsResultDTO,
+    LogScalarsRequestDTO,
     LogScalarResponseDTO,
+    LogScalarsResponseDTO,
+    ScalarsPointsResultDTO,
 )
 from app.domain.utils.scalars_db_utils import SCALARS_DB_UTILS, ProjectTableColumns
 import asyncpg
@@ -13,7 +15,7 @@ import json
 from app.infrastructure.cache.cache import Cache
 
 
-def _check_is_none(value: any) -> bool:
+def _check_is_none(value: Any) -> bool:
     return value is None or value == "null" or value == "None"
 
 
@@ -41,14 +43,7 @@ class ScalarsService:
         self, project_id: str, experiment_id: str, request: LogScalarRequestDTO
     ):
         if self.cache is not None:
-            # Invalidate cache for the experiment
-            cache_key_pattern = _build_scalars_cache_key(
-                project_id, experiment_id, "*", "*"
-            )
-            await self.cache.invalidate(cache_key_pattern)
-            # Invalidate cache for all scalars (no experiment id)
-            cache_key_pattern = _build_scalars_cache_key(project_id, None, "*", "*")
-            await self.cache.invalidate(cache_key_pattern)
+            await self._invalidate_cache(project_id, experiment_id)
 
         table_name = SCALARS_DB_UTILS.safe_scalars_table_name(project_id)
         timestamp = _get_now_datetime()
@@ -62,6 +57,29 @@ class ScalarsService:
             json.dumps(request.tags),
         )
         return LogScalarResponseDTO(status="logged")
+
+    async def log_scalars(
+        self, project_id: str, experiment_id: str, request: LogScalarsRequestDTO
+    ):
+        if self.cache is not None:
+            await self._invalidate_cache(project_id, experiment_id)
+
+        table_name = SCALARS_DB_UTILS.safe_scalars_table_name(project_id)
+        insert_statement = SCALARS_DB_UTILS.build_insert_statement(table_name)
+        rows = [
+            (
+                _get_now_datetime(),
+                experiment_id,
+                item.scalar_name,
+                item.value,
+                item.step,
+                json.dumps(item.tags),
+            )
+            for item in request.scalars
+        ]
+        if rows:
+            await self.conn.executemany(insert_statement, rows)
+        return LogScalarsResponseDTO(status="logged")
 
     async def get_scalars(
         self,
@@ -131,7 +149,7 @@ class ScalarsService:
             result_item = ExperimentsScalarsPointsResultDTO(
                 experiment_id=exp_id,
                 scalars=scalars,
-                tags=result_tags[exp_id],
+                tags=result_tags[exp_id] if return_tags else None,
             )
             result.append(result_item)
 
@@ -158,10 +176,47 @@ class ScalarsService:
     def _split_scalars_by_experiment_id(
         self, scalars: list[dict], return_tags: bool = False
     ):
-        result_scalars = defaultdict(list)
-        result_tags = defaultdict(list)
+        """Split scalars by experiment id and scalar name
+
+        Args:
+            scalars: List of scalars
+            return_tags: Whether to return tags
+
+        Returns:
+            Tuple of result scalars and result tags
+        Example:
+            {
+                "experiment_id_1": {
+                    "scalar_name_1": [(step_1, value_1), (step_2, value_2)],
+                    "scalar_name_2": [(step_1, value_1), (step_2, value_2)],
+                },
+                "experiment_id_2": {
+                    "scalar_name_1": [(step_1, value_1), (step_2, value_2)],
+                    "scalar_name_2": [(step_1, value_1), (step_2, value_2)],
+                },
+            }
+            {
+                "experiment_id_1": {
+                    "scalar_name_1": [(step_1, [tag_1, tag_2]), (step_2, [tag_1, tag_2])],
+                    "scalar_name_2": [(step_1, [tag_1, tag_2]), (step_2, [tag_1, tag_2])],
+                },
+                "experiment_id_2": {
+                    "scalar_name_1": [(step_1, [tag_1, tag_2]), (step_2, [tag_1, tag_2])],
+                    "scalar_name_2": [(step_1, [tag_1, tag_2]), (step_2, [tag_1, tag_2])],
+                },
+            }
+        """
+
+        result_scalars = defaultdict[str, defaultdict[str, list[tuple[int, float]]]](
+            lambda: defaultdict(list)
+        )
+        result_tags = defaultdict[str, defaultdict[str, list[tuple[int, list[str]]]]](
+            lambda: defaultdict(list)
+        )
         for scalar in scalars:
-            result_scalars[scalar[ProjectTableColumns.EXPERIMENT_ID.value]].append(
+            experiment_id = scalar[ProjectTableColumns.EXPERIMENT_ID.value]
+            scalar_name = scalar[ProjectTableColumns.SCALAR_NAME.value]
+            result_scalars[experiment_id][scalar_name].append(
                 (
                     scalar[ProjectTableColumns.STEP.value],
                     scalar[ProjectTableColumns.VALUE.value],
@@ -170,7 +225,7 @@ class ScalarsService:
             if return_tags and not _check_is_none(
                 scalar[ProjectTableColumns.TAGS.value]
             ):
-                result_tags[scalar[ProjectTableColumns.EXPERIMENT_ID.value]].append(
+                result_tags[experiment_id][scalar_name].append(
                     (
                         scalar[ProjectTableColumns.STEP.value],
                         json.loads(scalar[ProjectTableColumns.TAGS.value]),
@@ -178,3 +233,15 @@ class ScalarsService:
                 )
 
         return result_scalars, result_tags
+
+    async def _invalidate_cache(self, project_id: str, experiment_id: str) -> None:
+        if self.cache is None:
+            return
+        # Invalidate cache for the experiment
+        cache_key_pattern = _build_scalars_cache_key(
+            project_id, experiment_id, "*", "*"
+        )
+        await self.cache.invalidate(cache_key_pattern)
+        # Invalidate cache for all scalars (no experiment id)
+        cache_key_pattern = _build_scalars_cache_key(project_id, None, "*", "*")
+        await self.cache.invalidate(cache_key_pattern)

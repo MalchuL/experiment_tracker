@@ -164,6 +164,7 @@ class QuestDBScalarsDBUtils:
         experiment_ids_str = ", ".join(
             [f"'{experiment_id}'" for experiment_id in experiment_ids]
         )
+        # TODO: Important note, experiment_ids_str is not escaped, so it is not safe to use in the query. But we have assumption that experiment_ids are not malicious.
         return (
             self.build_select_statement(table_name)
             + f" WHERE experiment_id in({experiment_ids_str})"

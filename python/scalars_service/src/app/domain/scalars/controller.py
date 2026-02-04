@@ -9,6 +9,7 @@ from app.domain.utils.scalars_db_utils import SCALARS_DB_UTILS
 import json
 from .dto import (
     LogScalarRequestDTO,
+    LogScalarsRequestDTO,
 )
 import asyncpg
 from .service import ScalarsService
@@ -28,6 +29,19 @@ async def log_scalar(
 ):
     service = ScalarsService(conn, cache)
     await service.log_scalar(project_id, experiment_id, request)
+    return {"status": "logged"}
+
+
+@router.post("/log_batch/{project_id}/{experiment_id}")
+async def log_scalars_batch(
+    project_id: str,
+    experiment_id: str,
+    request: LogScalarsRequestDTO,
+    conn: asyncpg.Connection = Depends(get_asyncpg_connection),
+    cache: Cache | None = Depends(get_cache),
+):
+    service = ScalarsService(conn, cache)
+    await service.log_scalars(project_id, experiment_id, request)
     return {"status": "logged"}
 
 

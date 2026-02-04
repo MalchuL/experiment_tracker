@@ -5,8 +5,8 @@ from pydantic import BaseModel, Field
 
 class ExperimentsScalarsPointsResultDTO(BaseModel):
     experiment_id: str
-    scalars: List[Tuple[int, float]]
-    tags: Optional[List[Tuple[int, List[str]]]] = None
+    scalars: Dict[str, List[Tuple[int, float]]]
+    tags: Optional[Dict[str, List[Tuple[int, List[str]]]]] = None
 
 
 class ScalarsPointsResultDTO(BaseModel):
@@ -18,10 +18,19 @@ class LogScalarRequestDTO(BaseModel):
 
     scalar_name: str
     value: float
-    step: Optional[int] = None
-    tags: Optional[List[str]] = None
-    timestamp: Optional[datetime] = None
+    step: int
+    tags: List[str] | None = None
+
+
+class LogScalarsRequestDTO(BaseModel):
+    """Request DTO for logging multiple scalars"""
+
+    scalars: List[LogScalarRequestDTO]
 
 
 class LogScalarResponseDTO(BaseModel):
+    status: str
+
+
+class LogScalarsResponseDTO(BaseModel):
     status: str
