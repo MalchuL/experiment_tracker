@@ -38,9 +38,13 @@ class ProjectsService:
         result = await self.client.query(query)
         return [{"experiment_id": row[0]} for row in result.result_rows]
 
-    async def delete_project_table(self, project_id: str) -> DeleteProjectTableResponseDTO:
+    async def delete_project_table(
+        self, project_id: str
+    ) -> DeleteProjectTableResponseDTO:
         table_name = SCALARS_DB_UTILS.safe_scalars_table_name(project_id)
-        await self.client.command(SCALARS_DB_UTILS.build_drop_table_statement(table_name))
+        await self.client.command(
+            SCALARS_DB_UTILS.build_drop_table_statement(table_name)
+        )
         return DeleteProjectTableResponseDTO(
             message=f"Table {table_name} deleted successfully."
         )
