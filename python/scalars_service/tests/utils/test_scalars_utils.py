@@ -5,8 +5,8 @@ from app.domain.utils.scalars_db_utils import SCALARS_DB_UTILS
 def test_build_create_table_statement():
     result = (
         "CREATE TABLE IF NOT EXISTS scalars_123 "
-        "(timestamp DateTime64(3), experiment_id String, step Int64, tags Array(String)) "
-        "ENGINE = MergeTree() PARTITION BY toDate(timestamp) ORDER BY (experiment_id, step)"
+        "(__timestamp__ DateTime64(3), __experiment_id__ String, __step__ Int64, __tags__ Array(String)) "
+        "ENGINE = MergeTree() PARTITION BY toDate(__timestamp__) ORDER BY (__experiment_id__, __step__)"
     )
     assert SCALARS_DB_UTILS.build_create_table_statement("scalars_123") == result
 
@@ -14,9 +14,9 @@ def test_build_create_table_statement():
 def test_build_create_table_statement_with_scalars():
     result = (
         "CREATE TABLE IF NOT EXISTS scalars_123 "
-        "(timestamp DateTime64(3), experiment_id String, step Int64, tags Array(String), "
+        "(__timestamp__ DateTime64(3), __experiment_id__ String, __step__ Int64, __tags__ Array(String), "
         "loss Nullable(Float64), acc Nullable(Float64)) "
-        "ENGINE = MergeTree() PARTITION BY toDate(timestamp) ORDER BY (experiment_id, step)"
+        "ENGINE = MergeTree() PARTITION BY toDate(__timestamp__) ORDER BY (__experiment_id__, __step__)"
     )
     assert (
         SCALARS_DB_UTILS.build_create_table_statement("scalars_123", ["loss", "acc"])
@@ -43,8 +43,8 @@ def test_incorrect_safe_scalars_table_name():
 
 def test_select_statement():
     result = (
-        "SELECT timestamp, experiment_id, step, tags, loss, acc FROM scalars_123 "
-        "WHERE experiment_id IN ('exp1', 'exp2') ORDER BY experiment_id, step"
+        "SELECT __timestamp__, __experiment_id__, __step__, __tags__, loss, acc FROM scalars_123 "
+        "WHERE __experiment_id__ IN ('exp1', 'exp2') ORDER BY __experiment_id__, __step__"
     )
     assert (
         SCALARS_DB_UTILS.build_select_statement(

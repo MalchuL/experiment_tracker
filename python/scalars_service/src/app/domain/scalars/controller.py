@@ -20,8 +20,7 @@ async def log_scalar(
     cache: Cache | None = Depends(get_cache),
 ):
     service = ScalarsService(client, cache)
-    await service.log_scalar(project_id, experiment_id, request)
-    return {"status": "logged"}
+    return await service.log_scalar(project_id, experiment_id, request)
 
 
 @router.post("/log_batch/{project_id}/{experiment_id}")
@@ -33,8 +32,7 @@ async def log_scalars_batch(
     cache: Cache | None = Depends(get_cache),
 ):
     service = ScalarsService(client, cache)
-    await service.log_scalars(project_id, experiment_id, request)
-    return {"status": "logged"}
+    return await service.log_scalars(project_id, experiment_id, request)
 
 
 class Sampling(Enum):

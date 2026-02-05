@@ -34,7 +34,9 @@ class LogScalarsRequestDTO(BaseModel):
 
 class LogScalarResponseDTO(BaseModel):
     status: str
+    warnings: List[str] | None = None
 
 
 class LogScalarsResponseDTO(BaseModel):
     status: str
+    warnings: List[str] | None = None

@@ -6,10 +6,10 @@ from typing import Sequence, Type
 
 
 class ProjectTableColumns(Enum):
-    TIMESTAMP = "timestamp"
-    EXPERIMENT_ID = "experiment_id"
-    STEP = "step"
-    TAGS = "tags"
+    TIMESTAMP = "__timestamp__"
+    EXPERIMENT_ID = "__experiment_id__"
+    STEP = "__step__"
+    TAGS = "__tags__"
 
 
 @dataclass
@@ -75,6 +75,9 @@ class ClickHouseScalarsDBUtils:
             )
         return scalar_name
 
+    def get_internal_column_names(self) -> set[str]:
+        return {column.value for column in ProjectTableColumns}
+
     def get_base_columns(self) -> list[str]:
         return BASE_COLUMNS_STR
 
@@ -93,8 +96,8 @@ class ClickHouseScalarsDBUtils:
             f"CREATE TABLE IF NOT EXISTS {table_name} "
             f"({', '.join(columns_str)}) "
             "ENGINE = MergeTree() "
-            "PARTITION BY toDate(timestamp) "
-            "ORDER BY (experiment_id, step)"
+            f"PARTITION BY toDate({ProjectTableColumns.TIMESTAMP.value}) "
+            f"ORDER BY ({ProjectTableColumns.EXPERIMENT_ID.value}, {ProjectTableColumns.STEP.value})"
         )
 
     def build_alter_table_add_columns_statement(
@@ -131,12 +134,15 @@ class ClickHouseScalarsDBUtils:
         select = f"SELECT {', '.join(columns)} FROM {table_name}"
         if experiment_ids:
             ids = ", ".join([f"'{exp_id}'" for exp_id in experiment_ids])
-            select += f" WHERE experiment_id IN ({ids})"
-        select += " ORDER BY experiment_id, step"
+            select += f" WHERE {ProjectTableColumns.EXPERIMENT_ID.value} IN ({ids})"
+        select += (
+            f" ORDER BY {ProjectTableColumns.EXPERIMENT_ID.value}, "
+            f"{ProjectTableColumns.STEP.value}"
+        )
         return select
 
     def get_experiments_ids(self, table_name: str) -> str:
-        return f"SELECT DISTINCT experiment_id FROM {table_name}"
+        return f"SELECT DISTINCT {ProjectTableColumns.EXPERIMENT_ID.value} FROM {table_name}"
 
 
 SCALARS_DB_UTILS = ClickHouseScalarsDBUtils()

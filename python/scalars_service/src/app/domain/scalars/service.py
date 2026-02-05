@@ -1,8 +1,8 @@
 from collections import defaultdict
 from datetime import datetime, timezone
-from typing import Literal, Sequence
+from typing import Literal, Sequence, cast
 
-from app.domain.scalars.dto import (
+from app.domain.scalars.dto import (  # type: ignore
     ExperimentsScalarsPointsResultDTO,
     LogScalarRequestDTO,
     LogScalarsRequestDTO,
@@ -11,8 +11,11 @@ from app.domain.scalars.dto import (
     ScalarsPointsResultDTO,
     StepTagsDTO,
 )
-from app.domain.utils.scalars_db_utils import SCALARS_DB_UTILS, ProjectTableColumns
-from app.infrastructure.cache.cache import Cache
+from app.domain.utils.scalars_db_utils import (  # type: ignore
+    SCALARS_DB_UTILS,
+    ProjectTableColumns,
+)
+from app.infrastructure.cache.cache import Cache  # type: ignore
 
 
 def _get_now_datetime() -> datetime:
@@ -41,25 +44,23 @@ class ScalarsService:
         if self.cache is not None:
             await self._invalidate_cache(project_id, experiment_id)
 
-        if not request.scalars:
-            return LogScalarResponseDTO(status="logged")
+        filtered_scalars, warnings = self._filter_conflicting_scalars(request.scalars)
+        if not filtered_scalars:
+            return LogScalarResponseDTO(status="logged", warnings=warnings or None)
 
         table_name = SCALARS_DB_UTILS.safe_scalars_table_name(project_id)
-        scalar_names = self._validate_scalar_names(list(request.scalars.keys()))
+        scalar_names = self._validate_scalar_names(list(filtered_scalars.keys()))
         await self._ensure_table_and_columns(table_name, scalar_names)
 
-        columns = (
-            SCALARS_DB_UTILS.get_base_columns()
-            + list(scalar_names)
-        )
+        columns = SCALARS_DB_UTILS.get_base_columns() + list(scalar_names)
         row = [
             _get_now_datetime(),
             experiment_id,
             request.step,
             request.tags or [],
-        ] + [request.scalars[name] for name in scalar_names]
+        ] + [filtered_scalars[name] for name in scalar_names]
         await self.client.insert(table_name, [row], column_names=columns)
-        return LogScalarResponseDTO(status="logged")
+        return LogScalarResponseDTO(status="logged", warnings=warnings or None)
 
     async def log_scalars(
         self, project_id: str, experiment_id: str, request: LogScalarsRequestDTO
@@ -71,14 +72,34 @@ class ScalarsService:
         if not request.scalars:
             return LogScalarsResponseDTO(status="logged")
 
+        warnings: list[str] = []
+        filtered_items: list[LogScalarRequestDTO] = []
+        for item in request.scalars:
+            filtered_scalars, item_warnings = self._filter_conflicting_scalars(
+                item.scalars
+            )
+            warnings.extend(item_warnings)
+            if not filtered_scalars:
+                continue
+            filtered_items.append(
+                LogScalarRequestDTO(
+                    scalars=filtered_scalars,
+                    step=item.step,
+                    tags=item.tags,
+                )
+            )
+
+        if not filtered_items:
+            return LogScalarsResponseDTO(status="logged", warnings=warnings or None)
+
         all_scalar_names = self._validate_scalar_names(
-            sorted({name for item in request.scalars for name in item.scalars})
+            sorted({name for item in filtered_items for name in item.scalars})
         )
         await self._ensure_table_and_columns(table_name, all_scalar_names)
 
         columns = SCALARS_DB_UTILS.get_base_columns() + list(all_scalar_names)
         rows = []
-        for item in request.scalars:
+        for item in filtered_items:
             row = [
                 _get_now_datetime(),
                 experiment_id,
@@ -88,7 +109,7 @@ class ScalarsService:
             rows.append(row)
         if rows:
             await self.client.insert(table_name, rows, column_names=columns)
-        return LogScalarsResponseDTO(status="logged")
+        return LogScalarsResponseDTO(status="logged", warnings=warnings or None)
 
     async def get_scalars(
         self,
@@ -204,16 +225,20 @@ class ScalarsService:
 
         col_index = {name: idx for idx, name in enumerate(column_names)}
         for row in rows:
-            experiment_id = row[col_index[ProjectTableColumns.EXPERIMENT_ID.value]]
-            step = row[col_index[ProjectTableColumns.STEP.value]]
-            tags = row[col_index[ProjectTableColumns.TAGS.value]] or []
+            experiment_id = cast(
+                str, row[col_index[ProjectTableColumns.EXPERIMENT_ID.value]]
+            )
+            step = cast(int, row[col_index[ProjectTableColumns.STEP.value]])
+            tags = cast(list[str], row[col_index[ProjectTableColumns.TAGS.value]] or [])
 
             row_scalar_names: list[str] = []
             for scalar_name in scalar_columns:
                 value = row[col_index[scalar_name]]
                 if value is None:
                     continue
-                result_scalars[experiment_id][scalar_name].append((step, value))
+                result_scalars[experiment_id][scalar_name].append(
+                    (step, cast(float, value))
+                )
                 row_scalar_names.append(scalar_name)
 
             if return_tags:
@@ -261,8 +286,25 @@ class ScalarsService:
             await self.client.command(ddl)
 
     def _validate_scalar_names(self, names: Sequence[str]) -> list[str]:
-        validated = [SCALARS_DB_UTILS.validate_scalar_column_name(name) for name in names]
+        validated = [
+            SCALARS_DB_UTILS.validate_scalar_column_name(name) for name in names
+        ]
         return list(validated)
+
+    def _filter_conflicting_scalars(
+        self, scalars: dict[str, float]
+    ) -> tuple[dict[str, float], list[str]]:
+        internal_names = SCALARS_DB_UTILS.get_internal_column_names()
+        filtered: dict[str, float] = {}
+        warnings: list[str] = []
+        for name, value in scalars.items():
+            if name in internal_names:
+                warnings.append(
+                    f"Scalar '{name}' conflicts with internal column name and was skipped."
+                )
+                continue
+            filtered[name] = value
+        return filtered, warnings
 
     async def _invalidate_cache(self, project_id: str, experiment_id: str) -> None:
         if self.cache is None:
