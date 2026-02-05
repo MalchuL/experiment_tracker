@@ -80,5 +80,11 @@ def test_table_existence_statement():
 
 def test_validate_scalar_column_name():
     assert SCALARS_DB_UTILS.validate_scalar_column_name("loss_1") == "loss_1"
+    assert (
+        SCALARS_DB_UTILS.validate_scalar_column_name("  val loss\tstep  ")
+        == "val_loss_step"
+    )
     with pytest.raises(ValueError):
         SCALARS_DB_UTILS.validate_scalar_column_name("loss/1")
+    with pytest.raises(ValueError):
+        SCALARS_DB_UTILS.validate_scalar_column_name("   \n\t ")

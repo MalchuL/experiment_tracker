@@ -286,9 +286,12 @@ class ScalarsService:
             await self.client.command(ddl)
 
     def _validate_scalar_names(self, names: Sequence[str]) -> list[str]:
-        validated = [
-            SCALARS_DB_UTILS.validate_scalar_column_name(name) for name in names
-        ]
+        validated: list[str] = []
+        for name in names:
+            normalized = SCALARS_DB_UTILS.validate_scalar_column_name(name)
+            if normalized is None:
+                continue
+            validated.append(normalized)
         return list(validated)
 
     def _filter_conflicting_scalars(
@@ -298,12 +301,18 @@ class ScalarsService:
         filtered: dict[str, float] = {}
         warnings: list[str] = []
         for name, value in scalars.items():
-            if name in internal_names:
+            normalized = SCALARS_DB_UTILS.validate_scalar_column_name(name)
+            if normalized is None:
+                warnings.append(
+                    f"Scalar '{name}' is invalid after normalization and was skipped."
+                )
+                continue
+            if normalized in internal_names:
                 warnings.append(
                     f"Scalar '{name}' conflicts with internal column name and was skipped."
                 )
                 continue
-            filtered[name] = value
+            filtered[normalized] = value
         return filtered, warnings
 
     async def _invalidate_cache(self, project_id: str, experiment_id: str) -> None:

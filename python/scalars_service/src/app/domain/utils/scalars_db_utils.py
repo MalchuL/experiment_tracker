@@ -68,12 +68,14 @@ class ClickHouseScalarsDBUtils:
             raise ValueError("Invalid project_id")
         return name
 
-    def validate_scalar_column_name(self, scalar_name: str) -> str:
-        if not re.match(r"^[A-Za-z_][A-Za-z0-9_]{0,63}$", scalar_name):
-            raise ValueError(
-                "Invalid scalar_name. Use letters, numbers, and underscores only."
-            )
-        return scalar_name
+    def validate_scalar_column_name(self, scalar_name: str) -> str | None:
+        normalized = re.sub(r"\s+", "_", scalar_name.strip())
+        if not normalized:
+            return "_empty_"
+        normalized = normalized[:64]
+        if not re.match(r"^[A-Za-z_][A-Za-z0-9_]{0,63}$", normalized):
+            return None
+        return normalized
 
     def get_internal_column_names(self) -> set[str]:
         return {column.value for column in ProjectTableColumns}
