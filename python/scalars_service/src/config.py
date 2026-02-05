@@ -6,8 +6,8 @@ class Settings(BaseSettings):
     PROJECT_NAME: str = "ML Metrics Service"
     API_PREFIX: str = "/api"
 
-    # QuestDB Configuration
-    QUEST_DB_URL: str = "localhost:9009"
+    # ClickHouse Configuration
+    CLICKHOUSE_URL: str = "http://localhost:8123"
 
     # Redis cache configuration
     REDIS_URL: str = "redis://localhost:6379/0"

@@ -1,12 +1,17 @@
-from datetime import datetime
 from typing import Dict, List, Optional, Tuple
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
+
+
+class StepTagsDTO(BaseModel):
+    step: int
+    scalar_names: List[str]
+    tags: List[str]
 
 
 class ExperimentsScalarsPointsResultDTO(BaseModel):
     experiment_id: str
     scalars: Dict[str, List[Tuple[int, float]]]
-    tags: Optional[Dict[str, List[Tuple[int, List[str]]]]] = None
+    tags: Optional[List[StepTagsDTO]] = None
 
 
 class ScalarsPointsResultDTO(BaseModel):
@@ -14,10 +19,9 @@ class ScalarsPointsResultDTO(BaseModel):
 
 
 class LogScalarRequestDTO(BaseModel):
-    """Request DTO for logging a single scalar"""
+    """Request DTO for logging multiple scalars at a single step"""
 
-    scalar_name: str
-    value: float
+    scalars: Dict[str, float]
     step: int
     tags: List[str] | None = None
 

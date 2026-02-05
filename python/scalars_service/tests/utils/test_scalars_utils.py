@@ -1,14 +1,31 @@
-from app.domain.utils.scalars_db_utils import SCALARS_DB_UTILS, ProjectTableColumns
 import pytest
+from app.domain.utils.scalars_db_utils import SCALARS_DB_UTILS
 
 
 def test_build_create_table_statement():
-    result = "CREATE TABLE scalars_123 (timestamp TIMESTAMP NOT NULL, experiment_id SYMBOL, scalar_name SYMBOL, value DOUBLE NOT NULL, step INT, tags STRING) TIMESTAMP(timestamp) PARTITION BY DAY"
+    result = (
+        "CREATE TABLE IF NOT EXISTS scalars_123 "
+        "(timestamp DateTime64(3), experiment_id String, step Int64, tags Array(String)) "
+        "ENGINE = MergeTree() PARTITION BY toDate(timestamp) ORDER BY (experiment_id, step)"
+    )
     assert SCALARS_DB_UTILS.build_create_table_statement("scalars_123") == result
 
 
+def test_build_create_table_statement_with_scalars():
+    result = (
+        "CREATE TABLE IF NOT EXISTS scalars_123 "
+        "(timestamp DateTime64(3), experiment_id String, step Int64, tags Array(String), "
+        "loss Nullable(Float64), acc Nullable(Float64)) "
+        "ENGINE = MergeTree() PARTITION BY toDate(timestamp) ORDER BY (experiment_id, step)"
+    )
+    assert (
+        SCALARS_DB_UTILS.build_create_table_statement("scalars_123", ["loss", "acc"])
+        == result
+    )
+
+
 def test_remove_table():
-    result = "DROP TABLE scalars_123"
+    result = "DROP TABLE IF EXISTS scalars_123"
     assert SCALARS_DB_UTILS.build_drop_table_statement("scalars_123") == result
 
 
@@ -25,104 +42,43 @@ def test_incorrect_safe_scalars_table_name():
 
 
 def test_select_statement():
-    result = "SELECT timestamp, experiment_id, scalar_name, value, step, tags FROM scalars_123"
-    assert SCALARS_DB_UTILS.build_select_statement("scalars_123") == result
-    result = "SELECT timestamp, experiment_id, scalar_name, value, step, tags FROM scalars_123"
+    result = (
+        "SELECT timestamp, experiment_id, step, tags, loss, acc FROM scalars_123 "
+        "WHERE experiment_id IN ('exp1', 'exp2') ORDER BY experiment_id, step"
+    )
     assert (
         SCALARS_DB_UTILS.build_select_statement(
             "scalars_123",
-            ["timestamp", "experiment_id", "scalar_name", "value", "step", "tags"],
-        )
-        == result
-    )
-    result = "SELECT timestamp, experiment_id, scalar_name, value, step, tags FROM scalars_123"
-    assert (
-        SCALARS_DB_UTILS.build_select_statement(
-            "scalars_123",
-            [
-                ProjectTableColumns.TIMESTAMP,
-                ProjectTableColumns.EXPERIMENT_ID,
-                ProjectTableColumns.SCALAR_NAME,
-                ProjectTableColumns.VALUE,
-                ProjectTableColumns.STEP,
-                ProjectTableColumns.TAGS,
-            ],
-        )
-        == result
-    )
-
-    result = "SELECT experiment_id, scalar_name, value, step FROM scalars_123"
-    assert (
-        SCALARS_DB_UTILS.build_select_statement(
-            "scalars_123",
-            [
-                ProjectTableColumns.EXPERIMENT_ID,
-                ProjectTableColumns.SCALAR_NAME,
-                ProjectTableColumns.VALUE,
-                ProjectTableColumns.STEP,
-            ],
-        )
-        == result
-    )
-
-    assert (
-        SCALARS_DB_UTILS.build_select_statement(
-            "scalars_123", ["experiment_id", "scalar_name", "value", "step"]
+            scalar_columns=["loss", "acc"],
+            experiment_ids=["exp1", "exp2"],
         )
         == result
     )
 
 
-def test_insert_statement():
-    result = "INSERT INTO scalars_123 (timestamp, experiment_id, scalar_name, value, step, tags) VALUES ($1, $2, $3, $4, $5, $6)"
-    assert SCALARS_DB_UTILS.build_insert_statement("scalars_123") == result
-    result = "INSERT INTO scalars_123 (timestamp, experiment_id, scalar_name, value, step, tags) VALUES ($1, $2, $3, $4, $5, $6)"
-    assert (
-        SCALARS_DB_UTILS.build_insert_statement(
-            "scalars_123",
-            ["timestamp", "experiment_id", "scalar_name", "value", "step", "tags"],
-        )
-        == result
+def test_alter_table_add_columns_statement():
+    result = (
+        "ALTER TABLE scalars_123 "
+        "ADD COLUMN IF NOT EXISTS loss Nullable(Float64), "
+        "ADD COLUMN IF NOT EXISTS acc Nullable(Float64)"
     )
-    result = "INSERT INTO scalars_123 (timestamp, experiment_id, scalar_name, value, step, tags) VALUES ($1, $2, $3, $4, $5, $6)"
     assert (
-        SCALARS_DB_UTILS.build_insert_statement(
-            "scalars_123",
-            [
-                ProjectTableColumns.TIMESTAMP,
-                ProjectTableColumns.EXPERIMENT_ID,
-                ProjectTableColumns.SCALAR_NAME,
-                ProjectTableColumns.VALUE,
-                ProjectTableColumns.STEP,
-                ProjectTableColumns.TAGS,
-            ],
-        )
-        == result
-    )
-    result = "INSERT INTO scalars_123 (experiment_id, scalar_name, value, step) VALUES ($1, $2, $3, $4)"
-    assert (
-        SCALARS_DB_UTILS.build_insert_statement(
-            "scalars_123",
-            [
-                ProjectTableColumns.EXPERIMENT_ID,
-                ProjectTableColumns.SCALAR_NAME,
-                ProjectTableColumns.VALUE,
-                ProjectTableColumns.STEP,
-            ],
-        )
-        == result
-    )
-    result = "INSERT INTO scalars_123 (experiment_id, scalar_name, value, step) VALUES ($1, $2, $3, $4)"
-    assert (
-        SCALARS_DB_UTILS.build_insert_statement(
-            "scalars_123", ["experiment_id", "scalar_name", "value", "step"]
+        SCALARS_DB_UTILS.build_alter_table_add_columns_statement(
+            "scalars_123", ["loss", "acc"]
         )
         == result
     )
 
 
-def test_check_table_existence():
-    result = "SHOW CREATE TABLE scalars_123"
-    assert SCALARS_DB_UTILS.check_table_existence("scalars_123") == result
-    result = "SHOW CREATE TABLE scalars_1234"
-    assert SCALARS_DB_UTILS.check_table_existence("scalars_1234") == result
+def test_table_existence_statement():
+    result = (
+        "SELECT count() > 0 FROM system.tables "
+        "WHERE database = currentDatabase() AND name = 'scalars_123'"
+    )
+    assert SCALARS_DB_UTILS.build_table_existence_statement("scalars_123") == result
+
+
+def test_validate_scalar_column_name():
+    assert SCALARS_DB_UTILS.validate_scalar_column_name("loss_1") == "loss_1"
+    with pytest.raises(ValueError):
+        SCALARS_DB_UTILS.validate_scalar_column_name("loss/1")

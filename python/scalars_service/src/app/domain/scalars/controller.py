@@ -2,32 +2,24 @@ from enum import Enum
 from api.cache import get_cache
 from app.infrastructure.cache.cache import Cache
 from fastapi import APIRouter, Depends, Query
-from db.questdb import get_asyncpg_connection
-from sqlalchemy import Table, MetaData
-from datetime import datetime, timedelta, timezone
-from app.domain.utils.scalars_db_utils import SCALARS_DB_UTILS
-import json
+from db.clickhouse import get_clickhouse_client
 from .dto import (
     LogScalarRequestDTO,
     LogScalarsRequestDTO,
 )
-import asyncpg
 from .service import ScalarsService
 
 router = APIRouter(prefix="/scalars", tags=["scalars"])
-
-metadata = MetaData()
-
 
 @router.post("/log/{project_id}/{experiment_id}")
 async def log_scalar(
     project_id: str,
     experiment_id: str,
     request: LogScalarRequestDTO,
-    conn: asyncpg.Connection = Depends(get_asyncpg_connection),
+    client = Depends(get_clickhouse_client),
     cache: Cache | None = Depends(get_cache),
 ):
-    service = ScalarsService(conn, cache)
+    service = ScalarsService(client, cache)
     await service.log_scalar(project_id, experiment_id, request)
     return {"status": "logged"}
 
@@ -37,10 +29,10 @@ async def log_scalars_batch(
     project_id: str,
     experiment_id: str,
     request: LogScalarsRequestDTO,
-    conn: asyncpg.Connection = Depends(get_asyncpg_connection),
+    client = Depends(get_clickhouse_client),
     cache: Cache | None = Depends(get_cache),
 ):
-    service = ScalarsService(conn, cache)
+    service = ScalarsService(client, cache)
     await service.log_scalars(project_id, experiment_id, request)
     return {"status": "logged"}
 
@@ -57,12 +49,12 @@ async def get_scalars(
     experiment_id: list[str] | None = Query(default=None),
     sampling: Sampling = Query(default=Sampling.RESERVOIR),
     max_points: int | None = Query(default=None, ge=1),
-    conn: asyncpg.Connection = Depends(get_asyncpg_connection),
+    client = Depends(get_clickhouse_client),
     return_tags: bool = Query(default=False),
     cache: Cache | None = Depends(get_cache),
 ):
 
-    service = ScalarsService(conn, cache)
+    service = ScalarsService(client, cache)
     result = await service.get_scalars(
         project_id, experiment_id, max_points, return_tags=return_tags
     )
