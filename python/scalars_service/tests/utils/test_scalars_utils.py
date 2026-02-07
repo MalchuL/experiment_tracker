@@ -1,5 +1,6 @@
 import pytest
 from app.domain.utils.scalars_db_utils import SCALARS_DB_UTILS
+from config import get_settings  # type: ignore
 
 
 def test_build_create_table_statement():
@@ -76,6 +77,34 @@ def test_table_existence_statement():
         "WHERE database = currentDatabase() AND name = 'scalars_123'"
     )
     assert SCALARS_DB_UTILS.build_table_existence_statement("scalars_123") == result
+
+
+def test_create_mapping_table_statement(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("SCALARS_MAPPING_TABLE", "scalars_mapping_test")
+    get_settings.cache_clear()
+    result = (
+        "CREATE TABLE IF NOT EXISTS scalars_mapping_test "
+        "(project_id String, mapping String, updated_at DateTime64(3)) "
+        "ENGINE = ReplacingMergeTree(updated_at) ORDER BY project_id"
+    )
+    assert SCALARS_DB_UTILS.build_create_mapping_table_statement() == result
+
+
+def test_select_mapping_statement(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("SCALARS_MAPPING_TABLE", "scalars_mapping_test")
+    get_settings.cache_clear()
+    result = (
+        "SELECT mapping FROM scalars_mapping_test "
+        "WHERE project_id = 'project_1' ORDER BY updated_at DESC LIMIT 1"
+    )
+    assert SCALARS_DB_UTILS.build_select_mapping_statement("project_1") == result
+
+
+def test_delete_mapping_statement(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("SCALARS_MAPPING_TABLE", "scalars_mapping_test")
+    get_settings.cache_clear()
+    result = "ALTER TABLE scalars_mapping_test DELETE WHERE project_id = 'project_1'"
+    assert SCALARS_DB_UTILS.build_delete_mapping_statement("project_1") == result
 
 
 def test_validate_scalar_column_name():

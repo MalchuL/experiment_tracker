@@ -4,6 +4,8 @@ from enum import Enum
 import re
 from typing import Sequence, Type
 
+from config import get_settings
+
 
 class ProjectTableColumns(Enum):
     TIMESTAMP = "__timestamp__"
@@ -58,6 +60,9 @@ SCALAR_COLUMN_TYPE = "Nullable(Float64)"
 
 
 class ClickHouseScalarsDBUtils:
+    def get_mapping_table_name(self) -> str:
+        return get_settings().SCALARS_MAPPING_TABLE
+
     def safe_scalars_table_name(self, project_id: str) -> str:
         """
         Validate the table name: only latin letters, numbers, and underscores.
@@ -102,6 +107,14 @@ class ClickHouseScalarsDBUtils:
             f"ORDER BY ({ProjectTableColumns.EXPERIMENT_ID.value}, {ProjectTableColumns.STEP.value})"
         )
 
+    def build_create_mapping_table_statement(self) -> str:
+        return (
+            f"CREATE TABLE IF NOT EXISTS {self.get_mapping_table_name()} "
+            "(project_id String, mapping String, updated_at DateTime64(3)) "
+            "ENGINE = ReplacingMergeTree(updated_at) "
+            "ORDER BY project_id"
+        )
+
     def build_alter_table_add_columns_statement(
         self, table_name: str, scalar_columns: Sequence[str]
     ) -> str:
@@ -142,6 +155,19 @@ class ClickHouseScalarsDBUtils:
             f"{ProjectTableColumns.STEP.value}"
         )
         return select
+
+    def build_select_mapping_statement(self, project_id: str) -> str:
+        return (
+            f"SELECT mapping FROM {self.get_mapping_table_name()} "
+            f"WHERE project_id = '{project_id}' "
+            "ORDER BY updated_at DESC LIMIT 1"
+        )
+
+    def build_delete_mapping_statement(self, project_id: str) -> str:
+        return (
+            f"ALTER TABLE {self.get_mapping_table_name()} "
+            f"DELETE WHERE project_id = '{project_id}'"
+        )
 
     def get_experiments_ids(self, table_name: str) -> str:
         return f"SELECT DISTINCT {ProjectTableColumns.EXPERIMENT_ID.value} FROM {table_name}"

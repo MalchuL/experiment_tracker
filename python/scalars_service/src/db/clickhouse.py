@@ -51,7 +51,7 @@ async def get_clickhouse_client() -> AsyncGenerator[AsyncClient, None]:
     try:
         yield client
     finally:
-        client.close()
+        await client.close()
 
 
 async def check_connection() -> None:
@@ -65,4 +65,4 @@ async def check_connection() -> None:
             f"Please ensure the database exists and is accessible. Error: {e}"
         ) from e
     finally:
-        client.close()
+        await client.close()

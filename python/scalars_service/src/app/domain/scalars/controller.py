@@ -1,17 +1,13 @@
 from enum import Enum
 from api.cache import get_cache
 from app.infrastructure.cache.cache import Cache
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, Query
 from db.clickhouse import get_clickhouse_client
 from .dto import (
     LogScalarRequestDTO,
     LogScalarsRequestDTO,
 )
 from .service import ScalarsService
-from app.domain.utils.msgpack_utils import (  # type: ignore
-    parse_request_model,
-    pack_response,
-)
 
 router = APIRouter(prefix="/scalars", tags=["scalars"])
 
@@ -20,28 +16,24 @@ router = APIRouter(prefix="/scalars", tags=["scalars"])
 async def log_scalar(
     project_id: str,
     experiment_id: str,
-    request: Request,
+    payload: LogScalarRequestDTO,
     client=Depends(get_clickhouse_client),
     cache: Cache | None = Depends(get_cache),
 ):
-    payload = await parse_request_model(request, LogScalarRequestDTO)
     service = ScalarsService(client, cache)
-    result = await service.log_scalar(project_id, experiment_id, payload)
-    return pack_response(request, result)
+    return await service.log_scalar(project_id, experiment_id, payload)
 
 
 @router.post("/log_batch/{project_id}/{experiment_id}")
 async def log_scalars_batch(
     project_id: str,
     experiment_id: str,
-    request: Request,
+    payload: LogScalarsRequestDTO,
     client=Depends(get_clickhouse_client),
     cache: Cache | None = Depends(get_cache),
 ):
-    payload = await parse_request_model(request, LogScalarsRequestDTO)
     service = ScalarsService(client, cache)
-    result = await service.log_scalars(project_id, experiment_id, payload)
-    return pack_response(request, result)
+    return await service.log_scalars(project_id, experiment_id, payload)
 
 
 class Sampling(Enum):
@@ -53,7 +45,6 @@ class Sampling(Enum):
 @router.get("/get/{project_id}")
 async def get_scalars(
     project_id: str,
-    request: Request,
     experiment_id: list[str] | None = Query(default=None),
     sampling: Sampling = Query(default=Sampling.RESERVOIR),
     max_points: int | None = Query(default=None, ge=1),
@@ -63,7 +54,6 @@ async def get_scalars(
 ):
 
     service = ScalarsService(client, cache)
-    result = await service.get_scalars(
+    return await service.get_scalars(
         project_id, experiment_id, max_points, return_tags=return_tags
     )
-    return pack_response(request, result)

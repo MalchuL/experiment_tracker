@@ -1,6 +1,8 @@
 from collections import defaultdict
 from datetime import datetime, timezone
+import json
 from typing import Literal, Sequence, cast
+from uuid import uuid4
 
 from app.domain.scalars.dto import (  # type: ignore
     ExperimentsScalarsPointsResultDTO,
@@ -49,16 +51,21 @@ class ScalarsService:
             return LogScalarResponseDTO(status="logged", warnings=warnings or None)
 
         table_name = SCALARS_DB_UTILS.safe_scalars_table_name(project_id)
-        scalar_names = self._validate_scalar_names(list(filtered_scalars.keys()))
-        await self._ensure_table_and_columns(table_name, scalar_names)
+        mapping = await self._get_or_create_scalar_mapping(project_id)
+        mapped_columns, mapping_updated = self._resolve_scalar_columns(
+            mapping, list(filtered_scalars.keys())
+        )
+        if mapping_updated:
+            await self._save_scalar_mapping(project_id, mapping)
+        await self._ensure_table_and_columns(table_name, list(mapped_columns.values()))
 
-        columns = SCALARS_DB_UTILS.get_base_columns() + list(scalar_names)
+        columns = SCALARS_DB_UTILS.get_base_columns() + list(mapped_columns.values())
         row = [
             _get_now_datetime(),
             experiment_id,
             request.step,
             request.tags or [],
-        ] + [filtered_scalars[name] for name in scalar_names]
+        ] + [filtered_scalars[name] for name in mapped_columns.keys()]
         await self.client.insert(table_name, [row], column_names=columns)
         return LogScalarResponseDTO(status="logged", warnings=warnings or None)
 
@@ -92,12 +99,18 @@ class ScalarsService:
         if not filtered_items:
             return LogScalarsResponseDTO(status="logged", warnings=warnings or None)
 
-        all_scalar_names = self._validate_scalar_names(
-            sorted({name for item in filtered_items for name in item.scalars})
+        all_scalar_names = sorted(
+            {name for item in filtered_items for name in item.scalars}
         )
-        await self._ensure_table_and_columns(table_name, all_scalar_names)
+        mapping = await self._get_or_create_scalar_mapping(project_id)
+        mapped_columns, mapping_updated = self._resolve_scalar_columns(
+            mapping, all_scalar_names
+        )
+        if mapping_updated:
+            await self._save_scalar_mapping(project_id, mapping)
+        await self._ensure_table_and_columns(table_name, list(mapped_columns.values()))
 
-        columns = SCALARS_DB_UTILS.get_base_columns() + list(all_scalar_names)
+        columns = SCALARS_DB_UTILS.get_base_columns() + list(mapped_columns.values())
         rows = []
         for item in filtered_items:
             row = [
@@ -105,7 +118,7 @@ class ScalarsService:
                 experiment_id,
                 item.step,
                 item.tags or [],
-            ] + [item.scalars.get(name) for name in all_scalar_names]
+            ] + [item.scalars.get(name) for name in mapped_columns.keys()]
             rows.append(row)
         if rows:
             await self.client.insert(table_name, rows, column_names=columns)
@@ -167,6 +180,8 @@ class ScalarsService:
             return ScalarsPointsResultDTO(data=result)
 
         scalar_columns = await self._get_scalar_columns(table_name)
+        mapping = await self._get_or_create_scalar_mapping(project_id)
+        column_to_scalar_name = {column: scalar for scalar, column in mapping.items()}
         select_statement = SCALARS_DB_UTILS.build_select_statement(
             table_name,
             scalar_columns=scalar_columns,
@@ -177,6 +192,7 @@ class ScalarsService:
             query_result.column_names,
             query_result.result_rows,
             scalar_columns,
+            column_to_scalar_name,
             return_tags,
         )
 
@@ -216,6 +232,7 @@ class ScalarsService:
         column_names: Sequence[str],
         rows: list[Sequence[object]],
         scalar_columns: Sequence[str],
+        column_to_scalar_name: dict[str, str],
         return_tags: bool = False,
     ):
         result_scalars = defaultdict[str, defaultdict[str, list[tuple[int, float]]]](
@@ -236,10 +253,12 @@ class ScalarsService:
                 value = row[col_index[scalar_name]]
                 if value is None:
                     continue
-                result_scalars[experiment_id][scalar_name].append(
+                # If name is not in mapping, use original name
+                original_name = column_to_scalar_name.get(scalar_name, scalar_name)
+                result_scalars[experiment_id][original_name].append(
                     (step, cast(float, value))
                 )
-                row_scalar_names.append(scalar_name)
+                row_scalar_names.append(original_name)
 
             if return_tags:
                 result_tags[experiment_id].append(
@@ -285,35 +304,71 @@ class ScalarsService:
             )
             await self.client.command(ddl)
 
-    def _validate_scalar_names(self, names: Sequence[str]) -> list[str]:
-        validated: list[str] = []
-        for name in names:
-            normalized = SCALARS_DB_UTILS.validate_scalar_column_name(name)
-            if normalized is None:
-                continue
-            validated.append(normalized)
-        return list(validated)
-
     def _filter_conflicting_scalars(
         self, scalars: dict[str, float]
     ) -> tuple[dict[str, float], list[str]]:
-        internal_names = SCALARS_DB_UTILS.get_internal_column_names()
         filtered: dict[str, float] = {}
         warnings: list[str] = []
         for name, value in scalars.items():
-            normalized = SCALARS_DB_UTILS.validate_scalar_column_name(name)
-            if normalized is None:
-                warnings.append(
-                    f"Scalar '{name}' is invalid after normalization and was skipped."
-                )
+            if not name or not name.strip():
+                warnings.append("Scalar name is empty and was skipped.")
                 continue
-            if normalized in internal_names:
-                warnings.append(
-                    f"Scalar '{name}' conflicts with internal column name and was skipped."
-                )
-                continue
-            filtered[normalized] = value
+            filtered[name] = value
         return filtered, warnings
+
+    async def _load_scalar_mapping(self, project_id: str) -> dict[str, str] | None:
+        query = SCALARS_DB_UTILS.build_select_mapping_statement(project_id)
+        result = await self.client.query(query)
+        if not result.result_rows:
+            return None
+        mapping_json = result.result_rows[0][0]
+        if not mapping_json:
+            return {}
+        try:
+            parsed = json.loads(mapping_json)
+        except json.JSONDecodeError:
+            return {}
+        if not isinstance(parsed, dict):
+            return {}
+        return {str(k): str(v) for k, v in parsed.items()}
+
+    async def _save_scalar_mapping(
+        self, project_id: str, mapping: dict[str, str]
+    ) -> None:
+        payload = json.dumps(mapping, separators=(",", ":"), sort_keys=True)
+        await self.client.insert(
+            SCALARS_DB_UTILS.get_mapping_table_name(),
+            [[project_id, payload, _get_now_datetime()]],
+            column_names=["project_id", "mapping", "updated_at"],
+        )
+
+    async def _get_or_create_scalar_mapping(self, project_id: str) -> dict[str, str]:
+        mapping = await self._load_scalar_mapping(project_id)
+        if mapping is None:
+            mapping = {}
+        return mapping
+
+    def _resolve_scalar_columns(
+        self, mapping: dict[str, str], scalar_names: Sequence[str]
+    ) -> tuple[dict[str, str], bool]:
+        updated = False
+        existing_columns = set(mapping.values())
+        resolved: dict[str, str] = {}
+        for name in scalar_names:
+            if name in mapping:
+                resolved[name] = mapping[name]
+                continue
+            mapping[name] = self._generate_scalar_column_name(existing_columns)
+            existing_columns.add(mapping[name])
+            resolved[name] = mapping[name]
+            updated = True
+        return resolved, updated
+
+    def _generate_scalar_column_name(self, existing_columns: set[str]) -> str:
+        while True:
+            candidate = f"c_{uuid4().hex}"
+            if candidate not in existing_columns:
+                return candidate
 
     async def _invalidate_cache(self, project_id: str, experiment_id: str) -> None:
         if self.cache is None:

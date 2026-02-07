@@ -43,6 +43,9 @@ class ProjectsService:
     ) -> DeleteProjectTableResponseDTO:
         table_name = SCALARS_DB_UTILS.safe_scalars_table_name(project_id)
         await self.client.command(
+            SCALARS_DB_UTILS.build_delete_mapping_statement(project_id)
+        )
+        await self.client.command(
             SCALARS_DB_UTILS.build_drop_table_statement(table_name)
         )
         return DeleteProjectTableResponseDTO(

@@ -2,7 +2,8 @@ from fastapi import FastAPI
 from contextlib import asynccontextmanager
 from .routes import router as api_router
 from config import get_settings
-from db.clickhouse import check_connection
+from app.domain.utils.scalars_db_utils import SCALARS_DB_UTILS  # type: ignore
+from db.clickhouse import check_connection, get_clickhouse_client
 from db.redis import close_redis_client
 
 
@@ -10,6 +11,8 @@ from db.redis import close_redis_client
 async def lifespan(app: FastAPI):
     # Startup logic can go here
     await check_connection()
+    async for client in get_clickhouse_client():
+        await client.command(SCALARS_DB_UTILS.build_create_mapping_table_statement())
     print("Connection to ClickHouse established")
     yield
     # Shutdown logic can go here
