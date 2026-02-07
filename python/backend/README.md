@@ -14,6 +14,18 @@ uv sync --extra dev
 uv run uvicorn api.main:app --reload --port 8001
 ```
 
+## Scalars Service Integration
+
+This backend proxies scalar logging/reading to the scalars microservice.
+
+Set the scalars service base URL in `.env` (defaults to `http://127.0.0.1:8001/api`):
+
+```
+SCALARS_SERVICE_URL=http://127.0.0.1:8001/api
+```
+
+If you run both services locally, use different ports (for example, start the backend on `8000`).
+
 ## Clean Database
 `psql "postgresql://USER:PASSWORD@HOST:PORT/your_db_name"`
 

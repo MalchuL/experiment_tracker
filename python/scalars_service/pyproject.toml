@@ -22,6 +22,7 @@ dependencies = [
     "advanced-alchemy>=1.8.2",
     "redis>=5.0.0",
     "clickhouse-connect>=0.7.0",
+    "msgpack>=1.0.8",
 ]
 
 

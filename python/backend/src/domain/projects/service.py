@@ -17,6 +17,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from domain.projects.dto import ProjectDTO, ProjectCreateDTO, ProjectUpdateDTO
 from models import Role
 from domain.team.teams.repository import TeamRepository
+from config.settings import get_settings
+from domain.scalars.client import ScalarsServiceClient
 
 
 class ProjectService:
@@ -27,6 +29,7 @@ class ProjectService:
         self.permission_checker = PermissionChecker(db)
         self.team_repository = TeamRepository(db)
         self.project_mapper = ProjectMapper()
+        self.scalars_client = ScalarsServiceClient(get_settings().scalars_service_url)
 
     async def get_accessible_project_ids(
         self, user: UserProtocol, actions: list[str] | str | None
@@ -63,6 +66,7 @@ class ProjectService:
                 await self.permission_service.add_user_to_project_permissions(
                     user.id, project_model.id, Role.ADMIN
                 )
+            await self.scalars_client.create_project_table(str(project_model.id))
             await self.project_repository.commit()
         except Exception as e:
             await self.project_repository.rollback()
@@ -183,6 +187,7 @@ class ProjectService:
             user_id=user.id, project_id=project_id, actions=actions_list
         )
 
+    # TODO: Delete the project from the scalars service
     async def delete_project(self, user: UserProtocol, project_id: UUID_TYPE) -> bool:
         try:
             if not await self.permission_checker.can_delete_project(

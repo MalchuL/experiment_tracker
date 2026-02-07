@@ -1,8 +1,12 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Request
 from db.clickhouse import get_clickhouse_client  # type: ignore
 
 from .dto import CreateProjectTableDTO
 from .service import ProjectsService
+from app.domain.utils.msgpack_utils import (  # type: ignore
+    parse_request_model,
+    pack_response,
+)
 
 
 router = APIRouter(prefix="/projects", tags=["projects"])
@@ -10,12 +14,14 @@ router = APIRouter(prefix="/projects", tags=["projects"])
 
 @router.post("")
 async def create_project_scalars_table(
-    request: CreateProjectTableDTO,
+    request: Request,
     client=Depends(get_clickhouse_client),
 ):
     try:
+        payload = await parse_request_model(request, CreateProjectTableDTO)
         service = ProjectsService(client)
-        return await service.create_project_table(request.project_id)
+        result = await service.create_project_table(payload.project_id)
+        return pack_response(request, result)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error creating table: {str(e)}")
 

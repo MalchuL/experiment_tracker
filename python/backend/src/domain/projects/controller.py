@@ -8,6 +8,7 @@ from domain.hypotheses.service import HypothesisService
 from domain.metrics.dto import MetricDTO as MetricDTO
 from domain.metrics.service import MetricService
 from lib.types import UUID_TYPE
+import httpx
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -29,6 +30,12 @@ def _raise_project_http_error(error: Exception) -> None:
         raise HTTPException(status_code=403, detail=str(error))
     if isinstance(error, ProjectNotAccessibleError):
         raise HTTPException(status_code=404, detail=str(error))
+    if isinstance(error, httpx.HTTPStatusError):
+        raise HTTPException(
+            status_code=error.response.status_code, detail=error.response.text
+        )
+    if isinstance(error, httpx.RequestError):
+        raise HTTPException(status_code=502, detail="Scalars service unavailable")
     raise HTTPException(status_code=400, detail=str(error))
 
 

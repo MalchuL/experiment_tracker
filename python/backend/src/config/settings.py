@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     jwt_secret: str = "CHANGE-ME-IN-PRODUCTION-SECRET-KEY-12345"
     app_name: str = "Experiment Tracker"
     allowed_origins: str = "*"
+    scalars_service_url: str = "http://127.0.0.1:8001/api"
 
     class Config:
         env_prefix = ""

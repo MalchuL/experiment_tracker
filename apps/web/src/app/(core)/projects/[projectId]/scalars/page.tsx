@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect, useCallback } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams, useRouter } from "next/navigation";
 import { PageHeader } from "@/components/shared/page-header";
 import { ListSkeleton } from "@/components/shared/loading-skeleton";
@@ -28,11 +29,15 @@ import {
 import { useCurrentProject } from "@/domain/projects/hooks";
 import { useExperiments } from "@/domain/experiments/hooks";
 import { useAllMetrics } from "@/domain/metrics/hooks";
-import { AlertCircle, BarChart3, ChevronDown, Eye, EyeOff, Maximize2, RotateCcw } from "lucide-react";
+import { AlertCircle, BarChart3, ChevronDown, Eye, EyeOff, Maximize2, Pencil, RotateCcw } from "lucide-react";
 import Plot from "react-plotly.js";
 import type { Layout, Config } from "plotly.js";
 import type { Experiment } from "@/domain/experiments/types";
 import type { Metric } from "@/domain/metrics/types";
+import { ExperimentEditForm } from "@/components/shared/experiment-edit-form";
+import { experimentsService } from "@/domain/experiments/services";
+import type { UpdateExperiment } from "@/domain/experiments/types";
+import { QUERY_KEYS } from "@/lib/constants/query-keys";
 
 const CHART_COLORS = [
   "#3b82f6",
@@ -46,6 +51,13 @@ const CHART_COLORS = [
   "#84cc16",
   "#14b8a6",
 ];
+
+type SyncMode = "all" | "x-only" | "y-only" | "independent";
+
+interface ChartDomain {
+  x: [number, number] | null;
+  y: [number, number] | null;
+}
 
 function encodeSelection(indices: number[]): string {
   if (indices.length === 0) return "";
@@ -81,8 +93,8 @@ interface MetricChartProps {
   allExperiments: Experiment[];
   height?: number;
   showBrush?: boolean;
-  domain?: [number, number] | null;
-  onDomainChange?: (domain: [number, number] | null) => void;
+  domain?: ChartDomain | null;
+  onDomainChange?: (domain: ChartDomain | null) => void;
   onExpand?: () => void;
   onReset?: () => void;
   isFullscreen?: boolean;
@@ -98,9 +110,11 @@ function MetricChart({
   onDomainChange,
   isFullscreen = false,
 }: MetricChartProps) {
+  const [dragMode, setDragMode] = useState<"zoom" | "pan">("zoom");
   const plotData = useMemo(() => {
     return selectedExperiments.map((experiment) => {
       const originalIndex = allExperiments.findIndex(e => e.id === experiment.id);
+      const experimentColor = experiment.color || CHART_COLORS[originalIndex % CHART_COLORS.length];
       const xValues: number[] = [];
       const yValues: number[] = [];
       
@@ -120,7 +134,7 @@ function MetricChart({
         mode: 'lines' as const,
         name: experiment.name,
         line: {
-          color: CHART_COLORS[originalIndex % CHART_COLORS.length],
+          color: experimentColor,
           width: isFullscreen ? 2 : 1.5,
         },
         hovertemplate: `<b>${experiment.name}</b><br>Step: %{x}<br>Value: %{y:.4f}<extra></extra>`,
@@ -129,12 +143,28 @@ function MetricChart({
   }, [data, selectedExperiments, allExperiments, isFullscreen]);
 
   const handleRelayout = useCallback((event: any) => {
-    if (event['xaxis.range[0]'] !== undefined && event['xaxis.range[1]'] !== undefined) {
-      onDomainChange?.([event['xaxis.range[0]'], event['xaxis.range[1]']]);
-    } else if (event['xaxis.autorange'] === true) {
-      onDomainChange?.(null);
+    if (event?.dragmode) {
+      setDragMode(event.dragmode);
     }
-  }, [onDomainChange]);
+    const nextDomain: ChartDomain = {
+      x: domain?.x ?? null,
+      y: domain?.y ?? null,
+    };
+
+    if (event["xaxis.range[0]"] !== undefined && event["xaxis.range[1]"] !== undefined) {
+      nextDomain.x = [event["xaxis.range[0]"], event["xaxis.range[1]"]];
+    } else if (event["xaxis.autorange"] === true) {
+      nextDomain.x = null;
+    }
+
+    if (event["yaxis.range[0]"] !== undefined && event["yaxis.range[1]"] !== undefined) {
+      nextDomain.y = [event["yaxis.range[0]"], event["yaxis.range[1]"]];
+    } else if (event["yaxis.autorange"] === true) {
+      nextDomain.y = null;
+    }
+
+    onDomainChange?.(nextDomain);
+  }, [domain, onDomainChange]);
 
   if (data.length === 0) {
     return (
@@ -157,24 +187,20 @@ function MetricChart({
       title: isFullscreen ? { text: 'Step', font: { size: 12 } } : undefined,
       tickfont: { size: isFullscreen ? 12 : 10 },
       gridcolor: 'rgba(128, 128, 128, 0.2)',
-      range: domain || undefined,
-      autorange: domain ? false : true,
+      range: domain?.x || undefined,
+      autorange: domain?.x ? false : true,
     },
     yaxis: {
       tickfont: { size: isFullscreen ? 12 : 10 },
       gridcolor: 'rgba(128, 128, 128, 0.2)',
+      range: domain?.y || undefined,
+      autorange: domain?.y ? false : true,
     },
-    legend: {
-      font: { size: isFullscreen ? 12 : 10 },
-      orientation: 'h' as const,
-      y: -0.15,
-      x: 0.5,
-      xanchor: 'center' as const,
-    },
+    showlegend: false,
     hovermode: 'x unified' as const,
     paper_bgcolor: 'transparent',
     plot_bgcolor: 'transparent',
-    dragmode: 'zoom' as const,
+    dragmode: dragMode,
   };
 
   const config: Partial<Config> = {
@@ -208,8 +234,26 @@ export default function Scalars() {
   const [initialized, setInitialized] = useState(false);
   const [selectedExperimentIndices, setSelectedExperimentIndices] = useState<Set<number>>(new Set());
   const [hiddenMetrics, setHiddenMetrics] = useState<Set<string>>(new Set());
-  const [metricDomains, setMetricDomains] = useState<Record<string, [number, number] | null>>({});
+  const [metricDomains, setMetricDomains] = useState<Record<string, ChartDomain>>({});
   const [fullscreenMetric, setFullscreenMetric] = useState<string | null>(null);
+  const [syncMode, setSyncMode] = useState<SyncMode>("all");
+  const [soloMode, setSoloMode] = useState(false);
+  const [editExperiment, setEditExperiment] = useState<Experiment | null>(null);
+  const [cardHeight, setCardHeight] = useState(220);
+  const [cardMinWidth, setCardMinWidth] = useState(320);
+
+  const queryClient = useQueryClient();
+  const updateExperiment = useMutation({
+    mutationFn: (payload: { id: string; data: UpdateExperiment }) =>
+      experimentsService.update(payload.id, payload.data as any),
+    onSuccess: () => {
+      if (projectId) {
+        queryClient.invalidateQueries({
+          queryKey: [QUERY_KEYS.EXPERIMENTS.BY_PROJECT(projectId)],
+        });
+      }
+    },
+  });
 
   const { experiments = [], isLoading: experimentsLoading } = useExperiments(projectId);
   const { allMetrics = {}, isLoading: metricsLoading } = useAllMetrics(projectId);
@@ -336,16 +380,38 @@ export default function Scalars() {
     updateUrl(selectedExperimentIndices, hiddenMetrics, value[0]);
   };
 
-  const handleDomainChange = (metricName: string, domain: [number, number] | null) => {
-    setMetricDomains(prev => ({ ...prev, [metricName]: domain }));
+  const handleDomainChange = (metricName: string, domain: ChartDomain | null) => {
+    setMetricDomains(prev => {
+      const nextDomain = domain ?? { x: null, y: null };
+      if (syncMode === "independent") {
+        return { ...prev, [metricName]: nextDomain };
+      }
+      const next: Record<string, ChartDomain> = { ...prev };
+      const metricNames = visibleMetrics.map((metric) => metric.name);
+      metricNames.forEach((name) => {
+        const current = next[name] ?? { x: null, y: null };
+        if (syncMode === "x-only") {
+          next[name] = { x: nextDomain.x, y: current.y };
+        } else if (syncMode === "y-only") {
+          next[name] = { x: current.x, y: nextDomain.y };
+        } else {
+          next[name] = { x: nextDomain.x, y: nextDomain.y };
+        }
+      });
+      return next;
+    });
   };
 
   const resetDomain = (metricName: string) => {
-    setMetricDomains(prev => ({ ...prev, [metricName]: null }));
+    handleDomainChange(metricName, { x: null, y: null });
   };
 
   const resetAllDomains = () => {
-    setMetricDomains({});
+    const next: Record<string, ChartDomain> = {};
+    visibleMetrics.forEach((metric) => {
+      next[metric.name] = { x: null, y: null };
+    });
+    setMetricDomains(next);
   };
 
   const visibleMetrics = useMemo(() => {
@@ -359,16 +425,23 @@ export default function Scalars() {
     return experiments.filter((_, i) => selectedExperimentIndices.has(i));
   }, [experiments, selectedExperimentIndices]);
 
+  const visibleExperiments = useMemo(() => {
+    if (soloMode) {
+      return selectedExperiments;
+    }
+    return experiments;
+  }, [experiments, selectedExperiments, soloMode]);
+
   const chartDataByMetric = useMemo(() => {
     const result: Record<string, Array<Record<string, number | null>>> = {};
     
-    if (!allMetrics || selectedExperiments.length === 0) return result;
+    if (!allMetrics || visibleExperiments.length === 0) return result;
 
     for (const metric of visibleMetrics) {
       const stepMap = new Map<number, Record<string, number | null>>();
       const rawDataByExp: Record<string, { steps: number[]; values: number[] }> = {};
       
-      selectedExperiments.forEach((experiment) => {
+      visibleExperiments.forEach((experiment) => {
         const expMetrics = allMetrics[experiment.id] || [];
         const metricData = expMetrics
           .filter(m => m.name === metric.name)
@@ -401,7 +474,7 @@ export default function Scalars() {
     }
 
     return result;
-  }, [allMetrics, selectedExperiments, experiments, visibleMetrics, smoothing]);
+  }, [allMetrics, visibleExperiments, experiments, visibleMetrics, smoothing]);
 
   const fullscreenMetricData = fullscreenMetric ? chartDataByMetric[fullscreenMetric] || [] : [];
 
@@ -439,6 +512,70 @@ export default function Scalars() {
           <CardTitle className="text-base">Controls</CardTitle>
         </CardHeader>
         <CardContent className="flex-1 overflow-hidden flex flex-col gap-4">
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">Sync Mode</Label>
+            <select
+              value={syncMode}
+              onChange={(event) => setSyncMode(event.target.value as SyncMode)}
+              className="w-full px-2 py-1 text-xs border border-border rounded bg-background text-foreground"
+              data-testid="select-sync-mode"
+            >
+              <option value="all">All (X & Y)</option>
+              <option value="x-only">X-Axis Only</option>
+              <option value="y-only">Y-Axis Only</option>
+              <option value="independent">Independent</option>
+            </select>
+            <Button
+              variant={soloMode ? "default" : "outline"}
+              size="sm"
+              onClick={() => setSoloMode(!soloMode)}
+              className="w-full text-xs"
+              data-testid="button-solo-mode"
+            >
+              {soloMode ? "✓ Solo Mode" : "Solo Mode"}
+            </Button>
+          </div>
+
+          <Separator />
+
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">Card Size</Label>
+            <div className="flex items-center gap-3">
+              <Slider
+                value={[cardHeight]}
+                onValueChange={(value) => setCardHeight(value[0])}
+                min={180}
+                max={420}
+                step={10}
+                className="flex-1"
+                data-testid="slider-card-size"
+              />
+              <span className="text-sm font-mono w-12 text-right">
+                {cardHeight}px
+              </span>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">Card Width</Label>
+            <div className="flex items-center gap-3">
+              <Slider
+                value={[cardMinWidth]}
+                onValueChange={(value) => setCardMinWidth(value[0])}
+                min={240}
+                max={560}
+                step={20}
+                className="flex-1"
+                data-testid="slider-card-width"
+              />
+              <span className="text-sm font-mono w-12 text-right">
+                {cardMinWidth}px
+              </span>
+            </div>
+          </div>
+
+          <Separator />
+
           <div className="space-y-2">
             <Label className="text-sm font-medium">Smoothing</Label>
             <div className="flex items-center gap-3">
@@ -499,7 +636,7 @@ export default function Scalars() {
                     />
                     <div
                       className="w-3 h-3 rounded-full flex-shrink-0"
-                      style={{ backgroundColor: CHART_COLORS[index % CHART_COLORS.length] }}
+                      style={{ backgroundColor: experiment.color || CHART_COLORS[index % CHART_COLORS.length] }}
                     />
                     <label
                       htmlFor={`exp-${index}`}
@@ -508,6 +645,15 @@ export default function Scalars() {
                     >
                       {experiment.name}
                     </label>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6"
+                      onClick={() => setEditExperiment(experiment)}
+                      data-testid={`button-edit-experiment-${index}`}
+                    >
+                      <Pencil className="w-3 h-3" />
+                    </Button>
                   </div>
                 ))}
               </div>
@@ -604,7 +750,7 @@ export default function Scalars() {
           <div className="space-y-2">
             <div className="flex items-center justify-between gap-2">
               <Label className="text-sm font-medium">Zoom</Label>
-              {Object.values(metricDomains).some(d => d !== null) && (
+              {Object.values(metricDomains).some(d => d?.x || d?.y) && (
                 <Button
                   variant="ghost"
                   size="sm"
@@ -625,13 +771,13 @@ export default function Scalars() {
 
       <div className="flex-1 overflow-auto">
         <div className="mb-4">
-          <PageHeader
+            <PageHeader
             title="Scalars"
-            description={`Metrics visualization for "${project?.name}" - ${selectedExperiments.length} experiments selected`}
+              description={`Metrics visualization for "${project?.name}" - ${visibleExperiments.length} experiments visible`}
           />
         </div>
 
-        {selectedExperiments.length === 0 ? (
+        {visibleExperiments.length === 0 ? (
           <EmptyState
             icon={BarChart3}
             title="Select experiments"
@@ -644,18 +790,21 @@ export default function Scalars() {
             description="All metrics are hidden. Click 'Show All' to display them."
           />
         ) : (
-          <div 
-            className="grid gap-4" 
-            style={{ gridTemplateColumns: `repeat(${gridCols}, minmax(0, 1fr))` }}
+          <div
+            className="grid gap-4"
+            style={{
+              gridTemplateColumns: `repeat(auto-fill, ${cardMinWidth}px)`,
+              justifyContent: "start",
+            }}
           >
             {visibleMetrics.map((metric) => {
               const data = chartDataByMetric[metric.name] || [];
               const hasData = data.length > 0;
-              const domain = metricDomains[metric.name] || null;
+              const domain = metricDomains[metric.name] || { x: null, y: null };
 
               return (
                 <Card key={metric.name} data-testid={`card-metric-${metric.name}`}>
-                  <CardHeader className="pb-2">
+                  <CardHeader className="py-2 px-3">
                     <CardTitle className="text-sm flex items-center justify-between gap-2">
                       <span className="truncate">{metric.name}</span>
                       <div className="flex items-center gap-1 flex-shrink-0">
@@ -694,9 +843,12 @@ export default function Scalars() {
                       </div>
                     </CardTitle>
                   </CardHeader>
-                  <CardContent>
+                  <CardContent className="px-2 pb-2 pt-0">
                     {!hasData ? (
-                      <div className="h-48 flex items-center justify-center text-sm text-muted-foreground">
+                      <div
+                        className="flex items-center justify-center text-sm text-muted-foreground"
+                        style={{ height: cardHeight }}
+                      >
                         No data for selected experiments
                       </div>
                     ) : (
@@ -704,9 +856,9 @@ export default function Scalars() {
                         metricName={metric.name}
                         data={data}
                         experiments={experiments}
-                        selectedExperiments={selectedExperiments}
+                        selectedExperiments={visibleExperiments}
                         allExperiments={experiments}
-                        height={200}
+                        height={cardHeight}
                         showBrush={true}
                         domain={domain}
                         onDomainChange={(d) => handleDomainChange(metric.name, d)}
@@ -728,7 +880,7 @@ export default function Scalars() {
             <DialogTitle className="flex items-center justify-between gap-4">
               <span>{fullscreenMetric}</span>
               <div className="flex items-center gap-2">
-                {fullscreenMetric && metricDomains[fullscreenMetric] && (
+                {fullscreenMetric && (metricDomains[fullscreenMetric]?.x || metricDomains[fullscreenMetric]?.y) && (
                   <Button
                     variant="outline"
                     size="sm"
@@ -748,16 +900,48 @@ export default function Scalars() {
                 metricName={fullscreenMetric}
                 data={fullscreenMetricData}
                 experiments={experiments}
-                selectedExperiments={selectedExperiments}
+                selectedExperiments={visibleExperiments}
                 allExperiments={experiments}
                 height={500}
                 showBrush={true}
-                domain={metricDomains[fullscreenMetric] || null}
+                domain={metricDomains[fullscreenMetric] || { x: null, y: null }}
                 onDomainChange={(d) => handleDomainChange(fullscreenMetric, d)}
                 isFullscreen={true}
               />
             )}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={!!editExperiment}
+        onOpenChange={(open) => !open && setEditExperiment(null)}
+      >
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Edit Experiment</DialogTitle>
+          </DialogHeader>
+          {editExperiment && (
+            <ExperimentEditForm
+              experiment={editExperiment}
+              isSaving={updateExperiment.isPending}
+              onSave={(data) => {
+                updateExperiment.mutate(
+                  {
+                    id: editExperiment.id,
+                    data: {
+                      name: data.name,
+                      description: data.description,
+                      color: data.color,
+                    },
+                  },
+                  {
+                    onSuccess: () => setEditExperiment(null),
+                  }
+                );
+              }}
+            />
+          )}
         </DialogContent>
       </Dialog>
     </div>
