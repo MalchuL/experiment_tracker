@@ -2,7 +2,6 @@ import re
 
 
 class PatternMatcher:
-
     @staticmethod
     def translate_glob_to_regex(redis_pattern: str) -> str:
         pattern = redis_pattern

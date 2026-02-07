@@ -3,7 +3,6 @@ from typing import Any
 
 
 class Cache(ABC):
-
     @abstractmethod
     async def get(self, key: str) -> Any:
         pass

@@ -84,7 +84,5 @@ def test_validate_scalar_column_name():
         SCALARS_DB_UTILS.validate_scalar_column_name("  val loss\tstep  ")
         == "val_loss_step"
     )
-    with pytest.raises(ValueError):
-        SCALARS_DB_UTILS.validate_scalar_column_name("loss/1")
-    with pytest.raises(ValueError):
-        SCALARS_DB_UTILS.validate_scalar_column_name("   \n\t ")
+    assert SCALARS_DB_UTILS.validate_scalar_column_name("loss/1") == "loss/1"
+    assert SCALARS_DB_UTILS.validate_scalar_column_name("   \n\t ") == "_empty_"

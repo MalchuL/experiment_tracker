@@ -3,10 +3,8 @@ from typing import AsyncGenerator
 import asyncpg
 from config import get_settings
 from .utils import build_async_database_url, build_async_asyncpg_url
-from fastapi import Depends
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import (
-    AsyncConnection,
     AsyncSession,
     async_sessionmaker,
     create_async_engine,
