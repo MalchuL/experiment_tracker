@@ -17,7 +17,7 @@ class ScalarsServiceClient:
             "POST",
             "/projects",
             json_payload=payload,
-            use_msgpack=True,
+            use_msgpack=False,
         )
 
     async def log_scalar(
@@ -27,7 +27,7 @@ class ScalarsServiceClient:
             "POST",
             f"/scalars/log/{project_id}/{experiment_id}",
             json_payload=payload,
-            use_msgpack=True,
+            use_msgpack=False,
         )
 
     async def log_scalars_batch(
@@ -37,7 +37,7 @@ class ScalarsServiceClient:
             "POST",
             f"/scalars/log_batch/{project_id}/{experiment_id}",
             json_payload=payload,
-            use_msgpack=True,
+            use_msgpack=False,
         )
 
     async def get_scalars(
@@ -56,7 +56,7 @@ class ScalarsServiceClient:
             "GET",
             f"/scalars/get/{project_id}",
             params=params,
-            accept_msgpack=True,
+            accept_msgpack=False,
         )
 
     async def _request(
