@@ -1,0 +1,46 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: object_storage
+      POSTGRES_PASSWORD: object_storage
+      POSTGRES_DB: object_storage
+    ports:
+      - "5433:5432"
+    volumes:
+      - object_storage_db:/var/lib/postgresql/data
+
+  minio:
+    image: minio/minio:RELEASE.2024-08-17T01-23-59Z
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minio
+      MINIO_ROOT_PASSWORD: minio123
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - object_storage_minio:/data
+
+  object_storage:
+    build: .
+    environment:
+      DATABASE_URL: postgresql+asyncpg://object_storage:object_storage@postgres:5432/object_storage
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: minio
+      MINIO_SECRET_KEY: minio123
+      MINIO_BUCKET: ml-blobs
+      MINIO_SECURE: "false"
+      API_PREFIX: /api
+      ALLOWED_ORIGINS: "*"
+    ports:
+      - "8010:8010"
+    depends_on:
+      - postgres
+      - minio
+
+volumes:
+  object_storage_db:
+  object_storage_minio:

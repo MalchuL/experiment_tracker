@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     app_name: str = "Experiment Tracker"
     allowed_origins: str = "*"
     scalars_service_url: str = "http://127.0.0.1:8001/api"
+    object_storage_service_url: str = "http://127.0.0.1:8010/api"
 
     class Config:
         env_prefix = ""

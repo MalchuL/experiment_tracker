@@ -1,0 +1,2 @@
+minio/data/*
+!minio/data/.gitkeep

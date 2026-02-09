@@ -1,0 +1,27 @@
+[project]
+name = "object-storage"
+version = "0.1.0"
+description = "Content-addressable object storage service for experiments"
+readme = "README.md"
+authors = [
+    { name = "malchul", email = "vladislaw.sorockin@yandex.ru" }
+]
+requires-python = ">=3.13"
+dependencies = [
+    "fastapi>=0.111.0",
+    "uvicorn[standard]>=0.30.0",
+    "sqlalchemy[asyncio]>=2.0.30",
+    "asyncpg>=0.31.0",
+    "pydantic>=2.7.0",
+    "pydantic-settings>=2.2.1",
+    "python-multipart>=0.0.9",
+    "minio>=7.2.10",
+    "anyio>=4.4.0",
+]
+
+[project.scripts]
+object-storage = "object_storage.main:run"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

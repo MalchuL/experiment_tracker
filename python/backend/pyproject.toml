@@ -17,6 +17,7 @@ dependencies = [
   "msgpack>=1.0.8",
   "rich>=13.7.1",
   "advanced-alchemy>=1.8.2",
+  "python-multipart>=0.0.9",
 ]
 
 [project.optional-dependencies]
