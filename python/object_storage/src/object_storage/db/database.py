@@ -12,10 +12,14 @@ AsyncSessionLocal = async_sessionmaker(engine, expire_on_commit=False)
 
 
 async def get_async_session() -> AsyncGenerator[AsyncSession, None]:
+    """Yield an async SQLAlchemy session tied to the CAS metadata store."""
+
     async with AsyncSessionLocal() as session:
         yield session
 
 
 async def create_db_and_tables() -> None:
+    """Create metadata tables for CAS experiments, snapshots, and blobs."""
+
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)

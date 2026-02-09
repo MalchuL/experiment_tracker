@@ -16,6 +16,7 @@ dependencies = [
     "pydantic-settings>=2.2.1",
     "python-multipart>=0.0.9",
     "minio>=7.2.10",
+    "boto3>=1.35.0",
     "anyio>=4.4.0",
 ]
 

@@ -10,6 +10,8 @@ from object_storage.config import get_settings
 
 
 def _blob_key(blob_hash: str) -> str:
+    """Build the MinIO object key for a CAS blob hash."""
+
     return f"blobs/{blob_hash[:2]}/{blob_hash[2:]}"
 
 
@@ -19,10 +21,14 @@ class MinioStorage:
     bucket: str
 
     def ensure_bucket(self) -> None:
+        """Create the target bucket if it does not already exist."""
+
         if not self.client.bucket_exists(self.bucket):
             self.client.make_bucket(self.bucket)
 
     def stat_blob(self, blob_hash: str) -> bool:
+        """Return True if a blob exists in MinIO for the given hash."""
+
         try:
             self.client.stat_object(self.bucket, _blob_key(blob_hash))
             return True
@@ -30,6 +36,8 @@ class MinioStorage:
             return False
 
     def put_blob(self, blob_hash: str, data: BinaryIO, size: int) -> None:
+        """Upload a blob stream into MinIO under its content hash."""
+
         self.client.put_object(
             self.bucket,
             _blob_key(blob_hash),
@@ -39,10 +47,14 @@ class MinioStorage:
         )
 
     def get_blob(self, blob_hash: str):
+        """Fetch a blob stream from MinIO by its content hash."""
+
         return self.client.get_object(self.bucket, _blob_key(blob_hash))
 
 
 def get_minio_storage() -> MinioStorage:
+    """Provide a configured MinioStorage instance for dependency injection."""
+
     settings = get_settings()
     client = Minio(
         settings.minio_endpoint,
