@@ -43,7 +43,9 @@ class ObjectStorageService:
         missing = [blob_hash for blob_hash in hashes if blob_hash not in existing]
         return mapper.missing_hashes_to_response(missing)
 
-    async def upload_blob(self, blob_hash: str, upload: UploadFile) -> UploadBlobResponseDTO:
+    async def upload_blob(
+        self, blob_hash: str, upload: UploadFile
+    ) -> UploadBlobResponseDTO:
         """Upload a blob into CAS storage after verifying its hash."""
 
         existing = await self._repository.fetch_blob(blob_hash)
