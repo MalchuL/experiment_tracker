@@ -12,6 +12,8 @@ from db.database import get_async_session
 from domain.experiments.controller import router as experiments_router
 from domain.metrics.controller import router as metrics_router
 from domain.projects.controller import router as projects_router
+from domain.scalars.dependencies import get_scalars_service
+from domain.scalars.service import NoOpScalarsService
 from domain.team.teams.controller import router as teams_router
 from models import User
 
@@ -35,8 +37,12 @@ def test_app(db_session: AsyncSession, test_user: User) -> FastAPI:
     async def override_current_user():
         return test_user
 
+    async def override_scalars_service():
+        return NoOpScalarsService()
+
     app.dependency_overrides[get_async_session] = override_get_db
     app.dependency_overrides[get_current_user_dual] = override_current_user
+    app.dependency_overrides[get_scalars_service] = override_scalars_service
     return app
 
 

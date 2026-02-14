@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Iterable
+from typing import Any, Iterable, Protocol
 
 import httpx
 import msgpack
@@ -90,3 +90,50 @@ class ScalarsServiceClient:
             if content_type.startswith("application/msgpack"):
                 return msgpack.unpackb(response.content, raw=False)
             return response.json()
+
+
+class ScalarsClientProtocol(Protocol):
+    async def create_project_table(self, project_id: str) -> dict[str, Any]: ...
+
+    async def log_scalar(
+        self, project_id: str, experiment_id: str, payload: dict[str, Any]
+    ) -> dict[str, Any]: ...
+
+    async def log_scalars_batch(
+        self, project_id: str, experiment_id: str, payload: dict[str, Any]
+    ) -> dict[str, Any]: ...
+
+    async def get_scalars(
+        self,
+        project_id: str,
+        experiment_ids: Iterable[str] | None = None,
+        max_points: int | None = None,
+        return_tags: bool = False,
+    ) -> dict[str, Any]: ...
+
+
+class NoOpScalarsServiceClient(ScalarsServiceClient):
+    def __init__(self) -> None:
+        super().__init__(base_url="http://noop")
+
+    async def create_project_table(self, project_id: str) -> dict[str, Any]:
+        return {}
+
+    async def log_scalar(
+        self, project_id: str, experiment_id: str, payload: dict[str, Any]
+    ) -> dict[str, Any]:
+        return {}
+
+    async def log_scalars_batch(
+        self, project_id: str, experiment_id: str, payload: dict[str, Any]
+    ) -> dict[str, Any]:
+        return {}
+
+    async def get_scalars(
+        self,
+        project_id: str,
+        experiment_ids: Iterable[str] | None = None,
+        max_points: int | None = None,
+        return_tags: bool = False,
+    ) -> dict[str, Any]:
+        return {}

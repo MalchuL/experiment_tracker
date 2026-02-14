@@ -5,13 +5,12 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.routes.auth import get_current_user_dual, require_api_token_scopes
-from config.settings import get_settings
 from db.database import get_async_session
 from domain.rbac.permissions import ProjectActions
 from domain.rbac.wrapper import PermissionChecker
 from models import User
 
-from .client import ScalarsServiceClient
+from .dependencies import get_scalars_service
 from .dto import (
     LogScalarRequestDTO,
     LogScalarResponseDTO,
@@ -19,6 +18,7 @@ from .dto import (
     LogScalarsResponseDTO,
     ScalarsPointsResultDTO,
 )
+from .service import ScalarsServiceProtocol
 
 router = APIRouter(prefix="/scalars", tags=["scalars"])
 
@@ -57,11 +57,11 @@ async def log_scalar(
     user: User = Depends(get_current_user_dual),
     _: None = Depends(require_api_token_scopes(ProjectActions.CREATE_METRIC)),
     session: AsyncSession = Depends(get_async_session),
+    scalars_service: ScalarsServiceProtocol = Depends(get_scalars_service),
 ):
     await _ensure_can_create_metric(user, project_id, session)
-    client = ScalarsServiceClient(get_settings().scalars_service_url)
     try:
-        result = await client.log_scalar(
+        result = await scalars_service.log_scalar(
             str(project_id), str(experiment_id), data.model_dump()
         )
         return LogScalarResponseDTO.model_validate(result)
@@ -80,11 +80,11 @@ async def log_scalars_batch(
     user: User = Depends(get_current_user_dual),
     _: None = Depends(require_api_token_scopes(ProjectActions.CREATE_METRIC)),
     session: AsyncSession = Depends(get_async_session),
+    scalars_service: ScalarsServiceProtocol = Depends(get_scalars_service),
 ):
     await _ensure_can_create_metric(user, project_id, session)
-    client = ScalarsServiceClient(get_settings().scalars_service_url)
     try:
-        result = await client.log_scalars_batch(
+        result = await scalars_service.log_scalars_batch(
             str(project_id), str(experiment_id), data.model_dump()
         )
         return LogScalarsResponseDTO.model_validate(result)
@@ -101,11 +101,11 @@ async def get_scalars(
     user: User = Depends(get_current_user_dual),
     _: None = Depends(require_api_token_scopes(ProjectActions.VIEW_METRIC)),
     session: AsyncSession = Depends(get_async_session),
+    scalars_service: ScalarsServiceProtocol = Depends(get_scalars_service),
 ):
     await _ensure_can_view_metric(user, project_id, session)
-    client = ScalarsServiceClient(get_settings().scalars_service_url)
     try:
-        result = await client.get_scalars(
+        result = await scalars_service.get_scalars(
             str(project_id),
             experiment_ids=[str(eid) for eid in experiment_id] if experiment_id else None,
             max_points=max_points,

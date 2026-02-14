@@ -7,6 +7,8 @@ from domain.experiments.service import ExperimentService
 from domain.hypotheses.service import HypothesisService
 from domain.metrics.dto import MetricDTO as MetricDTO
 from domain.metrics.service import MetricService
+from domain.scalars.dependencies import get_scalars_service
+from domain.scalars.service import ScalarsServiceProtocol
 from lib.types import UUID_TYPE
 import httpx
 from fastapi import APIRouter, Depends, HTTPException
@@ -23,6 +25,13 @@ from .errors import ProjectNotAccessibleError, ProjectPermissionError
 from .service import ProjectService
 
 router = APIRouter(prefix="/projects", tags=["projects"])
+
+
+def get_project_service(
+    session: AsyncSession = Depends(get_async_session),
+    scalars_service: ScalarsServiceProtocol = Depends(get_scalars_service),
+) -> ProjectService:
+    return ProjectService(session, scalars_service=scalars_service)
 
 
 def _raise_project_http_error(error: Exception) -> None:
@@ -43,9 +52,8 @@ def _raise_project_http_error(error: Exception) -> None:
 async def get_all_projects(
     user: User = Depends(get_current_user_dual),
     _: None = Depends(require_api_token_scopes(ProjectActions.VIEW_PROJECT)),
-    session: AsyncSession = Depends(get_async_session),
+    service: ProjectService = Depends(get_project_service),
 ):
-    service = ProjectService(session)
     try:
         return await service.get_accessible_projects(user)
     except Exception as exc:  # noqa: BLE001
@@ -102,9 +110,8 @@ async def get_project(
     project_id: UUID,
     user: User = Depends(get_current_user_dual),
     _: None = Depends(require_api_token_scopes(ProjectActions.VIEW_PROJECT)),
-    session: AsyncSession = Depends(get_async_session),
+    service: ProjectService = Depends(get_project_service),
 ):
-    service = ProjectService(session)
     try:
         project = await service.get_project_if_accessible(user, project_id)
     except Exception as exc:  # noqa: BLE001
@@ -119,9 +126,8 @@ async def create_project(
     data: ProjectCreateDTO,
     user: User = Depends(get_current_user_dual),
     _: None = Depends(require_api_token_scopes(TeamActions.CREATE_PROJECT)),
-    session: AsyncSession = Depends(get_async_session),
+    service: ProjectService = Depends(get_project_service),
 ):
-    service = ProjectService(session)
     try:
         return await service.create_project(user, data)
     except Exception as exc:  # noqa: BLE001
@@ -134,9 +140,8 @@ async def update_project(
     data: ProjectUpdateDTO,
     user: User = Depends(get_current_user_dual),
     _: None = Depends(require_api_token_scopes(ProjectActions.EDIT_PROJECT)),
-    session: AsyncSession = Depends(get_async_session),
+    service: ProjectService = Depends(get_project_service),
 ):
-    service = ProjectService(session)
     try:
         return await service.update_project(user, project_id, data)
     except Exception as exc:  # noqa: BLE001
@@ -148,9 +153,8 @@ async def delete_project(
     project_id: UUID,
     user: User = Depends(get_current_user_dual),
     _: None = Depends(require_api_token_scopes(ProjectActions.DELETE_PROJECT)),
-    session: AsyncSession = Depends(get_async_session),
+    service: ProjectService = Depends(get_project_service),
 ):
-    service = ProjectService(session)
     try:
         success = await service.delete_project(user, project_id)
     except Exception as exc:  # noqa: BLE001
