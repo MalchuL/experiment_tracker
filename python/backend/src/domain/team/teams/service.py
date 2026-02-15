@@ -95,7 +95,7 @@ class TeamService:
         await self.permission_service.add_user_to_team_permissions(
             user_id, team.id, Role.ADMIN
         )
-        self.db.commit()
+        await self.db.commit()
 
         return self.team_mapper.team_schema_to_dto(team)
 
@@ -109,7 +109,7 @@ class TeamService:
         update_data = self.team_mapper.team_update_dto_to_dict(dto)
         update_data.pop("id", None)
         team = await self.team_repository.update(dto.id, **update_data)
-        self.db.commit()
+        await self.db.commit()
         return self.team_mapper.team_schema_to_dto(team)
 
     async def delete_team(self, user_id: UUID, team_id: UUID) -> None:
@@ -120,7 +120,7 @@ class TeamService:
         except DBNotFoundError:
             raise TeamNotFoundError("Team not found")
         await self.team_repository.delete(team_id)
-        self.db.commit()
+        await self.db.commit()
 
     # Team Member
     async def add_team_member(
@@ -143,7 +143,7 @@ class TeamService:
         await self.permission_service.add_user_to_team_permissions(
             team_member.user_id, team_member.team_id, team_member.role
         )
-        self.db.commit()
+        await self.db.commit()
         return self.team_mapper.team_member_schema_to_dto(team_member)
 
     async def update_team_member(self, user_id: UUID, dto: TeamMemberUpdateDTO) -> None:
@@ -167,7 +167,7 @@ class TeamService:
         await self.permission_service.update_user_team_role_permissions(
             dto.user_id, dto.team_id, dto.role
         )
-        self.db.commit()
+        await self.db.commit()
         return self.team_mapper.team_member_schema_to_dto(team_member)
 
     async def remove_team_member(self, user_id: UUID, dto: TeamMemberDeleteDTO) -> None:
@@ -188,4 +188,4 @@ class TeamService:
         await self.permission_service.remove_user_from_team_permissions(
             dto.user_id, dto.team_member_id
         )
-        self.db.commit()
+        await self.db.commit()

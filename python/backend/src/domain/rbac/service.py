@@ -18,6 +18,12 @@ class PermissionService:
     """Service for RBAC permissions and role-based grants.
 
     Team member roles generate both team-scoped and project-scoped permissions.
+    By default, commits are not done automatically.
+    Args:
+        db: The database session.
+        permission_repository: The permission repository.
+        project_repository: The project repository.
+        auto_commit: Whether to commit automatically.
     """
 
     def __init__(
@@ -25,11 +31,13 @@ class PermissionService:
         db: AsyncSession,
         permission_repository: PermissionRepository,
         project_repository: ProjectRepository,
+        auto_commit: bool = False,
     ):
         """Initialize permission service with a database session."""
         self.db = db
         self.repo = permission_repository
         self.project_repo = project_repository
+        self.auto_commit = auto_commit
 
     async def add_permission(
         self,
@@ -49,7 +57,8 @@ class PermissionService:
                 project_id=project_id,
             )
         )
-        await self.db.commit()
+        if self.auto_commit:
+            await self.db.commit()
 
     async def get_permissions(
         self,
@@ -183,7 +192,8 @@ class PermissionService:
             else:
                 existing.allowed = allowed
                 await self.repo.update_permission(existing)
-        await self.db.commit()
+        if self.auto_commit:
+            await self.db.commit()
 
     async def remove_user_from_team_permissions(
         self, user_id: UUID, team_id: UUID
@@ -199,7 +209,8 @@ class PermissionService:
             )
             if permissions:
                 await self.repo.delete_permission(permissions)
-        await self.db.commit()
+        if self.auto_commit:
+            await self.db.commit()
 
     async def update_user_team_role_permissions(
         self, user_id: UUID, team_id: UUID, role: Role
@@ -213,7 +224,8 @@ class PermissionService:
             permission.allowed = new_permissions[permission.action]
             await self.repo.update_permission(permission)
 
-        await self.db.commit()
+        if self.auto_commit:
+            await self.db.commit()
 
     # Project permissions
     async def add_user_to_project_permissions(
@@ -241,7 +253,8 @@ class PermissionService:
             else:
                 existing.allowed = allowed
                 await self.repo.update_permission(existing)
-        await self.db.commit()
+        if self.auto_commit:
+            await self.db.commit()
 
     async def remove_user_from_project_permissions(
         self, user_id: UUID, project_id: UUID
@@ -251,7 +264,8 @@ class PermissionService:
             user_id=user_id, project_id=project_id
         )
         await self.repo.delete_permission(permissions)
-        await self.db.commit()
+        if self.auto_commit:
+            await self.db.commit()
 
     async def update_user_project_role_permissions(
         self, user_id: UUID, project_id: UUID, role: Role
@@ -264,4 +278,5 @@ class PermissionService:
         for permission in permissions:
             permission.allowed = new_permissions[permission.action]
             await self.repo.update_permission(permission)
-        await self.db.commit()
+        if self.auto_commit:
+            await self.db.commit()
