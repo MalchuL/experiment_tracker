@@ -68,10 +68,9 @@ TOKEN_CACHE = TokenCache()
 
 
 class ApiTokenService:
-    def __init__(self, db: AsyncSession, auto_commit: bool = True):
+    def __init__(self, db: AsyncSession, api_token_repository: ApiTokenRepository):
         self.db = db
-        self.repo = ApiTokenRepository(db, auto_commit=auto_commit)
-        self.auto_commit = auto_commit
+        self.api_token_repository = api_token_repository
         self.mapper = ApiTokenMapper()
 
     async def create_token(
@@ -97,7 +96,7 @@ class ApiTokenService:
             scopes=scopes,
             expires_at=expires_at,
         )
-        token = await self.repo.create(token)
+        token = await self.api_token_repository.create(token)
         logger.info(
             "api_token_created",
             extra={
@@ -106,10 +105,11 @@ class ApiTokenService:
                 "scopes": scopes,
             },
         )
+        await self.db.commit()
         return self.mapper.token_schema_to_create_response_dto(token, raw_token)
 
     async def list_tokens(self, user_id: UUID) -> list[ApiTokenListItemDTO]:
-        tokens = await self.repo.list_by_user(user_id)
+        tokens = await self.api_token_repository.list_by_user(user_id)
         return self.mapper.token_schema_list_to_list_item_dto(tokens)
 
     async def update_token(
@@ -121,7 +121,7 @@ class ApiTokenService:
         scopes: Optional[list[str]],
         expires_in_days: Optional[int],
     ) -> ApiTokenListItemDTO:
-        token = await self.repo.get_by_id(token_id, user_id)
+        token = await self.api_token_repository.get_by_id(token_id, user_id)
         if token is None:
             raise ApiTokenNotFoundError("Token not found")
         if name is not None:
@@ -132,23 +132,25 @@ class ApiTokenService:
             token.scopes = scopes
         if expires_in_days is not None:
             token.expires_at = utc_now() + timedelta(days=expires_in_days)
-        token = await self.repo.update(token)
+        token = await self.api_token_repository.update(token)
         logger.info(
             "api_token_updated",
             extra={"token_id": str(token.id), "user_id": str(user_id)},
         )
+        await self.db.commit()
         return self.mapper.token_schema_to_list_item_dto(token)
 
     async def revoke_token(self, user_id: UUID, token_id: UUID) -> ApiTokenListItemDTO:
-        token = await self.repo.get_by_id(token_id, user_id)
+        token = await self.api_token_repository.get_by_id(token_id, user_id)
         if token is None:
             raise ApiTokenNotFoundError("Token not found")
         token.revoked = True
-        token = await self.repo.update(token)
+        token = await self.api_token_repository.update(token)
         logger.info(
             "api_token_revoked",
             extra={"token_id": str(token.id), "user_id": str(user_id)},
         )
+        await self.db.commit()
         return self.mapper.token_schema_to_list_item_dto(token)
 
     async def validate_token(self, raw_token: str) -> ApiToken:
@@ -159,12 +161,12 @@ class ApiTokenService:
                 raise ApiTokenRevokedError("Token revoked")
             if cached.expires_at and cached.expires_at <= utc_now():
                 raise ApiTokenExpiredError("Token expired")
-            token = await self.repo.get_by_hash(token_hash)
+            token = await self.api_token_repository.get_by_hash(token_hash)
             if token is None or not hmac.compare_digest(token.token_hash, token_hash):
                 raise ApiTokenInvalidError("Token invalid")
             return token
 
-        token = await self.repo.get_by_hash(token_hash)
+        token = await self.api_token_repository.get_by_hash(token_hash)
         if token is None or not hmac.compare_digest(token.token_hash, token_hash):
             raise ApiTokenInvalidError("Token invalid")
         if token.revoked:
@@ -183,15 +185,17 @@ class ApiTokenService:
                 expires_at_ts=time.time() + TOKEN_CACHE.ttl_seconds,
             ),
         )
+        await self.db.commit()
         return token
 
     async def mark_used(self, token: ApiToken) -> None:
         token.last_used_at = utc_now()
-        await self.repo.update(token)
+        await self.api_token_repository.update(token)
         logger.info(
             "api_token_used",
             extra={"token_id": str(token.id), "user_id": str(token.user_id)},
         )
+        await self.db.commit()
 
     async def get_user_for_token(self, raw_token: str) -> User:
         token = await self.validate_token(raw_token)

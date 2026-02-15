@@ -7,9 +7,7 @@ from domain.experiments.service import ExperimentService
 from domain.hypotheses.service import HypothesisService
 from domain.metrics.dto import MetricDTO as MetricDTO
 from domain.metrics.service import MetricService
-from domain.scalars.dependencies import get_scalars_service
-from domain.scalars.service import ScalarsServiceProtocol
-from lib.types import UUID_TYPE
+
 import httpx
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -23,15 +21,14 @@ from domain.rbac.permissions.team import TeamActions
 from .dto import ProjectCreateDTO, ProjectDTO, ProjectUpdateDTO
 from .errors import ProjectNotAccessibleError, ProjectPermissionError
 from .service import ProjectService
+from api.routes.service_dependencies import (
+    get_experiment_service,
+    get_project_service,
+    get_metric_service,
+)
+from api.routes.service_dependencies import get_hypothesis_service
 
 router = APIRouter(prefix="/projects", tags=["projects"])
-
-
-def get_project_service(
-    session: AsyncSession = Depends(get_async_session),
-    scalars_service: ScalarsServiceProtocol = Depends(get_scalars_service),
-) -> ProjectService:
-    return ProjectService(session, scalars_service=scalars_service)
 
 
 def _raise_project_http_error(error: Exception) -> None:
@@ -52,10 +49,10 @@ def _raise_project_http_error(error: Exception) -> None:
 async def get_all_projects(
     user: User = Depends(get_current_user_dual),
     _: None = Depends(require_api_token_scopes(ProjectActions.VIEW_PROJECT)),
-    service: ProjectService = Depends(get_project_service),
+    project_service: ProjectService = Depends(get_project_service),
 ):
     try:
-        return await service.get_accessible_projects(user)
+        return await project_service.get_accessible_projects(user)
     except Exception as exc:  # noqa: BLE001
         _raise_project_http_error(exc)
 
@@ -65,11 +62,10 @@ async def get_project_experiments(
     project_id: UUID,
     user: User = Depends(get_current_user_dual),
     _: None = Depends(require_api_token_scopes(ProjectActions.VIEW_EXPERIMENT)),
-    session: AsyncSession = Depends(get_async_session),
+    experiment_service: ExperimentService = Depends(get_experiment_service),
 ):
-    service = ExperimentService(session)
     try:
-        return await service.get_experiments_by_project(user, project_id)
+        return await experiment_service.get_experiments_by_project(user, project_id)
     except Exception as exc:  # noqa: BLE001
         _raise_project_http_error(exc)
 
@@ -79,11 +75,10 @@ async def get_project_hypotheses(
     project_id: UUID,
     user: User = Depends(get_current_user_dual),
     _: None = Depends(require_api_token_scopes(ProjectActions.VIEW_HYPOTHESIS)),
-    session: AsyncSession = Depends(get_async_session),
+    hypothesis_service: HypothesisService = Depends(get_hypothesis_service),
 ):
-    service = HypothesisService(session)
     try:
-        return await service.get_hypotheses_by_project(user, project_id)
+        return await hypothesis_service.get_hypotheses_by_project(user, project_id)
     except Exception as exc:  # noqa: BLE001
         _raise_project_http_error(exc)
 
@@ -96,11 +91,10 @@ async def get_aggregatedproject_metrics(
     project_id: UUID,
     user: User = Depends(get_current_user_dual),
     _: None = Depends(require_api_token_scopes(ProjectActions.VIEW_METRIC)),
-    session: AsyncSession = Depends(get_async_session),
+    metric_service: MetricService = Depends(get_metric_service),
 ):
-    service = MetricService(session)
     try:
-        return await service.get_aggregated_metrics_for_project(user, project_id)
+        return await metric_service.get_aggregated_metrics_for_project(user, project_id)
     except Exception as exc:  # noqa: BLE001
         _raise_project_http_error(exc)
 
@@ -110,10 +104,10 @@ async def get_project(
     project_id: UUID,
     user: User = Depends(get_current_user_dual),
     _: None = Depends(require_api_token_scopes(ProjectActions.VIEW_PROJECT)),
-    service: ProjectService = Depends(get_project_service),
+    project_service: ProjectService = Depends(get_project_service),
 ):
     try:
-        project = await service.get_project_if_accessible(user, project_id)
+        project = await project_service.get_project_if_accessible(user, project_id)
     except Exception as exc:  # noqa: BLE001
         _raise_project_http_error(exc)
     if project is None:
@@ -126,10 +120,10 @@ async def create_project(
     data: ProjectCreateDTO,
     user: User = Depends(get_current_user_dual),
     _: None = Depends(require_api_token_scopes(TeamActions.CREATE_PROJECT)),
-    service: ProjectService = Depends(get_project_service),
+    project_service: ProjectService = Depends(get_project_service),
 ):
     try:
-        return await service.create_project(user, data)
+        return await project_service.create_project(user, data)
     except Exception as exc:  # noqa: BLE001
         _raise_project_http_error(exc)
 
@@ -140,10 +134,10 @@ async def update_project(
     data: ProjectUpdateDTO,
     user: User = Depends(get_current_user_dual),
     _: None = Depends(require_api_token_scopes(ProjectActions.EDIT_PROJECT)),
-    service: ProjectService = Depends(get_project_service),
+    project_service: ProjectService = Depends(get_project_service),
 ):
     try:
-        return await service.update_project(user, project_id, data)
+        return await project_service.update_project(user, project_id, data)
     except Exception as exc:  # noqa: BLE001
         _raise_project_http_error(exc)
 
@@ -153,10 +147,10 @@ async def delete_project(
     project_id: UUID,
     user: User = Depends(get_current_user_dual),
     _: None = Depends(require_api_token_scopes(ProjectActions.DELETE_PROJECT)),
-    service: ProjectService = Depends(get_project_service),
+    project_service: ProjectService = Depends(get_project_service),
 ):
     try:
-        success = await service.delete_project(user, project_id)
+        success = await project_service.delete_project(user, project_id)
     except Exception as exc:  # noqa: BLE001
         _raise_project_http_error(exc)
     if not success:

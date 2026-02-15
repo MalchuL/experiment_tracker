@@ -24,12 +24,17 @@ from models import Role
 
 
 class TeamService:
-    def __init__(self, db: AsyncSession, auto_commit: bool = True):
+    def __init__(
+        self,
+        db: AsyncSession,
+        team_repository: TeamRepository,
+        permission_checker: PermissionChecker,
+        permission_service: PermissionService,
+    ):
         self.db = db
-        self.auto_commit = auto_commit
-        self.team_repository = TeamRepository(db, auto_commit=auto_commit)
-        self.permission_service = PermissionService(db, auto_commit=auto_commit)
-        self.permission_checker = PermissionChecker(db)
+        self.team_repository = team_repository
+        self.permission_service = permission_service
+        self.permission_checker = permission_checker
         self.team_mapper = TeamMapper()
 
     async def _get_user_role(self, user_id: UUID, team_id: UUID) -> Role | None:
@@ -90,8 +95,8 @@ class TeamService:
         await self.permission_service.add_user_to_team_permissions(
             user_id, team.id, Role.ADMIN
         )
-        if self.auto_commit:
-            await self.permission_service.commit()
+        self.db.commit()
+
         return self.team_mapper.team_schema_to_dto(team)
 
     async def update_team(self, user_id: UUID, dto: TeamUpdateDTO) -> TeamReadDTO:
@@ -104,8 +109,7 @@ class TeamService:
         update_data = self.team_mapper.team_update_dto_to_dict(dto)
         update_data.pop("id", None)
         team = await self.team_repository.update(dto.id, **update_data)
-        if self.auto_commit:
-            await self.permission_service.commit()
+        self.db.commit()
         return self.team_mapper.team_schema_to_dto(team)
 
     async def delete_team(self, user_id: UUID, team_id: UUID) -> None:
@@ -116,8 +120,7 @@ class TeamService:
         except DBNotFoundError:
             raise TeamNotFoundError("Team not found")
         await self.team_repository.delete(team_id)
-        if self.auto_commit:
-            await self.db.commit()
+        self.db.commit()
 
     # Team Member
     async def add_team_member(
@@ -140,8 +143,7 @@ class TeamService:
         await self.permission_service.add_user_to_team_permissions(
             team_member.user_id, team_member.team_id, team_member.role
         )
-        if self.auto_commit:
-            await self.permission_service.commit()
+        self.db.commit()
         return self.team_mapper.team_member_schema_to_dto(team_member)
 
     async def update_team_member(self, user_id: UUID, dto: TeamMemberUpdateDTO) -> None:
@@ -165,8 +167,7 @@ class TeamService:
         await self.permission_service.update_user_team_role_permissions(
             dto.user_id, dto.team_id, dto.role
         )
-        if self.auto_commit:
-            await self.permission_service.commit()
+        self.db.commit()
         return self.team_mapper.team_member_schema_to_dto(team_member)
 
     async def remove_team_member(self, user_id: UUID, dto: TeamMemberDeleteDTO) -> None:
@@ -187,5 +188,4 @@ class TeamService:
         await self.permission_service.remove_user_from_team_permissions(
             dto.user_id, dto.team_member_id
         )
-        if self.auto_commit:
-            await self.permission_service.commit()
+        self.db.commit()

@@ -7,9 +7,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 class PermissionChecker:
     """Convenience wrapper for common permission checks."""
 
-    def __init__(self, db: AsyncSession):
+    def __init__(self, db: AsyncSession, permission_service: PermissionService):
         """Initialize with a permission service."""
-        self.permission_service = PermissionService(db)
+        self.permission_service = permission_service
 
     # Project-scoped permissions
     async def can_edit_project(self, user_id: UUID, project_id: UUID) -> bool:

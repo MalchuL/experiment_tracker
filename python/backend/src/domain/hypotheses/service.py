@@ -16,19 +16,17 @@ from .mapper import HypothesisMapper
 from .repository import HypothesisRepository
 
 
-class HypothesisService(ProjectBasedService):
-    def __init__(self, db: AsyncSession):
+class HypothesisService:
+    def __init__(
+        self,
+        db: AsyncSession,
+        hypothesis_repository: HypothesisRepository,
+        permission_checker: PermissionChecker,
+    ):
         self.db = db
-        self.hypothesis_repository = HypothesisRepository(db)
-        self.project_service = ProjectService(db)
+        self.hypothesis_repository = hypothesis_repository
+        self.permission_checker = permission_checker
         self.hypothesis_mapper = HypothesisMapper()
-        self.permission_checker = PermissionChecker(db)
-
-    async def get_accessible_hypotheses(
-        self, user: UserProtocol
-    ) -> List[HypothesisDTO]:
-        hypotheses = await self.hypothesis_repository.get_accessible_hypotheses(user)
-        return self.hypothesis_mapper.hypothesis_list_schema_to_dto(hypotheses)
 
     async def get_hypotheses_by_project(
         self, user: UserProtocol, project_id: UUID_TYPE, limit: int | None = None
@@ -66,7 +64,7 @@ class HypothesisService(ProjectBasedService):
             )
         hypothesis = self.hypothesis_mapper.hypothesis_create_dto_to_schema(data)
         await self.hypothesis_repository.create(hypothesis)
-        await self.hypothesis_repository.commit()
+        await self.db.commit()
         hypothesis = await self.hypothesis_repository.get_by_id(hypothesis.id)
         return self.hypothesis_mapper.hypothesis_schema_to_dto(hypothesis)
 
@@ -87,7 +85,7 @@ class HypothesisService(ProjectBasedService):
             )
         updates = self.hypothesis_mapper.hypothesis_update_dto_to_update_dict(data)
         result = await self.hypothesis_repository.update(hypothesis_id, **updates)
-        await self.hypothesis_repository.commit()
+        await self.db.commit()
         return self.hypothesis_mapper.hypothesis_schema_to_dto(result)
 
     async def delete_hypothesis(
@@ -103,5 +101,5 @@ class HypothesisService(ProjectBasedService):
                 f"Hypothesis {hypothesis_id} not accessible"
             )
         await self.hypothesis_repository.delete(hypothesis_id)
-        await self.hypothesis_repository.commit()
+        await self.db.commit()
         return True

@@ -1,8 +1,7 @@
+from api.routes.service_dependencies import get_metric_service
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.routes.auth import get_current_user_dual, require_api_token_scopes
-from db.database import get_async_session
 from models import User
 from domain.rbac.permissions import ProjectActions
 
@@ -26,11 +25,10 @@ async def create_metric(
     data: MetricCreateDTO,
     user: User = Depends(get_current_user_dual),
     _: None = Depends(require_api_token_scopes(ProjectActions.CREATE_METRIC)),
-    session: AsyncSession = Depends(get_async_session),
+    metric_service: MetricService = Depends(get_metric_service),
 ):
-    service = MetricService(session)
     try:
-        return await service.create_metric(user, data)
+        return await metric_service.create_metric(user, data)
     except Exception as exc:  # noqa: BLE001
         _raise_metric_http_error(exc)
 

@@ -13,14 +13,6 @@ from .utils import ExperimentParseResult
 from models import Experiment
 
 
-@dataclass
-class CreateDTOToSchemaProps:
-    """Props for converting ExperimentCreateDTO to Experiment schema"""
-
-    owner_id: UUID_TYPE
-    parent_experiment_id: Optional[UUID_TYPE]
-
-
 class ExperimentMapper:
     def __init__(self):
         pass
@@ -59,15 +51,14 @@ class ExperimentMapper:
         return [self.experiment_schema_to_dto(experiment) for experiment in experiments]
 
     def experiment_create_dto_to_schema(
-        self, experiment: ExperimentCreateDTO, props: CreateDTOToSchemaProps
+        self, experiment: ExperimentCreateDTO
     ) -> Experiment:
         return Experiment(
             project_id=experiment.project_id,
             name=experiment.name,
             description=experiment.description,
             status=experiment.status,
-            parent_experiment_id=experiment.parent_experiment_id
-            or props.parent_experiment_id,
+            parent_experiment_id=experiment.parent_experiment_id,
             features=experiment.features,
             git_diff=experiment.git_diff,
             color=experiment.color,

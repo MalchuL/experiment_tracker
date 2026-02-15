@@ -24,13 +24,17 @@ class ProjectService:
     def __init__(
         self,
         db: AsyncSession,
+        project_repository: ProjectRepository,
+        permission_service: PermissionService,
+        permission_checker: PermissionChecker,
+        team_repository: TeamRepository,
         scalars_service: ScalarsServiceProtocol | None = None,
     ):
         self.db = db
-        self.project_repository = ProjectRepository(db)
-        self.permission_service = PermissionService(db, auto_commit=False)
-        self.permission_checker = PermissionChecker(db)
-        self.team_repository = TeamRepository(db)
+        self.project_repository = project_repository
+        self.permission_service = permission_service
+        self.permission_checker = permission_checker
+        self.team_repository = team_repository
         self.project_mapper = ProjectMapper()
         self.scalars_service = scalars_service or NoOpScalarsService()
 
@@ -70,9 +74,9 @@ class ProjectService:
                     user.id, project_model.id, Role.ADMIN
                 )
             await self.scalars_service.create_project_table(str(project_model.id))
-            await self.project_repository.commit()
+            await self.db.commit()
         except Exception as e:
-            await self.project_repository.rollback()
+            await self.db.rollback()
             raise e
         # When creating a project, the counts are 0
         props = SchemaToDTOProps(
@@ -112,7 +116,7 @@ class ProjectService:
             updated_project = await self.project_repository.get_project_by_id(
                 project_id, full_load=True
             )
-            await self.project_repository.commit()
+            await self.db.commit()
             return self.project_mapper.project_schema_to_dto(
                 updated_project,
                 SchemaToDTOProps(
@@ -121,7 +125,7 @@ class ProjectService:
                 ),
             )
         except Exception as e:
-            await self.project_repository.rollback()
+            await self.db.rollback()
             raise e
 
     async def get_accessible_projects(
@@ -200,8 +204,8 @@ class ProjectService:
                     f"User {user.id} does not have permission to delete project {project_id}"
                 )
             await self.project_repository.delete(project_id)
-            await self.project_repository.commit()
+            await self.db.commit()
             return True
         except Exception as e:
-            await self.project_repository.rollback()
+            await self.db.rollback()
             raise e

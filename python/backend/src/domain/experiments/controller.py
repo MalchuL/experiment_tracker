@@ -1,13 +1,12 @@
 from typing import List
 from uuid import UUID
 
+from api.routes.service_dependencies import get_experiment_service, get_metric_service
 from domain.metrics.dto import MetricDTO
 from domain.metrics.service import MetricService
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.routes.auth import get_current_user_dual, require_api_token_scopes
-from db.database import get_async_session
 from models import User
 
 from .dto import (
@@ -36,11 +35,10 @@ async def get_recent_experiments(
     limit: int = 10,
     user: User = Depends(get_current_user_dual),
     _: None = Depends(require_api_token_scopes(ProjectActions.VIEW_EXPERIMENT)),
-    session: AsyncSession = Depends(get_async_session),
+    experiment_service: ExperimentService = Depends(get_experiment_service),
 ):
-    service = ExperimentService(session)
     try:
-        return await service.get_recent_experiments(user, limit)
+        return await experiment_service.get_recent_experiments(user, limit)
     except Exception as exc:  # noqa: BLE001
         _raise_experiment_http_error(exc)
 
@@ -50,11 +48,12 @@ async def get_experiment_metrics(
     experiment_id: UUID,
     user: User = Depends(get_current_user_dual),
     _: None = Depends(require_api_token_scopes(ProjectActions.VIEW_METRIC)),
-    session: AsyncSession = Depends(get_async_session),
+    metric_service: MetricService = Depends(get_metric_service),
 ):
-    service = MetricService(session)
     try:
-        return await service.get_aggregated_metrics_for_experiment(user, experiment_id)
+        return await metric_service.get_aggregated_metrics_for_experiment(
+            user, experiment_id
+        )
     except Exception as exc:  # noqa: BLE001
         _raise_experiment_http_error(exc)
 
@@ -64,11 +63,12 @@ async def get_experiment(
     experiment_id: UUID,
     user: User = Depends(get_current_user_dual),
     _: None = Depends(require_api_token_scopes(ProjectActions.VIEW_EXPERIMENT)),
-    session: AsyncSession = Depends(get_async_session),
+    experiment_service: ExperimentService = Depends(get_experiment_service),
 ):
-    service = ExperimentService(session)
     try:
-        return await service.get_experiment_if_accessible(user, experiment_id)
+        return await experiment_service.get_experiment_if_accessible(
+            user, experiment_id
+        )
     except Exception as exc:  # noqa: BLE001
         _raise_experiment_http_error(exc)
 
@@ -78,11 +78,10 @@ async def create_experiment(
     data: ExperimentCreateDTO,
     user: User = Depends(get_current_user_dual),
     _: None = Depends(require_api_token_scopes(ProjectActions.CREATE_EXPERIMENT)),
-    session: AsyncSession = Depends(get_async_session),
+    experiment_service: ExperimentService = Depends(get_experiment_service),
 ):
-    service = ExperimentService(session)
     try:
-        return await service.create_experiment(user, data)
+        return await experiment_service.create_experiment(user, data)
     except Exception as exc:  # noqa: BLE001
         _raise_experiment_http_error(exc)
 
@@ -93,11 +92,10 @@ async def update_experiment(
     data: ExperimentUpdateDTO,
     user: User = Depends(get_current_user_dual),
     _: None = Depends(require_api_token_scopes(ProjectActions.EDIT_EXPERIMENT)),
-    session: AsyncSession = Depends(get_async_session),
+    experiment_service: ExperimentService = Depends(get_experiment_service),
 ):
-    service = ExperimentService(session)
     try:
-        return await service.update_experiment(user, experiment_id, data)
+        return await experiment_service.update_experiment(user, experiment_id, data)
     except Exception as exc:  # noqa: BLE001
         _raise_experiment_http_error(exc)
 
@@ -107,11 +105,10 @@ async def delete_experiment(
     experiment_id: UUID,
     user: User = Depends(get_current_user_dual),
     _: None = Depends(require_api_token_scopes(ProjectActions.DELETE_EXPERIMENT)),
-    session: AsyncSession = Depends(get_async_session),
+    experiment_service: ExperimentService = Depends(get_experiment_service),
 ):
-    service = ExperimentService(session)
     try:
-        success = await service.delete_experiment(user, experiment_id)
+        success = await experiment_service.delete_experiment(user, experiment_id)
     except Exception as exc:  # noqa: BLE001
         _raise_experiment_http_error(exc)
     if not success:
@@ -124,11 +121,12 @@ async def reorder_experiments(
     data: ExperimentReorderDTO,
     user: User = Depends(get_current_user_dual),
     _: None = Depends(require_api_token_scopes(ProjectActions.EDIT_EXPERIMENT)),
-    session: AsyncSession = Depends(get_async_session),
+    experiment_service: ExperimentService = Depends(get_experiment_service),
 ):
-    service = ExperimentService(session)
     try:
-        await service.reorder_experiments(user, data.project_id, data.experiment_ids)
+        await experiment_service.reorder_experiments(
+            user, data.project_id, data.experiment_ids
+        )
     except Exception as exc:  # noqa: BLE001
         _raise_experiment_http_error(exc)
     return {"success": True}

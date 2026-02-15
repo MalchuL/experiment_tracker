@@ -14,9 +14,8 @@ from .error import InvalidIdError, InvalidScopeError
 class PermissionRepository(BaseRepository[Permission]):
     """Repository for CRUD and scoped queries on permissions."""
 
-    def __init__(self, db: AsyncSession, auto_commit: bool = False):
-        """Initialize repository with DB session and commit behavior."""
-        self.auto_commit = auto_commit
+    def __init__(self, db: AsyncSession):
+        """Initialize repository with DB session behavior."""
         super().__init__(db, Permission)
 
     def _validate_scope(
@@ -95,18 +94,14 @@ class PermissionRepository(BaseRepository[Permission]):
         self._validate_scope(
             team_id=permission.team_id, project_id=permission.project_id
         )
-        return await self.advanced_alchemy_repository.add(
-            permission, auto_refresh=True, auto_commit=self.auto_commit
-        )
+        return await self.advanced_alchemy_repository.add(permission, auto_refresh=True)
 
     async def update_permission(self, permission: Permission) -> Permission:
         """Update a permission record after validating scope."""
         self._validate_scope(
             team_id=permission.team_id, project_id=permission.project_id
         )
-        return await self.advanced_alchemy_repository.update(
-            permission, auto_commit=self.auto_commit
-        )
+        return await self.advanced_alchemy_repository.update(permission)
 
     async def delete_permission(
         self,
@@ -114,27 +109,17 @@ class PermissionRepository(BaseRepository[Permission]):
     ) -> None:
         """Delete permission records by id or model instances."""
         if isinstance(id, (UUID, str)):
-            await self.advanced_alchemy_repository.delete(
-                id, auto_commit=self.auto_commit
-            )
+            await self.advanced_alchemy_repository.delete(id)
         elif isinstance(id, list):
             for item in id:
                 if isinstance(item, (UUID, str)):
-                    await self.advanced_alchemy_repository.delete(
-                        item, auto_commit=False
-                    )
+                    await self.advanced_alchemy_repository.delete(item)
                 elif isinstance(item, Permission):
-                    await self.advanced_alchemy_repository.delete(
-                        item.id, auto_commit=False
-                    )
+                    await self.advanced_alchemy_repository.delete(item.id)
                 else:
                     raise InvalidIdError("Invalid id type")
-            if self.auto_commit:
-                await self.db.commit()
         elif isinstance(id, Permission):
-            await self.advanced_alchemy_repository.delete(
-                id.id, auto_commit=self.auto_commit
-            )
+            await self.advanced_alchemy_repository.delete(id.id)
         else:
             raise InvalidIdError("Invalid id type")
 

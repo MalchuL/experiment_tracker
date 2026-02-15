@@ -9,14 +9,11 @@ from models import ApiToken
 
 
 class ApiTokenRepository:
-    def __init__(self, db: AsyncSession, auto_commit: bool = True):
+    def __init__(self, db: AsyncSession):
         self.db = db
-        self.auto_commit = auto_commit
 
     async def create(self, token: ApiToken) -> ApiToken:
         self.db.add(token)
-        if self.auto_commit:
-            await self.db.commit()
         await self.db.refresh(token)
         return token
 
@@ -47,7 +44,5 @@ class ApiTokenRepository:
 
     async def update(self, token: ApiToken) -> ApiToken:
         self.db.add(token)
-        if self.auto_commit:
-            await self.db.commit()
         await self.db.refresh(token)
         return token

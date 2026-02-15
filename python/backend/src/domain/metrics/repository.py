@@ -13,8 +13,6 @@ from sqlalchemy.orm import selectinload
 class MetricRepository(BaseRepository[Metric]):
     def __init__(self, db: AsyncSession):
         super().__init__(db, Metric)
-        self.experiment_repository = ExperimentRepository(db)
-        self.project_repository = ProjectRepository(db)
 
     async def get_metrics_by_experiment(
         self,

@@ -28,6 +28,21 @@ class ListOptions(BaseModel):
 
 
 class BaseRepository(Generic[T]):
+    """
+    Base repository class for all repositories.
+    Handles basic CRUD operations and advanced Alchemy repository creation.
+    Commits are handled in the service layer.
+
+    Args:
+        db: The database session.
+        model: The model class.
+
+    Attributes:
+        db: The database session.
+        model_type: The model class.
+        advanced_alchemy_repository: The advanced Alchemy repository.
+    """
+
     def __init__(self, db: AsyncSession, model: Type[T]):
         self.db = db
         self.model_type = model
@@ -46,6 +61,7 @@ class BaseRepository(Generic[T]):
         repo = self.Repository(
             session=session,
             model_type=model,
+            auto_commit=False,  # We handle commits in the service layer
         )
         return repo
 

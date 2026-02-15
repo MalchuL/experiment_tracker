@@ -17,11 +17,17 @@ from .repository import MetricRepository
 
 
 class MetricService:
-    def __init__(self, db: AsyncSession):
+    def __init__(
+        self,
+        db: AsyncSession,
+        metric_repository: MetricRepository,
+        experiment_repository: ExperimentRepository,
+        permission_checker: PermissionChecker,
+    ):
         self.db = db
-        self.metric_repository = MetricRepository(db)
-        self.experiment_repository = ExperimentRepository(db)
-        self.permission_checker = PermissionChecker(db)
+        self.metric_repository = metric_repository
+        self.experiment_repository = experiment_repository
+        self.permission_checker = permission_checker
         self.metric_mapper = MetricMapper()
 
     async def _assert_can_view_metrics(
@@ -70,7 +76,7 @@ class MetricService:
             )
         metric = self.metric_mapper.metric_create_dto_to_schema(data)
         await self.metric_repository.create(metric)
-        await self.metric_repository.commit()
+        await self.db.commit()
         return self.metric_mapper.metric_schema_to_dto(metric)
 
     async def update_metric(
@@ -96,7 +102,7 @@ class MetricService:
             )
         updates = self.metric_mapper.metric_update_dto_to_update_dict(data)
         result = await self.metric_repository.update(metric_id, **updates)
-        await self.metric_repository.commit()
+        await self.db.commit()
         return self.metric_mapper.metric_schema_to_dto(result)
 
     async def delete_metric(self, user: UserProtocol, metric_id: UUID_TYPE) -> bool:
@@ -119,7 +125,7 @@ class MetricService:
                 f"Project {experiment.project_id} not accessible"
             )
         await self.metric_repository.delete(metric_id)
-        await self.metric_repository.commit()
+        await self.db.commit()
         return True
 
     # TODO cover with tests

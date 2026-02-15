@@ -31,8 +31,6 @@ class ExperimentParseResultDTO(BaseModel):
 
 
 class ExperimentCreateDTO(ExperimentBaseDTO):
-    parent_experiment_name: Optional[str] = None
-
     model_config = model_config()
 
 

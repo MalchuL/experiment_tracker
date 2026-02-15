@@ -1,6 +1,7 @@
 import uuid
 from typing import Optional
 
+from api.routes.service_dependencies import get_api_token_service
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fastapi_users import BaseUserManager, FastAPIUsers, UUIDIDMixin
@@ -21,6 +22,7 @@ from domain.api_tokens.error import (
 from domain.api_tokens.service import ApiTokenService
 from domain.team.users.dto import UserCreate, UserRead, UserUpdate
 from models import User
+from sqlalchemy.ext.asyncio import AsyncSession
 
 SECRET = get_settings().jwt_secret
 
@@ -73,14 +75,13 @@ bearer_scheme = HTTPBearer(auto_error=False)
 async def get_current_user_by_api_token(
     request: Request,
     credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
-    session=Depends(get_async_session),
+    api_token_service: ApiTokenService = Depends(get_api_token_service),
 ):
     if credentials is None or not credentials.credentials:
         return None
-    service = ApiTokenService(session)
     try:
-        token = await service.validate_token(credentials.credentials)
-        await service.mark_used(token)
+        token = await api_token_service.validate_token(credentials.credentials)
+        await api_token_service.mark_used(token)
         request.state.api_token_scopes = token.scopes or []
         request.state.api_token_id = token.id
         return token.user
@@ -92,12 +93,14 @@ async def get_current_user_dual(
     request: Request,
     jwt_user: User | None = Depends(current_active_user_optional),
     credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
-    session=Depends(get_async_session),
+    api_token_service: ApiTokenService = Depends(get_api_token_service),
 ) -> User:
     token_value = credentials.credentials if credentials else None
     if token_value and token_value.startswith("pat_"):
         user = await get_current_user_by_api_token(
-            request=request, credentials=credentials, session=session
+            request=request,
+            credentials=credentials,
+            api_token_service=api_token_service,
         )
         if user is None:
             raise HTTPException(status_code=401, detail="Invalid API token")
@@ -106,7 +109,9 @@ async def get_current_user_dual(
         return jwt_user
     if token_value:
         user = await get_current_user_by_api_token(
-            request=request, credentials=credentials, session=session
+            request=request,
+            credentials=credentials,
+            api_token_service=api_token_service,
         )
         if user is not None:
             return user

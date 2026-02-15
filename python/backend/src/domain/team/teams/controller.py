@@ -1,10 +1,9 @@
 from uuid import UUID
 
+from api.routes.service_dependencies import get_team_service
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.routes.auth import get_current_user_dual, require_api_token_scopes
-from db.database import get_async_session
 from models import User
 from domain.rbac.permissions.team import TeamActions
 
@@ -43,11 +42,10 @@ async def create_team(
     data: TeamCreateDTO,
     user: User = Depends(get_current_user_dual),
     _: None = Depends(require_api_token_scopes(TeamActions.MANAGE_TEAM)),
-    session: AsyncSession = Depends(get_async_session),
+    team_service: TeamService = Depends(get_team_service),
 ):
-    service = TeamService(session)
     try:
-        return await service.create_team(user.id, data)
+        return await team_service.create_team(user.id, data)
     except Exception as exc:  # noqa: BLE001
         _raise_team_http_error(exc)
 
@@ -57,11 +55,10 @@ async def update_team(
     data: TeamUpdateDTO,
     user: User = Depends(get_current_user_dual),
     _: None = Depends(require_api_token_scopes(TeamActions.MANAGE_TEAM)),
-    session: AsyncSession = Depends(get_async_session),
+    team_service: TeamService = Depends(get_team_service),
 ):
-    service = TeamService(session)
     try:
-        return await service.update_team(user.id, data)
+        return await team_service.update_team(user.id, data)
     except Exception as exc:  # noqa: BLE001
         _raise_team_http_error(exc)
 
@@ -72,11 +69,10 @@ async def add_team_member(
     data: TeamMemberCreateDTO,
     user: User = Depends(get_current_user_dual),
     _: None = Depends(require_api_token_scopes(TeamActions.MANAGE_TEAM)),
-    session: AsyncSession = Depends(get_async_session),
+    team_service: TeamService = Depends(get_team_service),
 ):
-    service = TeamService(session)
     try:
-        return await service.add_team_member(user.id, data)
+        return await team_service.add_team_member(user.id, data)
     except Exception as exc:  # noqa: BLE001
         _raise_team_http_error(exc)
 
@@ -86,11 +82,10 @@ async def update_team_member(
     data: TeamMemberUpdateDTO,
     user: User = Depends(get_current_user_dual),
     _: None = Depends(require_api_token_scopes(TeamActions.MANAGE_TEAM)),
-    session: AsyncSession = Depends(get_async_session),
+    team_service: TeamService = Depends(get_team_service),
 ):
-    service = TeamService(session)
     try:
-        return await service.update_team_member(user.id, data)
+        return await team_service.update_team_member(user.id, data)
     except Exception as exc:  # noqa: BLE001
         _raise_team_http_error(exc)
 
@@ -100,11 +95,10 @@ async def remove_team_member(
     data: TeamMemberDeleteDTO,
     user: User = Depends(get_current_user_dual),
     _: None = Depends(require_api_token_scopes(TeamActions.MANAGE_TEAM)),
-    session: AsyncSession = Depends(get_async_session),
+    team_service: TeamService = Depends(get_team_service),
 ):
-    service = TeamService(session)
     try:
-        await service.remove_team_member(user.id, data)
+        await team_service.remove_team_member(user.id, data)
     except Exception as exc:  # noqa: BLE001
         _raise_team_http_error(exc)
     return {"success": True}
@@ -115,11 +109,10 @@ async def delete_team(
     team_id: UUID,
     user: User = Depends(get_current_user_dual),
     _: None = Depends(require_api_token_scopes(TeamActions.DELETE_TEAM)),
-    session: AsyncSession = Depends(get_async_session),
+    team_service: TeamService = Depends(get_team_service),
 ):
-    service = TeamService(session)
     try:
-        await service.delete_team(user.id, team_id)
+        await team_service.delete_team(user.id, team_id)
     except Exception as exc:  # noqa: BLE001
         _raise_team_http_error(exc)
     return {"success": True}
