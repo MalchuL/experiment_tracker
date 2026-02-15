@@ -1,5 +1,10 @@
-from domain.scalars.dependencies import get_scalars_service
-from domain.scalars.service import ScalarsService, ScalarsServiceProtocol
+from config.settings import get_settings
+from domain.scalars.service import (
+    NoOpScalarsService,
+    ScalarsService,
+    ScalarsServiceClient,
+    ScalarsServiceProtocol,
+)
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from db.database import get_async_session
@@ -88,6 +93,19 @@ async def get_experiment_service(
         experiment_repository=experiment_repository,
         permission_checker=permission_checker,
     )
+
+
+async def get_scalars_service(
+    permission_checker: PermissionChecker = Depends(get_permission_checker),
+    experiment_repository: ExperimentRepository = Depends(get_experiment_repository),
+) -> ScalarsServiceProtocol:
+    settings = get_settings()
+    scalars_service_url = settings.scalars_service_url
+    if scalars_service_url:
+        client = ScalarsServiceClient(scalars_service_url)
+        return ScalarsService(client, permission_checker, experiment_repository)
+    else:
+        return NoOpScalarsService()
 
 
 # Hypothesis Service Dependencies

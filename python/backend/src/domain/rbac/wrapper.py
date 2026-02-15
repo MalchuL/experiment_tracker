@@ -162,6 +162,46 @@ class PermissionChecker:
             actions=ProjectActions.VIEW_METRIC,
         )
 
+    async def can_log_scalar(self, user_id: UUID, project_id: UUID) -> bool:
+        """Return whether the user can log scalars in a project."""
+        if project_id is None or user_id is None:
+            return False
+        return await self.permission_service.has_permission(
+            user_id=user_id,
+            project_id=project_id,
+            actions=ProjectActions.LOG_SCALAR,
+        )
+
+    async def can_view_scalar(self, user_id: UUID, project_id: UUID) -> bool:
+        """Return whether the user can view scalars in a project."""
+        if project_id is None or user_id is None:
+            return False
+        return await self.permission_service.has_permission(
+            user_id=user_id,
+            project_id=project_id,
+            actions=ProjectActions.VIEW_SCALAR,
+        )
+
+    async def can_log_artifact(self, user_id: UUID, project_id: UUID) -> bool:
+        """Return whether the user can log artifacts in a project."""
+        if project_id is None or user_id is None:
+            return False
+        return await self.permission_service.has_permission(
+            user_id=user_id,
+            project_id=project_id,
+            actions=ProjectActions.LOG_ARTIFACT,
+        )
+
+    async def can_view_artifact(self, user_id: UUID, project_id: UUID) -> bool:
+        """Return whether the user can view artifacts in a project."""
+        if project_id is None or user_id is None:
+            return False
+        return await self.permission_service.has_permission(
+            user_id=user_id,
+            project_id=project_id,
+            actions=ProjectActions.VIEW_ARTIFACT,
+        )
+
     # Team-scoped permissions
     async def can_create_project(self, user_id: UUID, team_id: UUID) -> bool:
         """Return whether the user can create projects within a team."""

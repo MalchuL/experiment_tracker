@@ -25,6 +25,12 @@ class ProjectActions:
     EDIT_METRIC = "metrics.edit"
     DELETE_METRIC = "metrics.delete"
     VIEW_METRIC = "metrics.view"
+    # Scalars
+    LOG_SCALAR = "scalars.log"
+    VIEW_SCALAR = "scalars.view"
+    # Artifacts
+    VIEW_ARTIFACT = "artifacts.view"
+    LOG_ARTIFACT = "artifacts.log"
 
 
 PROJECT_ACTIONS = (
@@ -43,6 +49,10 @@ PROJECT_ACTIONS = (
     ProjectActions.EDIT_METRIC,
     ProjectActions.DELETE_METRIC,
     ProjectActions.VIEW_METRIC,
+    ProjectActions.LOG_SCALAR,
+    ProjectActions.VIEW_SCALAR,
+    ProjectActions.VIEW_ARTIFACT,
+    ProjectActions.LOG_ARTIFACT,
 )
 
 
@@ -71,5 +81,7 @@ def role_to_project_permissions(role: Role) -> Dict[str, bool]:
                 ProjectActions.VIEW_EXPERIMENT,
                 ProjectActions.VIEW_HYPOTHESIS,
                 ProjectActions.VIEW_METRIC,
+                ProjectActions.VIEW_SCALAR,
+                ProjectActions.VIEW_ARTIFACT,
             }
             return _build_permissions(allowed)
