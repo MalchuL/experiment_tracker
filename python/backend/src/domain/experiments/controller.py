@@ -4,7 +4,7 @@ from uuid import UUID
 from api.routes.service_dependencies import get_experiment_service, get_metric_service
 from domain.metrics.dto import MetricDTO
 from domain.metrics.service import MetricService
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from api.routes.auth import get_current_user_dual, require_api_token_scopes
 from models import User
@@ -34,11 +34,14 @@ def _raise_experiment_http_error(error: Exception) -> None:
 async def get_recent_experiments(
     limit: int = 10,
     user: User = Depends(get_current_user_dual),
+    project_id: UUID = Query(
+        ..., alias="projectId", description="The ID of the project"
+    ),
     _: None = Depends(require_api_token_scopes(ProjectActions.VIEW_EXPERIMENT)),
     experiment_service: ExperimentService = Depends(get_experiment_service),
 ):
     try:
-        return await experiment_service.get_recent_experiments(user, limit)
+        return await experiment_service.get_recent_experiments(user, project_id, limit)
     except Exception as exc:  # noqa: BLE001
         _raise_experiment_http_error(exc)
 

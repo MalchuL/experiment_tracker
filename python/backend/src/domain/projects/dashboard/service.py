@@ -10,21 +10,29 @@ from domain.projects.errors import ProjectNotAccessibleError
 
 
 class DashboardService:
-    def __init__(self, session: AsyncSession):
+    def __init__(
+        self,
+        session: AsyncSession,
+        permission_checker: PermissionChecker,
+        experiment_repository: ExperimentRepository,
+        hypothesis_repository: HypothesisRepository,
+    ):
         self.session = session
-        self.permission_checker = PermissionChecker(session)
+        self.permission_checker = permission_checker
+        self.experiment_repository = experiment_repository
+        self.hypothesis_repository = hypothesis_repository
 
     async def get_dashboard_stats(
         self, user: User, project_id: UUID_TYPE
     ) -> DashboardStatsDTO:
         if not await self.permission_checker.can_view_project(user.id, project_id):
             raise ProjectNotAccessibleError(f"Project {project_id} not accessible")
-        experiments_repository = ExperimentRepository(self.session)
-        experiments = await experiments_repository.get_experiments_by_project(
+        experiments = await self.experiment_repository.get_experiments_by_project(
             project_id
         )
-        hypotheses_repository = HypothesisRepository(self.session)
-        hypotheses = await hypotheses_repository.get_hypotheses_by_project(project_id)
+        hypotheses = await self.hypothesis_repository.get_hypotheses_by_project(
+            project_id
+        )
         return DashboardStatsDTO(
             totalExperiments=len(experiments),
             runningExperiments=len(

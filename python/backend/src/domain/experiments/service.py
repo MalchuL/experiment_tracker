@@ -28,10 +28,14 @@ class ExperimentService:
         self.experiment_mapper = ExperimentMapper()
 
     async def get_recent_experiments(
-        self, user: UserProtocol, limit: int = 10
+        self, user: UserProtocol, project_id: UUID_TYPE, limit: int = 10
     ) -> List[ExperimentDTO]:
-        experiments = await self.experiment_repository.get_user_experiments(
-            user, ListOptions(limit=limit, offset=0)
+        if not await self.permission_checker.can_view_experiment(user.id, project_id):
+            raise ExperimentNotAccessibleError(
+                f"You are not allowed to view experiments in project {project_id}"
+            )
+        experiments = await self.experiment_repository.get_latest_experiments(
+            project_id, limit
         )
         return self.experiment_mapper.experiment_list_schema_to_dto(experiments)
 

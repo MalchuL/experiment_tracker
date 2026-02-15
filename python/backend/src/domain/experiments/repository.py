@@ -33,6 +33,16 @@ class ExperimentRepository(BaseRepository[Experiment]):
         )
         return result
 
+    async def get_latest_experiments(
+        self, project_id: UUID_TYPE, limit: int = 10
+    ) -> List[Experiment]:
+        experiments = await self.advanced_alchemy_repository.list(
+            Experiment.project_id == project_id,
+            LimitOffset(offset=0, limit=limit),
+            order_by=Experiment.created_at.desc(),
+        )
+        return experiments
+
     async def get_experiments_by_project(
         self, project_id: UUID_TYPE, full_load: LoadOptions = False
     ) -> List[Experiment]:

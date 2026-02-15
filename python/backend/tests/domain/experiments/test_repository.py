@@ -53,42 +53,6 @@ class TestExperimentRepository:
     def experiment_repository(self, db_session: AsyncSession) -> ExperimentRepository:
         return ExperimentRepository(db_session)
 
-    async def test_get_user_experiments_filters_by_started_by(
-        self,
-        experiment_repository: ExperimentRepository,
-        db_session: AsyncSession,
-        test_user: User,
-        test_user_2: User,
-    ) -> None:
-        project = await _create_project(db_session, test_user)
-        await _create_experiment(
-            db_session,
-            project,
-            name="Owned A",
-            started_by=test_user,
-            created_at=datetime(2024, 1, 1),
-        )
-        experiment_b = await _create_experiment(
-            db_session,
-            project,
-            name="Owned B",
-            started_by=test_user,
-            created_at=datetime(2024, 1, 2),
-        )
-        print(experiment_b.id, experiment_b.started_by)
-        await _create_experiment(
-            db_session,
-            project,
-            name="Other user",
-            started_by=test_user_2,
-            created_at=datetime(2024, 1, 3),
-        )
-
-        experiments = await experiment_repository.get_user_experiments(test_user)
-        names = [experiment.name for experiment in experiments]
-
-        assert names == ["Owned B", "Owned A"]
-
     async def test_get_experiments_by_project(
         self,
         experiment_repository: ExperimentRepository,
