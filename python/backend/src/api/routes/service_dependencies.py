@@ -1,3 +1,5 @@
+from domain.scalars.dependencies import get_scalars_service
+from domain.scalars.service import ScalarsService, ScalarsServiceProtocol
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from db.database import get_async_session
@@ -164,6 +166,7 @@ async def get_project_service(
     permission_service: PermissionService = Depends(get_permission_service),
     project_repository: ProjectRepository = Depends(get_project_repository),
     team_repository: TeamRepository = Depends(get_team_repository),
+    scalars_service: ScalarsServiceProtocol = Depends(get_scalars_service),
 ) -> ProjectService:
     return ProjectService(
         session,
@@ -171,5 +174,5 @@ async def get_project_service(
         permission_service=permission_service,
         project_repository=project_repository,
         team_repository=team_repository,
-        scalars_service=None,
+        scalars_service=scalars_service,
     )

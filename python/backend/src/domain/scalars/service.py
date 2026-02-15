@@ -28,10 +28,7 @@ class ScalarsServiceProtocol(Protocol):
 
 
 class ScalarsService:
-    def __init__(self, client: ScalarsClientProtocol | None = None):
-        if client is None:
-            settings = get_settings()
-            client = ScalarsServiceClient(settings.scalars_service_url)
+    def __init__(self, client: ScalarsClientProtocol):
         self.client = client
 
     async def create_project_table(self, project_id: str) -> dict[str, Any]:
