@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any, Iterable, Protocol
+from uuid import UUID
 
 import httpx
 import msgpack
@@ -11,8 +13,8 @@ class ScalarsServiceClient:
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
 
-    async def create_project_table(self, project_id: str) -> dict[str, Any]:
-        payload = {"project_id": project_id}
+    async def create_project_table(self, project_id: UUID) -> dict[str, Any]:
+        payload = {"project_id": str(project_id)}
         return await self._request(
             "POST",
             "/projects",
@@ -21,7 +23,7 @@ class ScalarsServiceClient:
         )
 
     async def log_scalar(
-        self, project_id: str, experiment_id: str, payload: dict[str, Any]
+        self, project_id: UUID, experiment_id: UUID, payload: dict[str, Any]
     ) -> dict[str, Any]:
         return await self._request(
             "POST",
@@ -31,7 +33,7 @@ class ScalarsServiceClient:
         )
 
     async def log_scalars_batch(
-        self, project_id: str, experiment_id: str, payload: dict[str, Any]
+        self, project_id: UUID, experiment_id: UUID, payload: dict[str, Any]
     ) -> dict[str, Any]:
         return await self._request(
             "POST",
@@ -42,16 +44,22 @@ class ScalarsServiceClient:
 
     async def get_scalars(
         self,
-        project_id: str,
-        experiment_ids: Iterable[str] | None = None,
+        project_id: UUID,
+        experiment_ids: Iterable[UUID] | None = None,
         max_points: int | None = None,
         return_tags: bool = False,
+        start_time: datetime | None = None,
+        end_time: datetime | None = None,
     ) -> dict[str, Any]:
         params: dict[str, Any] = {"return_tags": return_tags}
         if experiment_ids:
-            params["experiment_id"] = list(experiment_ids)
+            params["experiment_id"] = [str(experiment_id) for experiment_id in experiment_ids]
         if max_points is not None:
             params["max_points"] = max_points
+        if start_time is not None:
+            params["start_time"] = start_time.isoformat()
+        if end_time is not None:
+            params["end_time"] = end_time.isoformat()
         return await self._request(
             "GET",
             f"/scalars/get/{project_id}",
@@ -93,22 +101,24 @@ class ScalarsServiceClient:
 
 
 class ScalarsClientProtocol(Protocol):
-    async def create_project_table(self, project_id: str) -> dict[str, Any]: ...
+    async def create_project_table(self, project_id: UUID) -> dict[str, Any]: ...
 
     async def log_scalar(
-        self, project_id: str, experiment_id: str, payload: dict[str, Any]
+        self, project_id: UUID, experiment_id: UUID, payload: dict[str, Any]
     ) -> dict[str, Any]: ...
 
     async def log_scalars_batch(
-        self, project_id: str, experiment_id: str, payload: dict[str, Any]
+        self, project_id: UUID, experiment_id: UUID, payload: dict[str, Any]
     ) -> dict[str, Any]: ...
 
     async def get_scalars(
         self,
-        project_id: str,
-        experiment_ids: Iterable[str] | None = None,
+        project_id: UUID,
+        experiment_ids: Iterable[UUID] | None = None,
         max_points: int | None = None,
         return_tags: bool = False,
+        start_time: datetime | None = None,
+        end_time: datetime | None = None,
     ) -> dict[str, Any]: ...
 
 
@@ -116,24 +126,26 @@ class NoOpScalarsServiceClient(ScalarsServiceClient):
     def __init__(self) -> None:
         super().__init__(base_url="http://noop")
 
-    async def create_project_table(self, project_id: str) -> dict[str, Any]:
+    async def create_project_table(self, project_id: UUID) -> dict[str, Any]:
         return {}
 
     async def log_scalar(
-        self, project_id: str, experiment_id: str, payload: dict[str, Any]
+        self, project_id: UUID, experiment_id: UUID, payload: dict[str, Any]
     ) -> dict[str, Any]:
         return {}
 
     async def log_scalars_batch(
-        self, project_id: str, experiment_id: str, payload: dict[str, Any]
+        self, project_id: UUID, experiment_id: UUID, payload: dict[str, Any]
     ) -> dict[str, Any]:
         return {}
 
     async def get_scalars(
         self,
-        project_id: str,
-        experiment_ids: Iterable[str] | None = None,
+        project_id: UUID,
+        experiment_ids: Iterable[UUID] | None = None,
         max_points: int | None = None,
         return_tags: bool = False,
+        start_time: datetime | None = None,
+        end_time: datetime | None = None,
     ) -> dict[str, Any]:
         return {}

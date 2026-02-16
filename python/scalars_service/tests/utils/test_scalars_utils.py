@@ -9,7 +9,9 @@ def test_build_create_table_statement():
         "(__timestamp__ DateTime64(3), __experiment_id__ String, __step__ Int64, __tags__ Array(String)) "
         "ENGINE = MergeTree() PARTITION BY toDate(__timestamp__) ORDER BY (__experiment_id__, __step__)"
     )
-    assert SCALARS_DB_UTILS.build_create_table_statement("scalars_123") == result
+    assert (
+        SCALARS_DB_UTILS.build_create_scalars_table_statement("scalars_123") == result
+    )
 
 
 def test_build_create_table_statement_with_scalars():
@@ -20,7 +22,9 @@ def test_build_create_table_statement_with_scalars():
         "ENGINE = MergeTree() PARTITION BY toDate(__timestamp__) ORDER BY (__experiment_id__, __step__)"
     )
     assert (
-        SCALARS_DB_UTILS.build_create_table_statement("scalars_123", ["loss", "acc"])
+        SCALARS_DB_UTILS.build_create_scalars_table_statement(
+            "scalars_123", ["loss", "acc"]
+        )
         == result
     )
 

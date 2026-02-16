@@ -1,4 +1,4 @@
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
 from pydantic import BaseModel
 
@@ -9,9 +9,14 @@ class StepTagsDTO(BaseModel):
     tags: List[str]
 
 
+class ScalarSeriesDTO(BaseModel):
+    x: List[int]
+    y: List[float]
+
+
 class ExperimentsScalarsPointsResultDTO(BaseModel):
     experiment_id: str
-    scalars: Dict[str, List[Tuple[int, float]]]
+    scalars: Dict[str, ScalarSeriesDTO]
     tags: Optional[List[StepTagsDTO]] = None
 
 

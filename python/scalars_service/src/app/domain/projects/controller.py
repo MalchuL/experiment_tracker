@@ -1,4 +1,5 @@
 from fastapi import APIRouter, HTTPException, Depends
+from uuid import UUID
 from db.clickhouse import get_clickhouse_client  # type: ignore
 
 from .dto import CreateProjectTableDTO
@@ -23,7 +24,7 @@ async def create_project_scalars_table(
 
 @router.get("/exists/{project_id}")
 async def get_project_table_existence(
-    project_id: str,
+    project_id: UUID,
     client=Depends(get_clickhouse_client),
 ):
     try:
@@ -37,7 +38,7 @@ async def get_project_table_existence(
 
 @router.get("/experiments/{project_id}")
 async def get_project_experiments_ids(
-    project_id: str,
+    project_id: UUID,
     client=Depends(get_clickhouse_client),
 ):
     try:
@@ -51,7 +52,7 @@ async def get_project_experiments_ids(
 
 @router.delete("/{project_id}")
 async def delete_project_table(
-    project_id: str,
+    project_id: UUID,
     client=Depends(get_clickhouse_client),
 ):
     try:

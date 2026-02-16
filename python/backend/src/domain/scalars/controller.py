@@ -1,4 +1,5 @@
 from uuid import UUID
+from datetime import datetime
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -42,9 +43,7 @@ async def log_scalar(
     scalars_service: ScalarsServiceProtocol = Depends(get_scalars_service),
 ):
     try:
-        result = await scalars_service.log_scalar(
-            user, str(experiment_id), data.model_dump()
-        )
+        result = await scalars_service.log_scalar(user, experiment_id, data.model_dump())
         return LogScalarResponseDTO.model_validate(result)
     except Exception as exc:  # noqa: BLE001
         _raise_scalars_http_error(exc)
@@ -63,7 +62,7 @@ async def log_scalars_batch(
 ):
     try:
         result = await scalars_service.log_scalars_batch(
-            user, str(experiment_id), data.model_dump()
+            user, experiment_id, data.model_dump()
         )
         return LogScalarsResponseDTO.model_validate(result)
     except Exception as exc:  # noqa: BLE001
@@ -75,6 +74,8 @@ async def get_scalars(
     experiment_id: UUID,
     max_points: int | None = Query(default=None, ge=1),
     return_tags: bool = Query(default=False),
+    start_time: datetime | None = Query(default=None),
+    end_time: datetime | None = Query(default=None),
     user: User = Depends(get_current_user_dual),
     _: None = Depends(require_api_token_scopes(ProjectActions.VIEW_METRIC)),
     scalars_service: ScalarsServiceProtocol = Depends(get_scalars_service),
@@ -82,9 +83,11 @@ async def get_scalars(
     try:
         result = await scalars_service.get_scalars(
             user,
-            str(experiment_id),
+            experiment_id,
             max_points=max_points,
             return_tags=return_tags,
+            start_time=start_time,
+            end_time=end_time,
         )
         return ScalarsPointsResultDTO.model_validate(result)
     except Exception as exc:  # noqa: BLE001

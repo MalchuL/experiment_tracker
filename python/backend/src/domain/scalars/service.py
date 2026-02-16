@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any, Iterable, Protocol
+from uuid import UUID
 
 from config.settings import get_settings
 from domain.experiments.repository import ExperimentRepository
@@ -11,23 +13,29 @@ from .client import ScalarsClientProtocol, ScalarsServiceClient
 from .error import ScalarsNotAccessibleError
 
 
+def _as_uuid(value: UUID | str) -> UUID:
+    return value if isinstance(value, UUID) else UUID(value)
+
+
 class ScalarsServiceProtocol(Protocol):
-    async def create_project_table(self, project_id: str) -> dict[str, Any]: ...
+    async def create_project_table(self, project_id: UUID) -> dict[str, Any]: ...
 
     async def log_scalar(
-        self, project_id: str, experiment_id: str, payload: dict[str, Any]
+        self, project_id: UUID, experiment_id: UUID, payload: dict[str, Any]
     ) -> dict[str, Any]: ...
 
     async def log_scalars_batch(
-        self, project_id: str, experiment_id: str, payload: dict[str, Any]
+        self, project_id: UUID, experiment_id: UUID, payload: dict[str, Any]
     ) -> dict[str, Any]: ...
 
     async def get_scalars(
         self,
-        project_id: str,
-        experiment_ids: Iterable[str] | None = None,
+        project_id: UUID,
+        experiment_ids: Iterable[UUID] | None = None,
         max_points: int | None = None,
         return_tags: bool = False,
+        start_time: datetime | None = None,
+        end_time: datetime | None = None,
     ) -> dict[str, Any]: ...
 
 
@@ -42,17 +50,17 @@ class ScalarsService:
         self.permission_checker = permission_checker
         self.experiment_repository = experiment_repository
 
-    async def create_project_table(self, project_id: str) -> dict[str, Any]:
+    async def create_project_table(self, project_id: UUID) -> dict[str, Any]:
         return await self.client.create_project_table(project_id)
 
     async def log_scalar(
         self,
         user: UserProtocol,
-        experiment_id: str,
+        experiment_id: UUID,
         payload: dict[str, Any],
     ) -> dict[str, Any]:
         experiment = await self.experiment_repository.get_by_id(experiment_id)
-        project_id = experiment.project_id
+        project_id = _as_uuid(experiment.project_id)
         if not await self.permission_checker.can_log_scalar(user.id, project_id):
             raise ScalarsNotAccessibleError(
                 f"You are not allowed to log scalars in project {project_id}"
@@ -61,10 +69,10 @@ class ScalarsService:
         return result
 
     async def log_scalars_batch(
-        self, user: UserProtocol, experiment_id: str, payload: dict[str, Any]
+        self, user: UserProtocol, experiment_id: UUID, payload: dict[str, Any]
     ) -> dict[str, Any]:
         experiment = await self.experiment_repository.get_by_id(experiment_id)
-        project_id = experiment.project_id
+        project_id = _as_uuid(experiment.project_id)
         if not await self.permission_checker.can_log_scalar(user.id, project_id):
             raise ScalarsNotAccessibleError(
                 f"You are not allowed to log scalars in project {project_id}"
@@ -75,10 +83,12 @@ class ScalarsService:
     async def get_scalars(
         self,
         user: UserProtocol,
-        project_id: str | None = None,
-        experiment_ids: Iterable[str] | None = None,
+        project_id: UUID | None = None,
+        experiment_ids: Iterable[UUID] | None = None,
         max_points: int | None = None,
         return_tags: bool = False,
+        start_time: datetime | None = None,
+        end_time: datetime | None = None,
     ) -> dict[str, Any]:
         experiments = []
         if experiment_ids is not None:
@@ -89,7 +99,7 @@ class ScalarsService:
             experiments.extend(
                 await self.experiment_repository.get_experiments_by_project(project_id)
             )
-        project_ids = set(experiment.project_id for experiment in experiments)
+        project_ids = {_as_uuid(experiment.project_id) for experiment in experiments}
         results = []
         for project_id in project_ids:
             if not await self.permission_checker.can_view_scalar(user.id, project_id):
@@ -102,6 +112,8 @@ class ScalarsService:
                 experiment_ids=experiment_ids,
                 max_points=max_points,
                 return_tags=return_tags,
+                start_time=start_time,
+                end_time=end_time,
             )
             results.append(result)
 
@@ -109,24 +121,26 @@ class ScalarsService:
 
 
 class NoOpScalarsService:
-    async def create_project_table(self, project_id: str) -> dict[str, Any]:
+    async def create_project_table(self, project_id: UUID) -> dict[str, Any]:
         return {}
 
     async def log_scalar(
-        self, project_id: str, experiment_id: str, payload: dict[str, Any]
+        self, project_id: UUID, experiment_id: UUID, payload: dict[str, Any]
     ) -> dict[str, Any]:
         return {}
 
     async def log_scalars_batch(
-        self, project_id: str, experiment_id: str, payload: dict[str, Any]
+        self, project_id: UUID, experiment_id: UUID, payload: dict[str, Any]
     ) -> dict[str, Any]:
         return {}
 
     async def get_scalars(
         self,
-        project_id: str,
-        experiment_ids: Iterable[str] | None = None,
+        project_id: UUID,
+        experiment_ids: Iterable[UUID] | None = None,
         max_points: int | None = None,
         return_tags: bool = False,
+        start_time: datetime | None = None,
+        end_time: datetime | None = None,
     ) -> dict[str, Any]:
         return {}

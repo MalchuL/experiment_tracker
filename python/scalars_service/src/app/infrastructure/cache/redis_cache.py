@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import time
 from typing import Optional
+from uuid import UUID
 
 from redis.asyncio import Redis
 from redis.exceptions import RedisError
@@ -28,8 +29,8 @@ class ScalarsCache(Cache):
 
     def build_key(
         self,
-        project_id: str,
-        experiment_id: str,
+        project_id: UUID,
+        experiment_id: UUID,
         max_points: Optional[int],
         return_tags: bool,
     ) -> str:
