@@ -14,6 +14,14 @@ class ProjectsService:
     async def create_project_table(
         self, project_id: UUID
     ) -> CreateProjectTableResponseDTO:
+        """Create a project table, and a last logged table.
+
+        Args:
+            project_id (UUID): The project ID.
+
+        Returns:
+            CreateProjectTableResponseDTO: The create project table response.
+        """
         table_name = SCALARS_DB_UTILS.safe_scalars_table_name(project_id)
         last_logged_table_name = SCALARS_DB_UTILS.safe_last_logged_table_name(
             project_id
@@ -31,6 +39,14 @@ class ProjectsService:
     async def get_project_table_existence(
         self, project_id: UUID
     ) -> GetProjectTableExistenceDTO:
+        """Check if a project table exists.
+
+        Args:
+            project_id (UUID): The project ID.
+
+        Returns:
+            GetProjectTableExistenceDTO: The get project table existence response.
+        """
         table_name = SCALARS_DB_UTILS.safe_scalars_table_name(project_id)
         exists_query = SCALARS_DB_UTILS.build_table_existence_statement(table_name)
         exists = await self.client.query(exists_query)
@@ -41,6 +57,14 @@ class ProjectsService:
         )
 
     async def get_project_experiments_ids(self, project_id: UUID) -> list[dict]:
+        """Get the experiments IDs for a project.
+
+        Args:
+            project_id (UUID): The project ID.
+
+        Returns:
+            list[dict]: The experiments IDs.
+        """
         table_name = SCALARS_DB_UTILS.safe_scalars_table_name(project_id)
         query = SCALARS_DB_UTILS.build_experiments_ids_statement(table_name)
         result = await self.client.query(query)
@@ -49,6 +73,14 @@ class ProjectsService:
     async def delete_project_table(
         self, project_id: UUID
     ) -> DeleteProjectTableResponseDTO:
+        """Delete a project table, and a last logged table.
+
+        Args:
+            project_id (UUID): The project ID.
+
+        Returns:
+            DeleteProjectTableResponseDTO: The delete project table response.
+        """
         table_name = SCALARS_DB_UTILS.safe_scalars_table_name(project_id)
         last_logged_table_name = SCALARS_DB_UTILS.safe_last_logged_table_name(
             project_id
