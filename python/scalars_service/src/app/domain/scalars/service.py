@@ -169,7 +169,7 @@ class ScalarsService:
                 experiment_id,
                 item.step,
                 item.tags or [],
-            ] + [item.scalars[name] for name in mapped_columns.keys()]
+            ] + [item.scalars.get(name, None) for name in mapped_columns.keys()]
             rows.append(row)
         if rows:
             await self.client.insert(table_name, rows, column_names=columns)
