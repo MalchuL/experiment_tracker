@@ -20,3 +20,6 @@ __pycache__
 
 # TODO remove after permission update
 python/backend/permission_update.md
+
+
+.clickhouse_data

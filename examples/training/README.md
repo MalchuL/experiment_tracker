@@ -8,20 +8,21 @@ Experiment Tracker backend using the SDK.
 Install the SDK and configure it:
 
 ```
+cd examples/training
 uv sync
+uv add ../../python/sdk
 ```
 
 ```
-uv pip install -e ../../python/sdk
 experiment-tracker init --base-url http://127.0.0.1:8000 --api-token <TOKEN>
 ```
 
 ## Run
 
-From the repo root:
+From the examples/training folder:
 
 ```
-python examples/training/train.py --project-name "SDK Training" --team-name "Demo Team"
+uv run python train.py --project-name "SDK Training" --team-name "Demo Team"
 ```
 
 If `--team-name` is omitted, the project is created without a team.

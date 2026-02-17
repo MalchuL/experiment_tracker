@@ -10,6 +10,7 @@ import httpx
 
 from experiment_tracker_sdk import ExperimentClient
 from experiment_tracker_sdk.config import load_config
+from experiment_tracker_sdk.models import ExperimentStatus
 
 logger = logging.getLogger("training_example")
 
@@ -75,22 +76,10 @@ def _create_project(
     return response.json()
 
 
-def _update_experiment(
-    client: httpx.Client,
-    experiment_id: str,
-    status: str,
-    progress: int,
-) -> None:
-    response = client.patch(
-        f"/api/experiments/{experiment_id}",
-        json={"status": status, "progress": progress},
-    )
-    response.raise_for_status()
-
-
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="SDK training example")
     parser.add_argument("--project-name", default="SDK Training")
+    parser.add_argument("--experiment-name", default="SDK Training Run")
     parser.add_argument("--team-name", default=None)
     return parser.parse_args()
 
@@ -111,6 +100,8 @@ def main() -> None:
         extra={"project": args.project_name, "team": args.team_name},
     )
     api_client = _get_api_client(config.base_url, config.api_token)
+    sdk_client: Optional[ExperimentClient] = None
+    experiment_id: Optional[str] = None
     try:
         projects = _list_projects(api_client)
         team_id = None
@@ -137,12 +128,19 @@ def main() -> None:
         )
         experiment = sdk_client.create_experiment(
             project_id=str(project["id"]),
-            name=f"{args.project_name} Run",
+            name=args.experiment_name,
             description="Random 1-minute training run",
+            color=f"#{random.randint(0, 0xFFFFFF):06x}",
+            status=ExperimentStatus.PLANNED,
         )
+        experiment_id = experiment.id
         logger.info("experiment_created", extra={"experiment_id": experiment.id})
 
-        _update_experiment(api_client, experiment.id, "running", 0)
+        sdk_client.update_experiment(
+            experiment_id=experiment.id,
+            status=ExperimentStatus.RUNNING,
+            progress=0,
+        )
         logger.info("experiment_started", extra={"experiment_id": experiment.id})
 
         duration_seconds = 60
@@ -154,13 +152,35 @@ def main() -> None:
             time.sleep(step_seconds)
             elapsed = time.time() - start_time
             progress = min(100, int((elapsed / duration_seconds) * 100))
-            _update_experiment(api_client, experiment.id, "running", progress)
+
+            # Simulate training metrics and log several scalar values per step.
+            accuracy = random.uniform(0.6, 0.99)
+            loss = random.uniform(0.1, 1.2)
+            bce_loss = random.uniform(0.05, 0.9)
+            sdk_client.log_scalars(
+                experiment_id=experiment.id,
+                scalars={
+                    "accuracy": accuracy,
+                    "loss": loss,
+                    "bce_loss": bce_loss,
+                },
+                step=step,
+                tags=["training"],
+            )
+            sdk_client.update_experiment(
+                experiment_id=experiment.id,
+                status=ExperimentStatus.RUNNING,
+                progress=progress,
+            )
             logger.info(
                 "training_progress",
                 extra={
                     "step": step,
                     "progress": progress,
                     "experiment_id": experiment.id,
+                    "accuracy": accuracy,
+                    "loss": loss,
+                    "bce_loss": bce_loss,
                 },
             )
 
@@ -178,18 +198,37 @@ def main() -> None:
         )
         sdk_client.flush()
         logger.info(
-            "metrics_logged",
+            "scalars_logged",
             extra={
                 "experiment_id": experiment.id,
-                "accuracy": final_accuracy,
-                "loss": final_loss,
+                "steps": steps,
+                "scalar_names": ["accuracy", "loss", "bce_loss"],
             },
         )
 
-        _update_experiment(api_client, experiment.id, "complete", 100)
+        sdk_client.update_experiment(
+            experiment_id=experiment.id,
+            status=ExperimentStatus.COMPLETE,
+            progress=100,
+        )
         logger.info("experiment_completed", extra={"experiment_id": experiment.id})
-        sdk_client.close()
+    except Exception:
+        if sdk_client is not None and experiment_id is not None:
+            try:
+                sdk_client.update_experiment(
+                    experiment_id=experiment_id,
+                    status=ExperimentStatus.FAILED,
+                )
+            except Exception:
+                logger.exception(
+                    "failed_to_mark_experiment_failed",
+                    extra={"experiment_id": experiment_id},
+                )
+        logger.exception("training_failed")
+        raise
     finally:
+        if sdk_client is not None:
+            sdk_client.close()
         api_client.close()
 
 

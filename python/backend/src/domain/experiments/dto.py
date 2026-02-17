@@ -1,7 +1,8 @@
 from datetime import datetime
+import re
 from uuid import UUID
 from lib.types import UUID_TYPE
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from typing import List, Optional, Dict, Any
 from models import ExperimentStatus
 
@@ -21,13 +22,12 @@ class ExperimentBaseDTO(BaseModel):
 
     model_config = model_config()
 
-
-class ExperimentParseResultDTO(BaseModel):
-    num: Optional[str] = None
-    parent: Optional[str] = None
-    change: Optional[str] = None
-
-    model_config = model_config()
+    @field_validator("color")
+    @classmethod
+    def validate_color(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and not re.match(r"^#[0-9a-fA-F]{6}$", v):
+            raise ValueError("Invalid color")
+        return v
 
 
 class ExperimentCreateDTO(ExperimentBaseDTO):

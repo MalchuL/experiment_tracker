@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { PageHeader } from "@/components/shared/page-header";
 import { ListSkeleton } from "@/components/shared/loading-skeleton";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -28,12 +28,11 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useCurrentProject } from "@/domain/projects/hooks";
 import { useExperiments } from "@/domain/experiments/hooks";
-import { useAllMetrics } from "@/domain/metrics/hooks";
+import { useProjectScalars } from "@/domain/scalars/hooks";
 import { AlertCircle, BarChart3, ChevronDown, Eye, EyeOff, Maximize2, Pencil, RotateCcw } from "lucide-react";
 import Plot from "react-plotly.js";
 import type { Layout, Config } from "plotly.js";
 import type { Experiment } from "@/domain/experiments/types";
-import type { Metric } from "@/domain/metrics/types";
 import { ExperimentEditForm } from "@/components/shared/experiment-edit-form";
 import { experimentsService } from "@/domain/experiments/services";
 import type { UpdateExperiment } from "@/domain/experiments/types";
@@ -120,7 +119,8 @@ function MetricChart({
       
       data.forEach(point => {
         const step = point.step as number;
-        const value = point[experiment.name];
+        // Key by experiment ID to avoid collisions when experiment names are duplicated.
+        const value = point[experiment.id];
         if (value !== null && value !== undefined) {
           xValues.push(step);
           yValues.push(value as number);
@@ -228,7 +228,6 @@ export default function Scalars() {
   const { project, isLoading: projectLoading } = useCurrentProject();
   const projectId = project?.id;
   const searchParams = useSearchParams();
-  const router = useRouter();
   
   const [smoothing, setSmoothing] = useState(0);
   const [initialized, setInitialized] = useState(false);
@@ -255,20 +254,33 @@ export default function Scalars() {
     },
   });
 
-  const { experiments = [], isLoading: experimentsLoading } = useExperiments(projectId);
-  const { allMetrics = {}, isLoading: metricsLoading } = useAllMetrics(projectId);
+  const {
+    experiments = [],
+    isLoading: experimentsLoading,
+    isFetching: experimentsFetching,
+    refetch: refetchExperiments,
+  } = useExperiments(projectId);
+
+  const {
+    scalars,
+    isLoading: scalarsLoading,
+    isFetching: scalarsFetching,
+    refetch: refetchScalars,
+  } = useProjectScalars({
+    projectId,
+    returnTags: false,
+  });
 
   const allLoggedMetricNames = useMemo(() => {
-    if (!allMetrics) return [];
     const metricSet = new Set<string>();
-    Object.values(allMetrics).forEach(metrics => {
-      metrics.forEach(m => metricSet.add(m.name));
+    scalars.forEach((experimentScalars) => {
+      Object.keys(experimentScalars.scalars || {}).forEach((name) => metricSet.add(name));
     });
     return Array.from(metricSet).sort();
-  }, [allMetrics]);
+  }, [scalars]);
 
   useEffect(() => {
-    if (experiments.length === 0 || allLoggedMetricNames.length === 0 || initialized) return;
+    if (experiments.length === 0 || initialized) return;
     
     const expParam = searchParams.get("exp");
     const metParam = searchParams.get("met");
@@ -296,7 +308,7 @@ export default function Scalars() {
     setInitialized(true);
   }, [experiments, searchParams, initialized, allLoggedMetricNames]);
 
-  const updateUrl = useCallback((expIndices: Set<number>, hiddenMets: Set<string>, smooth: number) => {
+  const buildQueryString = useCallback((expIndices: Set<number>, hiddenMets: Set<string>, smooth: number) => {
     const params = new URLSearchParams();
     
     const allSelected = expIndices.size === experiments.length;
@@ -318,10 +330,33 @@ export default function Scalars() {
       params.set("s", smooth.toFixed(2));
     }
     
-    const queryString = params.toString();
+    return params.toString();
+  }, [experiments.length, allLoggedMetricNames]);
+
+  useEffect(() => {
+    if (!initialized || !projectId) return;
+    const nextQuery = buildQueryString(
+      selectedExperimentIndices,
+      hiddenMetrics,
+      smoothing
+    );
+    const currentQuery = new URLSearchParams(window.location.search).toString();
+    if (nextQuery === currentQuery) return;
     const basePath = `/projects/${projectId}/scalars`;
-    router.replace(queryString ? `${basePath}?${queryString}` : basePath);
-  }, [experiments.length, allLoggedMetricNames, projectId, router]);
+    // Keep URL shareable without triggering router navigation/re-render cycles.
+    window.history.replaceState(
+      window.history.state,
+      "",
+      nextQuery ? `${basePath}?${nextQuery}` : basePath
+    );
+  }, [
+    initialized,
+    projectId,
+    selectedExperimentIndices,
+    hiddenMetrics,
+    smoothing,
+    buildQueryString,
+  ]);
 
   const toggleExperiment = (index: number) => {
     setSelectedExperimentIndices((prev) => {
@@ -331,7 +366,6 @@ export default function Scalars() {
       } else {
         next.add(index);
       }
-      updateUrl(next, hiddenMetrics, smoothing);
       return next;
     });
   };
@@ -339,12 +373,10 @@ export default function Scalars() {
   const selectAllExperiments = () => {
     const all = new Set(experiments.map((_, i) => i));
     setSelectedExperimentIndices(all);
-    updateUrl(all, hiddenMetrics, smoothing);
   };
 
   const clearAllExperiments = () => {
     setSelectedExperimentIndices(new Set());
-    updateUrl(new Set(), hiddenMetrics, smoothing);
   };
 
   const toggleMetric = (metricName: string) => {
@@ -355,30 +387,25 @@ export default function Scalars() {
       } else {
         next.add(metricName);
       }
-      updateUrl(selectedExperimentIndices, next, smoothing);
       return next;
     });
   };
 
   const showAllMetrics = () => {
     setHiddenMetrics(new Set());
-    updateUrl(selectedExperimentIndices, new Set(), smoothing);
   };
 
   const showOnlyMetric = (metricName: string) => {
     if (allLoggedMetricNames.length === 0) return;
     const newHidden = new Set(allLoggedMetricNames.filter(name => name !== metricName));
     setHiddenMetrics(newHidden);
-    updateUrl(selectedExperimentIndices, newHidden, smoothing);
   };
 
   const handleSmoothingChange = (value: number[]) => {
     setSmoothing(value[0]);
   };
 
-  const handleSmoothingCommit = (value: number[]) => {
-    updateUrl(selectedExperimentIndices, hiddenMetrics, value[0]);
-  };
+  const handleSmoothingCommit = (_value: number[]) => {};
 
   const handleDomainChange = (metricName: string, domain: ChartDomain | null) => {
     setMetricDomains(prev => {
@@ -426,44 +453,34 @@ export default function Scalars() {
   }, [experiments, selectedExperimentIndices]);
 
   const visibleExperiments = useMemo(() => {
-    if (soloMode) {
-      return selectedExperiments;
-    }
-    return experiments;
-  }, [experiments, selectedExperiments, soloMode]);
+    // Always drive charts from explicit experiment selection.
+    return selectedExperiments;
+  }, [selectedExperiments]);
 
   const chartDataByMetric = useMemo(() => {
     const result: Record<string, Array<Record<string, number | null>>> = {};
     
-    if (!allMetrics || visibleExperiments.length === 0) return result;
+    if (scalars.length === 0 || visibleExperiments.length === 0) return result;
+
+    const scalarsByExperiment = new Map(
+      scalars.map((entry) => [entry.experiment_id, entry.scalars])
+    );
 
     for (const metric of visibleMetrics) {
       const stepMap = new Map<number, Record<string, number | null>>();
-      const rawDataByExp: Record<string, { steps: number[]; values: number[] }> = {};
       
       visibleExperiments.forEach((experiment) => {
-        const expMetrics = allMetrics[experiment.id] || [];
-        const metricData = expMetrics
-          .filter(m => m.name === metric.name)
-          .sort((a, b) => a.step - b.step);
-        
-        if (metricData.length > 0) {
-          rawDataByExp[experiment.id] = {
-            steps: metricData.map(m => m.step),
-            values: metricData.map(m => m.value),
-          };
+        const experimentScalars = scalarsByExperiment.get(experiment.id);
+        const series = experimentScalars?.[metric.name];
+        if (!series || series.x.length === 0 || series.y.length === 0) {
+          return;
         }
-      });
 
-      Object.entries(rawDataByExp).forEach(([expId, data]) => {
-        const experiment = experiments.find(e => e.id === expId);
-        if (!experiment) return;
-        
-        const smoothedValues = applySmoothing(data.values, smoothing);
-        
-        data.steps.forEach((step, i) => {
+        const smoothedValues = applySmoothing(series.y, smoothing);
+        series.x.forEach((step, i) => {
           const existing = stepMap.get(step) || { step };
-          existing[experiment.name] = smoothedValues[i];
+          // Persist data under stable experiment IDs; labels remain human-readable names.
+          existing[experiment.id] = smoothedValues[i];
           stepMap.set(step, existing);
         });
       });
@@ -474,9 +491,41 @@ export default function Scalars() {
     }
 
     return result;
-  }, [allMetrics, visibleExperiments, experiments, visibleMetrics, smoothing]);
+  }, [scalars, visibleExperiments, visibleMetrics, smoothing]);
 
   const fullscreenMetricData = fullscreenMetric ? chartDataByMetric[fullscreenMetric] || [] : [];
+
+  const refreshButton = (
+    <Button
+      variant="outline"
+      size="sm"
+      onClick={() => {
+        void (async () => {
+          const hadAllSelected = selectedExperimentIndices.size === experiments.length;
+          // Refresh experiments first so newly created runs are available for charting.
+          await refetchExperiments();
+          await refetchScalars();
+
+          // Keep "all selected" semantics when new experiments appear after refresh.
+          if (hadAllSelected && projectId) {
+            const refreshedExperiments =
+              queryClient.getQueryData<Experiment[]>([
+                QUERY_KEYS.EXPERIMENTS.BY_PROJECT(projectId),
+              ]) ?? [];
+            const allIndices = new Set(refreshedExperiments.map((_, index) => index));
+            setSelectedExperimentIndices(allIndices);
+          }
+        })();
+      }}
+      disabled={scalarsFetching || experimentsFetching}
+      data-testid="button-refresh-scalars"
+    >
+      <RotateCcw
+        className={`w-4 h-4 mr-2 ${scalarsFetching || experimentsFetching ? "animate-spin" : ""}`}
+      />
+      {scalarsFetching || experimentsFetching ? "Refreshing..." : "Refresh"}
+    </Button>
+  );
 
   if (!projectId) {
     return (
@@ -490,12 +539,13 @@ export default function Scalars() {
     );
   }
 
-  if (projectLoading || experimentsLoading || metricsLoading) {
+  if (projectLoading || experimentsLoading || scalarsLoading) {
     return (
       <div className="space-y-6">
         <PageHeader
           title="Scalars"
-          description="Compare metrics across experiments"
+          description="Compare scalars across experiments"
+          actions={refreshButton}
         />
         <ListSkeleton count={3} />
       </div>
@@ -664,7 +714,7 @@ export default function Scalars() {
 
           <div className="space-y-2 flex-1 min-h-0">
             <div className="flex items-center justify-between gap-2">
-              <Label className="text-sm font-medium">Metrics</Label>
+              <Label className="text-sm font-medium">Scalars</Label>
               {hiddenMetrics.size > 0 && (
                 <Button
                   variant="ghost"
@@ -773,7 +823,8 @@ export default function Scalars() {
         <div className="mb-4">
             <PageHeader
             title="Scalars"
-              description={`Metrics visualization for "${project?.name}" - ${visibleExperiments.length} experiments visible`}
+              description={`Scalars visualization for "${project?.name}" - ${visibleExperiments.length} experiments visible`}
+              actions={refreshButton}
           />
         </div>
 
@@ -781,13 +832,13 @@ export default function Scalars() {
           <EmptyState
             icon={BarChart3}
             title="Select experiments"
-            description="Choose one or more experiments from the sidebar to compare their metrics."
+            description="Choose one or more experiments from the sidebar to compare their scalars."
           />
         ) : visibleMetrics.length === 0 ? (
           <EmptyState
             icon={BarChart3}
-            title="No metrics visible"
-            description="All metrics are hidden. Click 'Show All' to display them."
+            title="No scalars visible"
+            description="All scalars are hidden. Click 'Show All' to display them."
           />
         ) : (
           <div

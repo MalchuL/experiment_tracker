@@ -67,6 +67,16 @@ class ScalarsServiceClient:
             accept_msgpack=False,
         )
 
+    async def get_last_logged_experiments(
+        self, project_id: UUID, payload: dict[str, Any]
+    ) -> dict[str, Any]:
+        return await self._request(
+            "POST",
+            f"/scalars/last_logged/{project_id}",
+            json_payload=payload,
+            use_msgpack=False,
+        )
+
     async def _request(
         self,
         method: str,
@@ -121,6 +131,10 @@ class ScalarsClientProtocol(Protocol):
         end_time: datetime | None = None,
     ) -> dict[str, Any]: ...
 
+    async def get_last_logged_experiments(
+        self, project_id: UUID, payload: dict[str, Any]
+    ) -> dict[str, Any]: ...
+
 
 class NoOpScalarsServiceClient(ScalarsServiceClient):
     def __init__(self) -> None:
@@ -149,3 +163,8 @@ class NoOpScalarsServiceClient(ScalarsServiceClient):
         end_time: datetime | None = None,
     ) -> dict[str, Any]:
         return {}
+
+    async def get_last_logged_experiments(
+        self, project_id: UUID, payload: dict[str, Any]
+    ) -> dict[str, Any]:
+        return {"data": []}

@@ -7,7 +7,7 @@ Python SDK for sending experiment data to the Experiment Tracker backend.
 From the repo root:
 
 ```
-pip install -e /media/ssd_stuff/work/experiment_tracker/python/sdk
+pip install -e <root_of_the_repo>/experiment_tracker/python/sdk
 ```
 
 Or from the SDK folder:
@@ -19,7 +19,7 @@ pip install -e .
 Using uv:
 
 ```
-uv pip install -e /media/ssd_stuff/work/experiment_tracker/python/sdk
+uv pip install -e <root_of_the_repo>/experiment_tracker/python/sdk
 ```
 
 ## Configure

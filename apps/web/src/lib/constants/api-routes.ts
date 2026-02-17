@@ -131,6 +131,16 @@ export const API_ROUTES = {
     METRICS: {
       CREATE: "/api/metrics",
     },
+
+    SCALARS: {
+      BY_EXPERIMENT: {
+        GET: (experimentId: string) => `/api/scalars/get/${experimentId}`,
+      },
+      BY_PROJECT: {
+        GET: (projectId: string) => `/api/scalars/get/project/${projectId}`,
+        LAST_LOGGED: (projectId: string) => `/api/scalars/last_logged/${projectId}`,
+      },
+    },
   } as const;
   
   /**

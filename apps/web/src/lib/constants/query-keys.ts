@@ -19,6 +19,10 @@ export const QUERY_KEYS = {
         GET: (experimentId: string) => `experiments/${experimentId}/metrics`,
         BY_PROJECT: (projectId: string) => `projects/${projectId}/metrics`,
     },
+    SCALARS: {
+        BY_PROJECT: (projectId: string) => `projects/${projectId}/scalars`,
+        LAST_LOGGED: (projectId: string) => `projects/${projectId}/scalars/last-logged`,
+    },
     EVIDENCE: {
         GET: (experimentId: string) => `experiments/${experimentId}/evidence`,
     },

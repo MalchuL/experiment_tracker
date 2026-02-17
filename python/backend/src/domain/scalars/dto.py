@@ -1,4 +1,6 @@
+from datetime import datetime
 from typing import Dict, List, Optional
+from uuid import UUID
 
 from pydantic import BaseModel
 
@@ -15,7 +17,7 @@ class ScalarSeriesDTO(BaseModel):
 
 
 class ExperimentsScalarsPointsResultDTO(BaseModel):
-    experiment_id: str
+    experiment_id: UUID
     scalars: Dict[str, ScalarSeriesDTO]
     tags: Optional[List[StepTagsDTO]] = None
 
@@ -46,3 +48,16 @@ class LogScalarResponseDTO(BaseModel):
 class LogScalarsResponseDTO(BaseModel):
     status: str
     warnings: List[str] | None = None
+
+
+class LastLoggedExperimentsRequestDTO(BaseModel):
+    experiment_ids: List[UUID] | None = None
+
+
+class LastLoggedExperimentDTO(BaseModel):
+    experiment_id: UUID
+    last_modified: datetime
+
+
+class LastLoggedExperimentsResultDTO(BaseModel):
+    data: List[LastLoggedExperimentDTO]

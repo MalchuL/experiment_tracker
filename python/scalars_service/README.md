@@ -2,7 +2,7 @@
 `cp .env.example .env`
 
 # Run ClickHouse
-`docker run --name clickhouse-server --ulimit nofile=262144:262144 -p 8123:8123 -e CLICKHOUSE_USER=default -e CLICKHOUSE_PASSWORD=yourpass -e CLICKHOUSE_DB=metrics clickhouse/clickhouse-server`
+`docker run --name clickhouse-server --ulimit nofile=262144:262144 -p 8123:8123 -e CLICKHOUSE_USER=default -e CLICKHOUSE_PASSWORD=yourpass -e CLICKHOUSE_DB=metrics -v ./.clickhouse_data:/var/lib/clickhouse/ clickhouse/clickhouse-server`
 Serve URL will be `http://default:yourpass@localhost:8123/default`. Use it as CLICKHOUSE_URL in .env file.
 
 # Run Clickhouse UI (Optional for development purposes)

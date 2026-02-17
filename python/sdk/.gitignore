@@ -1,1 +1,4 @@
 experiment_tracker_sdk.egg-info
+build
+.venv
+uv.lock

@@ -1,30 +1,17 @@
-from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from lib.dto_converter import DtoConverter
-from lib.types import UUID_TYPE
 from .dto import (
     ExperimentCreateDTO,
     ExperimentDTO,
-    ExperimentParseResultDTO,
     ExperimentUpdateDTO,
 )
-from .utils import ExperimentParseResult
 from models import Experiment
 
 
 class ExperimentMapper:
     def __init__(self):
         pass
-
-    def experiment_parse_result_to_dto(
-        self, result: ExperimentParseResult
-    ) -> ExperimentParseResultDTO:
-        return ExperimentParseResultDTO(
-            num=result.num,
-            parent=result.parent,
-            change=result.change,
-        )
 
     def experiment_schema_to_dto(self, experiment: Experiment) -> ExperimentDTO:
         return ExperimentDTO(
