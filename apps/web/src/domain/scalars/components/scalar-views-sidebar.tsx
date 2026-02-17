@@ -1,12 +1,12 @@
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { RightSidebarShell } from "@/components/shared/right-sidebar-shell";
-import { Save, Trash2, Pencil, Check, X } from "lucide-react";
+import { Save } from "lucide-react";
 import { useScalarViews } from "../hooks";
 import type { ScalarSavedView } from "../types";
+import { ScalarViewItem } from "./scalar-view-item";
 
 interface ScalarViewsSidebarProps {
   projectId?: string;
@@ -71,90 +71,21 @@ export function ScalarViewsSidebar({
           ) : (
             <div className="space-y-2 pr-2">
               {list.map((view) => (
-                <div
+                <ScalarViewItem
                   key={view.id}
-                  className="rounded-md border p-2 space-y-2 cursor-pointer hover:bg-muted/30"
-                  data-testid={`saved-view-${view.id}`}
-                  onClick={() => {
-                    if (renamingId !== view.id) {
-                      onRestoreView(view.query);
-                    }
+                  view={view}
+                  isRenaming={renamingId === view.id}
+                  renamingValue={renamingValue}
+                  onChangeRenamingValue={setRenamingValue}
+                  onStartRename={startRename}
+                  onConfirmRename={commitRename}
+                  onCancelRename={() => {
+                    setRenamingId(null);
+                    setRenamingValue("");
                   }}
-                >
-                  <div className="flex items-center gap-2">
-                    {renamingId === view.id ? (
-                      <Input
-                        value={renamingValue}
-                        onChange={(event) => setRenamingValue(event.target.value)}
-                        className="h-8"
-                        data-testid={`input-rename-view-${view.id}`}
-                        onClick={(event) => event.stopPropagation()}
-                      />
-                    ) : (
-                      <span className="text-sm font-medium truncate flex-1" title={view.name}>
-                        {view.name}
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="flex items-center gap-1">
-                    {renamingId === view.id ? (
-                      <>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            commitRename();
-                          }}
-                          data-testid={`button-confirm-rename-view-${view.id}`}
-                        >
-                          <Check className="w-3.5 h-3.5" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            setRenamingId(null);
-                            setRenamingValue("");
-                          }}
-                          data-testid={`button-cancel-rename-view-${view.id}`}
-                        >
-                          <X className="w-3.5 h-3.5" />
-                        </Button>
-                      </>
-                    ) : (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          startRename(view);
-                        }}
-                        data-testid={`button-rename-view-${view.id}`}
-                      >
-                        <Pencil className="w-3.5 h-3.5" />
-                      </Button>
-                    )}
-
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        deleteView(view.id);
-                      }}
-                      data-testid={`button-delete-view-${view.id}`}
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </Button>
-                  </div>
-                </div>
+                  onDelete={deleteView}
+                  onRestore={onRestoreView}
+                />
               ))}
             </div>
           )}
