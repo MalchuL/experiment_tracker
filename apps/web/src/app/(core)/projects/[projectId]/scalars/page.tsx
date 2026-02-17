@@ -29,6 +29,7 @@ import {
 import { useCurrentProject } from "@/domain/projects/hooks";
 import { useExperiments } from "@/domain/experiments/hooks";
 import { useProjectScalars } from "@/domain/scalars/hooks";
+import { ScalarViewsSidebar } from "@/domain/scalars/components";
 import { AlertCircle, BarChart3, ChevronDown, Eye, EyeOff, Maximize2, Pencil, RotateCcw } from "lucide-react";
 import Plot from "react-plotly.js";
 import type { Layout, Config } from "plotly.js";
@@ -237,6 +238,7 @@ export default function Scalars() {
   const [fullscreenMetric, setFullscreenMetric] = useState<string | null>(null);
   const [syncMode, setSyncMode] = useState<SyncMode>("all");
   const [soloMode, setSoloMode] = useState(false);
+  const [viewsSidebarOpen, setViewsSidebarOpen] = useState(true);
   const [editExperiment, setEditExperiment] = useState<Experiment | null>(null);
   const [cardHeight, setCardHeight] = useState(220);
   const [cardMinWidth, setCardMinWidth] = useState(320);
@@ -279,34 +281,66 @@ export default function Scalars() {
     return Array.from(metricSet).sort();
   }, [scalars]);
 
+  const safeDecodeIndices = useCallback((encoded: string | null): number[] => {
+    if (!encoded) return [];
+    try {
+      return decodeSelection(encoded).filter((value) => Number.isInteger(value));
+    } catch {
+      return [];
+    }
+  }, []);
+
+  const applySharedParams = useCallback((params: URLSearchParams) => {
+    try {
+      const expParam = params.get("exp");
+      const metParam = params.get("met");
+      const smoothParam = params.get("s");
+
+      if (expParam) {
+        const indices = safeDecodeIndices(expParam);
+        setSelectedExperimentIndices(
+          new Set(indices.filter((i) => i >= 0 && i < experiments.length))
+        );
+      } else {
+        setSelectedExperimentIndices(new Set(experiments.map((_, i) => i)));
+      }
+
+      if (metParam) {
+        const hiddenIndices = safeDecodeIndices(metParam);
+        const hiddenNames = hiddenIndices
+          .map((i) => allLoggedMetricNames[i])
+          .filter((name): name is string => typeof name === "string");
+        setHiddenMetrics(new Set(hiddenNames));
+      } else {
+        setHiddenMetrics(new Set());
+      }
+
+      if (smoothParam) {
+        const s = parseFloat(smoothParam);
+        if (!isNaN(s) && s >= 0 && s <= 1) {
+          setSmoothing(s);
+          return;
+        }
+      }
+      setSmoothing(0);
+    } catch {
+      // If saved/shared params are malformed, fall back to safe defaults.
+      setSelectedExperimentIndices(new Set(experiments.map((_, i) => i)));
+      setHiddenMetrics(new Set());
+      setSmoothing(0);
+    }
+  }, [experiments, allLoggedMetricNames, safeDecodeIndices]);
+
   useEffect(() => {
     if (experiments.length === 0 || initialized) return;
-    
-    const expParam = searchParams.get("exp");
-    const metParam = searchParams.get("met");
-    const smoothParam = searchParams.get("s");
-    
-    if (expParam) {
-      const indices = decodeSelection(expParam);
-      setSelectedExperimentIndices(new Set(indices.filter(i => i >= 0 && i < experiments.length)));
-    } else {
-      setSelectedExperimentIndices(new Set(experiments.map((_, i) => i)));
+
+    const hasMetricsParam = !!searchParams.get("met");
+    if (hasMetricsParam && allLoggedMetricNames.length === 0) {
+      return;
     }
-    
-    if (metParam) {
-      const hiddenIndices = decodeSelection(metParam);
-      setHiddenMetrics(new Set(hiddenIndices.map(i => allLoggedMetricNames[i]).filter(Boolean)));
-    }
-    
-    if (smoothParam) {
-      const s = parseFloat(smoothParam);
-      if (!isNaN(s) && s >= 0 && s <= 1) {
-        setSmoothing(s);
-      }
-    }
-    
+    applySharedParams(new URLSearchParams(searchParams.toString()));
     setInitialized(true);
-  }, [experiments, searchParams, initialized, allLoggedMetricNames]);
+  }, [experiments, searchParams, initialized, allLoggedMetricNames, applySharedParams]);
 
   const buildQueryString = useCallback((expIndices: Set<number>, hiddenMets: Set<string>, smooth: number) => {
     const params = new URLSearchParams();
@@ -332,6 +366,11 @@ export default function Scalars() {
     
     return params.toString();
   }, [experiments.length, allLoggedMetricNames]);
+
+  const currentQueryString = useMemo(
+    () => buildQueryString(selectedExperimentIndices, hiddenMetrics, smoothing),
+    [buildQueryString, selectedExperimentIndices, hiddenMetrics, smoothing]
+  );
 
   useEffect(() => {
     if (!initialized || !projectId) return;
@@ -406,6 +445,20 @@ export default function Scalars() {
   };
 
   const handleSmoothingCommit = (_value: number[]) => {};
+
+  const handleRestoreSavedView = useCallback((query: string) => {
+    const normalizedQuery = query.startsWith("?") ? query.slice(1) : query;
+    const params = new URLSearchParams(normalizedQuery);
+    applySharedParams(params);
+    if (projectId) {
+      const basePath = `/projects/${projectId}/scalars`;
+      window.history.replaceState(
+        window.history.state,
+        "",
+        normalizedQuery ? `${basePath}?${normalizedQuery}` : basePath
+      );
+    }
+  }, [applySharedParams, projectId]);
 
   const handleDomainChange = (metricName: string, domain: ChartDomain | null) => {
     setMetricDomains(prev => {
@@ -527,6 +580,20 @@ export default function Scalars() {
     </Button>
   );
 
+  const pageActions = (
+    <div className="flex items-center gap-2">
+      {refreshButton}
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => setViewsSidebarOpen((prev) => !prev)}
+        data-testid="button-toggle-views-sidebar"
+      >
+        {viewsSidebarOpen ? "Hide Views" : "Show Views"}
+      </Button>
+    </div>
+  );
+
   if (!projectId) {
     return (
       <div className="flex flex-col items-center justify-center h-[calc(100vh-8rem)] gap-4">
@@ -545,7 +612,7 @@ export default function Scalars() {
         <PageHeader
           title="Scalars"
           description="Compare scalars across experiments"
-          actions={refreshButton}
+          actions={pageActions}
         />
         <ListSkeleton count={3} />
       </div>
@@ -556,7 +623,7 @@ export default function Scalars() {
     visibleMetrics.length <= 4 ? 2 : 3;
 
   return (
-    <div className="flex h-[calc(100vh-5rem)] gap-4">
+    <div className={`flex h-[calc(100vh-5rem)] gap-4 ${viewsSidebarOpen ? "pr-80" : ""}`}>
       <Card className="w-72 flex-shrink-0 flex flex-col">
         <CardHeader className="pb-3">
           <CardTitle className="text-base">Controls</CardTitle>
@@ -824,7 +891,7 @@ export default function Scalars() {
             <PageHeader
             title="Scalars"
               description={`Scalars visualization for "${project?.name}" - ${visibleExperiments.length} experiments visible`}
-              actions={refreshButton}
+              actions={pageActions}
           />
         </div>
 
@@ -924,6 +991,15 @@ export default function Scalars() {
           </div>
         )}
       </div>
+
+      {viewsSidebarOpen && (
+        <ScalarViewsSidebar
+          projectId={projectId}
+          currentQuery={currentQueryString}
+          onRestoreView={handleRestoreSavedView}
+          onClose={() => setViewsSidebarOpen(false)}
+        />
+      )}
 
       <Dialog open={!!fullscreenMetric} onOpenChange={(open) => !open && setFullscreenMetric(null)}>
         <DialogContent className="max-w-6xl w-[90vw] h-[80vh]">

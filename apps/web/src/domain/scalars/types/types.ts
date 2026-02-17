@@ -31,3 +31,12 @@ export interface LastLoggedExperiment {
 export interface LastLoggedExperimentsResult {
   data: LastLoggedExperiment[];
 }
+
+export interface ScalarSavedView {
+  id: string;
+  projectId: string;
+  name: string;
+  query: string;
+  createdAt: string;
+  updatedAt: string;
+}

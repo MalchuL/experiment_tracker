@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
+import { RightSidebarShell } from "@/components/shared/right-sidebar-shell";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
@@ -18,7 +19,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/lib/hooks/use-toast";
 import { useExperiment } from "@/domain/experiments/hooks/experiment-hook";
 import {
-  X,
   GitBranch,
   TrendingUp,
   TrendingDown,
@@ -135,48 +135,37 @@ export function ExperimentSidebar({
   };
 
   return (
-    <div
-      className="fixed right-0 top-0 h-full w-96 bg-background border-l z-50 flex flex-col shadow-lg"
-      data-testid="experiment-sidebar"
-    >
-      <div className="flex items-center justify-between p-4 border-b">
-        <div className="flex items-center gap-2">
-          <div
-            className="w-3 h-3 rounded-full"
-            style={{ backgroundColor: experiment?.color || "#3b82f6" }}
+    <RightSidebarShell
+      title={
+        experimentLoading ? (
+          <Skeleton className="h-5 w-32" />
+        ) : (
+          experiment?.name || "Experiment"
+        )
+      }
+      headerPrefix={
+        <div
+          className="w-3 h-3 rounded-full flex-shrink-0"
+          style={{ backgroundColor: experiment?.color || "#3b82f6" }}
+        />
+      }
+      headerActions={
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => refetch()}
+          disabled={experimentFetching || !experimentId}
+          data-testid="button-refresh-experiment"
+          aria-label="Refresh experiment"
+        >
+          <RefreshCw
+            className={`w-4 h-4 ${experimentFetching ? "animate-spin" : ""}`}
           />
-          <h2 className="font-semibold truncate">
-            {experimentLoading ? (
-              <Skeleton className="h-5 w-32" />
-            ) : (
-              experiment?.name || "Experiment"
-            )}
-          </h2>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => refetch()}
-            disabled={experimentFetching || !experimentId}
-            data-testid="button-refresh-experiment"
-            aria-label="Refresh experiment"
-          >
-            <RefreshCw
-              className={`w-4 h-4 ${experimentFetching ? "animate-spin" : ""}`}
-            />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={onClose}
-            data-testid="button-close-sidebar"
-          >
-            <X className="w-4 h-4" />
-          </Button>
-        </div>
-      </div>
-
+        </Button>
+      }
+      onClose={onClose}
+      testId="experiment-sidebar"
+    >
       {experimentLoading ? (
         <div className="p-4 space-y-4">
           <Skeleton className="h-8 w-full" />
@@ -407,6 +396,6 @@ export function ExperimentSidebar({
           Experiment not found
         </div>
       )}
-    </div>
+    </RightSidebarShell>
   );
 }
