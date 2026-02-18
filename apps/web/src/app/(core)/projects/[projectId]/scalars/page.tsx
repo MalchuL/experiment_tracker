@@ -238,6 +238,7 @@ export default function Scalars() {
   const [fullscreenMetric, setFullscreenMetric] = useState<string | null>(null);
   const [syncMode, setSyncMode] = useState<SyncMode>("all");
   const [soloMode, setSoloMode] = useState(false);
+  const [chosenExperimentId, setChosenExperimentId] = useState<string | null>(null);
   const [viewsSidebarOpen, setViewsSidebarOpen] = useState(true);
   const [editExperiment, setEditExperiment] = useState<Experiment | null>(null);
   const [cardHeight, setCardHeight] = useState(220);
@@ -506,9 +507,33 @@ export default function Scalars() {
   }, [experiments, selectedExperimentIndices]);
 
   const visibleExperiments = useMemo(() => {
-    // Always drive charts from explicit experiment selection.
+    if (soloMode) {
+      if (chosenExperimentId) {
+        return experiments.filter((experiment) => experiment.id === chosenExperimentId);
+      }
+      // In solo mode without a chosen experiment, fall back to normal selection.
+      return selectedExperiments;
+    }
+
     return selectedExperiments;
-  }, [selectedExperiments]);
+  }, [soloMode, chosenExperimentId, experiments, selectedExperiments]);
+
+  useEffect(() => {
+    if (soloMode) return;
+    setChosenExperimentId(null);
+  }, [soloMode]);
+
+  useEffect(() => {
+    if (!chosenExperimentId) return;
+    const stillExists = experiments.some((experiment) => experiment.id === chosenExperimentId);
+    if (!stillExists) {
+      setChosenExperimentId(null);
+    }
+  }, [experiments, chosenExperimentId]);
+
+  const toggleSoloMode = () => {
+    setSoloMode((prev) => !prev);
+  };
 
   const chartDataByMetric = useMemo(() => {
     const result: Record<string, Array<Record<string, number | null>>> = {};
@@ -645,7 +670,7 @@ export default function Scalars() {
             <Button
               variant={soloMode ? "default" : "outline"}
               size="sm"
-              onClick={() => setSoloMode(!soloMode)}
+              onClick={toggleSoloMode}
               className="w-full text-xs"
               data-testid="button-solo-mode"
             >
@@ -745,6 +770,19 @@ export default function Scalars() {
                     key={experiment.id}
                     className="flex items-center gap-2 py-1"
                   >
+                    {soloMode && (
+                      <button
+                        type="button"
+                        onClick={() => setChosenExperimentId(experiment.id)}
+                        className={`h-3 w-3 rounded-full border flex-shrink-0 transition-colors ${
+                          chosenExperimentId === experiment.id
+                            ? "border-primary bg-primary"
+                            : "border-muted-foreground/50 bg-transparent"
+                        }`}
+                        aria-label={`Choose ${experiment.name} for solo mode`}
+                        data-testid={`button-solo-experiment-${index}`}
+                      />
+                    )}
                     <Checkbox
                       id={`exp-${index}`}
                       checked={selectedExperimentIndices.has(index)}
@@ -895,13 +933,7 @@ export default function Scalars() {
           />
         </div>
 
-        {visibleExperiments.length === 0 ? (
-          <EmptyState
-            icon={BarChart3}
-            title="Select experiments"
-            description="Choose one or more experiments from the sidebar to compare their scalars."
-          />
-        ) : visibleMetrics.length === 0 ? (
+        {visibleMetrics.length === 0 ? (
           <EmptyState
             icon={BarChart3}
             title="No scalars visible"
