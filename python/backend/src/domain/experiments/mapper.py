@@ -27,6 +27,7 @@ class ExperimentMapper:
             progress=experiment.progress,
             color=experiment.color,
             order=experiment.order,
+            tags=experiment.tags,
             created_at=experiment.created_at,
             started_at=experiment.started_at,
             completed_at=experiment.completed_at,
@@ -50,6 +51,7 @@ class ExperimentMapper:
             git_diff=experiment.git_diff,
             color=experiment.color,
             order=experiment.order,
+            tags=experiment.tags,
         )
 
     def experiment_update_dto_to_update_dict(
@@ -76,4 +78,6 @@ class ExperimentMapper:
             updates["progress"] = converted_dto["progress"]
         if "order" in converted_dto:
             updates["order"] = converted_dto["order"]
+        if "tags" in converted_dto:
+            updates["tags"] = converted_dto["tags"]
         return updates

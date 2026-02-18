@@ -22,7 +22,7 @@ class MetricMapper:
             name=data.name,
             value=data.value,
             step=data.step,
-            direction=data.direction,
+            label=data.label,
         )
 
     def metric_update_dto_to_update_dict(self, data: MetricUpdateDTO) -> Dict[str, Any]:
@@ -35,6 +35,6 @@ class MetricMapper:
             updates["value"] = converted_dto["value"]
         if "step" in converted_dto:
             updates["step"] = converted_dto["step"]
-        if "direction" in converted_dto:
-            updates["direction"] = converted_dto["direction"]
+        if "label" in converted_dto:
+            updates["label"] = converted_dto["label"]
         return updates

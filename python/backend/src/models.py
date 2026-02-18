@@ -240,6 +240,7 @@ class Experiment(UUIDBase):
     progress: Mapped[int] = mapped_column(Integer, default=0)
     color: Mapped[str] = mapped_column(String(20), default="#3b82f6")
     order: Mapped[int] = mapped_column(Integer, default=0)
+    tags: Mapped[List[str] | None] = mapped_column(JSONB, default=list, nullable=True)
     started_by: Mapped[Optional[uuid.UUID]] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("users.id", ondelete="SET NULL"),
@@ -301,9 +302,7 @@ class Metric(UUIDBase):
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     value: Mapped[float] = mapped_column(Float, nullable=False)
     step: Mapped[int] = mapped_column(Integer, default=0)
-    direction: Mapped[MetricDirection] = mapped_column(
-        SQLEnum(MetricDirection), default=MetricDirection.MINIMIZE
-    )
+    label: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
 
     experiment: Mapped["Experiment"] = relationship(
@@ -353,4 +352,13 @@ class Permission(UUIDBase):
     __table_args__ = (
         Index("ix_permissions_user_team", user_id, team_id),
         Index("ix_permissions_user_action", user_id, action),
+    )
+
+
+class DBMetadata(Base):
+    __tablename__ = "db_metadata"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, default=1)
+    version: Mapped[str] = mapped_column(
+        String(100), nullable=False, default="2026.02.18.01"
     )

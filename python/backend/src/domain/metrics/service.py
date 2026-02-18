@@ -144,13 +144,12 @@ class MetricService:
         return metrics
 
     async def get_aggregated_metrics_for_project(
-        self, user: UserProtocol, project_id: UUID_TYPE
+        self, user: UserProtocol, project_id: UUID_TYPE, project_service: ProjectService
     ) -> List[MetricDTO]:
 
         if not await self.permission_checker.can_view_metric(user.id, project_id):
             raise MetricNotAccessibleError(f"Project {project_id} not accessible")
         # Get project metrics configuration
-        project_service = ProjectService(self.db)
         project = await project_service.get_project_if_accessible(user, project_id)
         project_metrics = project.metrics
 

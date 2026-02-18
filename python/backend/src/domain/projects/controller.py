@@ -92,9 +92,12 @@ async def get_aggregatedproject_metrics(
     user: User = Depends(get_current_user_dual),
     _: None = Depends(require_api_token_scopes(ProjectActions.VIEW_METRIC)),
     metric_service: MetricService = Depends(get_metric_service),
+    project_service: ProjectService = Depends(get_project_service),
 ):
     try:
-        return await metric_service.get_aggregated_metrics_for_project(user, project_id)
+        return await metric_service.get_aggregated_metrics_for_project(
+            user, project_id, project_service
+        )
     except Exception as exc:  # noqa: BLE001
         _raise_project_http_error(exc)
 

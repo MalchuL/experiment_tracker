@@ -12,8 +12,7 @@ class MetricBase(BaseModel):
     name: str = Field(..., min_length=1)
     value: float
     step: int = 0
-    direction: MetricDirection = MetricDirection.MAXIMIZE
-
+    label: str | None = None
     model_config = model_config()
 
 
@@ -34,6 +33,6 @@ class MetricUpdateDTO(BaseModel):
     name: str | None = Field(None, min_length=1)
     value: float | None = None
     step: int | None = None
-    direction: MetricDirection | None = None
+    label: str | None = None
 
     model_config = model_config()

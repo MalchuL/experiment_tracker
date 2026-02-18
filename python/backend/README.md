@@ -56,11 +56,71 @@ The backend uses SQLAlchemy with async support. By default, it uses SQLite for d
      ```
 
 3. **Initialize the database schema**:
-   The tables will be created automatically on first run, or you can run:
-   ```python
-   from db.database import create_db_and_tables
-   await create_db_and_tables()
+   Apply migrations:
+   ```bash
+   uv run alembic upgrade head
    ```
+
+## Database Migrations (Alembic)
+
+Use Alembic for all schema changes. Do not edit database tables manually.
+
+### 1) Configure database connection
+
+Set `DATABASE_URL` in your shell or `.env`:
+
+```bash
+export DATABASE_URL="postgresql://username:password@localhost:5432/experiment_tracker"
+```
+
+Alembic reads this value from `src/config/settings.py` and converts it to async URL internally.
+
+### 2) Apply migrations
+
+```bash
+cd python/backend
+uv run alembic upgrade head
+```
+
+Check current revision:
+
+```bash
+uv run alembic current
+```
+
+### 3) Create a new migration
+
+After changing SQLAlchemy models in `src/models.py`:
+
+```bash
+uv run alembic revision -m "short_description_of_change"
+```
+
+Then edit the generated file in `alembic/versions/` and implement `upgrade()` / `downgrade()`.
+
+### 4) Roll back migrations
+
+Revert the latest migration:
+
+```bash
+uv run alembic downgrade -1
+```
+
+Revert to a specific revision:
+
+```bash
+uv run alembic downgrade <revision_id>
+```
+
+### 5) Database schema version tracking (`db_metadata`)
+
+The table `db_metadata` stores the application schema version.
+
+- Row key: `id = 1`
+- Version field: `version`
+
+Migration `20260218_01` initializes this table and writes version `2026.02.18.01`.
+When creating new migrations, update this value in the migration to keep DB and app schema versions aligned.
 
 ### For Testing
 

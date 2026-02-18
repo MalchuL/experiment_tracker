@@ -491,6 +491,7 @@ source = { editable = "." }
 dependencies = [
     { name = "advanced-alchemy" },
     { name = "aiosqlite" },
+    { name = "alembic" },
     { name = "asyncpg" },
     { name = "fastapi" },
     { name = "fastapi-users", extra = ["sqlalchemy"] },
@@ -514,6 +515,7 @@ dev = [
 requires-dist = [
     { name = "advanced-alchemy", specifier = ">=1.8.2" },
     { name = "aiosqlite", specifier = ">=0.20.0" },
+    { name = "alembic", specifier = ">=1.18.0" },
     { name = "asyncpg", specifier = ">=0.31.0" },
     { name = "fastapi", specifier = ">=0.111.0" },
     { name = "fastapi-users", extras = ["sqlalchemy"], specifier = ">=15.0.3" },

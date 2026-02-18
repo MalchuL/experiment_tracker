@@ -19,6 +19,7 @@ class ExperimentBaseDTO(BaseModel):
     git_diff: Optional[str] = None
     color: Optional[str] = None
     order: Optional[int] = None
+    tags: Optional[List[str]] = None
 
     model_config = model_config()
 
@@ -44,6 +45,7 @@ class ExperimentUpdateDTO(BaseModel):
     git_diff: Optional[str] = None
     progress: Optional[int] = None
     order: Optional[int] = None
+    tags: Optional[List[str]] = None
 
     model_config = model_config()
 
