@@ -1,6 +1,5 @@
 from collections import defaultdict
 from datetime import datetime, timezone
-import json
 from typing import Literal, Sequence, cast
 from uuid import UUID, uuid4
 
@@ -168,6 +167,7 @@ class ScalarsService:
                 last_modified,
                 experiment_id,
                 item.step,
+                # Arrays can't be nullable in clickhouse, so we use empty list if tags are None.
                 item.tags or [],
             ] + [item.scalars.get(name, None) for name in mapped_columns.keys()]
             rows.append(row)
@@ -376,7 +376,7 @@ class ScalarsService:
                 scalar_series.y.append(cast(float, value))
                 row_scalar_names.append(original_name)
 
-            if return_tags:
+            if return_tags and tags:
                 result_tags[experiment_id].append(
                     StepTagsDTO(
                         step=step,

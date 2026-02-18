@@ -24,7 +24,7 @@ class InMemoryCache(Cache):
         return self.cache[key]
 
     async def set(self, key: str, value: Any) -> None:
-        logger.info(f"Setting cache key {key} with value {value}")
+        logger.info(f"Setting cache key {key}")
         self.cache[key] = value
         self.timestamps[key] = datetime.now()
 
