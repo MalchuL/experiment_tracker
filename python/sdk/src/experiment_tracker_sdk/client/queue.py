@@ -1,9 +1,11 @@
+import json
 import logging
 import queue
 import threading
 from dataclasses import dataclass
 from typing import Any, Optional
 
+from .utils import log_error_response
 import httpx
 
 logger = logging.getLogger("experiment_tracker_sdk")
@@ -77,9 +79,6 @@ class RequestQueue:
                 )
                 response.raise_for_status()
             except Exception as exc:  # noqa: BLE001
-                logger.error(
-                    "request_failed",
-                    extra={"path": item.path, "error": str(exc)},
-                )
+                log_error_response(response, logger)
             finally:
                 self._queue.task_done()
