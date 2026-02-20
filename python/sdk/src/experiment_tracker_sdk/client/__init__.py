@@ -1,22 +1,10 @@
 from .client import ExperimentTrackerClient
-from .domain import (
-    experiments,
-    hypotheses,
-    metrics,
-    projects,
-    scalars,
-    teams,
-)
+from .api import API
 from .constants import UNSET, Unset
 
 __all__ = [
     "ExperimentTrackerClient",
-    "experiments",
-    "hypotheses",
-    "metrics",
-    "projects",
-    "scalars",
-    "teams",
+    "API",
     "UNSET",
     "Unset",
 ]

@@ -91,3 +91,12 @@ class ExperimentTrackerClient:
         response = self._client.request(method, path, json=json, params=params)
         _raise_for_status(response, self._supress_errors)
         return response
+
+    def flush(self) -> None:
+        """Flush the request queue."""
+        self._queue.flush()
+
+    def close(self) -> None:
+        """Close the request queue and underlying HTTP client."""
+        self._queue.close()
+        self._client.close()

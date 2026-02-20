@@ -13,3 +13,6 @@ class Plugin(ABC):
     @abstractmethod
     def version(self) -> str:
         pass
+
+    @abstractmethod
+    def on_
