@@ -12,7 +12,7 @@ from .dto import (
     TeamResponse,
     TeamUpdateRequest,
 )
-from ...client import ExperimentTrackerClient
+from ...request import RequestSpec
 
 
 class TeamService:
@@ -25,64 +25,86 @@ class TeamService:
         "remove_team_member": "/api/teams/members",
     }
 
-    def __init__(self, client: ExperimentTrackerClient):
-        self._client = client
-
-    def create_team(self, name: str, description: str | None = None) -> TeamResponse:
+    def create_team(
+        self, name: str, description: str | None = None
+    ) -> RequestSpec[TeamResponse]:
         endpoint = cast(str, self.ENDPOINTS["create_team"])
         payload = TeamCreateRequest(name=name, description=description)
-        response = self._client.request("POST", endpoint, json=payload)
-        return TeamResponse.model_validate(response.json())
+        return RequestSpec(
+            method="POST",
+            endpoint=endpoint,
+            dto=payload,
+            returning_dto=TeamResponse,
+        )
 
     def update_team(
         self, team_id: str | UUID, name: str, description: str | None = None
-    ) -> TeamResponse:
+    ) -> RequestSpec[TeamResponse]:
         if isinstance(team_id, UUID):
             team_id = str(team_id)
         endpoint = cast(str, self.ENDPOINTS["update_team"])
         payload = TeamUpdateRequest(id=team_id, name=name, description=description)
-        response = self._client.request("PATCH", endpoint, json=payload)
-        return TeamResponse.model_validate(response.json())
+        return RequestSpec(
+            method="PATCH",
+            endpoint=endpoint,
+            dto=payload,
+            returning_dto=TeamResponse,
+        )
 
-    def delete_team(self, team_id: str | UUID) -> SuccessResponse:
+    def delete_team(self, team_id: str | UUID) -> RequestSpec[SuccessResponse]:
         if isinstance(team_id, UUID):
             team_id = str(team_id)
         endpoint = cast(str, self.ENDPOINTS["delete_team"](team_id))  # type: ignore[operator]
-        response = self._client.request("DELETE", endpoint)
-        return SuccessResponse.model_validate(response.json())
+        return RequestSpec(
+            method="DELETE",
+            endpoint=endpoint,
+            returning_dto=SuccessResponse,
+        )
 
     def add_team_member(
         self, user_id: str | UUID, team_id: str | UUID, role: TeamRole
-    ) -> TeamMemberResponse:
+    ) -> RequestSpec[TeamMemberResponse]:
         if isinstance(user_id, UUID):
             user_id = str(user_id)
         if isinstance(team_id, UUID):
             team_id = str(team_id)
         endpoint = cast(str, self.ENDPOINTS["add_team_member"])
         payload = TeamMemberCreateRequest(userId=user_id, teamId=team_id, role=role)
-        response = self._client.request("POST", endpoint, json=payload)
-        return TeamMemberResponse.model_validate(response.json())
+        return RequestSpec(
+            method="POST",
+            endpoint=endpoint,
+            dto=payload,
+            returning_dto=TeamMemberResponse,
+        )
 
     def update_team_member(
         self, user_id: str | UUID, team_id: str | UUID, role: TeamRole
-    ) -> TeamMemberResponse:
+    ) -> RequestSpec[TeamMemberResponse]:
         if isinstance(user_id, UUID):
             user_id = str(user_id)
         if isinstance(team_id, UUID):
             team_id = str(team_id)
         endpoint = cast(str, self.ENDPOINTS["update_team_member"])
         payload = TeamMemberUpdateRequest(userId=user_id, teamId=team_id, role=role)
-        response = self._client.request("PATCH", endpoint, json=payload)
-        return TeamMemberResponse.model_validate(response.json())
+        return RequestSpec(
+            method="PATCH",
+            endpoint=endpoint,
+            dto=payload,
+            returning_dto=TeamMemberResponse,
+        )
 
     def remove_team_member(
         self, user_id: str | UUID, team_member_id: str | UUID
-    ) -> SuccessResponse:
+    ) -> RequestSpec[SuccessResponse]:
         if isinstance(user_id, UUID):
             user_id = str(user_id)
         if isinstance(team_member_id, UUID):
             team_member_id = str(team_member_id)
         endpoint = cast(str, self.ENDPOINTS["remove_team_member"])
         payload = TeamMemberDeleteRequest(userId=user_id, teamMemberId=team_member_id)
-        response = self._client.request("DELETE", endpoint, json=payload)
-        return SuccessResponse.model_validate(response.json())
+        return RequestSpec(
+            method="DELETE",
+            endpoint=endpoint,
+            dto=payload,
+            returning_dto=SuccessResponse,
+        )

@@ -8,8 +8,8 @@ from .dto import (
     SuccessResponse,
     ExperimentUpdateRequest,
 )
-from ...client import ExperimentTrackerClient
 from ...constants import UNSET, Unset
+from ...request import RequestSpec
 
 
 class ExperimentService:
@@ -22,9 +22,6 @@ class ExperimentService:
         "get_experiments_by_project": lambda project_id: f"/api/projects/{project_id}/experiments",
     }
 
-    def __init__(self, client: ExperimentTrackerClient):
-        self._client = client
-
     def create_experiment(
         self,
         project_id: str | UUID,
@@ -36,7 +33,7 @@ class ExperimentService:
         git_diff: Optional[str | Unset] = UNSET,
         status: ExperimentStatus = ExperimentStatus.PLANNED,
         tags: Optional[list[str] | Unset] = UNSET,
-    ) -> ExperimentResponse:
+    ) -> RequestSpec[ExperimentResponse]:
         if isinstance(project_id, UUID):
             project_id = str(project_id)
         endpoint: str = cast(str, self.ENDPOINTS["create_experiment"])
@@ -58,8 +55,12 @@ class ExperimentService:
             status=status,
             **kwargs,
         )
-        response = self._client.request("POST", endpoint, json=payload)
-        return ExperimentResponse.model_validate(response.json())
+        return RequestSpec(
+            method="POST",
+            endpoint=endpoint,
+            dto=payload,
+            returning_dto=ExperimentResponse,
+        )
 
     def update_experiment(
         self,
@@ -73,7 +74,7 @@ class ExperimentService:
         status: Optional[ExperimentStatus | Unset] = UNSET,
         progress: Optional[int | Unset] = UNSET,
         tags: Optional[list[str] | Unset] = UNSET,
-    ) -> ExperimentResponse:
+    ) -> RequestSpec[ExperimentResponse]:
         if isinstance(experiment_id, UUID):
             experiment_id = str(experiment_id)
         endpoint: str = cast(Callable[[Any], str], self.ENDPOINTS["update_experiment"])(
@@ -99,34 +100,48 @@ class ExperimentService:
         if tags is not UNSET:
             kwargs["tags"] = tags
         payload = ExperimentUpdateRequest(**kwargs)
-        response = self._client.request("PATCH", endpoint, json=payload)
-        return ExperimentResponse.model_validate(response.json())
+        return RequestSpec(
+            method="PATCH",
+            endpoint=endpoint,
+            dto=payload,
+            returning_dto=ExperimentResponse,
+        )
 
-    def get_experiment(self, experiment_id: str | UUID) -> ExperimentResponse:
+    def get_experiment(self, experiment_id: str | UUID) -> RequestSpec[ExperimentResponse]:
         if isinstance(experiment_id, UUID):
             experiment_id = str(experiment_id)
         endpoint: str = cast(Callable[[Any], str], self.ENDPOINTS["get_experiment"])(
             experiment_id
         )
-        response = self._client.request("GET", endpoint)
-        return ExperimentResponse.model_validate(response.json())
+        return RequestSpec(
+            method="GET",
+            endpoint=endpoint,
+            returning_dto=ExperimentResponse,
+        )
 
     def get_experiments_by_project(
         self, project_id: str | UUID
-    ) -> list[ExperimentResponse]:
+    ) -> RequestSpec[ExperimentResponse]:
         if isinstance(project_id, UUID):
             project_id = str(project_id)
         endpoint: str = cast(
             Callable[[Any], str], self.ENDPOINTS["get_experiments_by_project"]
         )(project_id)
-        response = self._client.request("GET", endpoint)
-        return [ExperimentResponse.model_validate(item) for item in response.json()]
+        return RequestSpec(
+            method="GET",
+            endpoint=endpoint,
+            returning_dto=ExperimentResponse,
+            returning_dto_is_list=True,
+        )
 
-    def delete_experiment(self, experiment_id: str | UUID) -> SuccessResponse:
+    def delete_experiment(self, experiment_id: str | UUID) -> RequestSpec[SuccessResponse]:
         if isinstance(experiment_id, UUID):
             experiment_id = str(experiment_id)
         endpoint: str = cast(Callable[[Any], str], self.ENDPOINTS["delete_experiment"])(
             experiment_id
         )
-        response = self._client.request("DELETE", endpoint)
-        return SuccessResponse.model_validate(response.json())
+        return RequestSpec(
+            method="DELETE",
+            endpoint=endpoint,
+            returning_dto=SuccessResponse,
+        )

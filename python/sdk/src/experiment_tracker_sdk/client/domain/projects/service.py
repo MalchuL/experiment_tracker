@@ -9,7 +9,7 @@ from .dto import (
     ProjectUpdateRequest,
     SuccessResponse,
 )
-from ...client import ExperimentTrackerClient
+from ...request import RequestSpec
 
 
 class ProjectService:
@@ -21,20 +21,24 @@ class ProjectService:
         "delete_project": lambda project_id: f"/api/projects/{project_id}",
     }
 
-    def __init__(self, client: ExperimentTrackerClient):
-        self._client = client
-
-    def get_all_projects(self) -> list[ProjectResponse]:
+    def get_all_projects(self) -> RequestSpec[ProjectResponse]:
         endpoint = cast(str, self.ENDPOINTS["get_all_projects"])
-        response = self._client.request("GET", endpoint)
-        return [ProjectResponse.model_validate(item) for item in response.json()]
+        return RequestSpec(
+            method="GET",
+            endpoint=endpoint,
+            returning_dto=ProjectResponse,
+            returning_dto_is_list=True,
+        )
 
-    def get_project(self, project_id: str | UUID) -> ProjectResponse:
+    def get_project(self, project_id: str | UUID) -> RequestSpec[ProjectResponse]:
         if isinstance(project_id, UUID):
             project_id = str(project_id)
         endpoint = cast(Callable[[Any], str], self.ENDPOINTS["get_project"])(project_id)
-        response = self._client.request("GET", endpoint)
-        return ProjectResponse.model_validate(response.json())
+        return RequestSpec(
+            method="GET",
+            endpoint=endpoint,
+            returning_dto=ProjectResponse,
+        )
 
     def create_project(
         self,
@@ -43,7 +47,7 @@ class ProjectService:
         metrics: list[ProjectMetricResponse] | None = None,
         settings: ProjectSettingsResponse | None = None,
         team_id: str | None = None,
-    ) -> ProjectResponse:
+    ) -> RequestSpec[ProjectResponse]:
         endpoint = cast(str, self.ENDPOINTS["create_project"])
         payload = ProjectCreateRequest(
             name=name,
@@ -52,8 +56,12 @@ class ProjectService:
             settings=settings,
             teamId=team_id,
         )
-        response = self._client.request("POST", endpoint, json=payload)
-        return ProjectResponse.model_validate(response.json())
+        return RequestSpec(
+            method="POST",
+            endpoint=endpoint,
+            dto=payload,
+            returning_dto=ProjectResponse,
+        )
 
     def update_project(
         self,
@@ -62,7 +70,7 @@ class ProjectService:
         description: str | None = None,
         metrics: list[ProjectMetricResponse] | None = None,
         settings: ProjectSettingsResponse | None = None,
-    ) -> ProjectResponse:
+    ) -> RequestSpec[ProjectResponse]:
         if isinstance(project_id, UUID):
             project_id = str(project_id)
         endpoint = cast(Callable[[Any], str], self.ENDPOINTS["update_project"])(
@@ -74,14 +82,21 @@ class ProjectService:
             metrics=metrics,
             settings=settings,
         )
-        response = self._client.request("PATCH", endpoint, json=payload)
-        return ProjectResponse.model_validate(response.json())
+        return RequestSpec(
+            method="PATCH",
+            endpoint=endpoint,
+            dto=payload,
+            returning_dto=ProjectResponse,
+        )
 
-    def delete_project(self, project_id: str | UUID) -> SuccessResponse:
+    def delete_project(self, project_id: str | UUID) -> RequestSpec[SuccessResponse]:
         if isinstance(project_id, UUID):
             project_id = str(project_id)
         endpoint = cast(Callable[[Any], str], self.ENDPOINTS["delete_project"])(
             project_id
         )
-        response = self._client.request("DELETE", endpoint)
-        return SuccessResponse.model_validate(response.json())
+        return RequestSpec(
+            method="DELETE",
+            endpoint=endpoint,
+            returning_dto=SuccessResponse,
+        )

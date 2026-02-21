@@ -11,7 +11,7 @@ from .dto import (
     LogScalarsResponse,
     ScalarsPointsResponse,
 )
-from ...client import ExperimentTrackerClient
+from ...request import RequestSpec
 
 
 class ScalarsService:
@@ -23,32 +23,37 @@ class ScalarsService:
         "get_last_logged_experiments": lambda project_id: f"/api/scalars/last_logged/{project_id}",
     }
 
-    def __init__(self, client: ExperimentTrackerClient):
-        self._client = client
-
     def log_scalar(
         self,
         experiment_id: str | UUID,
         scalars: dict[str, float],
         step: int,
         tags: list[str] | None = None,
-    ) -> LogScalarResponse:
+    ) -> RequestSpec[LogScalarResponse]:
         if isinstance(experiment_id, UUID):
             experiment_id = str(experiment_id)
         endpoint = cast(str, self.ENDPOINTS["log_scalar"](experiment_id))
         payload = LogScalarRequest(scalars=scalars, step=step, tags=tags)
-        response = self._client.request("POST", endpoint, json=payload)
-        return LogScalarResponse.model_validate(response.json())
+        return RequestSpec(
+            method="POST",
+            endpoint=endpoint,
+            dto=payload,
+            returning_dto=LogScalarResponse,
+        )
 
     def log_scalars_batch(
         self, experiment_id: str | UUID, scalars: list[LogScalarRequest]
-    ) -> LogScalarsResponse:
+    ) -> RequestSpec[LogScalarsResponse]:
         if isinstance(experiment_id, UUID):
             experiment_id = str(experiment_id)
         endpoint = cast(str, self.ENDPOINTS["log_scalars_batch"](experiment_id))
         payload = LogScalarsRequest(scalars=scalars)
-        response = self._client.request("POST", endpoint, json=payload)
-        return LogScalarsResponse.model_validate(response.json())
+        return RequestSpec(
+            method="POST",
+            endpoint=endpoint,
+            dto=payload,
+            returning_dto=LogScalarsResponse,
+        )
 
     def get_scalars(
         self,
@@ -57,7 +62,7 @@ class ScalarsService:
         return_tags: bool = False,
         start_time: datetime | None = None,
         end_time: datetime | None = None,
-    ) -> ScalarsPointsResponse:
+    ) -> RequestSpec[ScalarsPointsResponse]:
         if isinstance(experiment_id, UUID):
             experiment_id = str(experiment_id)
         endpoint = cast(str, self.ENDPOINTS["get_scalars"](experiment_id))
@@ -68,8 +73,12 @@ class ScalarsService:
             params["start_time"] = start_time.isoformat()
         if end_time is not None:
             params["end_time"] = end_time.isoformat()
-        response = self._client.request("GET", endpoint, params=params)
-        return ScalarsPointsResponse.model_validate(response.json())
+        return RequestSpec(
+            method="GET",
+            endpoint=endpoint,
+            params=params,
+            returning_dto=ScalarsPointsResponse,
+        )
 
     def get_project_scalars(
         self,
@@ -79,7 +88,7 @@ class ScalarsService:
         return_tags: bool = False,
         start_time: datetime | None = None,
         end_time: datetime | None = None,
-    ) -> ScalarsPointsResponse:
+    ) -> RequestSpec[ScalarsPointsResponse]:
         if isinstance(project_id, UUID):
             project_id = str(project_id)
         endpoint = cast(str, self.ENDPOINTS["get_project_scalars"](project_id))
@@ -92,15 +101,23 @@ class ScalarsService:
             params["start_time"] = start_time.isoformat()
         if end_time is not None:
             params["end_time"] = end_time.isoformat()
-        response = self._client.request("GET", endpoint, params=params)
-        return ScalarsPointsResponse.model_validate(response.json())
+        return RequestSpec(
+            method="GET",
+            endpoint=endpoint,
+            params=params,
+            returning_dto=ScalarsPointsResponse,
+        )
 
     def get_last_logged_experiments(
         self, project_id: str | UUID, experiment_ids: list[str] | None = None
-    ) -> LastLoggedExperimentsResponse:
+    ) -> RequestSpec[LastLoggedExperimentsResponse]:
         if isinstance(project_id, UUID):
             project_id = str(project_id)
         endpoint = cast(str, self.ENDPOINTS["get_last_logged_experiments"](project_id))
         payload = LastLoggedExperimentsRequest(experiment_ids=experiment_ids)
-        response = self._client.request("POST", endpoint, json=payload)
-        return LastLoggedExperimentsResponse.model_validate(response.json())
+        return RequestSpec(
+            method="POST",
+            endpoint=endpoint,
+            dto=payload,
+            returning_dto=LastLoggedExperimentsResponse,
+        )

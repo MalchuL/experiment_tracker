@@ -1,7 +1,10 @@
+from typing import cast
 from uuid import UUID
 
 from experiment_tracker_sdk.logger import logger
 from experiment_tracker_sdk.client import API, ExperimentStatus, ExperimentTrackerClient
+from experiment_tracker_sdk.client.domain.experiments.dto import ExperimentResponse
+from experiment_tracker_sdk.client.domain.projects.dto import ProjectResponse
 from experiment_tracker_sdk.config import load_config
 from experiment_tracker_sdk.error import ExpTrackerAPIError, ExpTrackerProgressError
 
@@ -61,7 +64,9 @@ class ExpTracker:
         experiment = str(experiment)
 
         api = cls._get_api_client()
-        projects = api.projects.get_all_projects()
+        projects = cast(
+            list[ProjectResponse], api.request(api.projects.get_all_projects())
+        )
         project_obj = next(
             (p for p in projects if p.name == project or p.id == project), None
         )
@@ -71,7 +76,10 @@ class ExpTracker:
         experiment_obj = None
         if try_existing_experiment:
             # Try to find an existing experiment with the given name or ID
-            experiments = api.experiments.get_experiments_by_project(project_obj.id)
+            experiments = cast(
+                list[ExperimentResponse],
+                api.request(api.experiments.get_experiments_by_project(project_obj.id)),
+            )
             experiment_obj = next(
                 (e for e in experiments if e.name == experiment or e.id == experiment),
                 None,
@@ -83,8 +91,11 @@ class ExpTracker:
         if experiment_obj is None:
             # Create a new experiment
             logger.info(f"Creating new experiment: {experiment} for project: {project}")
-            experiment_obj = api.experiments.create_experiment(
-                project_obj.id, experiment
+            experiment_obj = cast(
+                ExperimentResponse,
+                api.request(
+                    api.experiments.create_experiment(project_obj.id, experiment)
+                ),
             )
         return cls(experiment_obj.id, project_obj.id, api)
 
@@ -98,8 +109,10 @@ class ExpTracker:
         else:
             # We log the current values and reset the current values
             if self._current_values:
-                self._api.scalars.log_scalar(
-                    self.experiment_id, self._current_values, self._last_logged_step
+                self._api.queued_request(
+                    self._api.scalars.log_scalar(
+                        self.experiment_id, self._current_values, self._last_logged_step
+                    )
                 )
             self._last_logged_step = global_step
             self._current_values = {tag: scalar_value}
@@ -217,19 +230,32 @@ class ExpTracker:
                     f"Progress must be between 0 and 1, got {progress}"
                 )
             progress = round(progress * 100)
-        self._api.experiments.update_experiment(self.experiment_id, progress=progress)
+        self._api.queued_request(
+            self._api.experiments.update_experiment(
+                self.experiment_id, progress=progress
+            )
+        )
 
     def status(self, status: ExperimentStatus):
         """Update the status of the experiment."""
-        self._api.experiments.update_experiment(self.experiment_id, status=status)
+        self._api.queued_request(
+            self._api.experiments.update_experiment(self.experiment_id, status=status)
+        )
 
     def tags(self, *tags: str):
         """Update the tags of the experiment."""
-        self._api.experiments.update_experiment(self.experiment_id, tags=list(tags))
+        self._api.request(
+            self._api.experiments.update_experiment(self.experiment_id, tags=list(tags))
+        )
 
     def parent_experiment(self, parent_experiment: str | UUID):
         """Update the parent experiment of the experiment."""
-        experiments = self._api.experiments.get_experiments_by_project(self.project_id)
+        experiments = cast(
+            list[ExperimentResponse],
+            self._api.request(
+                self._api.experiments.get_experiments_by_project(self.project_id)
+            ),
+        )
         parent_experiment_obj = next(
             (
                 e
@@ -242,18 +268,23 @@ class ExpTracker:
             raise ExpTrackerAPIError(
                 f"Parent experiment not found: {parent_experiment}"
             )
+
         logger.info(
             f"Using parent experiment: {parent_experiment_obj.id} with name {parent_experiment_obj.name}"
         )
-        self._api.experiments.update_experiment(
-            self.experiment_id, parent_experiment_id=parent_experiment_obj.id
+        self._api.request(
+            self._api.experiments.update_experiment(
+                self.experiment_id, parent_experiment_id=parent_experiment_obj.id
+            )
         )
 
     def flush(self):
         """Flush the event file to disk/network."""
         if self._current_values:
-            self._api.scalars.log_scalar(
-                self.experiment_id, self._current_values, self._last_logged_step
+            self._api.queued_request(
+                self._api.scalars.log_scalar(
+                    self.experiment_id, self._current_values, self._last_logged_step
+                )
             )
             self._last_logged_step = 0
             self._current_values = {}
@@ -262,8 +293,10 @@ class ExpTracker:
     def close(self):
         """Close the logger and free resources."""
         if self._current_values:
-            self._api.scalars.log_scalar(
-                self.experiment_id, self._current_values, self._last_logged_step
+            self._api.queued_request(
+                self._api.scalars.log_scalar(
+                    self.experiment_id, self._current_values, self._last_logged_step
+                )
             )
             self._last_logged_step = 0
             self._current_values = {}

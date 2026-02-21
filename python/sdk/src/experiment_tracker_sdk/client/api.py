@@ -1,4 +1,5 @@
 from experiment_tracker_sdk.client import ExperimentTrackerClient
+from experiment_tracker_sdk.client.request import RequestSpec
 from experiment_tracker_sdk.client.domain import (
     ExperimentService,
     MetricService,
@@ -7,17 +8,21 @@ from experiment_tracker_sdk.client.domain import (
     HypothesisService,
     TeamService,
 )
+from pydantic import BaseModel
+from typing import Any, TypeVar
+
+ResponseT = TypeVar("ResponseT", bound=BaseModel)
 
 
 class API:
     def __init__(self, client: ExperimentTrackerClient):
         self._client = client
-        self._experiment_service = ExperimentService(self._client)
-        self._metric_service = MetricService(self._client)
-        self._project_service = ProjectService(self._client)
-        self._scalars_service = ScalarsService(self._client)
-        self._hypothesis_service = HypothesisService(self._client)
-        self._team_service = TeamService(self._client)
+        self._experiment_service = ExperimentService()
+        self._metric_service = MetricService()
+        self._project_service = ProjectService()
+        self._scalars_service = ScalarsService()
+        self._hypothesis_service = HypothesisService()
+        self._team_service = TeamService()
 
     @property
     def experiments(self) -> ExperimentService:
@@ -42,6 +47,14 @@ class API:
     @property
     def teams(self) -> TeamService:
         return self._team_service
+
+    def request(
+        self, request: RequestSpec[ResponseT]
+    ) -> ResponseT | list[ResponseT] | dict[str, Any]:
+        return self._client.request(request)
+
+    def queued_request(self, request: RequestSpec[Any]) -> None:
+        self._client.queued_request(request)
 
     def flush(self) -> None:
         """Flush the request queue."""

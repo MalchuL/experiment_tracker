@@ -1,16 +1,16 @@
 from __future__ import annotations
 
-import json
-from datetime import datetime
-from typing import Any, Optional
-from uuid import UUID
+from typing import Any, TypeVar
 
 from .utils import log_error_response
 import httpx
 
 from .queue import RequestItem, RequestQueue
+from .request import RequestSpec
 from ..logger import logger
 from pydantic import BaseModel
+
+ResponseT = TypeVar("ResponseT")
 
 
 def _raise_for_status(response: httpx.Response, supress_errors: bool) -> None:
@@ -54,43 +54,49 @@ class ExperimentTrackerClient:
 
     def queued_request(
         self,
-        method: str,
-        path: str,
-        json: dict[str, Any] | BaseModel | None = None,
-        params: dict[str, Any] | None = None,
+        request: RequestSpec[Any],
     ) -> None:
         """Enqueue a request to be sent in the background.
 
         Args:
-            method: HTTP method.
-            path: API path.
-            json: JSON payload.
+            request: RequestSpec describing request parameters.
         """
-        if isinstance(json, BaseModel):
-            json = json.model_dump(exclude_unset=True)
+        payload = request.dto
+        if isinstance(payload, BaseModel):
+            payload = payload.model_dump(exclude_unset=True)
         self._queue.enqueue(
-            RequestItem(method=method, path=path, json=json, params=params)
+            RequestItem(
+                method=request.method,
+                path=request.endpoint,
+                json=payload,
+                params=request.params,
+            )
         )
 
     def request(
         self,
-        method: str,
-        path: str,
-        json: dict[str, Any] | BaseModel | None = None,
-        params: dict[str, Any] | None = None,
-    ) -> httpx.Response:
+        request: RequestSpec[ResponseT],
+    ) -> ResponseT | list[ResponseT] | dict[str, Any]:
         """Send a request and wait for the response.
 
         Args:
-            method: HTTP method.
-            path: API path.
-            json: JSON payload.
+            request: RequestSpec describing request parameters.
         """
-        if isinstance(json, BaseModel):
-            json = json.model_dump(exclude_unset=True)
-        response = self._client.request(method, path, json=json, params=params)
+        payload = request.dto
+        if isinstance(payload, BaseModel):
+            payload = payload.model_dump(exclude_unset=True)
+        response = self._client.request(
+            request.method, request.endpoint, json=payload, params=request.params
+        )
         _raise_for_status(response, self._supress_errors)
-        return response
+
+        body = response.json()
+        if request.returning_dto is None:
+            return body
+
+        if request.returning_dto_is_list:
+            return [request.returning_dto.model_validate(item) for item in body]
+        return request.returning_dto.model_validate(body)
 
     def flush(self) -> None:
         """Flush the request queue."""
