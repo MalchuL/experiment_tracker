@@ -8,9 +8,9 @@ from typing import Any, Optional
 
 import httpx
 
-from experiment_tracker_sdk import ExperimentClient
+from experiment_tracker_sdk import ExpTracker
+from experiment_tracker_sdk.client import ExperimentStatus
 from experiment_tracker_sdk.config import load_config
-from experiment_tracker_sdk.models import ExperimentStatus
 
 logger = logging.getLogger("training_example")
 
@@ -100,8 +100,7 @@ def main() -> None:
         extra={"project": args.project_name, "team": args.team_name},
     )
     api_client = _get_api_client(config.base_url, config.api_token)
-    sdk_client: Optional[ExperimentClient] = None
-    experiment_id: Optional[str] = None
+    tracker: Optional[ExpTracker] = None
     try:
         projects = _list_projects(api_client)
         team_id = None
@@ -123,25 +122,18 @@ def main() -> None:
         else:
             logger.info("project_found", extra={"project_id": project["id"]})
 
-        sdk_client = ExperimentClient(
-            base_url=config.base_url, api_token=config.api_token
+        tracker = ExpTracker.init(
+            project=str(project["id"]),
+            experiment=args.experiment_name,
         )
-        experiment = sdk_client.create_experiment(
-            project_id=str(project["id"]),
-            name=args.experiment_name,
-            description="Random 1-minute training run",
-            color=f"#{random.randint(0, 0xFFFFFF):06x}",
-            status=ExperimentStatus.PLANNED,
-        )
-        experiment_id = experiment.id
-        logger.info("experiment_created", extra={"experiment_id": experiment.id})
+        tracker.
+        experiment_id = str(tracker.experiment_id)
+        logger.info("experiment_created", extra={"experiment_id": experiment_id})
 
-        sdk_client.update_experiment(
-            experiment_id=experiment.id,
-            status=ExperimentStatus.RUNNING,
-            progress=0,
-        )
-        logger.info("experiment_started", extra={"experiment_id": experiment.id})
+        tracker.tags("training-example")
+        tracker.status(ExperimentStatus.RUNNING)
+        tracker.progress(0)
+        logger.info("experiment_started", extra={"experiment_id": experiment_id})
 
         duration_seconds = 60
         steps = 12
@@ -157,27 +149,16 @@ def main() -> None:
             accuracy = random.uniform(0.6, 0.99)
             loss = random.uniform(0.1, 1.2)
             bce_loss = random.uniform(0.05, 0.9)
-            sdk_client.log_scalars(
-                experiment_id=experiment.id,
-                scalars={
-                    "accuracy": accuracy,
-                    "loss": loss,
-                    "bce_loss": bce_loss,
-                },
-                step=step,
-                tags=["training"],
-            )
-            sdk_client.update_experiment(
-                experiment_id=experiment.id,
-                status=ExperimentStatus.RUNNING,
-                progress=progress,
-            )
+            tracker.add_scalar("accuracy", accuracy, global_step=step)
+            tracker.add_scalar("loss", loss, global_step=step)
+            tracker.add_scalar("bce_loss", bce_loss, global_step=step)
+            tracker.progress(progress)
             logger.info(
                 "training_progress",
                 extra={
                     "step": step,
                     "progress": progress,
-                    "experiment_id": experiment.id,
+                    "experiment_id": experiment_id,
                     "accuracy": accuracy,
                     "loss": loss,
                     "bce_loss": bce_loss,
@@ -186,49 +167,41 @@ def main() -> None:
 
         final_accuracy = random.uniform(0.7, 0.99)
         final_loss = random.uniform(0.1, 0.6)
-        sdk_client.log_metric(
-            experiment.id, name="accuracy", value=final_accuracy, step=steps
-        )
-        sdk_client.log_metric(
-            experiment.id,
-            name="loss",
-            value=final_loss,
-            step=steps,
-            direction="minimize",
-        )
-        sdk_client.flush()
+        tracker.add_scalar("final_accuracy", final_accuracy, global_step=steps)
+        tracker.add_scalar("final_loss", final_loss, global_step=steps)
+        tracker.flush()
         logger.info(
             "scalars_logged",
             extra={
-                "experiment_id": experiment.id,
+                "experiment_id": experiment_id,
                 "steps": steps,
-                "scalar_names": ["accuracy", "loss", "bce_loss"],
+                "scalar_names": [
+                    "accuracy",
+                    "loss",
+                    "bce_loss",
+                    "final_accuracy",
+                    "final_loss",
+                ],
             },
         )
 
-        sdk_client.update_experiment(
-            experiment_id=experiment.id,
-            status=ExperimentStatus.COMPLETE,
-            progress=100,
-        )
-        logger.info("experiment_completed", extra={"experiment_id": experiment.id})
+        tracker.status(ExperimentStatus.COMPLETE)
+        tracker.progress(100)
+        logger.info("experiment_completed", extra={"experiment_id": experiment_id})
     except Exception:
-        if sdk_client is not None and experiment_id is not None:
+        if tracker is not None:
             try:
-                sdk_client.update_experiment(
-                    experiment_id=experiment_id,
-                    status=ExperimentStatus.FAILED,
-                )
+                tracker.status(ExperimentStatus.FAILED)
             except Exception:
                 logger.exception(
                     "failed_to_mark_experiment_failed",
-                    extra={"experiment_id": experiment_id},
+                    extra={"experiment_id": str(tracker.experiment_id)},
                 )
         logger.exception("training_failed")
         raise
     finally:
-        if sdk_client is not None:
-            sdk_client.close()
+        if tracker is not None:
+            tracker.close()
         api_client.close()
 
 

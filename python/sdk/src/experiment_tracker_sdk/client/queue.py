@@ -7,6 +7,7 @@ from typing import Any, Optional
 
 from .utils import log_error_response
 import httpx
+from .utils.logging import disable_httpx_logging
 
 logger = logging.getLogger("experiment_tracker_sdk")
 
@@ -74,9 +75,10 @@ class RequestQueue:
             except queue.Empty:
                 continue
             try:
-                response = self._client.request(
-                    item.method, item.path, json=item.json, params=item.params
-                )
+                with disable_httpx_logging():
+                    response = self._client.request(
+                        item.method, item.path, json=item.json, params=item.params
+                    )
                 response.raise_for_status()
             except Exception as exc:  # noqa: BLE001
                 log_error_response(response, logger)

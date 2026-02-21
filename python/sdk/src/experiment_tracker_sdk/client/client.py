@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Any, TypeVar
 
+from .utils.logging import disable_httpx_logging
+
 from .utils import log_error_response
 import httpx
 
@@ -14,9 +16,12 @@ ResponseT = TypeVar("ResponseT")
 
 
 def _raise_for_status(response: httpx.Response, supress_errors: bool) -> None:
-    log_error_response(response, logger)
-    if not supress_errors:
+    try:
         response.raise_for_status()
+    except Exception:  # noqa: BLE001
+        log_error_response(response, logger)
+        if not supress_errors:
+            raise
 
 
 class ExperimentTrackerClient:
@@ -85,12 +90,13 @@ class ExperimentTrackerClient:
         payload = request_spec.request_payload
         if isinstance(payload, BaseModel):
             payload = payload.model_dump(exclude_unset=True)
-        response = self._client.request(
-            request_spec.method,
-            request_spec.endpoint,
-            json=payload,
-            params=request_spec.query_params,
-        )
+        with disable_httpx_logging():
+            response = self._client.request(
+                request_spec.method,
+                request_spec.endpoint,
+                json=payload,
+                params=request_spec.query_params,
+            )
         _raise_for_status(response, self._supress_errors)
 
         body = response.json()

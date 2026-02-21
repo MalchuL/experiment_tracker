@@ -1,3 +1,4 @@
+import re
 from typing import cast
 from uuid import UUID
 
@@ -137,7 +138,7 @@ class ExpTracker:
         dataformats: str = "CHW",
     ):
         """Log a single image."""
-        pass
+        logger.warning("add_image is not implemented")
 
     def add_images(
         self,
@@ -148,7 +149,7 @@ class ExpTracker:
         dataformats: str = "NCHW",
     ):
         """Log a batch of images."""
-        pass
+        logger.warning("add_images is not implemented")
 
     def add_text(
         self,
@@ -158,7 +159,7 @@ class ExpTracker:
         walltime: float = 0,
     ):
         """Log (markdown) text."""
-        pass
+        logger.warning("add_text is not implemented")
 
     def add_histogram(
         self,
@@ -169,7 +170,7 @@ class ExpTracker:
         walltime: float = 0,
     ):
         """Log a histogram of values."""
-        pass
+        logger.warning("add_histogram is not implemented")
 
     def add_audio(
         self,
@@ -180,7 +181,7 @@ class ExpTracker:
         walltime: float = 0,
     ):
         """Log audio data."""
-        pass
+        logger.warning("add_audio is not implemented")
 
     def add_figure(
         self,
@@ -191,7 +192,7 @@ class ExpTracker:
         walltime: float = 0,
     ):
         """Log a matplotlib figure."""
-        pass
+        logger.warning("add_figure is not implemented")
 
     def add_mesh(
         self,
@@ -204,7 +205,7 @@ class ExpTracker:
         walltime: float = 0,
     ):
         """Log a 3D mesh."""
-        pass
+        logger.warning("add_mesh is not implemented")
 
     def add_embedding(
         self,
@@ -216,7 +217,7 @@ class ExpTracker:
         metadata_header=None,
     ):
         """Log embeddings."""
-        pass
+        logger.warning("add_embedding is not implemented")
 
     def progress(self, progress: int | float):
         """Update the progress of the experiment."""
@@ -246,6 +247,28 @@ class ExpTracker:
         """Update the tags of the experiment."""
         self._api.request(
             self._api.experiments.update_experiment(self.experiment_id, tags=list(tags))
+        )
+
+    def color(self, color: str):
+        """Update the color of the experiment."""
+        if not re.fullmatch(r"^#[0-9a-fA-F]{6}$", color):
+            raise ExpTrackerAPIError(f"Invalid color: {color}")
+        self._api.request(
+            self._api.experiments.update_experiment(self.experiment_id, color=color)
+        )
+
+    def description(self, description: str):
+        """Update the description of the experiment."""
+        self._api.request(
+            self._api.experiments.update_experiment(
+                self.experiment_id, description=description
+            )
+        )
+
+    def name(self, name: str):
+        """Update the name of the experiment."""
+        self._api.request(
+            self._api.experiments.update_experiment(self.experiment_id, name=name)
         )
 
     def parent_experiment(self, parent_experiment: str | UUID):
@@ -300,4 +323,5 @@ class ExpTracker:
             )
             self._last_logged_step = 0
             self._current_values = {}
+        self._api.flush()
         self._api.close()
