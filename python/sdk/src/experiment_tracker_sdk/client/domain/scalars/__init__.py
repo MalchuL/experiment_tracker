@@ -7,7 +7,7 @@ from .dto import (
     LogScalarsResponse,
     ScalarsPointsResponse,
 )
-from .service import ScalarsService
+from .service import ScalarsRequestSpecFactory, ScalarsService
 
 __all__ = [
     "LastLoggedExperimentsRequest",
@@ -17,5 +17,6 @@ __all__ = [
     "LogScalarsRequest",
     "LogScalarsResponse",
     "ScalarsPointsResponse",
+    "ScalarsRequestSpecFactory",
     "ScalarsService",
 ]

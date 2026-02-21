@@ -9,10 +9,14 @@ ResponseT = TypeVar("ResponseT", bound=BaseModel)
 
 
 @dataclass(frozen=True)
-class RequestSpec(Generic[ResponseT]):
+class ApiRequestSpec(Generic[ResponseT]):
     method: str
     endpoint: str
-    dto: dict[str, Any] | BaseModel | None = None
-    returning_dto: type[ResponseT] | None = None
-    params: dict[str, Any] | None = None
-    returning_dto_is_list: bool = False
+    request_payload: dict[str, Any] | BaseModel | None = None
+    response_model: type[ResponseT] | None = None
+    query_params: dict[str, Any] | None = None
+    response_is_list: bool = False
+
+
+# Backward-compatible alias.
+RequestSpec = ApiRequestSpec

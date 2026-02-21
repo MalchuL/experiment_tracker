@@ -4,11 +4,12 @@ from .dto import (
     ExperimentStatus,
     ExperimentUpdateRequest,
 )
-from .service import ExperimentService
+from .service import ExperimentRequestSpecFactory, ExperimentService
 
 __all__ = [
     "ExperimentCreateRequest",
     "ExperimentResponse",
+    "ExperimentRequestSpecFactory",
     "ExperimentService",
     "ExperimentStatus",
     "ExperimentUpdateRequest",

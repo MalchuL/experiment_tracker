@@ -11,10 +11,10 @@ from .dto import (
     LogScalarsResponse,
     ScalarsPointsResponse,
 )
-from ...request import RequestSpec
+from ...request import ApiRequestSpec
 
 
-class ScalarsService:
+class ScalarsRequestSpecFactory:
     ENDPOINTS = {
         "log_scalar": lambda experiment_id: f"/api/scalars/log/{experiment_id}",
         "log_scalars_batch": lambda experiment_id: f"/api/scalars/log_batch/{experiment_id}",
@@ -29,30 +29,30 @@ class ScalarsService:
         scalars: dict[str, float],
         step: int,
         tags: list[str] | None = None,
-    ) -> RequestSpec[LogScalarResponse]:
+    ) -> ApiRequestSpec[LogScalarResponse]:
         if isinstance(experiment_id, UUID):
             experiment_id = str(experiment_id)
         endpoint = cast(str, self.ENDPOINTS["log_scalar"](experiment_id))
         payload = LogScalarRequest(scalars=scalars, step=step, tags=tags)
-        return RequestSpec(
+        return ApiRequestSpec(
             method="POST",
             endpoint=endpoint,
-            dto=payload,
-            returning_dto=LogScalarResponse,
+            request_payload=payload,
+            response_model=LogScalarResponse,
         )
 
     def log_scalars_batch(
         self, experiment_id: str | UUID, scalars: list[LogScalarRequest]
-    ) -> RequestSpec[LogScalarsResponse]:
+    ) -> ApiRequestSpec[LogScalarsResponse]:
         if isinstance(experiment_id, UUID):
             experiment_id = str(experiment_id)
         endpoint = cast(str, self.ENDPOINTS["log_scalars_batch"](experiment_id))
         payload = LogScalarsRequest(scalars=scalars)
-        return RequestSpec(
+        return ApiRequestSpec(
             method="POST",
             endpoint=endpoint,
-            dto=payload,
-            returning_dto=LogScalarsResponse,
+            request_payload=payload,
+            response_model=LogScalarsResponse,
         )
 
     def get_scalars(
@@ -62,7 +62,7 @@ class ScalarsService:
         return_tags: bool = False,
         start_time: datetime | None = None,
         end_time: datetime | None = None,
-    ) -> RequestSpec[ScalarsPointsResponse]:
+    ) -> ApiRequestSpec[ScalarsPointsResponse]:
         if isinstance(experiment_id, UUID):
             experiment_id = str(experiment_id)
         endpoint = cast(str, self.ENDPOINTS["get_scalars"](experiment_id))
@@ -73,11 +73,11 @@ class ScalarsService:
             params["start_time"] = start_time.isoformat()
         if end_time is not None:
             params["end_time"] = end_time.isoformat()
-        return RequestSpec(
+        return ApiRequestSpec(
             method="GET",
             endpoint=endpoint,
-            params=params,
-            returning_dto=ScalarsPointsResponse,
+            query_params=params,
+            response_model=ScalarsPointsResponse,
         )
 
     def get_project_scalars(
@@ -88,7 +88,7 @@ class ScalarsService:
         return_tags: bool = False,
         start_time: datetime | None = None,
         end_time: datetime | None = None,
-    ) -> RequestSpec[ScalarsPointsResponse]:
+    ) -> ApiRequestSpec[ScalarsPointsResponse]:
         if isinstance(project_id, UUID):
             project_id = str(project_id)
         endpoint = cast(str, self.ENDPOINTS["get_project_scalars"](project_id))
@@ -101,23 +101,27 @@ class ScalarsService:
             params["start_time"] = start_time.isoformat()
         if end_time is not None:
             params["end_time"] = end_time.isoformat()
-        return RequestSpec(
+        return ApiRequestSpec(
             method="GET",
             endpoint=endpoint,
-            params=params,
-            returning_dto=ScalarsPointsResponse,
+            query_params=params,
+            response_model=ScalarsPointsResponse,
         )
 
     def get_last_logged_experiments(
         self, project_id: str | UUID, experiment_ids: list[str] | None = None
-    ) -> RequestSpec[LastLoggedExperimentsResponse]:
+    ) -> ApiRequestSpec[LastLoggedExperimentsResponse]:
         if isinstance(project_id, UUID):
             project_id = str(project_id)
         endpoint = cast(str, self.ENDPOINTS["get_last_logged_experiments"](project_id))
         payload = LastLoggedExperimentsRequest(experiment_ids=experiment_ids)
-        return RequestSpec(
+        return ApiRequestSpec(
             method="POST",
             endpoint=endpoint,
-            dto=payload,
-            returning_dto=LastLoggedExperimentsResponse,
+            request_payload=payload,
+            response_model=LastLoggedExperimentsResponse,
         )
+
+
+# Backward-compatible alias.
+ScalarsService = ScalarsRequestSpecFactory

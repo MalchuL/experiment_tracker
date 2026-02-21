@@ -8,7 +8,7 @@ from .dto import (
     TeamRole,
     TeamUpdateRequest,
 )
-from .service import TeamService
+from .service import TeamRequestSpecFactory, TeamService
 
 __all__ = [
     "TeamCreateRequest",
@@ -16,6 +16,7 @@ __all__ = [
     "TeamMemberDeleteRequest",
     "TeamMemberResponse",
     "TeamMemberUpdateRequest",
+    "TeamRequestSpecFactory",
     "TeamResponse",
     "TeamRole",
     "TeamService",

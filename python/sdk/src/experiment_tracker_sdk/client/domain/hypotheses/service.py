@@ -9,10 +9,10 @@ from .dto import (
     SuccessResponse,
 )
 from ...constants import UNSET, Unset
-from ...request import RequestSpec
+from ...request import ApiRequestSpec
 
 
-class HypothesisService:
+class HypothesisRequestSpecFactory:
     ENDPOINTS = {
         "create_hypothesis": "/api/hypotheses",
         "get_hypothesis": lambda hypothesis_id: f"/api/hypotheses/{hypothesis_id}",
@@ -21,16 +21,16 @@ class HypothesisService:
         "get_project_hypotheses": lambda project_id: f"/api/projects/{project_id}/hypotheses",
     }
 
-    def get_hypothesis(self, hypothesis_id: str | UUID) -> RequestSpec[HypothesisResponse]:
+    def get_hypothesis(self, hypothesis_id: str | UUID) -> ApiRequestSpec[HypothesisResponse]:
         if isinstance(hypothesis_id, UUID):
             hypothesis_id = str(hypothesis_id)
         endpoint = cast(Callable[[Any], str], self.ENDPOINTS["get_hypothesis"])(
             hypothesis_id
         )
-        return RequestSpec(
+        return ApiRequestSpec(
             method="GET",
             endpoint=endpoint,
-            returning_dto=HypothesisResponse,
+            response_model=HypothesisResponse,
         )
 
     def create_hypothesis(
@@ -42,7 +42,7 @@ class HypothesisService:
         status: HypothesisStatus = HypothesisStatus.PROPOSED,
         target_metrics: list[str] | None = None,
         baseline: str = "root",
-    ) -> RequestSpec[HypothesisResponse]:
+    ) -> ApiRequestSpec[HypothesisResponse]:
         if isinstance(project_id, UUID):
             project_id = str(project_id)
         endpoint = cast(str, self.ENDPOINTS["create_hypothesis"])
@@ -55,11 +55,11 @@ class HypothesisService:
             targetMetrics=target_metrics or [],
             baseline=baseline,
         )
-        return RequestSpec(
+        return ApiRequestSpec(
             method="POST",
             endpoint=endpoint,
-            dto=payload,
-            returning_dto=HypothesisResponse,
+            request_payload=payload,
+            response_model=HypothesisResponse,
         )
 
     def update_hypothesis(
@@ -71,7 +71,7 @@ class HypothesisService:
         status: HypothesisStatus | Unset = UNSET,
         target_metrics: list[str] | Unset = UNSET,
         baseline: str | Unset = UNSET,
-    ) -> RequestSpec[HypothesisResponse]:
+    ) -> ApiRequestSpec[HypothesisResponse]:
         if isinstance(hypothesis_id, UUID):
             hypothesis_id = str(hypothesis_id)
         endpoint = cast(Callable[[Any], str], self.ENDPOINTS["update_hypothesis"])(
@@ -91,36 +91,40 @@ class HypothesisService:
         if baseline is not UNSET:
             kwargs["baseline"] = baseline
         payload = HypothesisUpdateRequest(**kwargs)
-        return RequestSpec(
+        return ApiRequestSpec(
             method="PATCH",
             endpoint=endpoint,
-            dto=payload,
-            returning_dto=HypothesisResponse,
+            request_payload=payload,
+            response_model=HypothesisResponse,
         )
 
-    def delete_hypothesis(self, hypothesis_id: str | UUID) -> RequestSpec[SuccessResponse]:
+    def delete_hypothesis(self, hypothesis_id: str | UUID) -> ApiRequestSpec[SuccessResponse]:
         if isinstance(hypothesis_id, UUID):
             hypothesis_id = str(hypothesis_id)
         endpoint = cast(Callable[[Any], str], self.ENDPOINTS["delete_hypothesis"])(
             hypothesis_id
         )
-        return RequestSpec(
+        return ApiRequestSpec(
             method="DELETE",
             endpoint=endpoint,
-            returning_dto=SuccessResponse,
+            response_model=SuccessResponse,
         )
 
     def get_project_hypotheses(
         self, project_id: str | UUID
-    ) -> RequestSpec[HypothesisResponse]:
+    ) -> ApiRequestSpec[HypothesisResponse]:
         if isinstance(project_id, UUID):
             project_id = str(project_id)
         endpoint = cast(Callable[[Any], str], self.ENDPOINTS["get_project_hypotheses"])(
             project_id
         )
-        return RequestSpec(
+        return ApiRequestSpec(
             method="GET",
             endpoint=endpoint,
-            returning_dto=HypothesisResponse,
-            returning_dto_is_list=True,
+            response_model=HypothesisResponse,
+            response_is_list=True,
         )
+
+
+# Backward-compatible alias.
+HypothesisService = HypothesisRequestSpecFactory

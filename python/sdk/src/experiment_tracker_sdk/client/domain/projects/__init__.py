@@ -8,7 +8,7 @@ from .dto import (
     ProjectSettingsResponse,
     ProjectUpdateRequest,
 )
-from .service import ProjectService
+from .service import ProjectRequestSpecFactory, ProjectService
 
 __all__ = [
     "DashboardStatsResponse",
@@ -16,6 +16,7 @@ __all__ = [
     "MetricDirection",
     "ProjectCreateRequest",
     "ProjectMetricResponse",
+    "ProjectRequestSpecFactory",
     "ProjectResponse",
     "ProjectService",
     "ProjectSettingsResponse",

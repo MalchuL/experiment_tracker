@@ -4,11 +4,12 @@ from .dto import (
     HypothesisStatus,
     HypothesisUpdateRequest,
 )
-from .service import HypothesisService
+from .service import HypothesisRequestSpecFactory, HypothesisService
 
 __all__ = [
     "HypothesisCreateRequest",
     "HypothesisResponse",
+    "HypothesisRequestSpecFactory",
     "HypothesisService",
     "HypothesisStatus",
     "HypothesisUpdateRequest",

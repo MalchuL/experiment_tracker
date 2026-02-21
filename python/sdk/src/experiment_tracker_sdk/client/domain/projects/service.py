@@ -9,10 +9,10 @@ from .dto import (
     ProjectUpdateRequest,
     SuccessResponse,
 )
-from ...request import RequestSpec
+from ...request import ApiRequestSpec
 
 
-class ProjectService:
+class ProjectRequestSpecFactory:
     ENDPOINTS = {
         "get_all_projects": "/api/projects",
         "create_project": "/api/projects",
@@ -21,23 +21,23 @@ class ProjectService:
         "delete_project": lambda project_id: f"/api/projects/{project_id}",
     }
 
-    def get_all_projects(self) -> RequestSpec[ProjectResponse]:
+    def get_all_projects(self) -> ApiRequestSpec[ProjectResponse]:
         endpoint = cast(str, self.ENDPOINTS["get_all_projects"])
-        return RequestSpec(
+        return ApiRequestSpec(
             method="GET",
             endpoint=endpoint,
-            returning_dto=ProjectResponse,
-            returning_dto_is_list=True,
+            response_model=ProjectResponse,
+            response_is_list=True,
         )
 
-    def get_project(self, project_id: str | UUID) -> RequestSpec[ProjectResponse]:
+    def get_project(self, project_id: str | UUID) -> ApiRequestSpec[ProjectResponse]:
         if isinstance(project_id, UUID):
             project_id = str(project_id)
         endpoint = cast(Callable[[Any], str], self.ENDPOINTS["get_project"])(project_id)
-        return RequestSpec(
+        return ApiRequestSpec(
             method="GET",
             endpoint=endpoint,
-            returning_dto=ProjectResponse,
+            response_model=ProjectResponse,
         )
 
     def create_project(
@@ -47,7 +47,7 @@ class ProjectService:
         metrics: list[ProjectMetricResponse] | None = None,
         settings: ProjectSettingsResponse | None = None,
         team_id: str | None = None,
-    ) -> RequestSpec[ProjectResponse]:
+    ) -> ApiRequestSpec[ProjectResponse]:
         endpoint = cast(str, self.ENDPOINTS["create_project"])
         payload = ProjectCreateRequest(
             name=name,
@@ -56,11 +56,11 @@ class ProjectService:
             settings=settings,
             teamId=team_id,
         )
-        return RequestSpec(
+        return ApiRequestSpec(
             method="POST",
             endpoint=endpoint,
-            dto=payload,
-            returning_dto=ProjectResponse,
+            request_payload=payload,
+            response_model=ProjectResponse,
         )
 
     def update_project(
@@ -70,7 +70,7 @@ class ProjectService:
         description: str | None = None,
         metrics: list[ProjectMetricResponse] | None = None,
         settings: ProjectSettingsResponse | None = None,
-    ) -> RequestSpec[ProjectResponse]:
+    ) -> ApiRequestSpec[ProjectResponse]:
         if isinstance(project_id, UUID):
             project_id = str(project_id)
         endpoint = cast(Callable[[Any], str], self.ENDPOINTS["update_project"])(
@@ -82,21 +82,25 @@ class ProjectService:
             metrics=metrics,
             settings=settings,
         )
-        return RequestSpec(
+        return ApiRequestSpec(
             method="PATCH",
             endpoint=endpoint,
-            dto=payload,
-            returning_dto=ProjectResponse,
+            request_payload=payload,
+            response_model=ProjectResponse,
         )
 
-    def delete_project(self, project_id: str | UUID) -> RequestSpec[SuccessResponse]:
+    def delete_project(self, project_id: str | UUID) -> ApiRequestSpec[SuccessResponse]:
         if isinstance(project_id, UUID):
             project_id = str(project_id)
         endpoint = cast(Callable[[Any], str], self.ENDPOINTS["delete_project"])(
             project_id
         )
-        return RequestSpec(
+        return ApiRequestSpec(
             method="DELETE",
             endpoint=endpoint,
-            returning_dto=SuccessResponse,
+            response_model=SuccessResponse,
         )
+
+
+# Backward-compatible alias.
+ProjectService = ProjectRequestSpecFactory

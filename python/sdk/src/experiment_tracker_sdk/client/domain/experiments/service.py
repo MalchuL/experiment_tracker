@@ -9,10 +9,10 @@ from .dto import (
     ExperimentUpdateRequest,
 )
 from ...constants import UNSET, Unset
-from ...request import RequestSpec
+from ...request import ApiRequestSpec
 
 
-class ExperimentService:
+class ExperimentRequestSpecFactory:
     ENDPOINTS = {
         "create_experiment": "/api/experiments",
         "get_recent_experiments": "/api/experiments/recent",
@@ -33,7 +33,7 @@ class ExperimentService:
         git_diff: Optional[str | Unset] = UNSET,
         status: ExperimentStatus = ExperimentStatus.PLANNED,
         tags: Optional[list[str] | Unset] = UNSET,
-    ) -> RequestSpec[ExperimentResponse]:
+    ) -> ApiRequestSpec[ExperimentResponse]:
         if isinstance(project_id, UUID):
             project_id = str(project_id)
         endpoint: str = cast(str, self.ENDPOINTS["create_experiment"])
@@ -55,11 +55,11 @@ class ExperimentService:
             status=status,
             **kwargs,
         )
-        return RequestSpec(
+        return ApiRequestSpec(
             method="POST",
             endpoint=endpoint,
-            dto=payload,
-            returning_dto=ExperimentResponse,
+            request_payload=payload,
+            response_model=ExperimentResponse,
         )
 
     def update_experiment(
@@ -74,7 +74,7 @@ class ExperimentService:
         status: Optional[ExperimentStatus | Unset] = UNSET,
         progress: Optional[int | Unset] = UNSET,
         tags: Optional[list[str] | Unset] = UNSET,
-    ) -> RequestSpec[ExperimentResponse]:
+    ) -> ApiRequestSpec[ExperimentResponse]:
         if isinstance(experiment_id, UUID):
             experiment_id = str(experiment_id)
         endpoint: str = cast(Callable[[Any], str], self.ENDPOINTS["update_experiment"])(
@@ -100,48 +100,52 @@ class ExperimentService:
         if tags is not UNSET:
             kwargs["tags"] = tags
         payload = ExperimentUpdateRequest(**kwargs)
-        return RequestSpec(
+        return ApiRequestSpec(
             method="PATCH",
             endpoint=endpoint,
-            dto=payload,
-            returning_dto=ExperimentResponse,
+            request_payload=payload,
+            response_model=ExperimentResponse,
         )
 
-    def get_experiment(self, experiment_id: str | UUID) -> RequestSpec[ExperimentResponse]:
+    def get_experiment(self, experiment_id: str | UUID) -> ApiRequestSpec[ExperimentResponse]:
         if isinstance(experiment_id, UUID):
             experiment_id = str(experiment_id)
         endpoint: str = cast(Callable[[Any], str], self.ENDPOINTS["get_experiment"])(
             experiment_id
         )
-        return RequestSpec(
+        return ApiRequestSpec(
             method="GET",
             endpoint=endpoint,
-            returning_dto=ExperimentResponse,
+            response_model=ExperimentResponse,
         )
 
     def get_experiments_by_project(
         self, project_id: str | UUID
-    ) -> RequestSpec[ExperimentResponse]:
+    ) -> ApiRequestSpec[ExperimentResponse]:
         if isinstance(project_id, UUID):
             project_id = str(project_id)
         endpoint: str = cast(
             Callable[[Any], str], self.ENDPOINTS["get_experiments_by_project"]
         )(project_id)
-        return RequestSpec(
+        return ApiRequestSpec(
             method="GET",
             endpoint=endpoint,
-            returning_dto=ExperimentResponse,
-            returning_dto_is_list=True,
+            response_model=ExperimentResponse,
+            response_is_list=True,
         )
 
-    def delete_experiment(self, experiment_id: str | UUID) -> RequestSpec[SuccessResponse]:
+    def delete_experiment(self, experiment_id: str | UUID) -> ApiRequestSpec[SuccessResponse]:
         if isinstance(experiment_id, UUID):
             experiment_id = str(experiment_id)
         endpoint: str = cast(Callable[[Any], str], self.ENDPOINTS["delete_experiment"])(
             experiment_id
         )
-        return RequestSpec(
+        return ApiRequestSpec(
             method="DELETE",
             endpoint=endpoint,
-            returning_dto=SuccessResponse,
+            response_model=SuccessResponse,
         )
+
+
+# Backward-compatible alias.
+ExperimentService = ExperimentRequestSpecFactory
