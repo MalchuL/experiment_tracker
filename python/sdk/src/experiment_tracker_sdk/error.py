@@ -14,3 +14,9 @@ class ExpTrackerAPIError(ExpTrackerError):
     """Error raised when the ExpTracker API returns an error."""
 
     pass
+
+
+class ExpTrackerProgressError(ExpTrackerError):
+    """Error raised when the progress is invalid."""
+
+    pass
