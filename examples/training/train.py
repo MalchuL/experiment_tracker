@@ -7,6 +7,7 @@ import time
 from typing import Any, Optional
 
 import httpx
+import numpy as np
 
 from experiment_tracker_sdk import ExpTracker
 from experiment_tracker_sdk.client import ExperimentStatus
@@ -126,17 +127,17 @@ def main() -> None:
             project=str(project["id"]),
             experiment=args.experiment_name,
         )
-        tracker.
         experiment_id = str(tracker.experiment_id)
         logger.info("experiment_created", extra={"experiment_id": experiment_id})
 
         tracker.tags("training-example")
         tracker.status(ExperimentStatus.RUNNING)
         tracker.progress(0)
+        tracker.color(f"#{random.randint(0, 16777215):06x}")
         logger.info("experiment_started", extra={"experiment_id": experiment_id})
 
         duration_seconds = 60
-        steps = 12
+        steps = 120
         step_seconds = duration_seconds / steps
         start_time = time.time()
 
@@ -152,6 +153,12 @@ def main() -> None:
             tracker.add_scalar("accuracy", accuracy, global_step=step)
             tracker.add_scalar("loss", loss, global_step=step)
             tracker.add_scalar("bce_loss", bce_loss, global_step=step)
+            if step % 20 == 0:
+                # Random demo image (HWC, uint8) for object logging examples.
+                random_image = np.random.randint(
+                    0, 256, size=(256, 256, 3), dtype=np.uint8
+                )
+                tracker.add_image("generated", random_image, global_step=step)
             tracker.progress(progress)
             logger.info(
                 "training_progress",

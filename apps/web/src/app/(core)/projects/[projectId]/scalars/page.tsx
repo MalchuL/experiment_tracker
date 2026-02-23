@@ -29,6 +29,7 @@ import {
 import { useCurrentProject } from "@/domain/projects/hooks";
 import { useExperiments } from "@/domain/experiments/hooks";
 import { useProjectScalars } from "@/domain/scalars/hooks";
+import { useProjectObjects } from "@/domain/logged-objects/hooks";
 import { ScalarViewsSidebar } from "@/domain/scalars/components";
 import { AlertCircle, BarChart3, ChevronDown, Eye, EyeOff, Maximize2, Pencil, RotateCcw } from "lucide-react";
 import Plot from "react-plotly.js";
@@ -38,6 +39,7 @@ import { ExperimentEditForm } from "@/components/shared/experiment-edit-form";
 import { experimentsService } from "@/domain/experiments/services";
 import type { UpdateExperiment } from "@/domain/experiments/types";
 import { QUERY_KEYS } from "@/lib/constants/query-keys";
+import { API_ROUTES } from "@/lib/constants/api-routes";
 
 const CHART_COLORS = [
   "#3b82f6",
@@ -58,6 +60,19 @@ interface ChartDomain {
   x: [number, number] | null;
   y: [number, number] | null;
 }
+
+interface LoggedObjectRef {
+  path: string;
+  metadata: Record<string, string>;
+  timestamp: string;
+}
+
+interface LoggedObjectNameGroup {
+  steps: number[];
+  byExperiment: Record<string, Record<number, LoggedObjectRef>>;
+}
+
+type LoggedObjectGroups = Record<string, Record<string, LoggedObjectNameGroup>>;
 
 function encodeSelection(indices: number[]): string {
   if (indices.length === 0) return "";
@@ -83,6 +98,20 @@ function applySmoothing(data: number[], weight: number): number[] {
     last = smoothedValue;
   }
   return smoothed;
+}
+
+function closestStep(target: number, steps: number[]): number | null {
+  if (steps.length === 0) return null;
+  let best = steps[0];
+  let bestDist = Math.abs(best - target);
+  for (let i = 1; i < steps.length; i += 1) {
+    const dist = Math.abs(steps[i] - target);
+    if (dist < bestDist) {
+      best = steps[i];
+      bestDist = dist;
+    }
+  }
+  return best;
 }
 
 interface MetricChartProps {
@@ -243,6 +272,12 @@ export default function Scalars() {
   const [editExperiment, setEditExperiment] = useState<Experiment | null>(null);
   const [cardHeight, setCardHeight] = useState(220);
   const [cardMinWidth, setCardMinWidth] = useState(320);
+  const [objectStepSelection, setObjectStepSelection] = useState<Record<string, number>>({});
+  const [debouncedObjectStepSelection, setDebouncedObjectStepSelection] = useState<Record<string, number>>({});
+  const [experimentStepOverrideEnabled, setExperimentStepOverrideEnabled] = useState<Record<string, boolean>>({});
+  const [experimentStepOverrides, setExperimentStepOverrides] = useState<Record<string, number>>({});
+  const [debouncedExperimentStepOverrides, setDebouncedExperimentStepOverrides] = useState<Record<string, number>>({});
+  const [imagePreview, setImagePreview] = useState<{ src: string; title: string } | null>(null);
 
   const queryClient = useQueryClient();
   const updateExperiment = useMutation({
@@ -272,6 +307,14 @@ export default function Scalars() {
   } = useProjectScalars({
     projectId,
     returnTags: false,
+  });
+  const {
+    objects: projectObjects,
+    isLoading: objectsLoading,
+    isFetching: objectsFetching,
+    refetch: refetchObjects,
+  } = useProjectObjects({
+    projectId,
   });
 
   const allLoggedMetricNames = useMemo(() => {
@@ -583,6 +626,7 @@ export default function Scalars() {
           // Refresh experiments first so newly created runs are available for charting.
           await refetchExperiments();
           await refetchScalars();
+          await refetchObjects();
 
           // Keep "all selected" semantics when new experiments appear after refresh.
           if (hadAllSelected && projectId) {
@@ -595,13 +639,13 @@ export default function Scalars() {
           }
         })();
       }}
-      disabled={scalarsFetching || experimentsFetching}
+      disabled={scalarsFetching || experimentsFetching || objectsFetching}
       data-testid="button-refresh-scalars"
     >
       <RotateCcw
-        className={`w-4 h-4 mr-2 ${scalarsFetching || experimentsFetching ? "animate-spin" : ""}`}
+        className={`w-4 h-4 mr-2 ${scalarsFetching || experimentsFetching || objectsFetching ? "animate-spin" : ""}`}
       />
-      {scalarsFetching || experimentsFetching ? "Refreshing..." : "Refresh"}
+      {scalarsFetching || experimentsFetching || objectsFetching ? "Refreshing..." : "Refresh"}
     </Button>
   );
 
@@ -619,6 +663,53 @@ export default function Scalars() {
     </div>
   );
 
+  const objectGroups = useMemo(() => {
+    const visibleIds = new Set(visibleExperiments.map((experiment) => experiment.id));
+    // objectGroups shape:
+    // object_type -> object_name -> { steps[], byExperiment[expId][step] = objectRef }
+    // This makes it cheap to render "one object per experiment for selected step".
+    const grouped: LoggedObjectGroups = {};
+
+    projectObjects.forEach((experimentObjects) => {
+      if (!visibleIds.has(experimentObjects.experiment_id)) {
+        return;
+      }
+      experimentObjects.objects.forEach((obj) => {
+        const typeGroup = grouped[obj.object_type] || {};
+        const nameGroup = typeGroup[obj.name] || { steps: [], byExperiment: {} };
+        const byStep = nameGroup.byExperiment[experimentObjects.experiment_id] || {};
+        byStep[obj.step] = {
+          path: obj.path,
+          metadata: obj.metadata || {},
+          timestamp: obj.timestamp,
+        };
+        nameGroup.byExperiment[experimentObjects.experiment_id] = byStep;
+        if (!nameGroup.steps.includes(obj.step)) {
+          nameGroup.steps.push(obj.step);
+        }
+        typeGroup[obj.name] = nameGroup;
+        grouped[obj.object_type] = typeGroup;
+      });
+    });
+
+    Object.values(grouped).forEach((nameMap) => {
+      Object.values(nameMap).forEach((nameGroup) => {
+        nameGroup.steps.sort((a, b) => a - b);
+      });
+    });
+
+    return grouped;
+  }, [projectObjects, visibleExperiments]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      // Debounce image fetch-triggering step changes so rapid slider movement does not refetch on every tick.
+      setDebouncedObjectStepSelection(objectStepSelection);
+      setDebouncedExperimentStepOverrides(experimentStepOverrides);
+    }, 1500);
+    return () => window.clearTimeout(timer);
+  }, [objectStepSelection, experimentStepOverrides]);
+
   if (!projectId) {
     return (
       <div className="flex flex-col items-center justify-center h-[calc(100vh-8rem)] gap-4">
@@ -631,7 +722,7 @@ export default function Scalars() {
     );
   }
 
-  if (projectLoading || experimentsLoading || scalarsLoading) {
+  if (projectLoading || experimentsLoading || scalarsLoading || objectsLoading) {
     return (
       <div className="space-y-6">
         <PageHeader
@@ -1022,6 +1113,236 @@ export default function Scalars() {
             })}
           </div>
         )}
+
+        {Object.keys(objectGroups).length > 0 && (
+          <div className="mt-6 space-y-6">
+            <div>
+              <h2 className="text-lg font-semibold">Logged Objects</h2>
+              <p className="text-sm text-muted-foreground">
+                Objects are grouped by type and name; each card shows one object per selected experiment at the chosen step.
+              </p>
+            </div>
+            {Object.entries(objectGroups as LoggedObjectGroups).map(([objectType, byName]) => (
+              <div key={objectType} className="space-y-3">
+                <h3 className="text-base font-medium capitalize">{objectType.replaceAll("_", " ")}</h3>
+                <div
+                  className="grid gap-4"
+                  style={{
+                    gridTemplateColumns: `repeat(auto-fill, ${cardMinWidth}px)`,
+                    justifyContent: "start",
+                  }}
+                >
+                  {Object.entries(byName).map(([name, group]: [string, LoggedObjectNameGroup]) => {
+                    const selectionKey = `${objectType}:${name}`;
+                    const availableSteps = group.steps;
+                    // Persist per-card slider state so each object_name can be inspected independently.
+                    const selectedStep =
+                      objectStepSelection[selectionKey] ??
+                      availableSteps[availableSteps.length - 1] ??
+                      0;
+                    const debouncedSelectedStep =
+                      debouncedObjectStepSelection[selectionKey] ?? selectedStep;
+                    const currentIndex = Math.max(
+                      0,
+                      availableSteps.findIndex((step) => step === selectedStep)
+                    );
+                    return (
+                      <Card key={selectionKey}>
+                        <CardHeader className="py-2 px-3">
+                          <CardTitle className="text-sm flex items-center justify-between gap-2">
+                            <span className="truncate">{name}</span>
+                            <span className="text-xs text-muted-foreground">step {selectedStep}</span>
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-3">
+                          <Slider
+                            value={[currentIndex]}
+                            min={0}
+                            max={Math.max(0, availableSteps.length - 1)}
+                            step={1}
+                            disabled={availableSteps.length <= 1}
+                            onValueChange={(value) => {
+                              const idx = value[0] ?? 0;
+                              const step = availableSteps[idx] ?? availableSteps[0] ?? 0;
+                              setObjectStepSelection((prev) => ({
+                                ...prev,
+                                [selectionKey]: step,
+                              }));
+                            }}
+                          />
+                          <div className="space-y-2" style={{ minHeight: cardHeight }}>
+                            {visibleExperiments.map((experiment, idx) => {
+                              const experimentOverrideKey = `${selectionKey}:${experiment.id}`;
+                              const isOverrideEnabled =
+                                experimentStepOverrideEnabled[experimentOverrideKey] ?? false;
+                              const experimentColor =
+                                experiment.color || CHART_COLORS[idx % CHART_COLORS.length];
+                              const experimentStepMap =
+                                group.byExperiment[experiment.id] ?? {};
+                              const experimentSteps = Object.keys(experimentStepMap)
+                                .map((step) => Number(step))
+                                .filter((step) => Number.isFinite(step))
+                                .sort((a, b) => a - b);
+                              const overrideRawStep =
+                                experimentStepOverrides[experimentOverrideKey] ?? selectedStep;
+                              const targetStep = isOverrideEnabled
+                                ? debouncedExperimentStepOverrides[experimentOverrideKey] ??
+                                  overrideRawStep
+                                : debouncedSelectedStep;
+                              const nearestStep = closestStep(targetStep, experimentSteps);
+                              const objectAtStep =
+                                nearestStep === null
+                                  ? undefined
+                                  : experimentStepMap[nearestStep];
+                              const objectSrc = objectAtStep
+                                ? API_ROUTES.OBJECTS.BLOBS.GET(
+                                    objectAtStep.path,
+                                    objectAtStep.metadata?.content_type
+                                  )
+                                : "";
+                              const currentOverrideIndex = Math.max(
+                                0,
+                                experimentSteps.findIndex(
+                                  (step) =>
+                                    step ===
+                                    closestStep(
+                                      experimentStepOverrides[experimentOverrideKey] ??
+                                        selectedStep,
+                                      experimentSteps
+                                    )
+                                )
+                              );
+                              return (
+                                <div
+                                  key={`${selectionKey}:${experiment.id}`}
+                                  className="rounded border p-2 space-y-1"
+                                >
+                                  <div className="flex items-center gap-2">
+                                    <span
+                                      className="inline-block w-2.5 h-2.5 rounded-full"
+                                      style={{ backgroundColor: experimentColor }}
+                                    />
+                                    <span className="text-xs font-medium truncate">
+                                      {experiment.name}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <Checkbox
+                                      id={`override-${experimentOverrideKey}`}
+                                      checked={isOverrideEnabled}
+                                      onCheckedChange={(checked) => {
+                                        const enabled = checked === true;
+                                        setExperimentStepOverrideEnabled((prev) => ({
+                                          ...prev,
+                                          [experimentOverrideKey]: enabled,
+                                        }));
+                                        if (enabled) {
+                                          setExperimentStepOverrides((prev) => ({
+                                            ...prev,
+                                            [experimentOverrideKey]:
+                                              prev[experimentOverrideKey] ?? selectedStep,
+                                          }));
+                                        }
+                                      }}
+                                    />
+                                    <Label
+                                      htmlFor={`override-${experimentOverrideKey}`}
+                                      className="text-xs"
+                                    >
+                                      Override step
+                                    </Label>
+                                  </div>
+                                  {isOverrideEnabled && experimentSteps.length > 0 && (
+                                    <div className="space-y-1">
+                                      <Slider
+                                        value={[currentOverrideIndex]}
+                                        min={0}
+                                        max={Math.max(0, experimentSteps.length - 1)}
+                                        step={1}
+                                        onValueChange={(value) => {
+                                          const idxValue = value[0] ?? 0;
+                                          const stepValue =
+                                            experimentSteps[idxValue] ?? experimentSteps[0];
+                                          setExperimentStepOverrides((prev) => ({
+                                            ...prev,
+                                            [experimentOverrideKey]: stepValue,
+                                          }));
+                                        }}
+                                      />
+                                      <p className="text-[10px] text-muted-foreground">
+                                        override step {experimentStepOverrides[experimentOverrideKey] ?? selectedStep}
+                                      </p>
+                                    </div>
+                                  )}
+                                  {!objectAtStep ? (
+                                    <p className="text-xs text-muted-foreground">No object for this step</p>
+                                  ) : objectType === "image" ? (
+                                    // Blob endpoint is proxied by backend; path currently stores blob hash.
+                                    <button
+                                      type="button"
+                                      className="w-full"
+                                      onClick={() =>
+                                        setImagePreview({
+                                          src: objectSrc,
+                                          title: `${name} · ${experiment.name} · step ${nearestStep ?? targetStep}`,
+                                        })
+                                      }
+                                    >
+                                      <img
+                                        src={objectSrc}
+                                        alt={`${name}-${experiment.name}`}
+                                        className="w-full max-h-40 object-contain rounded"
+                                      />
+                                    </button>
+                                  ) : objectType === "video" ? (
+                                    <video
+                                      src={objectSrc}
+                                      controls
+                                      className="w-full max-h-40 rounded"
+                                    />
+                                  ) : objectType === "audio" ? (
+                                    <audio
+                                      src={objectSrc}
+                                      controls
+                                      className="w-full"
+                                    />
+                                  ) : objectType === "text" ? (
+                                    <a
+                                      href={objectSrc}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="text-xs text-primary underline"
+                                    >
+                                      Open logged text
+                                    </a>
+                                  ) : (
+                                    <a
+                                      href={objectSrc}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="text-xs text-primary underline"
+                                    >
+                                      Open logged object
+                                    </a>
+                                  )}
+                                  {nearestStep !== null && (
+                                    <p className="text-[10px] text-muted-foreground">
+                                      closest step {nearestStep}
+                                    </p>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {viewsSidebarOpen && (
@@ -1066,6 +1387,23 @@ export default function Scalars() {
                 domain={metricDomains[fullscreenMetric] || { x: null, y: null }}
                 onDomainChange={(d) => handleDomainChange(fullscreenMetric, d)}
                 isFullscreen={true}
+              />
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!imagePreview} onOpenChange={(open) => !open && setImagePreview(null)}>
+        <DialogContent className="max-w-6xl w-[92vw] h-[88vh]">
+          <DialogHeader>
+            <DialogTitle>{imagePreview?.title ?? "Image preview"}</DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 min-h-0 flex items-center justify-center">
+            {imagePreview && (
+              <img
+                src={imagePreview.src}
+                alt={imagePreview.title}
+                className="max-h-[76vh] max-w-full object-contain rounded"
               />
             )}
           </div>

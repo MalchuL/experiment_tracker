@@ -141,6 +141,18 @@ export const API_ROUTES = {
         LAST_LOGGED: (projectId: string) => `/api/scalars/last_logged/${projectId}`,
       },
     },
+
+    OBJECTS: {
+      BY_PROJECT: {
+        GET: (projectId: string) => `/api/objects/get/project/${projectId}`,
+      },
+      BLOBS: {
+        GET: (blobHash: string, contentType?: string) =>
+          contentType
+            ? `/api/blobs/${blobHash}?contentType=${encodeURIComponent(contentType)}`
+            : `/api/blobs/${blobHash}`,
+      },
+    },
   } as const;
   
   /**

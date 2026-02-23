@@ -1,6 +1,6 @@
 import httpx
 
-from experiment_tracker_sdk.queue import RequestItem, RequestQueue
+from experiment_tracker_sdk.client.queue import RequestItem, RequestQueue
 
 
 def test_request_queue_flush_sends_request():

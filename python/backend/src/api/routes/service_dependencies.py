@@ -1,4 +1,10 @@
 from config.settings import get_settings
+from domain.objects.service import (
+    NoOpObjectsService,
+    ObjectsService,
+    ObjectsServiceClient,
+    ObjectsServiceProtocol,
+)
 from domain.scalars.service import (
     NoOpScalarsService,
     ScalarsService,
@@ -106,6 +112,18 @@ async def get_scalars_service(
         return ScalarsService(client, permission_checker, experiment_repository)
     else:
         return NoOpScalarsService()
+
+
+async def get_objects_service(
+    permission_checker: PermissionChecker = Depends(get_permission_checker),
+    experiment_repository: ExperimentRepository = Depends(get_experiment_repository),
+) -> ObjectsServiceProtocol:
+    settings = get_settings()
+    scalars_service_url = settings.scalars_service_url
+    if scalars_service_url:
+        client = ObjectsServiceClient(scalars_service_url)
+        return ObjectsService(client, permission_checker, experiment_repository)
+    return NoOpObjectsService()
 
 
 # Hypothesis Service Dependencies

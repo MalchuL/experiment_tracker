@@ -26,8 +26,13 @@ class ProjectsService:
         last_logged_table_name = SCALARS_DB_UTILS.safe_last_logged_table_name(
             project_id
         )
+        objects_table_name = SCALARS_DB_UTILS.safe_objects_table_name(project_id)
         scalars_ddl = SCALARS_DB_UTILS.build_create_scalars_table_statement(table_name)
         await self.client.command(scalars_ddl)
+        objects_ddl = SCALARS_DB_UTILS.build_create_objects_table_statement(
+            objects_table_name
+        )
+        await self.client.command(objects_ddl)
         last_logged_ddl = SCALARS_DB_UTILS.build_create_last_logged_table_statement(
             last_logged_table_name
         )
@@ -85,6 +90,7 @@ class ProjectsService:
         last_logged_table_name = SCALARS_DB_UTILS.safe_last_logged_table_name(
             project_id
         )
+        objects_table_name = SCALARS_DB_UTILS.safe_objects_table_name(project_id)
         await self.client.command(
             SCALARS_DB_UTILS.build_delete_mapping_statement(project_id)
         )
@@ -93,6 +99,9 @@ class ProjectsService:
         )
         await self.client.command(
             SCALARS_DB_UTILS.build_drop_table_statement(last_logged_table_name)
+        )
+        await self.client.command(
+            SCALARS_DB_UTILS.build_drop_table_statement(objects_table_name)
         )
         return DeleteProjectTableResponseDTO(
             message=f"Table {table_name} deleted successfully."

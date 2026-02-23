@@ -22,6 +22,26 @@ Using uv:
 uv pip install -e <root_of_the_repo>/experiment_tracker/python/sdk
 ```
 
+## Run tests
+
+Install dev dependencies first:
+
+```
+uv pip install -e ".[dev]"
+```
+
+From the SDK folder:
+
+```
+uv run pytest
+```
+
+From the repo root:
+
+```
+uv run pytest python/sdk/tests
+```
+
 ## Configure
 
 Save the base URL and API token for the backend:

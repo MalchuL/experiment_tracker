@@ -15,6 +15,17 @@ class ProjectTableColumns(Enum):
     TAGS = "__tags__"
 
 
+class ObjectsTableColumns(Enum):
+    TIMESTAMP = "__timestamp__"
+    EXPERIMENT_ID = "__experiment_id__"
+    STEP = "__step__"
+    NAME = "__name__"
+    OBJECT_TYPE = "__object_type__"
+    PATH = "__path__"
+    METADATA = "__metadata__"
+    TAGS = "__tags__"
+
+
 @dataclass
 class ProjectTableColumnsData:
     name: str
@@ -59,6 +70,61 @@ BASE_COLUMNS_STR = [column.value for column in BASE_COLUMNS]
 
 SCALAR_COLUMN_TYPE = "Nullable(Float64)"
 
+OBJECTS_BASE_COLUMNS_DATA: dict[ObjectsTableColumns, ProjectTableColumnsData] = {
+    ObjectsTableColumns.TIMESTAMP: ProjectTableColumnsData(
+        name=ObjectsTableColumns.TIMESTAMP.value,
+        type=datetime,
+        db_type="DateTime64(3)",
+    ),
+    ObjectsTableColumns.EXPERIMENT_ID: ProjectTableColumnsData(
+        name=ObjectsTableColumns.EXPERIMENT_ID.value,
+        type=UUID,
+        db_type="UUID",
+    ),
+    ObjectsTableColumns.STEP: ProjectTableColumnsData(
+        name=ObjectsTableColumns.STEP.value,
+        type=int,
+        db_type="Int64",
+    ),
+    ObjectsTableColumns.NAME: ProjectTableColumnsData(
+        name=ObjectsTableColumns.NAME.value,
+        type=str,
+        db_type="String",
+    ),
+    ObjectsTableColumns.OBJECT_TYPE: ProjectTableColumnsData(
+        name=ObjectsTableColumns.OBJECT_TYPE.value,
+        type=str,
+        db_type="LowCardinality(String)",
+    ),
+    ObjectsTableColumns.PATH: ProjectTableColumnsData(
+        name=ObjectsTableColumns.PATH.value,
+        type=str,
+        db_type="String",
+    ),
+    ObjectsTableColumns.METADATA: ProjectTableColumnsData(
+        name=ObjectsTableColumns.METADATA.value,
+        type=str,
+        db_type="Map(String, String)",
+    ),
+    ObjectsTableColumns.TAGS: ProjectTableColumnsData(
+        name=ObjectsTableColumns.TAGS.value,
+        type=list,
+        db_type="Array(String)",
+    ),
+}
+
+OBJECTS_BASE_COLUMNS = [
+    ObjectsTableColumns.TIMESTAMP,
+    ObjectsTableColumns.EXPERIMENT_ID,
+    ObjectsTableColumns.STEP,
+    ObjectsTableColumns.NAME,
+    ObjectsTableColumns.OBJECT_TYPE,
+    ObjectsTableColumns.PATH,
+    ObjectsTableColumns.METADATA,
+    ObjectsTableColumns.TAGS,
+]
+OBJECTS_BASE_COLUMNS_STR = [column.value for column in OBJECTS_BASE_COLUMNS]
+
 
 class ClickHouseScalarsDBUtils:
     def _escape_sql_literal(self, value: str) -> str:
@@ -101,6 +167,13 @@ class ClickHouseScalarsDBUtils:
         """
         normalized_project_id = project_id.hex
         name = f"scalars_last_logged_{normalized_project_id}".lower()
+        if not re.match(r"^[a-z_][a-z0-9_]{1,63}$", name):
+            raise ValueError("Invalid project_id")
+        return name
+
+    def safe_objects_table_name(self, project_id: UUID) -> str:
+        normalized_project_id = project_id.hex
+        name = f"objects_{normalized_project_id}".lower()
         if not re.match(r"^[a-z_][a-z0-9_]{1,63}$", name):
             raise ValueError("Invalid project_id")
         return name
@@ -169,6 +242,19 @@ class ClickHouseScalarsDBUtils:
             "(project_id UUID, mapping Map(String, String), updated_at DateTime64(3)) "
             "ENGINE = ReplacingMergeTree(updated_at) "
             "ORDER BY project_id"
+        )
+
+    def build_create_objects_table_statement(self, table_name: str) -> str:
+        columns_str = [
+            f"{OBJECTS_BASE_COLUMNS_DATA[column].name} {OBJECTS_BASE_COLUMNS_DATA[column].db_type}"
+            for column in OBJECTS_BASE_COLUMNS
+        ]
+        return (
+            f"CREATE TABLE IF NOT EXISTS {table_name} "
+            f"({', '.join(columns_str)}) "
+            "ENGINE = MergeTree() "
+            f"PARTITION BY toDate({ObjectsTableColumns.TIMESTAMP.value}) "
+            f"ORDER BY ({ObjectsTableColumns.EXPERIMENT_ID.value}, {ObjectsTableColumns.NAME.value}, {ObjectsTableColumns.STEP.value})"
         )
 
     def build_create_last_logged_table_statement(self, table_name: str) -> str:
@@ -357,6 +443,54 @@ class ClickHouseScalarsDBUtils:
             f"WHERE project_id = '{project_uuid}' "
             "ORDER BY updated_at DESC LIMIT 1"
         )
+
+    def build_select_objects_statement(
+        self,
+        table_name: str,
+        experiment_ids: Sequence[UUID] | None = None,
+        object_types: Sequence[str] | None = None,
+        names: Sequence[str] | None = None,
+        start_time: datetime | None = None,
+        end_time: datetime | None = None,
+    ) -> str:
+        select = f"SELECT {', '.join(OBJECTS_BASE_COLUMNS_STR)} FROM {table_name}"
+        where_clauses: list[str] = []
+        if experiment_ids:
+            uuids = ", ".join(
+                [f"'{self._format_uuid_literal(exp_id)}'" for exp_id in experiment_ids]
+            )
+            where_clauses.append(
+                f"{ObjectsTableColumns.EXPERIMENT_ID.value} IN ({uuids})"
+            )
+        if object_types:
+            escaped_types = ", ".join(
+                [f"'{self._escape_sql_literal(item)}'" for item in object_types]
+            )
+            where_clauses.append(
+                f"{ObjectsTableColumns.OBJECT_TYPE.value} IN ({escaped_types})"
+            )
+        if names:
+            escaped_names = ", ".join(
+                [f"'{self._escape_sql_literal(item)}'" for item in names]
+            )
+            where_clauses.append(f"{ObjectsTableColumns.NAME.value} IN ({escaped_names})")
+        if start_time is not None:
+            where_clauses.append(
+                f"{ObjectsTableColumns.TIMESTAMP.value} >= "
+                f"toDateTime64('{self._format_datetime_literal(start_time)}', 3)"
+            )
+        if end_time is not None:
+            where_clauses.append(
+                f"{ObjectsTableColumns.TIMESTAMP.value} <= "
+                f"toDateTime64('{self._format_datetime_literal(end_time)}', 3)"
+            )
+        if where_clauses:
+            select += f" WHERE {' AND '.join(where_clauses)}"
+        select += (
+            f" ORDER BY {ObjectsTableColumns.EXPERIMENT_ID.value}, "
+            f"{ObjectsTableColumns.NAME.value}, {ObjectsTableColumns.STEP.value}"
+        )
+        return select
 
     def build_delete_mapping_statement(self, project_id: UUID) -> str:
         """Delete mapping for a given project ID.

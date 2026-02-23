@@ -58,6 +58,27 @@ async def upload_blob(
     return await service.upload_blob(hash, file)
 
 
+@router.get("/blobs/{blob_hash}")
+async def download_blob(
+    blob_hash: str,
+    session: AsyncSession = Depends(get_async_session),
+    storage: StorageBackend = Depends(get_storage),
+):
+    """Stream a single blob from object storage by content hash."""
+    service = _build_service(session, storage)
+    blob_stream = await service.get_blob_stream(blob_hash)
+
+    async def _iter_stream():
+        try:
+            for chunk in blob_stream.stream(32 * 1024):
+                yield chunk
+        finally:
+            blob_stream.close()
+            blob_stream.release_conn()
+
+    return StreamingResponse(_iter_stream(), media_type="application/octet-stream")
+
+
 @router.post("/snapshots", response_model=SnapshotCreateResponseDTO)
 async def create_snapshot(
     payload: SnapshotCreateRequestDTO,

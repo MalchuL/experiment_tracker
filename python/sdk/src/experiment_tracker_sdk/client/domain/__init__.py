@@ -2,6 +2,7 @@ from .experiments.service import ExperimentRequestSpecFactory, ExperimentService
 from .hypotheses.service import HypothesisRequestSpecFactory, HypothesisService
 from .metrics.service import MetricRequestSpecFactory, MetricService
 from .projects.service import ProjectRequestSpecFactory, ProjectService
+from .objects.service import ObjectsRequestSpecFactory, ObjectsService
 from .scalars.service import ScalarsRequestSpecFactory, ScalarsService
 from .teams.service import TeamRequestSpecFactory, TeamService
 
@@ -14,6 +15,8 @@ __all__ = [
     "MetricService",
     "ProjectRequestSpecFactory",
     "ProjectService",
+    "ObjectsRequestSpecFactory",
+    "ObjectsService",
     "ScalarsRequestSpecFactory",
     "ScalarsService",
     "TeamRequestSpecFactory",

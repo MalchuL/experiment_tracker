@@ -13,6 +13,11 @@ dependencies = [
   "pydantic>=2.6.0",
 ]
 
+[project.optional-dependencies]
+dev = ["pytest"]
+
+
+
 [project.scripts]
 experiment-tracker = "experiment_tracker_sdk.cli:main"
 

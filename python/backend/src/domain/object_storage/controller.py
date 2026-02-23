@@ -64,6 +64,34 @@ async def create_snapshot(
         _raise_object_storage_error(exc)
 
 
+@router.get("/blobs/{blob_hash}")
+async def download_blob(
+    blob_hash: str,
+    _user: User = Depends(get_current_user_dual),
+):
+    base_url = get_settings().object_storage_service_url.rstrip("/")
+    client = httpx.AsyncClient(timeout=None)
+    try:
+        response = await client.get(f"{base_url}/blobs/{blob_hash}", timeout=None)
+        response.raise_for_status()
+    except Exception as exc:  # noqa: BLE001
+        await client.aclose()
+        _raise_object_storage_error(exc)
+
+    async def _iter_stream():
+        try:
+            async for chunk in response.aiter_bytes():
+                yield chunk
+        finally:
+            await response.aclose()
+            await client.aclose()
+
+    return StreamingResponse(
+        _iter_stream(),
+        media_type=response.headers.get("content-type", "application/octet-stream"),
+    )
+
+
 @router.get("/snapshots/{snapshot_id}/download")
 async def download_snapshot(
     snapshot_id: str,

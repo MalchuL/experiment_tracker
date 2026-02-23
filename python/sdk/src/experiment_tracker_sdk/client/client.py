@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Any, TypeVar
+from pathlib import Path
 
 from .utils.logging import disable_httpx_logging
 
@@ -106,6 +107,68 @@ class ExperimentTrackerClient:
         if request_spec.response_is_list:
             return [request_spec.response_model.model_validate(item) for item in body]
         return request_spec.response_model.model_validate(body)
+
+    def request_json(
+        self,
+        method: str,
+        path: str,
+        json: Any | None = None,
+        params: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        with disable_httpx_logging():
+            response = self._client.request(
+                method,
+                path,
+                json=json,
+                params=params,
+            )
+        _raise_for_status(response, self._supress_errors)
+        return response.json()
+
+    def upload_file(
+        self,
+        path: str,
+        params: dict[str, Any],
+        file_name: str,
+        file_content: bytes,
+        content_type: str = "application/octet-stream",
+    ) -> dict[str, Any]:
+        with disable_httpx_logging():
+            response = self._client.request(
+                "POST",
+                path,
+                params=params,
+                files={
+                    "file": (
+                        file_name,
+                        file_content,
+                        content_type,
+                    )
+                },
+            )
+        _raise_for_status(response, self._supress_errors)
+        return response.json()
+
+    def download_file(self, path: str, params: dict[str, Any] | None = None) -> bytes:
+        """Download raw file bytes from backend endpoint."""
+        with disable_httpx_logging():
+            response = self._client.request(
+                "GET",
+                path,
+                params=params,
+            )
+        _raise_for_status(response, self._supress_errors)
+        return response.content
+
+    def download_file_to_path(
+        self, path: str, output_path: str | Path, params: dict[str, Any] | None = None
+    ) -> Path:
+        """Download bytes and persist them to local filesystem."""
+        content = self.download_file(path=path, params=params)
+        destination = Path(output_path)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_bytes(content)
+        return destination
 
     def flush(self) -> None:
         """Flush the request queue."""

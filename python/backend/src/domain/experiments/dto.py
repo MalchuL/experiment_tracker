@@ -26,7 +26,7 @@ class ExperimentBaseDTO(BaseModel):
     @field_validator("color")
     @classmethod
     def validate_color(cls, v: Optional[str]) -> Optional[str]:
-        if v is not None and not re.match(r"^#[0-9a-fA-F]{6}$", v):
+        if v is not None and not re.match(r"^#[0-9a-fA-F]{6,8}$", v):
             raise ValueError("Invalid color")
         return v
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import re
 import tempfile
 import zipfile
 from pathlib import PurePosixPath
@@ -24,6 +25,8 @@ from object_storage.storage import StorageBackend
 
 
 class ObjectStorageService:
+    _SHA256_HEX_RE = re.compile(r"^[0-9a-fA-F]{64}$")
+
     """CAS workflow service for blob checking, uploads, and snapshots."""
 
     def __init__(
@@ -39,8 +42,11 @@ class ObjectStorageService:
 
         if not hashes:
             return mapper.missing_hashes_to_response([])
-        existing = await self._repository.fetch_existing_blob_hashes(hashes)
-        missing = [blob_hash for blob_hash in hashes if blob_hash not in existing]
+        normalized_hashes = [self._normalize_hash(blob_hash) for blob_hash in hashes]
+        existing = await self._repository.fetch_existing_blob_hashes(normalized_hashes)
+        missing = [
+            blob_hash for blob_hash in normalized_hashes if blob_hash not in existing
+        ]
         return mapper.missing_hashes_to_response(missing)
 
     async def upload_blob(
@@ -48,6 +54,7 @@ class ObjectStorageService:
     ) -> UploadBlobResponseDTO:
         """Upload a blob into CAS storage after verifying its hash."""
 
+        blob_hash = self._normalize_hash(blob_hash)
         existing = await self._repository.fetch_blob(blob_hash)
         if existing:
             return mapper.upload_status_to_response("exists")
@@ -79,7 +86,11 @@ class ObjectStorageService:
     ) -> SnapshotCreateResponseDTO:
         """Create a snapshot that points to existing CAS blob hashes."""
 
-        hashes = [entry.hash for entry in payload.files]
+        normalized_files = [
+            entry.model_copy(update={"hash": self._normalize_hash(entry.hash)})
+            for entry in payload.files
+        ]
+        hashes = [entry.hash for entry in normalized_files]
         if hashes:
             existing = await self._repository.fetch_existing_blob_hashes(hashes)
             missing = [blob_hash for blob_hash in hashes if blob_hash not in existing]
@@ -92,7 +103,7 @@ class ObjectStorageService:
             payload.experiment_name
         )
         snapshot = await self._repository.create_snapshot(
-            experiment.id, mapper.snapshot_files_to_manifest(payload.files)
+            experiment.id, mapper.snapshot_files_to_manifest(normalized_files)
         )
         if hashes:
             await self._repository.increment_blob_ref_counts(hashes)
@@ -111,6 +122,21 @@ class ObjectStorageService:
         )
         filename = f"snapshot-{snapshot_id}.zip"
         return zip_path, filename
+
+    async def get_blob_stream(self, blob_hash: str):
+        """Return a streaming handle for a CAS blob by hash."""
+        blob_hash = self._normalize_hash(blob_hash)
+        blob = await self._repository.fetch_blob(blob_hash)
+        if blob is None:
+            raise HTTPException(status_code=404, detail="Blob not found")
+        return self._storage.get_blob(blob_hash)
+
+    def _normalize_hash(self, blob_hash: str) -> str:
+        """Validate SHA-256 hex format and normalize to lowercase."""
+        normalized = blob_hash.strip()
+        if not self._SHA256_HEX_RE.fullmatch(normalized):
+            raise HTTPException(status_code=400, detail="Invalid blob hash format")
+        return normalized.lower()
 
     def _validate_relative_path(self, path: str) -> None:
         """Reject absolute or parent-traversing paths in snapshot manifests."""
@@ -153,6 +179,7 @@ class ObjectStorageService:
                 if not path or not blob_hash:
                     continue
                 self._validate_relative_path(path)
+                blob_hash = self._normalize_hash(str(blob_hash))
                 response = storage.get_blob(blob_hash)
                 try:
                     with zipf.open(path, "w") as dest:
