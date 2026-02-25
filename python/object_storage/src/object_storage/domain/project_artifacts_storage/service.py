@@ -15,16 +15,15 @@ from experiment_tracker_shared import (
 )  # pyright: ignore[reportMissingImports]
 from sqlalchemy.exc import IntegrityError
 
-from object_storage.domain.object_storage import mapper
-from object_storage.domain.object_storage.dto import (
+from . import mapper
+from .dto import (
     BlobCheckResponseDTO,
     DeleteBlobResponseDTO,
-    DeleteExperimentResponseDTO,
     SnapshotCreateRequestDTO,
     SnapshotCreateResponseDTO,
     UploadBlobResponseDTO,
 )
-from object_storage.domain.object_storage.repository import ObjectStorageRepository
+from .repository import ObjectStorageRepository
 from object_storage.storage import StorageBackend
 
 
@@ -50,6 +49,15 @@ class ObjectStorageService:
 
         self._repository = repository
         self._storage = storage
+
+    async def delete_project(self, project_id: UUID) -> bool:
+        """Delete a project and all its blobs."""
+        bucket_name = self._get_bucket_name(project_id)
+        self._storage.delete_bucket(bucket_name)
+        await self._repository.delete_all_blobs(project_id)
+        await self._repository.delete_all_snapshots(project_id)
+        await self._repository.commit()
+        return True
 
     async def check_blobs(
         self, project_id: UUID, hashes: list[str]
@@ -89,25 +97,39 @@ class ObjectStorageService:
                 )
 
             await anyio.to_thread.run_sync(
-                self._storage.put_blob, bucket_name, blob_hash, spool, size
+                self._storage.put_blob,  # type: ignore[arg-type]
+                bucket_name,
+                blob_hash,
+                spool,
+                size,
             )
             await self._repository.add_blob(project_id, blob_hash, size)
             try:
                 await self._repository.commit()
             except IntegrityError:
                 await self._repository.rollback()
+                self._storage.delete_blob(bucket_name, blob_hash)
+                raise HTTPException(
+                    status_code=500, detail="Failed to add blob to repository"
+                )
             return mapper.upload_status_to_response("ok")
         finally:
             if spool is not None:
                 spool.close()
 
+    # TODO add project_id to the payload to have simpler deletion of the project
     async def create_snapshot(
         self, payload: SnapshotCreateRequestDTO
     ) -> SnapshotCreateResponseDTO:
         """Create a snapshot that points to existing CAS blob hashes."""
 
         normalized_files = [
-            entry.model_copy(update={"hash": self._normalize_hash(entry.hash)})
+            entry.model_copy(
+                update={
+                    "hash": self._normalize_hash(entry.hash),
+                    "path": self._normalize_path(entry.path),
+                }
+            )
             for entry in payload.files
         ]
         errors = []
@@ -136,6 +158,25 @@ class ObjectStorageService:
         await self._repository.commit()
         await self._repository.refresh(snapshot)
         return mapper.snapshot_id_to_response(snapshot.id)
+
+    async def delete_snapshot(self, project_id: UUID, snapshot_id: UUID) -> list[str]:
+        """Delete a snapshot and all its blobs."""
+
+        snapshot = await self._repository.fetch_snapshot(snapshot_id)
+        if snapshot is None:
+            raise HTTPException(status_code=404, detail="Snapshot not found")
+        snapshot_hashes = [entry["hash"] for entry in snapshot.manifest]
+        await self._repository.decrement_blob_ref_counts(project_id, snapshot_hashes)
+        deleted_blobs = []
+        for hash in snapshot_hashes:
+            blob = await self._repository.fetch_blob(project_id, hash)
+            if blob is not None and blob.ref_count <= 0:
+                self._storage.delete_blob(self._get_bucket_name(project_id), hash)
+                await self._repository.delete_blob(project_id, hash)
+                deleted_blobs.append(hash)
+        await self._repository.delete_snapshot(snapshot_id)
+        await self._repository.commit()
+        return deleted_blobs
 
     async def prepare_snapshot_download(
         self, project_id: UUID, snapshot_id: UUID
@@ -186,6 +227,10 @@ class ObjectStorageService:
             raise HTTPException(status_code=400, detail="Invalid blob hash format")
         return normalized.lower()
 
+    def _normalize_path(self, path: str) -> str:
+        """Normalize the path to a relative path."""
+        return path.strip().replace("\\", "/")
+
     def _validate_relative_path(self, path: str) -> bool:
         """Reject absolute or parent-traversing paths in snapshot manifests."""
 
@@ -221,6 +266,7 @@ class ObjectStorageService:
         tmp_path = tmp.name
         tmp.close()
 
+        missing_blobs = []
         with zipfile.ZipFile(
             tmp_path, mode="w", compression=zipfile.ZIP_DEFLATED
         ) as zipf:
@@ -232,6 +278,10 @@ class ObjectStorageService:
                 self._validate_relative_path(path)
                 blob_hash = self._normalize_hash(str(blob_hash))
                 bucket_name = self._get_bucket_name(project_id)
+                exists = storage.stat_blob(bucket_name, blob_hash)
+                if not exists:
+                    missing_blobs.append(f"{path}: {blob_hash}")
+                    continue
                 response = storage.get_blob(bucket_name, blob_hash)
                 try:
                     with zipf.open(path, "w") as dest:
@@ -240,4 +290,8 @@ class ObjectStorageService:
                 finally:
                     response.close()
                     response.release_conn()
+            if missing_blobs:
+                zipf.writestr(
+                    "__missing_blobs_manifest__.txt", "\n".join(missing_blobs)
+                )
         return tmp_path

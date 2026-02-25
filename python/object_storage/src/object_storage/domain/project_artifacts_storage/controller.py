@@ -11,18 +11,18 @@ from starlette.background import BackgroundTask
 from starlette.responses import StreamingResponse
 
 from object_storage.db import get_async_session
-from object_storage.domain.object_storage.dto import (
+from .dto import (
     BlobCheckResponseDTO,
     DeleteBlobResponseDTO,
     SnapshotCreateRequestDTO,
     SnapshotCreateResponseDTO,
     UploadBlobResponseDTO,
 )
-from object_storage.domain.object_storage.repository import ObjectStorageRepository
-from object_storage.domain.object_storage.service import ObjectStorageService
+from .repository import ObjectStorageRepository
+from .service import ObjectStorageService
 from object_storage.storage import StorageBackend, get_storage
 
-router = APIRouter()
+router = APIRouter(prefix="/project-artifacts")
 
 
 def _build_service(
@@ -34,9 +34,9 @@ def _build_service(
     return ObjectStorageService(repository, storage)
 
 
-@router.post("/blobs/check", response_model=BlobCheckResponseDTO)
+@router.post("/{project_id}/check", response_model=BlobCheckResponseDTO)
 async def check_blobs(
-    project_id: UUID = Query(...),
+    project_id: UUID,
     hashes: list[str] = Body(..., embed=False),
     session: AsyncSession = Depends(get_async_session),
     storage: StorageBackend = Depends(get_storage),
@@ -47,9 +47,9 @@ async def check_blobs(
     return await service.check_blobs(project_id, hashes)
 
 
-@router.post("/blobs/upload", response_model=UploadBlobResponseDTO)
+@router.post("/{project_id}/upload", response_model=UploadBlobResponseDTO)
 async def upload_blob(
-    project_id: UUID = Query(...),
+    project_id: UUID,
     hash: str = Query(..., min_length=64, max_length=64),
     file: UploadFile = File(...),
     session: AsyncSession = Depends(get_async_session),
@@ -61,10 +61,10 @@ async def upload_blob(
     return await service.upload_blob(project_id, hash, file)
 
 
-@router.get("/blobs/{blob_hash}")
+@router.get("/{project_id}/blobs/{blob_hash}")
 async def download_blob(
     blob_hash: str,
-    project_id: UUID = Query(...),
+    project_id: UUID,
     session: AsyncSession = Depends(get_async_session),
     storage: StorageBackend = Depends(get_storage),
 ):
@@ -83,7 +83,7 @@ async def download_blob(
     return StreamingResponse(_iter_stream(), media_type="application/octet-stream")
 
 
-@router.post("/snapshots", response_model=SnapshotCreateResponseDTO)
+@router.post("/{project_id}/snapshots", response_model=SnapshotCreateResponseDTO)
 async def create_snapshot(
     payload: SnapshotCreateRequestDTO,
     session: AsyncSession = Depends(get_async_session),
@@ -95,7 +95,7 @@ async def create_snapshot(
     return await service.create_snapshot(payload)
 
 
-@router.get("/snapshots/{snapshot_id}/download")
+@router.get("/{project_id}/snapshots/{snapshot_id}/download")
 async def download_snapshot(
     project_id: UUID,
     snapshot_id: UUID,
@@ -123,10 +123,10 @@ async def download_snapshot(
     )
 
 
-@router.delete("/blobs/{blob_hash}", response_model=DeleteBlobResponseDTO)
+@router.delete("/{project_id}/blobs/{blob_hash}", response_model=DeleteBlobResponseDTO)
 async def delete_blob(
     blob_hash: str,
-    project_id: UUID = Query(...),
+    project_id: UUID,
     session: AsyncSession = Depends(get_async_session),
     storage: StorageBackend = Depends(get_storage),
 ):

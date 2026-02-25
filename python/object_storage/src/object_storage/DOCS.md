@@ -12,5 +12,7 @@ Technical Task: ML Experiment Storage Service (CAS-based)
 
 ## 3. Data Model
 There is two main types of data that are stored in the database:
-Objects - blobs that are tracked and deduplicated. Used to store code, data, etc.
-Artifacts - snapshots of the objects that are part of an experiment and not tracked. Used to store the state of the experiment at a given point in time like generated images, audio, video, hyperparameters, etc.
+Project artifacts - blobs that are tracked and deduplicated. Used to store code, data, etc. that are shared between experiments (e.g. different experiments use same code). Also checks hashes of the blobs and returns which ones are missing. 
+Snapshots are the part of the project artifacts that are used to create a snapshot of the experiment (because the project artifacts are shared between experiments).
+Experiment artifacts - objects that are part of an experiment and not tracked. Used to store the state of the experiment at a given point in time like generated images, audio, video, hyperparameters, etc. Used to push data without any checks. Returns the status of the upload and the path to the blob (calculates the path randomly (via uuid4)).
+

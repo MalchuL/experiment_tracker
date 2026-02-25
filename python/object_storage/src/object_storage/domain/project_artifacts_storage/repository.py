@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Iterable
 from uuid import UUID
 
-from sqlalchemy import select, update
+from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from object_storage.db.models import TrackedBlob, Snapshot
@@ -65,6 +65,19 @@ class ObjectStorageRepository:
             .values(ref_count=TrackedBlob.ref_count + 1)
         )
 
+    async def decrement_blob_ref_counts(
+        self, project_id: UUID, hashes: Iterable[str]
+    ) -> None:
+        """Decrement reference counts for blobs attached to a snapshot."""
+
+        if not hashes:
+            return
+        await self._session.execute(
+            update(TrackedBlob)
+            .where(TrackedBlob.project_id == project_id, TrackedBlob.hash.in_(hashes))
+            .values(ref_count=TrackedBlob.ref_count - 1)
+        )
+
     async def fetch_snapshot(self, snapshot_id: UUID) -> Snapshot | None:
         """Return a snapshot by id, or None if it does not exist."""
 
@@ -72,6 +85,15 @@ class ObjectStorageRepository:
             select(Snapshot).where(Snapshot.id == snapshot_id)
         )
         return result.scalars().first()
+
+    async def delete_snapshot(self, snapshot_id: UUID) -> bool:
+        """Delete a snapshot by id."""
+
+        snapshot = await self.fetch_snapshot(snapshot_id)
+        if snapshot is None:
+            return False
+        await self._session.delete(snapshot)
+        return True
 
     async def commit(self) -> None:
         """Commit the current transaction to persist staged changes."""
@@ -96,3 +118,17 @@ class ObjectStorageRepository:
             return False
         await self._session.delete(blob)
         return True
+
+    async def delete_all_blobs(self, project_id: UUID) -> None:
+        """Delete all blobs for a project."""
+
+        await self._session.execute(
+            delete(TrackedBlob).where(TrackedBlob.project_id == project_id)
+        )
+
+    async def delete_all_snapshots(self, project_id: UUID) -> None:
+        """Delete all snapshots for a project."""
+
+        await self._session.execute(
+            delete(Snapshot).where(Snapshot.project_id == project_id)
+        )

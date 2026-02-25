@@ -4,10 +4,9 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from object_storage.domain.object_storage.dto import (
+from .dto import (
     BlobCheckResponseDTO,
     DeleteBlobResponseDTO,
-    DeleteExperimentResponseDTO,
     SnapshotCreateResponseDTO,
     SnapshotFileEntryDTO,
     UploadBlobResponseDTO,

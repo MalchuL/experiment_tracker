@@ -42,9 +42,3 @@ class DeleteBlobResponseDTO(BaseModel):
     """Response DTO describing whether a blob was deleted."""
 
     deleted: bool
-
-
-class DeleteExperimentResponseDTO(BaseModel):
-    """Response DTO describing whether an experiment was deleted."""
-
-    deleted: bool
