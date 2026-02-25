@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import re
 import tempfile
 import zipfile
@@ -11,11 +10,16 @@ from uuid import UUID
 
 import anyio
 from fastapi import HTTPException, UploadFile
+from experiment_tracker_shared import (
+    create_sha256_hasher,
+)  # pyright: ignore[reportMissingImports]
 from sqlalchemy.exc import IntegrityError
 
 from object_storage.domain.object_storage import mapper
 from object_storage.domain.object_storage.dto import (
     BlobCheckResponseDTO,
+    DeleteBlobResponseDTO,
+    DeleteExperimentResponseDTO,
     SnapshotCreateRequestDTO,
     SnapshotCreateResponseDTO,
     UploadBlobResponseDTO,
@@ -27,7 +31,17 @@ from object_storage.storage import StorageBackend
 class ObjectStorageService:
     _SHA256_HEX_RE = re.compile(r"^[0-9a-fA-F]{64}$")
 
+    # 10MB for spooled uploads (temporary file on RAM memory)
+    MAX_SPOOL_SIZE = 10 * 1024 * 1024
+
+    # 1MB for chunked uploads (streaming from the client)
+    MAX_CHUNK_SIZE = 1024 * 1024
+
     """CAS workflow service for blob checking, uploads, and snapshots."""
+
+    def _get_bucket_name(self, project_id: UUID) -> str:
+        """Get the bucket name for a project."""
+        return f"project-{str(project_id)}"
 
     def __init__(
         self, repository: ObjectStorageRepository, storage: StorageBackend
@@ -37,30 +51,36 @@ class ObjectStorageService:
         self._repository = repository
         self._storage = storage
 
-    async def check_blobs(self, hashes: list[str]) -> BlobCheckResponseDTO:
+    async def check_blobs(
+        self, project_id: UUID, hashes: list[str]
+    ) -> BlobCheckResponseDTO:
         """Return hashes that are missing from CAS metadata storage."""
-
+        self._storage.ensure_bucket(self._get_bucket_name(project_id))
         if not hashes:
             return mapper.missing_hashes_to_response([])
         normalized_hashes = [self._normalize_hash(blob_hash) for blob_hash in hashes]
-        existing = await self._repository.fetch_existing_blob_hashes(normalized_hashes)
+        existing = await self._repository.fetch_existing_blob_hashes(
+            project_id, normalized_hashes
+        )
         missing = [
             blob_hash for blob_hash in normalized_hashes if blob_hash not in existing
         ]
         return mapper.missing_hashes_to_response(missing)
 
     async def upload_blob(
-        self, blob_hash: str, upload: UploadFile
+        self, project_id: UUID, blob_hash: str, upload: UploadFile
     ) -> UploadBlobResponseDTO:
         """Upload a blob into CAS storage after verifying its hash."""
 
         blob_hash = self._normalize_hash(blob_hash)
-        existing = await self._repository.fetch_blob(blob_hash)
+        existing = await self._repository.fetch_blob(project_id, blob_hash)
         if existing:
             return mapper.upload_status_to_response("exists")
 
         spool: tempfile.SpooledTemporaryFile | None = None
         try:
+            bucket_name = self._get_bucket_name(project_id)
+            self._storage.ensure_bucket(bucket_name)
             spool, size, computed = await self._spool_upload(upload)
             if computed != blob_hash:
                 raise HTTPException(
@@ -69,9 +89,9 @@ class ObjectStorageService:
                 )
 
             await anyio.to_thread.run_sync(
-                self._storage.put_blob, blob_hash, spool, size
+                self._storage.put_blob, bucket_name, blob_hash, spool, size
             )
-            await self._repository.add_blob(blob_hash, size)
+            await self._repository.add_blob(project_id, blob_hash, size)
             try:
                 await self._repository.commit()
             except IntegrityError:
@@ -90,46 +110,74 @@ class ObjectStorageService:
             entry.model_copy(update={"hash": self._normalize_hash(entry.hash)})
             for entry in payload.files
         ]
+        errors = []
+        for entry in normalized_files:
+            if not self._validate_relative_path(entry.path):
+                errors.append(
+                    f"Invalid path: {entry.path}. Path must be relative and not contain '..' or start with '/'"
+                )
+        if errors:
+            raise HTTPException(status_code=400, detail="\n".join(errors))
         hashes = [entry.hash for entry in normalized_files]
         if hashes:
-            existing = await self._repository.fetch_existing_blob_hashes(hashes)
+            existing = await self._repository.fetch_existing_blob_hashes(
+                payload.project_id, hashes
+            )
             missing = [blob_hash for blob_hash in hashes if blob_hash not in existing]
             if missing:
                 raise HTTPException(
                     status_code=400, detail=f"Missing blobs: {', '.join(missing)}"
                 )
 
-        experiment = await self._repository.get_or_create_experiment(
-            payload.experiment_name
-        )
-        snapshot = await self._repository.create_snapshot(
-            experiment.id, mapper.snapshot_files_to_manifest(normalized_files)
-        )
+        manifest = mapper.snapshot_files_to_manifest(normalized_files)
+        snapshot = await self._repository.create_snapshot(manifest)
         if hashes:
-            await self._repository.increment_blob_ref_counts(hashes)
+            await self._repository.increment_blob_ref_counts(payload.project_id, hashes)
         await self._repository.commit()
         await self._repository.refresh(snapshot)
         return mapper.snapshot_id_to_response(snapshot.id)
 
-    async def prepare_snapshot_download(self, snapshot_id: UUID) -> tuple[str, str]:
+    async def prepare_snapshot_download(
+        self, project_id: UUID, snapshot_id: UUID
+    ) -> tuple[str, str]:
         """Create a ZIP archive for a snapshot and return its path and filename."""
 
         snapshot = await self._repository.fetch_snapshot(snapshot_id)
         if snapshot is None:
             raise HTTPException(status_code=404, detail="Snapshot not found")
         zip_path = await anyio.to_thread.run_sync(
-            self._build_zip, self._storage, snapshot.manifest
+            self._build_zip, self._storage, project_id, snapshot.manifest
         )
         filename = f"snapshot-{snapshot_id}.zip"
         return zip_path, filename
 
-    async def get_blob_stream(self, blob_hash: str):
+    async def get_blob_stream(self, project_id: UUID, blob_hash: str):
         """Return a streaming handle for a CAS blob by hash."""
         blob_hash = self._normalize_hash(blob_hash)
-        blob = await self._repository.fetch_blob(blob_hash)
+        blob = await self._repository.fetch_blob(project_id, blob_hash)
         if blob is None:
             raise HTTPException(status_code=404, detail="Blob not found")
-        return self._storage.get_blob(blob_hash)
+        bucket_name = self._get_bucket_name(project_id)
+        self._storage.ensure_bucket(bucket_name)
+        return self._storage.get_blob(bucket_name, blob_hash)
+
+    async def delete_blob(
+        self, project_id: UUID, blob_hash: str
+    ) -> DeleteBlobResponseDTO:
+        """Delete a single CAS blob and its metadata row."""
+
+        blob_hash = self._normalize_hash(blob_hash)
+        bucket_name = self._get_bucket_name(project_id)
+        metadata = await self._repository.fetch_blob(project_id, blob_hash)
+        if metadata is not None and metadata.ref_count > 0:
+            raise HTTPException(
+                status_code=400, detail=f"Blob {blob_hash} is referenced by a snapshot"
+            )
+        deleted_metadata = await self._repository.delete_blob(project_id, blob_hash)
+        deleted_storage = self._storage.delete_blob(bucket_name, blob_hash)
+        if deleted_metadata:
+            await self._repository.commit()
+        return mapper.delete_blob_to_response(deleted_metadata or deleted_storage)
 
     def _normalize_hash(self, blob_hash: str) -> str:
         """Validate SHA-256 hex format and normalize to lowercase."""
@@ -138,23 +186,24 @@ class ObjectStorageService:
             raise HTTPException(status_code=400, detail="Invalid blob hash format")
         return normalized.lower()
 
-    def _validate_relative_path(self, path: str) -> None:
+    def _validate_relative_path(self, path: str) -> bool:
         """Reject absolute or parent-traversing paths in snapshot manifests."""
 
         pure_path = PurePosixPath(path)
         if path.startswith("/") or ".." in pure_path.parts:
-            raise HTTPException(status_code=400, detail="Invalid snapshot path")
+            return False
+        return True
 
     async def _spool_upload(
         self, upload: UploadFile
     ) -> tuple[tempfile.SpooledTemporaryFile, int, str]:
         """Stream the upload into a spooled file while computing its SHA-256 hash."""
 
-        hasher = hashlib.sha256()
+        hasher = create_sha256_hasher()
         size = 0
-        spool = tempfile.SpooledTemporaryFile(max_size=10 * 1024 * 1024)
+        spool = tempfile.SpooledTemporaryFile(max_size=self.MAX_SPOOL_SIZE)
         while True:
-            chunk = await upload.read(1024 * 1024)
+            chunk = await upload.read(self.MAX_CHUNK_SIZE)
             if not chunk:
                 break
             size += len(chunk)
@@ -163,7 +212,9 @@ class ObjectStorageService:
         spool.seek(0)
         return spool, size, hasher.hexdigest()
 
-    def _build_zip(self, storage: StorageBackend, manifest: list[dict]) -> str:
+    def _build_zip(
+        self, storage: StorageBackend, project_id: UUID, manifest: list[dict]
+    ) -> str:
         """Materialize a snapshot manifest into a ZIP file using CAS blobs."""
 
         tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".zip")
@@ -180,7 +231,8 @@ class ObjectStorageService:
                     continue
                 self._validate_relative_path(path)
                 blob_hash = self._normalize_hash(str(blob_hash))
-                response = storage.get_blob(blob_hash)
+                bucket_name = self._get_bucket_name(project_id)
+                response = storage.get_blob(bucket_name, blob_hash)
                 try:
                     with zipf.open(path, "w") as dest:
                         for chunk in response.stream(32 * 1024):

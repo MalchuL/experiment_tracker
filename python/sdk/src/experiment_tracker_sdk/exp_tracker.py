@@ -1,5 +1,4 @@
 import re
-import hashlib
 import json
 import mimetypes
 import io
@@ -8,6 +7,7 @@ from typing import cast
 from uuid import UUID
 
 from experiment_tracker_sdk.logger import logger
+from experiment_tracker_shared import compute_sha256_hexdigest  # pyright: ignore[reportMissingImports]
 from experiment_tracker_sdk.client import API, ExperimentStatus, ExperimentTrackerClient
 from experiment_tracker_sdk.client.domain.experiments.dto import ExperimentResponse
 from experiment_tracker_sdk.client.domain.objects.dto import LogObjectRequest
@@ -394,7 +394,7 @@ class ExpTracker:
                 default_content_type=default_content_type,
             )
             # 2) Use content hash as stable object reference (dedup key in object storage).
-            blob_hash = hashlib.sha256(content_bytes).hexdigest()
+            blob_hash = compute_sha256_hexdigest(content_bytes)
             # 3) Check if this blob already exists to avoid re-uploading identical content.
             check_result = self._api.check_blobs([blob_hash])
             missing_hashes = set(check_result.get("missing", []))

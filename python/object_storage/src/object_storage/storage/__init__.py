@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from typing import BinaryIO, Protocol
+from uuid import UUID
 
 from object_storage.config import get_settings
 from object_storage.storage.minio_client import MinioStorage, get_minio_storage
@@ -12,17 +13,25 @@ from object_storage.storage.s3_client import S3Storage, get_s3_storage
 class StorageBackend(Protocol):
     """Protocol that storage backends must implement for CAS operations."""
 
-    def ensure_bucket(self) -> None:
+    def ensure_bucket(self, bucket_name: str) -> None:
         """Ensure the target bucket exists."""
 
-    def stat_blob(self, blob_hash: str) -> bool:
+    def delete_bucket(self, bucket_name: str) -> bool:
+        """Delete the bucket."""
+
+    def stat_blob(self, bucket_name: str, blob_hash: str) -> bool:
         """Check whether a blob exists."""
 
-    def put_blob(self, blob_hash: str, data: BinaryIO, size: int) -> None:
+    def put_blob(
+        self, bucket_name: str, blob_hash: str, data: BinaryIO, size: int
+    ) -> None:
         """Upload a blob stream by hash."""
 
-    def get_blob(self, blob_hash: str):
+    def get_blob(self, bucket_name: str, blob_hash: str):
         """Return a streaming response object for the blob."""
+
+    def delete_blob(self, bucket_name: str, blob_hash: str) -> bool:
+        """Delete one blob by hash from the bucket."""
 
 
 def get_storage() -> StorageBackend:

@@ -1,22 +1,18 @@
 from contextlib import asynccontextmanager
 
-import anyio
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from object_storage.api import router as api_router
 from object_storage.config import get_settings
 from object_storage.db import create_db_and_tables
-from object_storage.storage import get_storage
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Prepare database tables and ensure the CAS bucket exists on startup."""
+    """Prepare database tables on startup."""
 
     await create_db_and_tables()
-    storage = get_storage()
-    await anyio.to_thread.run_sync(storage.ensure_bucket)
     yield
 
 

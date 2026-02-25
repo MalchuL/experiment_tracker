@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any, BinaryIO
+from uuid import UUID
 
 import boto3  # type: ignore[import-not-found]
 from botocore.exceptions import ClientError  # type: ignore[import-not-found]
@@ -22,25 +23,30 @@ class S3Storage:
     """Thin wrapper around boto3 for CAS object storage."""
 
     client: Any
-    bucket: str
 
-    def ensure_bucket(self) -> None:
+    def ensure_bucket(self, bucket_name: str) -> None:
         """Create the bucket if it does not already exist."""
 
         try:
-            self.client.head_bucket(Bucket=self.bucket)
+            self.client.head_bucket(Bucket=bucket_name)
         except ClientError as exc:
             error_code = exc.response.get("Error", {}).get("Code")
             if error_code in {"404", "NoSuchBucket", "NotFound"}:
-                self.client.create_bucket(Bucket=self.bucket)
+                self.client.create_bucket(Bucket=bucket_name)
                 return
             raise
 
-    def stat_blob(self, blob_hash: str) -> bool:
+    def delete_bucket(self, bucket_name: str) -> bool:
+        """Delete the bucket."""
+
+        self.client.delete_bucket(Bucket=bucket_name)
+        return True
+
+    def stat_blob(self, bucket_name: str, blob_hash: str) -> bool:
         """Return True if the blob exists in the configured bucket."""
 
         try:
-            self.client.head_object(Bucket=self.bucket, Key=_blob_key(blob_hash))
+            self.client.head_object(Bucket=bucket_name, Key=_blob_key(blob_hash))
             return True
         except ClientError as exc:
             error_code = exc.response.get("Error", {}).get("Code")
@@ -48,18 +54,28 @@ class S3Storage:
                 return False
             raise
 
-    def put_blob(self, blob_hash: str, data: BinaryIO, size: int) -> None:
+    def put_blob(
+        self, bucket_name: str, blob_hash: str, data: BinaryIO, size: int
+    ) -> None:
         """Upload a blob stream to S3 using the hash-based key."""
 
-        self.client.upload_fileobj(data, self.bucket, _blob_key(blob_hash))
+        self.client.upload_fileobj(data, bucket_name, _blob_key(blob_hash))
 
-    def get_blob(self, blob_hash: str):
+    def get_blob(self, bucket_name: str, blob_hash: str):
         """Get a streaming response for the blob object."""
 
-        body = self.client.get_object(Bucket=self.bucket, Key=_blob_key(blob_hash))[
+        body = self.client.get_object(Bucket=bucket_name, Key=_blob_key(blob_hash))[
             "Body"
         ]
         return _S3BlobStream(body)
+
+    def delete_blob(self, bucket_name: str, blob_hash: str) -> bool:
+        """Delete one blob object by hash."""
+
+        if not self.stat_blob(bucket_name, blob_hash):
+            return False
+        self.client.delete_object(Bucket=bucket_name, Key=_blob_key(blob_hash))
+        return True
 
 
 class _S3BlobStream:
@@ -97,4 +113,4 @@ def get_s3_storage() -> S3Storage:
         aws_access_key_id=settings.s3_access_key_id,
         aws_secret_access_key=settings.s3_secret_access_key,
     )
-    return S3Storage(client=client, bucket=settings.s3_bucket)
+    return S3Storage(client=client)

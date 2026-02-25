@@ -215,6 +215,11 @@ wheels = [
 ]
 
 [[package]]
+name = "experiment-tracker-shared"
+version = "0.1.0"
+source = { editable = "../shared" }
+
+[[package]]
 name = "fastapi"
 version = "0.128.6"
 source = { registry = "https://pypi.org/simple" }
@@ -337,6 +342,7 @@ dependencies = [
     { name = "anyio" },
     { name = "asyncpg" },
     { name = "boto3" },
+    { name = "experiment-tracker-shared" },
     { name = "fastapi" },
     { name = "minio" },
     { name = "pydantic" },
@@ -351,6 +357,7 @@ requires-dist = [
     { name = "anyio", specifier = ">=4.4.0" },
     { name = "asyncpg", specifier = ">=0.31.0" },
     { name = "boto3", specifier = ">=1.35.0" },
+    { name = "experiment-tracker-shared", editable = "../shared" },
     { name = "fastapi", specifier = ">=0.111.0" },
     { name = "minio", specifier = ">=7.2.10" },
     { name = "pydantic", specifier = ">=2.7.0" },

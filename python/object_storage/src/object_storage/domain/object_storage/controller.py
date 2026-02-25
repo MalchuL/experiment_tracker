@@ -13,6 +13,7 @@ from starlette.responses import StreamingResponse
 from object_storage.db import get_async_session
 from object_storage.domain.object_storage.dto import (
     BlobCheckResponseDTO,
+    DeleteBlobResponseDTO,
     SnapshotCreateRequestDTO,
     SnapshotCreateResponseDTO,
     UploadBlobResponseDTO,
@@ -35,6 +36,7 @@ def _build_service(
 
 @router.post("/blobs/check", response_model=BlobCheckResponseDTO)
 async def check_blobs(
+    project_id: UUID = Query(...),
     hashes: list[str] = Body(..., embed=False),
     session: AsyncSession = Depends(get_async_session),
     storage: StorageBackend = Depends(get_storage),
@@ -42,11 +44,12 @@ async def check_blobs(
     """Return which content hashes are missing from CAS metadata."""
 
     service = _build_service(session, storage)
-    return await service.check_blobs(hashes)
+    return await service.check_blobs(project_id, hashes)
 
 
 @router.post("/blobs/upload", response_model=UploadBlobResponseDTO)
 async def upload_blob(
+    project_id: UUID = Query(...),
     hash: str = Query(..., min_length=64, max_length=64),
     file: UploadFile = File(...),
     session: AsyncSession = Depends(get_async_session),
@@ -55,18 +58,19 @@ async def upload_blob(
     """Upload a single blob into CAS storage after hash verification."""
 
     service = _build_service(session, storage)
-    return await service.upload_blob(hash, file)
+    return await service.upload_blob(project_id, hash, file)
 
 
 @router.get("/blobs/{blob_hash}")
 async def download_blob(
     blob_hash: str,
+    project_id: UUID = Query(...),
     session: AsyncSession = Depends(get_async_session),
     storage: StorageBackend = Depends(get_storage),
 ):
     """Stream a single blob from object storage by content hash."""
     service = _build_service(session, storage)
-    blob_stream = await service.get_blob_stream(blob_hash)
+    blob_stream = await service.get_blob_stream(project_id, blob_hash)
 
     async def _iter_stream():
         try:
@@ -93,6 +97,7 @@ async def create_snapshot(
 
 @router.get("/snapshots/{snapshot_id}/download")
 async def download_snapshot(
+    project_id: UUID,
     snapshot_id: UUID,
     session: AsyncSession = Depends(get_async_session),
     storage: StorageBackend = Depends(get_storage),
@@ -100,7 +105,9 @@ async def download_snapshot(
     """Stream a ZIP archive reconstructed from CAS blobs for a snapshot."""
 
     service = _build_service(session, storage)
-    zip_path, filename = await service.prepare_snapshot_download(snapshot_id)
+    zip_path, filename = await service.prepare_snapshot_download(
+        project_id, snapshot_id
+    )
 
     def _cleanup() -> None:
         """Delete the temporary ZIP archive after streaming completes."""
@@ -114,3 +121,16 @@ async def download_snapshot(
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
         background=BackgroundTask(_cleanup),
     )
+
+
+@router.delete("/blobs/{blob_hash}", response_model=DeleteBlobResponseDTO)
+async def delete_blob(
+    blob_hash: str,
+    project_id: UUID = Query(...),
+    session: AsyncSession = Depends(get_async_session),
+    storage: StorageBackend = Depends(get_storage),
+):
+    """Delete one blob from CAS storage and tracked metadata."""
+
+    service = _build_service(session, storage)
+    return await service.delete_blob(project_id, blob_hash)

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import BinaryIO
+from uuid import UUID
 
 from minio import Minio  # type: ignore[import-not-found]
 from minio.error import S3Error  # type: ignore[import-not-found]
@@ -18,38 +19,53 @@ def _blob_key(blob_hash: str) -> str:
 @dataclass
 class MinioStorage:
     client: Minio
-    bucket: str
 
-    def ensure_bucket(self) -> None:
+    def ensure_bucket(self, bucket_name: str) -> None:
         """Create the target bucket if it does not already exist."""
 
-        if not self.client.bucket_exists(self.bucket):
-            self.client.make_bucket(self.bucket)
+        if not self.client.bucket_exists(bucket_name):
+            self.client.make_bucket(bucket_name)
 
-    def stat_blob(self, blob_hash: str) -> bool:
+    def delete_bucket(self, bucket_name: str) -> bool:
+        """Delete the bucket."""
+
+        self.client.remove_bucket(bucket_name)
+        return True
+
+    def stat_blob(self, bucket_name: str, blob_hash: str) -> bool:
         """Return True if a blob exists in MinIO for the given hash."""
 
         try:
-            self.client.stat_object(self.bucket, _blob_key(blob_hash))
+            self.client.stat_object(bucket_name, _blob_key(blob_hash))
             return True
         except S3Error:
             return False
 
-    def put_blob(self, blob_hash: str, data: BinaryIO, size: int) -> None:
+    def put_blob(
+        self, bucket_name: str, blob_hash: str, data: BinaryIO, size: int
+    ) -> None:
         """Upload a blob stream into MinIO under its content hash."""
 
         self.client.put_object(
-            self.bucket,
+            bucket_name,
             _blob_key(blob_hash),
             data,
             length=size,
             part_size=10 * 1024 * 1024,
         )
 
-    def get_blob(self, blob_hash: str):
+    def get_blob(self, bucket_name: str, blob_hash: str):
         """Fetch a blob stream from MinIO by its content hash."""
 
-        return self.client.get_object(self.bucket, _blob_key(blob_hash))
+        return self.client.get_object(bucket_name, _blob_key(blob_hash))
+
+    def delete_blob(self, bucket_name: str, blob_hash: str) -> bool:
+        """Delete one blob by hash from MinIO."""
+
+        if not self.stat_blob(bucket_name, blob_hash):
+            return False
+        self.client.remove_object(bucket_name, _blob_key(blob_hash))
+        return True
 
 
 def get_minio_storage() -> MinioStorage:
@@ -62,4 +78,4 @@ def get_minio_storage() -> MinioStorage:
         secret_key=settings.minio_secret_key,
         secure=settings.minio_secure,
     )
-    return MinioStorage(client=client, bucket=settings.minio_bucket)
+    return MinioStorage(client=client)

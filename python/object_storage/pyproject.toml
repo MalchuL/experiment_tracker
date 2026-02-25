@@ -18,7 +18,14 @@ dependencies = [
     "minio>=7.2.10",
     "boto3>=1.35.0",
     "anyio>=4.4.0",
+    "experiment-tracker-shared",
 ]
+
+[tool.uv.sources]
+experiment-tracker-shared = { path = "../shared", editable = true }
+
+[tool.basedpyright]
+extraPaths = ["../shared/src"]
 
 [project.scripts]
 object-storage = "object_storage.main:run"

@@ -1,5 +1,7 @@
 """Pydantic DTOs for the content-addressable storage API."""
 
+from uuid import UUID
+
 from pydantic import BaseModel, Field
 
 
@@ -14,13 +16,13 @@ class SnapshotFileEntryDTO(BaseModel):
 
     path: str
     hash: str
-    size: int
 
 
 class SnapshotCreateRequestDTO(BaseModel):
     """Request DTO for creating a snapshot from CAS-managed blobs."""
 
-    experiment_name: str
+    project_id: UUID
+    experiment_id: UUID
     files: list[SnapshotFileEntryDTO]
 
 
@@ -34,3 +36,15 @@ class UploadBlobResponseDTO(BaseModel):
     """Response DTO describing the result of a blob upload."""
 
     status: str
+
+
+class DeleteBlobResponseDTO(BaseModel):
+    """Response DTO describing whether a blob was deleted."""
+
+    deleted: bool
+
+
+class DeleteExperimentResponseDTO(BaseModel):
+    """Response DTO describing whether an experiment was deleted."""
+
+    deleted: bool

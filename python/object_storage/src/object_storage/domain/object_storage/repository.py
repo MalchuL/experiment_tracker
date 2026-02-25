@@ -8,7 +8,7 @@ from uuid import UUID
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from object_storage.db.models import Blob, Experiment, Snapshot
+from object_storage.db.models import TrackedBlob, Snapshot
 
 
 class ObjectStorageRepository:
@@ -19,57 +19,58 @@ class ObjectStorageRepository:
 
         self._session = session
 
-    async def fetch_existing_blob_hashes(self, hashes: Iterable[str]) -> set[str]:
+    async def fetch_existing_blob_hashes(
+        self, project_id: UUID, hashes: Iterable[str]
+    ) -> set[str]:
         """Return the subset of hashes that already exist in the blobs table."""
 
         if not hashes:
             return set()
-        result = await self._session.execute(select(Blob.hash).where(Blob.hash.in_(hashes)))
+        result = await self._session.execute(
+            select(TrackedBlob.hash).where(
+                TrackedBlob.project_id == project_id, TrackedBlob.hash.in_(hashes)
+            )
+        )
         return {row[0] for row in result.all()}
 
-    async def fetch_blob(self, blob_hash: str) -> Blob | None:
+    async def fetch_blob(self, project_id: UUID, blob_hash: str) -> TrackedBlob | None:
         """Fetch a blob by hash, or return None if it is absent."""
 
-        return await self._session.get(Blob, blob_hash)
+        return await self._session.get(TrackedBlob, (project_id, blob_hash))
 
-    async def add_blob(self, blob_hash: str, size: int) -> None:
+    async def add_blob(self, project_id: UUID, blob_hash: str, size: int) -> None:
         """Stage a new blob record for insert in the current session."""
 
-        self._session.add(Blob(hash=blob_hash, size=size, ref_count=0))
+        self._session.add(
+            TrackedBlob(project_id=project_id, hash=blob_hash, size=size, ref_count=0)
+        )
 
-    async def get_or_create_experiment(self, name: str) -> Experiment:
-        """Fetch an experiment by name, creating it if it does not exist."""
+    async def create_snapshot(self, manifest: list[dict]) -> Snapshot:
+        """Stage a new snapshot for the given manifest."""
 
-        result = await self._session.execute(select(Experiment).where(Experiment.name == name))
-        experiment = result.scalars().first()
-        if experiment is None:
-            experiment = Experiment(name=name)
-            self._session.add(experiment)
-            await self._session.flush()
-        return experiment
-
-    async def create_snapshot(self, experiment_id: UUID, manifest: list[dict]) -> Snapshot:
-        """Stage a new snapshot for the given experiment and manifest."""
-
-        snapshot = Snapshot(experiment_id=experiment_id, manifest=manifest)
+        snapshot = Snapshot(manifest=manifest)
         self._session.add(snapshot)
         return snapshot
 
-    async def increment_blob_ref_counts(self, hashes: Iterable[str]) -> None:
+    async def increment_blob_ref_counts(
+        self, project_id: UUID, hashes: Iterable[str]
+    ) -> None:
         """Increment reference counts for blobs attached to a snapshot."""
 
         if not hashes:
             return
         await self._session.execute(
-            update(Blob)
-            .where(Blob.hash.in_(hashes))
-            .values(ref_count=Blob.ref_count + 1)
+            update(TrackedBlob)
+            .where(TrackedBlob.project_id == project_id, TrackedBlob.hash.in_(hashes))
+            .values(ref_count=TrackedBlob.ref_count + 1)
         )
 
     async def fetch_snapshot(self, snapshot_id: UUID) -> Snapshot | None:
         """Return a snapshot by id, or None if it does not exist."""
 
-        result = await self._session.execute(select(Snapshot).where(Snapshot.id == snapshot_id))
+        result = await self._session.execute(
+            select(Snapshot).where(Snapshot.id == snapshot_id)
+        )
         return result.scalars().first()
 
     async def commit(self) -> None:
@@ -86,3 +87,12 @@ class ObjectStorageRepository:
         """Rollback the current transaction after an error."""
 
         await self._session.rollback()
+
+    async def delete_blob(self, project_id: UUID, blob_hash: str) -> bool:
+        """Delete one tracked blob metadata row by (project_id, hash)."""
+
+        blob = await self.fetch_blob(project_id, blob_hash)
+        if blob is None:
+            return False
+        await self._session.delete(blob)
+        return True

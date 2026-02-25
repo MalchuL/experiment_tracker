@@ -6,6 +6,8 @@ from uuid import UUID
 
 from object_storage.domain.object_storage.dto import (
     BlobCheckResponseDTO,
+    DeleteBlobResponseDTO,
+    DeleteExperimentResponseDTO,
     SnapshotCreateResponseDTO,
     SnapshotFileEntryDTO,
     UploadBlobResponseDTO,
@@ -34,3 +36,9 @@ def upload_status_to_response(status: str) -> UploadBlobResponseDTO:
     """Wrap an upload status string into a response DTO."""
 
     return UploadBlobResponseDTO(status=status)
+
+
+def delete_blob_to_response(deleted: bool) -> DeleteBlobResponseDTO:
+    """Wrap blob delete result into a response DTO."""
+
+    return DeleteBlobResponseDTO(deleted=deleted)
