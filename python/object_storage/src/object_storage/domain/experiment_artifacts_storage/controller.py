@@ -7,12 +7,12 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, File, Query, UploadFile
 from starlette.responses import StreamingResponse
 
-from object_storage.domain.artifacts_storage.dto import (
+from .dto import (
     DeleteArtifactResponseDTO,
     DeleteExperimentArtifactsResponseDTO,
     UploadArtifactResponseDTO,
 )
-from object_storage.domain.artifacts_storage.service import ArtifactsStorageService
+from .service import ArtifactsStorageService
 from object_storage.storage import StorageBackend, get_storage
 
 router = APIRouter(prefix="/artifacts")

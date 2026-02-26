@@ -1,6 +1,6 @@
 """Mapping helpers for artifacts domain DTOs."""
 
-from object_storage.domain.artifacts_storage.dto import (
+from .dto import (
     DeleteArtifactResponseDTO,
     DeleteExperimentArtifactsResponseDTO,
     ExperimentArtifactsSizeResponseDTO,
@@ -8,7 +8,9 @@ from object_storage.domain.artifacts_storage.dto import (
 )
 
 
-def upload_to_response(path: str, size: int, status: str = "ok") -> UploadArtifactResponseDTO:
+def upload_to_response(
+    path: str, size: int, status: str = "ok"
+) -> UploadArtifactResponseDTO:
     """Build upload response DTO."""
 
     return UploadArtifactResponseDTO(status=status, path=path, size=size)

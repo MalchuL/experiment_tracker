@@ -257,6 +257,7 @@ class ObjectStorageService:
         spool.seek(0)
         return spool, size, hasher.hexdigest()
 
+    # TODO Add deletion of the temporary file after the zip is downloaded
     def _build_zip(
         self, storage: StorageBackend, project_id: UUID, manifest: list[dict]
     ) -> str:

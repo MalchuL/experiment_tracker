@@ -8,11 +8,10 @@ from uuid import UUID, uuid4
 
 from fastapi import HTTPException, UploadFile
 
-from object_storage.domain.artifacts_storage import mapper
-from object_storage.domain.artifacts_storage.dto import (
+from . import mapper
+from .dto import (
     DeleteArtifactResponseDTO,
     DeleteExperimentArtifactsResponseDTO,
-    ExperimentArtifactsSizeResponseDTO,
     UploadArtifactResponseDTO,
 )
 from object_storage.storage import StorageBackend
