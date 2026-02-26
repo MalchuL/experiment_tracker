@@ -36,7 +36,7 @@ class ObjectStorageRepository:
     async def fetch_blob(self, project_id: UUID, blob_hash: str) -> TrackedBlob | None:
         """Fetch a blob by hash, or return None if it is absent."""
 
-        return await self._session.get(TrackedBlob, (project_id, blob_hash))
+        return await self._session.get(TrackedBlob, (blob_hash, project_id))
 
     async def add_blob(self, project_id: UUID, blob_hash: str, size: int) -> None:
         """Stage a new blob record for insert in the current session."""

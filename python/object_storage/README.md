@@ -24,3 +24,16 @@ uv run uvicorn object_storage.main:app --reload --port 8002 --log-level debug
 uv run uvicorn object_storage.main:app --reload --port 8002 --log-level debug
 ```
 
+## Tests (isolated with testcontainers)
+
+Tests use ephemeral Docker containers for Postgres and MinIO, then override
+`DATABASE_URL` and `S3_*` environment variables at runtime. This prevents
+overlap with local development services and does not persist test data.
+
+Run:
+```
+cd python/object_storage
+uv sync --extra dev
+uv run pytest -q
+```
+

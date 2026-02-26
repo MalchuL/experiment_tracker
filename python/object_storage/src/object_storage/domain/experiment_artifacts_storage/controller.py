@@ -7,32 +7,24 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, File, Query, UploadFile
 from starlette.responses import StreamingResponse
 
+from object_storage.api.service_dependencies import get_experiment_artifacts_service
 from .dto import (
     DeleteArtifactResponseDTO,
     DeleteExperimentArtifactsResponseDTO,
     UploadArtifactResponseDTO,
 )
 from .service import ArtifactsStorageService
-from object_storage.storage import StorageBackend, get_storage
 
 router = APIRouter(prefix="/artifacts")
-
-
-def _build_service(storage: StorageBackend) -> ArtifactsStorageService:
-    """Create artifacts service instance for a request."""
-
-    return ArtifactsStorageService(storage)
-
 
 @router.post("/upload", response_model=UploadArtifactResponseDTO)
 async def upload_artifact(
     experiment_id: UUID = Query(...),
     file: UploadFile = File(...),
-    storage: StorageBackend = Depends(get_storage),
+    service: ArtifactsStorageService = Depends(get_experiment_artifacts_service),
 ):
     """Upload one artifact file for an experiment."""
 
-    service = _build_service(storage)
     return await service.upload_artifact(experiment_id, file)
 
 
@@ -40,11 +32,10 @@ async def upload_artifact(
 async def download_artifact(
     experiment_id: UUID,
     path: str = Query(..., min_length=1),
-    storage: StorageBackend = Depends(get_storage),
+    service: ArtifactsStorageService = Depends(get_experiment_artifacts_service),
 ):
     """Stream one artifact for an experiment and path."""
 
-    service = _build_service(storage)
     artifact_stream = await service.get_artifact_stream(experiment_id, path)
 
     async def _iter_stream():
@@ -62,11 +53,10 @@ async def download_artifact(
 async def delete_artifact(
     experiment_id: UUID,
     path: str = Query(..., min_length=1),
-    storage: StorageBackend = Depends(get_storage),
+    service: ArtifactsStorageService = Depends(get_experiment_artifacts_service),
 ):
     """Delete one artifact for an experiment."""
 
-    service = _build_service(storage)
     return await service.delete_artifact(experiment_id, path)
 
 
@@ -75,9 +65,8 @@ async def delete_artifact(
 )
 async def delete_experiment_artifacts(
     experiment_id: UUID,
-    storage: StorageBackend = Depends(get_storage),
+    service: ArtifactsStorageService = Depends(get_experiment_artifacts_service),
 ):
     """Delete all artifacts for one experiment."""
 
-    service = _build_service(storage)
     return await service.delete_experiment(experiment_id)

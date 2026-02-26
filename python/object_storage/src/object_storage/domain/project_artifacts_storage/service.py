@@ -29,6 +29,7 @@ from object_storage.storage import StorageBackend
 
 class ObjectStorageService:
     _SHA256_HEX_RE = re.compile(r"^[0-9a-fA-F]{64}$")
+    _INVALID_PATH_CHARS_RE = re.compile(r"[:\x00-\x1f]")
 
     # 10MB for spooled uploads (temporary file on RAM memory)
     MAX_SPOOL_SIZE = 10 * 1024 * 1024
@@ -232,10 +233,21 @@ class ObjectStorageService:
         return path.strip().replace("\\", "/")
 
     def _validate_relative_path(self, path: str) -> bool:
-        """Reject absolute or parent-traversing paths in snapshot manifests."""
+        """
+        Reject unsafe manifest paths.
+
+        Rules:
+        - must be relative
+        - must not traverse to parent directories
+        - must not include ":" or control chars (e.g. newlines/tabs)
+        """
 
         pure_path = PurePosixPath(path)
-        if path.startswith("/") or ".." in pure_path.parts:
+        if (
+            path.startswith("/")
+            or ".." in pure_path.parts
+            or self._INVALID_PATH_CHARS_RE.search(path) is not None
+        ):
             return False
         return True
 
@@ -276,7 +288,15 @@ class ObjectStorageService:
                 blob_hash = entry.get("hash")
                 if not path or not blob_hash:
                     continue
-                self._validate_relative_path(path)
+                if not self._validate_relative_path(path):
+                    raise HTTPException(
+                        status_code=400,
+                        detail=(
+                            f"Invalid path in snapshot: {path}. "
+                            "Path must be relative and not contain '..', start with '/', "
+                            "or include ':'/control characters."
+                        ),
+                    )
                 blob_hash = self._normalize_hash(str(blob_hash))
                 bucket_name = self._get_bucket_name(project_id)
                 exists = storage.stat_blob(bucket_name, blob_hash)
