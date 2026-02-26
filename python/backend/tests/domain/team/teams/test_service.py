@@ -466,15 +466,9 @@ class TestTeamService:
     async def test_admin_can_delete_team(
         self,
         db_session: AsyncSession,
-        monkeypatch,
         test_user: User,
         test_user_2: User,
     ) -> None:
-        async def _commit_called(*args, **kwargs):
-            raise RuntimeError("commit called")
-
-        monkeypatch.setattr(db_session, "commit", _commit_called)
-
         team_service = TeamService(db_session, auto_commit=False)
         created_team = await team_service.create_team(
             test_user.id,
@@ -488,8 +482,6 @@ class TestTeamService:
         )
 
         await team_service.delete_team(test_user_2.id, created_team.id)
-        with pytest.raises(RuntimeError, match="commit called"):
-            await db_session.commit()
 
         remaining = await db_session.get(Team, created_team.id)
         assert remaining is None

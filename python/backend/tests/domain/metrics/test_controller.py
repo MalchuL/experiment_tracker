@@ -12,7 +12,7 @@ from db.database import get_async_session
 from domain.experiments.controller import router as experiments_router
 from domain.metrics.controller import router as metrics_router
 from domain.projects.controller import router as projects_router
-from domain.scalars.dependencies import get_scalars_service
+from api.routes.service_dependencies import get_scalars_service
 from domain.scalars.service import NoOpScalarsService
 from domain.team.teams.controller import router as teams_router
 from models import User
@@ -126,7 +126,6 @@ class TestMetricControllerCreate:
                 "name": "accuracy",
                 "value": 0.91,
                 "step": 1,
-                "direction": "maximize",
             },
         )
 
@@ -150,7 +149,6 @@ class TestMetricControllerCreate:
                 "name": "loss",
                 "value": 0.2,
                 "step": 1,
-                "direction": "minimize",
             },
         )
 
@@ -167,7 +165,6 @@ class TestMetricControllerCreate:
                 "name": "missing",
                 "value": 1.0,
                 "step": 0,
-                "direction": "maximize",
             },
         )
 

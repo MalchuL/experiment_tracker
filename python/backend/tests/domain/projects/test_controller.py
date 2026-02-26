@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from api.routes.auth import get_current_user_dual
 from db.database import get_async_session
 from domain.projects.controller import router as projects_router
-from domain.scalars.dependencies import get_scalars_service
+from api.routes.service_dependencies import get_scalars_service
 from domain.scalars.service import NoOpScalarsService
 from domain.team.teams.controller import router as teams_router
 from models import User

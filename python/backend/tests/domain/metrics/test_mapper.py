@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from domain.metrics.dto import MetricCreateDTO, MetricUpdateDTO
 from domain.metrics.mapper import MetricMapper
 from models import Metric as MetricModel
-from models import MetricDirection, Project, User, Experiment
+from models import Project, User, Experiment
 
 
 async def _create_project(
@@ -51,7 +51,6 @@ async def _create_metric(
         name=name,
         value=0.9,
         step=1,
-        direction=MetricDirection.MAXIMIZE,
         created_at=created_at,
     )
     db_session.add(metric)
@@ -78,7 +77,6 @@ class TestMetricMapper:
         assert dto.name == "accuracy"
         assert dto.value == 0.9
         assert dto.step == 1
-        assert dto.direction == MetricDirection.MAXIMIZE
         assert dto.created_at == datetime(2024, 1, 1)
 
     async def test_metric_list_schema_to_dto(
@@ -102,7 +100,6 @@ class TestMetricMapper:
             name="loss",
             value=1.23,
             step=0,
-            direction=MetricDirection.MINIMIZE,
         )
 
         metric = mapper.metric_create_dto_to_schema(dto)
@@ -111,7 +108,6 @@ class TestMetricMapper:
         assert metric.name == "loss"
         assert metric.value == 1.23
         assert metric.step == 0
-        assert metric.direction == MetricDirection.MINIMIZE
 
     def test_metric_update_dto_to_update_dict(self):
         mapper = MetricMapper()
@@ -119,7 +115,6 @@ class TestMetricMapper:
             name="updated",
             value=0.8,
             step=2,
-            direction=MetricDirection.MAXIMIZE,
         )
 
         updates = mapper.metric_update_dto_to_update_dict(dto)
@@ -127,4 +122,3 @@ class TestMetricMapper:
         assert updates["name"] == "updated"
         assert updates["value"] == 0.8
         assert updates["step"] == 2
-        assert updates["direction"] == MetricDirection.MAXIMIZE

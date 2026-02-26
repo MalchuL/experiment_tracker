@@ -14,7 +14,7 @@ class TestMetricDTO:
         "name": "accuracy",
         "value": 0.95,
         "step": 3,
-        "direction": "maximize",
+        "label": None,
         "createdAt": "2021-01-01T00:00:00Z",
     }
 
@@ -26,7 +26,6 @@ class TestMetricDTO:
         assert dto.name == self.INPUT_DATA["name"]
         assert dto.value == self.INPUT_DATA["value"]
         assert dto.step == self.INPUT_DATA["step"]
-        assert dto.direction == self.INPUT_DATA["direction"]
         assert dto.created_at == datetime.fromisoformat(self.INPUT_DATA["createdAt"])
 
     def test_metric_dto_serialization(self):
@@ -49,7 +48,7 @@ class TestMetricCreateDTO:
         "name": "loss",
         "value": 1.23,
         "step": 0,
-        "direction": "minimize",
+        "label": None,
     }
 
     def test_metric_create_dto_validation(self):
@@ -59,7 +58,6 @@ class TestMetricCreateDTO:
         assert dto.name == self.INPUT_DATA["name"]
         assert dto.value == self.INPUT_DATA["value"]
         assert dto.step == self.INPUT_DATA["step"]
-        assert dto.direction == self.INPUT_DATA["direction"]
 
     def test_metric_create_dto_serialization(self):
         converter = DtoConverter[MetricCreateDTO](MetricCreateDTO)
@@ -80,7 +78,7 @@ class TestMetricUpdateDTO:
         "name": "updated-loss",
         "value": 0.9,
         "step": 2,
-        "direction": "maximize",
+        "label": None,
     }
 
     def test_metric_update_dto_validation(self):
@@ -89,7 +87,6 @@ class TestMetricUpdateDTO:
         assert dto.name == self.INPUT_DATA["name"]
         assert dto.value == self.INPUT_DATA["value"]
         assert dto.step == self.INPUT_DATA["step"]
-        assert dto.direction == self.INPUT_DATA["direction"]
 
     def test_metric_update_dto_serialization(self):
         converter = DtoConverter[MetricUpdateDTO](MetricUpdateDTO)

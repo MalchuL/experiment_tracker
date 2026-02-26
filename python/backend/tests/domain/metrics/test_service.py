@@ -7,10 +7,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from domain.metrics.dto import MetricCreateDTO, MetricUpdateDTO
 from domain.metrics.error import MetricNotAccessibleError, MetricNotFoundError
 from domain.metrics.service import MetricService
+from domain.projects.service import ProjectService
 from domain.rbac.permissions import ProjectActions
 from domain.rbac.service import PermissionService
 from models import Metric as MetricModel
-from models import MetricDirection, Project, User, Experiment
+from models import Project, User, Experiment
 
 
 async def _create_project(
@@ -53,7 +54,6 @@ async def _create_metric(
     name: str,
     value: float = 0.9,
     step: int = 1,
-    direction: MetricDirection = MetricDirection.MAXIMIZE,
     created_at: datetime | None = None,
 ) -> MetricModel:
     metric = MetricModel(
@@ -61,7 +61,6 @@ async def _create_metric(
         name=name,
         value=value,
         step=step,
-        direction=direction,
         created_at=created_at,
     )
     db_session.add(metric)
@@ -135,7 +134,6 @@ class TestMetricService:
             name="loss",
             value=1.23,
             step=0,
-            direction=MetricDirection.MINIMIZE,
         )
 
         with pytest.raises(MetricNotAccessibleError):
@@ -161,7 +159,6 @@ class TestMetricService:
             name="loss",
             value=1.23,
             step=2,
-            direction=MetricDirection.MINIMIZE,
         )
 
         created = await metric_service.create_metric(test_user, dto)
@@ -171,7 +168,6 @@ class TestMetricService:
         assert created.name == "loss"
         assert created.value == 1.23
         assert created.step == 2
-        assert created.direction == MetricDirection.MINIMIZE
 
     async def test_update_metric_permission_denied(
         self,
@@ -259,10 +255,11 @@ class TestMetricService:
         test_user: User,
     ) -> None:
         project = await _create_project(db_session, test_user)
+        project_service = ProjectService(db_session)
 
         with pytest.raises(MetricNotAccessibleError):
             await metric_service.get_aggregated_metrics_for_project(
-                test_user, project.id
+                test_user, project.id, project_service
             )
 
     async def test_get_aggregated_metrics_for_project_selects_aggregates(
@@ -289,6 +286,7 @@ class TestMetricService:
             },
         ]
         project = await _create_project(db_session, test_user, metrics=project_metrics)
+        project_service = ProjectService(db_session)
         experiment = await _create_experiment(db_session, project, "Experiment")
         metric_accuracy_last = await _create_metric(
             db_session, experiment, "accuracy", value=0.5, step=1
@@ -324,7 +322,7 @@ class TestMetricService:
         )
 
         result = await metric_service.get_aggregated_metrics_for_project(
-            test_user, project.id
+            test_user, project.id, project_service
         )
 
         assert len(result) == 3
@@ -353,6 +351,7 @@ class TestMetricService:
             }
         ]
         project = await _create_project(db_session, test_user, metrics=project_metrics)
+        project_service = ProjectService(db_session)
         experiment = await _create_experiment(db_session, project, "Experiment")
         await _create_metric(
             db_session, experiment, "average_metric", value=0.4, step=1
@@ -374,5 +373,5 @@ class TestMetricService:
 
         with pytest.raises(NotImplementedError):
             await metric_service.get_aggregated_metrics_for_project(
-                test_user, project.id
+                test_user, project.id, project_service
             )

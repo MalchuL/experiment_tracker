@@ -4,8 +4,7 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from domain.experiments.dto import ExperimentCreateDTO, ExperimentUpdateDTO
-from domain.experiments.mapper import CreateDTOToSchemaProps, ExperimentMapper
-from domain.experiments.utils import ExperimentParseResult
+from domain.experiments.mapper import ExperimentMapper
 from models import Experiment, ExperimentStatus, Project, User
 
 
@@ -65,16 +64,6 @@ async def _create_experiment(
 
 
 class TestExperimentMapper:
-    def test_experiment_parse_result_to_dto(self):
-        mapper = ExperimentMapper()
-        result = ExperimentParseResult(num="1", parent="root", change="seed")
-
-        dto = mapper.experiment_parse_result_to_dto(result)
-
-        assert dto.num == "1"
-        assert dto.parent == "root"
-        assert dto.change == "seed"
-
     async def test_experiment_schema_to_dto(
         self, db_session: AsyncSession, test_user: User
     ):
@@ -153,18 +142,13 @@ class TestExperimentMapper:
             name="Experiment",
             description="Desc",
             status=ExperimentStatus.PLANNED,
-            parent_experiment_id=None,
+            parent_experiment_id=parent.id,
             features={"lr": 0.1},
             git_diff="diff",
             color="#123456",
             order=1,
         )
-        props = CreateDTOToSchemaProps(
-            owner_id=test_user.id,
-            parent_experiment_id=parent.id,
-        )
-
-        experiment = mapper.experiment_create_dto_to_schema(dto, props)
+        experiment = mapper.experiment_create_dto_to_schema(dto)
         db_session.add(experiment)
         await db_session.flush()
         await db_session.refresh(experiment)

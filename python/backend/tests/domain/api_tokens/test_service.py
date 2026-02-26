@@ -44,7 +44,7 @@ class TestApiTokenService:
         assert dto.token.startswith("pat_")
         assert dto.created_at is not None
 
-        stored = await api_token_service.repo.get_by_id(dto.id, test_user.id)
+        stored = await api_token_service.api_token_repository.get_by_id(dto.id, test_user.id)
         assert stored is not None
         assert stored.token_hash == hash_token(dto.token)
 
@@ -125,10 +125,10 @@ class TestApiTokenService:
             scopes=["projects:read"],
             expires_in_days=None,
         )
-        token = await api_token_service.repo.get_by_id(created.id, test_user.id)
+        token = await api_token_service.api_token_repository.get_by_id(created.id, test_user.id)
         assert token is not None
         token.revoked = True
-        await api_token_service.repo.update(token)
+        await api_token_service.api_token_repository.update(token)
 
         with pytest.raises(ApiTokenRevokedError):
             await api_token_service.validate_token(created.token)
@@ -143,10 +143,10 @@ class TestApiTokenService:
             scopes=["projects:read"],
             expires_in_days=None,
         )
-        token = await api_token_service.repo.get_by_id(created.id, test_user.id)
+        token = await api_token_service.api_token_repository.get_by_id(created.id, test_user.id)
         assert token is not None
         token.expires_at = utc_now() - timedelta(days=1)
-        await api_token_service.repo.update(token)
+        await api_token_service.api_token_repository.update(token)
 
         with pytest.raises(ApiTokenExpiredError):
             await api_token_service.validate_token(created.token)
@@ -165,6 +165,6 @@ class TestApiTokenService:
         user = await api_token_service.get_user_for_token(created.token)
         assert user.id == test_user.id
 
-        token = await api_token_service.repo.get_by_id(created.id, test_user.id)
+        token = await api_token_service.api_token_repository.get_by_id(created.id, test_user.id)
         assert token is not None
         assert token.last_used_at is not None

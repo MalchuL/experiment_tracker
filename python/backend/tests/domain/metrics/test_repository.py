@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from domain.metrics.repository import MetricRepository
 from models import Metric as MetricModel
-from models import MetricDirection, Project, User, Experiment
+from models import Project, User, Experiment
 
 
 async def _create_project(
@@ -51,7 +51,6 @@ async def _create_metric(
         name=name,
         value=0.9,
         step=0,
-        direction=MetricDirection.MAXIMIZE,
         created_at=created_at,
     )
     db_session.add(metric)
