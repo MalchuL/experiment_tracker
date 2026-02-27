@@ -1,10 +1,10 @@
 from enum import Enum
 from datetime import datetime
 from uuid import UUID
-from api.cache import get_cache
-from app.infrastructure.cache.cache import Cache
+
 from fastapi import APIRouter, Depends, HTTPException, Query
-from db.clickhouse import get_clickhouse_client
+
+from api.service_dependencies import get_scalars_service
 from .dto import (
     LastLoggedExperimentsRequestDTO,
     LastLoggedExperimentsResultDTO,
@@ -22,11 +22,9 @@ async def log_scalar(
     project_id: UUID,
     experiment_id: UUID,
     payload: LogScalarRequestDTO,
-    client=Depends(get_clickhouse_client),
-    cache: Cache | None = Depends(get_cache),
+    service: ScalarsService = Depends(get_scalars_service),
 ):
     try:
-        service = ScalarsService(client, cache)
         return await service.log_scalar(project_id, experiment_id, payload)
     except ValueError as exc:
         if str(exc) == "Scalars table does not exist":
@@ -39,10 +37,8 @@ async def log_scalars_batch(
     project_id: UUID,
     experiment_id: UUID,
     payload: LogScalarsRequestDTO,
-    client=Depends(get_clickhouse_client),
-    cache: Cache | None = Depends(get_cache),
+    service: ScalarsService = Depends(get_scalars_service),
 ):
-    service = ScalarsService(client, cache)
     return await service.log_scalars(project_id, experiment_id, payload)
 
 
@@ -58,14 +54,11 @@ async def get_scalars(
     experiment_id: list[UUID] | None = Query(default=None),
     sampling: Sampling = Query(default=Sampling.RESERVOIR),
     max_points: int | None = Query(default=None, ge=1),
-    client=Depends(get_clickhouse_client),
     return_tags: bool = Query(default=False),
     start_time: datetime | None = Query(default=None),
     end_time: datetime | None = Query(default=None),
-    cache: Cache | None = Depends(get_cache),
+    service: ScalarsService = Depends(get_scalars_service),
 ):
-
-    service = ScalarsService(client, cache)
     return await service.get_scalars(
         project_id,
         experiment_id,
@@ -83,10 +76,8 @@ async def get_scalars(
 async def get_last_logged_experiments(
     project_id: UUID,
     payload: LastLoggedExperimentsRequestDTO,
-    client=Depends(get_clickhouse_client),
-    cache: Cache | None = Depends(get_cache),
+    service: ScalarsService = Depends(get_scalars_service),
 ):
-    service = ScalarsService(client, cache)
     return await service.get_last_logged_experiments(
         project_id,
         experiment_ids=payload.experiment_ids,

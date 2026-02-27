@@ -1,11 +1,9 @@
 from datetime import datetime
 from uuid import UUID
 
-from api.cache import get_cache
-from app.infrastructure.cache.cache import Cache
-from db.clickhouse import get_clickhouse_client
 from fastapi import APIRouter, Depends, HTTPException, Query
 
+from api.service_dependencies import get_objects_service
 from .dto import (
     LogObjectRequestDTO,
     LogObjectResponseDTO,
@@ -23,11 +21,9 @@ async def log_object(
     project_id: UUID,
     experiment_id: UUID,
     payload: LogObjectRequestDTO,
-    client=Depends(get_clickhouse_client),
-    _cache: Cache | None = Depends(get_cache),
+    service: ObjectsService = Depends(get_objects_service),
 ):
     try:
-        service = ObjectsService(client)
         return await service.log_object(project_id, experiment_id, payload)
     except ValueError as exc:
         if str(exc) == "Objects table does not exist":
@@ -43,10 +39,8 @@ async def log_objects_batch(
     project_id: UUID,
     experiment_id: UUID,
     payload: LogObjectsRequestDTO,
-    client=Depends(get_clickhouse_client),
-    _cache: Cache | None = Depends(get_cache),
+    service: ObjectsService = Depends(get_objects_service),
 ):
-    service = ObjectsService(client)
     return await service.log_objects(project_id, experiment_id, payload)
 
 
@@ -58,10 +52,8 @@ async def get_objects(
     name: list[str] | None = Query(default=None),
     start_time: datetime | None = Query(default=None),
     end_time: datetime | None = Query(default=None),
-    client=Depends(get_clickhouse_client),
-    _cache: Cache | None = Depends(get_cache),
+    service: ObjectsService = Depends(get_objects_service),
 ):
-    service = ObjectsService(client)
     return await service.get_objects(
         project_id=project_id,
         experiment_id=experiment_id,

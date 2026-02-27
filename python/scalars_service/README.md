@@ -23,3 +23,14 @@ Example: `select * from default.scalars_string`
 
 # Run Scalars Service
 `uv run uvicorn api.main:app --reload --port 8001 --log-level debug`
+
+# Tests (isolated with testcontainers)
+
+Tests use ephemeral Docker containers for ClickHouse, then override `CLICKHOUSE_URL` at runtime. This prevents overlap with local development services.
+
+Run:
+```
+cd python/scalars_service
+uv sync --group dev
+uv run pytest tests/test_integration_clickhouse.py -v
+```
