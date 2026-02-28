@@ -17,15 +17,16 @@ async def project_with_tables(clickhouse_url: str, http_client: AsyncClient) -> 
 
 
 @pytest.mark.asyncio
-async def test_log_scalar_404_when_table_missing(clickhouse_url: str, http_client: AsyncClient) -> None:
+async def test_log_scalar_creates_table_when_missing(clickhouse_url: str, http_client: AsyncClient) -> None:
+    """Logging without pre-created project table creates tables on-the-fly and succeeds."""
     project_id = uuid4()
     experiment_id = uuid4()
     resp = await http_client.post(
         f"/api/scalars/log/{project_id}/{experiment_id}",
         json={"scalars": {"loss": 0.5}, "step": 1, "tags": None},
     )
-    assert resp.status_code == 404
-    assert "table does not exist" in resp.json()["detail"].lower()
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "logged"
 
 
 @pytest.mark.asyncio
@@ -84,7 +85,7 @@ async def test_get_scalars_returns_logged_data(clickhouse_url: str, http_client:
 async def test_get_last_logged_experiments_empty(clickhouse_url: str, http_client: AsyncClient, project_with_tables: tuple) -> None:
     project_id, _ = project_with_tables
     resp = await http_client.post(
-        f"/api/scalars/last_logged/{project_id}",
+        f"/api/last_logged/{project_id}",
         json={"experiment_ids": None},
     )
     assert resp.status_code == 200
@@ -99,7 +100,7 @@ async def test_get_last_logged_experiments_after_log(clickhouse_url: str, http_c
         json={"scalars": {"loss": 0.5}, "step": 1, "tags": None},
     )
     resp = await http_client.post(
-        f"/api/scalars/last_logged/{project_id}",
+        f"/api/last_logged/{project_id}",
         json={"experiment_ids": [str(experiment_id)]},
     )
     assert resp.status_code == 200

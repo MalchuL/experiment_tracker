@@ -11,26 +11,37 @@ from app.infrastructure.cache.cache import Cache
 from db.clickhouse import get_clickhouse_client
 
 if TYPE_CHECKING:
-    from app.domain.objects.service import ObjectsService
+    from app.domain.last_logged.service import LastLoggedService
+    from app.domain.artifacts_info.service import ArtifactsInfoService
     from app.domain.projects.service import ProjectsService
     from app.domain.scalars.service import ScalarsService
+
+
+async def get_last_logged_service(
+    client=Depends(get_clickhouse_client),
+) -> "LastLoggedService":
+    from app.domain.last_logged.service import LastLoggedService
+
+    return LastLoggedService(client)
 
 
 async def get_scalars_service(
     client=Depends(get_clickhouse_client),
     cache: Cache | None = Depends(get_cache),
+    last_logged_service: "LastLoggedService" = Depends(get_last_logged_service),
 ) -> "ScalarsService":
     from app.domain.scalars.service import ScalarsService
 
-    return ScalarsService(client, cache)
+    return ScalarsService(client, cache, last_logged_service)
 
 
-async def get_objects_service(
+async def get_artifacts_info_service(
     client=Depends(get_clickhouse_client),
-) -> "ObjectsService":
-    from app.domain.objects.service import ObjectsService
+    last_logged_service: "LastLoggedService" = Depends(get_last_logged_service),
+) -> "ArtifactsInfoService":
+    from app.domain.artifacts_info.service import ArtifactsInfoService
 
-    return ObjectsService(client)
+    return ArtifactsInfoService(client, last_logged_service)
 
 
 async def get_projects_service(

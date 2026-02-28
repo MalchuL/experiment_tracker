@@ -1,7 +1,7 @@
-from uuid import UUID
 from typing import Dict, List, Optional
+from uuid import UUID
+
 from pydantic import BaseModel
-from datetime import datetime
 
 
 class StepTagsDTO(BaseModel):
@@ -23,19 +23,6 @@ class ExperimentsScalarsPointsResultDTO(BaseModel):
 
 class ScalarsPointsResultDTO(BaseModel):
     data: List[ExperimentsScalarsPointsResultDTO]
-
-
-class LastLoggedExperimentsRequestDTO(BaseModel):
-    experiment_ids: List[UUID] | None = None
-
-
-class LastLoggedExperimentDTO(BaseModel):
-    experiment_id: UUID
-    last_modified: datetime
-
-
-class LastLoggedExperimentsResultDTO(BaseModel):
-    data: List[LastLoggedExperimentDTO]
 
 
 class LogScalarRequestDTO(BaseModel):

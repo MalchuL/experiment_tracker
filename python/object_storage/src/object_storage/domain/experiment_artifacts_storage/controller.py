@@ -15,11 +15,12 @@ from .dto import (
 )
 from .service import ArtifactsStorageService
 
-router = APIRouter(prefix="/artifacts")
+router = APIRouter(prefix="/experiment-artifacts")
 
-@router.post("/upload", response_model=UploadArtifactResponseDTO)
+
+@router.post("/{experiment_id}/upload", response_model=UploadArtifactResponseDTO)
 async def upload_artifact(
-    experiment_id: UUID = Query(...),
+    experiment_id: UUID,
     file: UploadFile = File(...),
     service: ArtifactsStorageService = Depends(get_experiment_artifacts_service),
 ):
@@ -28,7 +29,7 @@ async def upload_artifact(
     return await service.upload_artifact(experiment_id, file)
 
 
-@router.get("/{experiment_id}")
+@router.get("/{experiment_id}/download")
 async def download_artifact(
     experiment_id: UUID,
     path: str = Query(..., min_length=1),

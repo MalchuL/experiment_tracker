@@ -21,6 +21,7 @@ from .service import ObjectStorageService
 
 router = APIRouter(prefix="/project-artifacts")
 
+
 @router.post("/{project_id}/check", response_model=BlobCheckResponseDTO)
 async def check_blobs(
     project_id: UUID,
@@ -98,6 +99,9 @@ async def download_snapshot(
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
         background=BackgroundTask(_cleanup),
     )
+
+
+# TODO: Add delete snapshot endpoint
 
 
 @router.delete("/{project_id}/blobs/{blob_hash}", response_model=DeleteBlobResponseDTO)

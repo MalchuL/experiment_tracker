@@ -2,12 +2,10 @@ from enum import Enum
 from datetime import datetime
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Query
 
 from api.service_dependencies import get_scalars_service
 from .dto import (
-    LastLoggedExperimentsRequestDTO,
-    LastLoggedExperimentsResultDTO,
     LogScalarRequestDTO,
     LogScalarsRequestDTO,
     ScalarsPointsResultDTO,
@@ -24,12 +22,7 @@ async def log_scalar(
     payload: LogScalarRequestDTO,
     service: ScalarsService = Depends(get_scalars_service),
 ):
-    try:
-        return await service.log_scalar(project_id, experiment_id, payload)
-    except ValueError as exc:
-        if str(exc) == "Scalars table does not exist":
-            raise HTTPException(status_code=404, detail=str(exc))
-        raise HTTPException(status_code=500, detail=str(exc))
+    return await service.log_scalar(project_id, experiment_id, payload)
 
 
 @router.post("/log_batch/{project_id}/{experiment_id}")
@@ -69,16 +62,3 @@ async def get_scalars(
     )
 
 
-@router.post(
-    "/last_logged/{project_id}",
-    response_model=LastLoggedExperimentsResultDTO,
-)
-async def get_last_logged_experiments(
-    project_id: UUID,
-    payload: LastLoggedExperimentsRequestDTO,
-    service: ScalarsService = Depends(get_scalars_service),
-):
-    return await service.get_last_logged_experiments(
-        project_id,
-        experiment_ids=payload.experiment_ids,
-    )

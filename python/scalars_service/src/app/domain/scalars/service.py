@@ -5,8 +5,6 @@ from uuid import UUID, uuid4
 
 from app.domain.scalars.dto import (  # type: ignore
     ExperimentsScalarsPointsResultDTO,
-    LastLoggedExperimentDTO,
-    LastLoggedExperimentsResultDTO,
     LogScalarRequestDTO,
     LogScalarsRequestDTO,
     LogScalarResponseDTO,
@@ -64,9 +62,10 @@ def clean_scalar_name(name: str) -> str:
 
 # TODO: Add cache invalidation when scalar is logged (for case when we get all elements from cache (when experiment_id is None)))
 class ScalarsService:
-    def __init__(self, client, cache: Cache | None = None):
+    def __init__(self, client, cache: Cache | None = None, last_logged_service=None):
         self.client = client
         self.cache = cache
+        self.last_logged_service = last_logged_service
         self.default_max_points: int = 1000
 
     async def log_scalar(
@@ -83,8 +82,7 @@ class ScalarsService:
             LogScalarResponseDTO: The response containing the status and warnings.
         """
         table_name = SCALARS_DB_UTILS.safe_scalars_table_name(project_id)
-        if not await self._table_exists(table_name):
-            raise ValueError("Scalars table does not exist")
+        await self._ensure_scalars_table(project_id)
         # We must invalidate cache because we are logging a scalar for a given experiment.
         if self.cache is not None:
             await self._invalidate_cache(project_id, experiment_id)
@@ -115,15 +113,15 @@ class ScalarsService:
             request.tags or [],
         ] + [filtered_scalars[name] for name in mapped_columns.keys()]
         await self.client.insert(table_name, [row], column_names=columns)
-        await self._touch_last_logged_experiment(project_id, experiment_id, logged_at)
+        if self.last_logged_service:
+            await self.last_logged_service.touch(project_id, experiment_id, logged_at)
         return LogScalarResponseDTO(status="logged", warnings=warnings or None)
 
     async def log_scalars(
         self, project_id: UUID, experiment_id: UUID, request: LogScalarsRequestDTO
     ):
         table_name = SCALARS_DB_UTILS.safe_scalars_table_name(project_id)
-        if not await self._table_exists(table_name):
-            raise ValueError("Scalars table does not exist")
+        await self._ensure_scalars_table(project_id)
         if self.cache is not None:
             await self._invalidate_cache(project_id, experiment_id)
         if not request.scalars:
@@ -173,9 +171,10 @@ class ScalarsService:
             rows.append(row)
         if rows:
             await self.client.insert(table_name, rows, column_names=columns)
-            await self._touch_last_logged_experiment(
-                project_id, experiment_id, last_modified
-            )
+            if self.last_logged_service:
+                await self.last_logged_service.touch(
+                    project_id, experiment_id, last_modified
+                )
         return LogScalarsResponseDTO(status="logged", warnings=warnings or None)
 
     async def get_scalars(
@@ -318,27 +317,6 @@ class ScalarsService:
                 await self.cache.set(cache_key, response)
         return response
 
-    async def get_last_logged_experiments(
-        self, project_id: UUID, experiment_ids: Sequence[UUID] | None = None
-    ) -> LastLoggedExperimentsResultDTO:
-        table_name = SCALARS_DB_UTILS.safe_last_logged_table_name(project_id)
-        if not await self._table_exists(table_name):
-            return LastLoggedExperimentsResultDTO(data=[])
-        query = SCALARS_DB_UTILS.build_select_last_logged_statement(
-            table_name,
-            experiment_ids=experiment_ids,
-        )
-        result = await self.client.query(query)
-        print(result.result_rows)
-        data = [
-            LastLoggedExperimentDTO(
-                experiment_id=cast(UUID, row[0]),
-                last_modified=cast(datetime, row[1]).isoformat(),
-            )
-            for row in result.result_rows
-        ]
-        return LastLoggedExperimentsResultDTO(data=data)
-
     def _split_scalars_by_experiment_id(
         self,
         column_names: Sequence[str],
@@ -386,6 +364,13 @@ class ScalarsService:
                 )
 
         return result_scalars, result_tags
+
+    async def _ensure_scalars_table(self, project_id: UUID) -> None:
+        """Ensure the scalars table exists. Create it with base columns only if it does not."""
+        table_name = SCALARS_DB_UTILS.safe_scalars_table_name(project_id)
+        if not await self._table_exists(table_name):
+            ddl = SCALARS_DB_UTILS.build_create_scalars_table_statement(table_name)
+            await self.client.command(ddl)
 
     async def _table_exists(self, table_name: str) -> bool:
         """Check if the table exists.
@@ -567,21 +552,3 @@ class ScalarsService:
         )
         await self.cache.invalidate(cache_key_pattern)
 
-    async def _touch_last_logged_experiment(
-        self, project_id: UUID, experiment_id: UUID, last_modified: datetime
-    ) -> None:
-        """Touch last logged experiment.
-
-        Args:
-            project_id (UUID): The project ID.
-            experiment_id (UUID): The experiment ID.
-            last_modified (datetime): The last modified timestamp.
-
-        Returns:
-            None: The function does not return anything.
-        """
-        table_name = SCALARS_DB_UTILS.safe_last_logged_table_name(project_id)
-        statement = SCALARS_DB_UTILS.build_upsert_last_logged_statement(
-            table_name, experiment_id, last_modified
-        )
-        await self.client.command(statement)
