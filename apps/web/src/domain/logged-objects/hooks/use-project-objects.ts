@@ -19,7 +19,7 @@ export function useProjectObjects(params: UseProjectObjectsParams) {
   const stableNames = [...(names ?? [])].sort();
   const queryKey = projectId
     ? [
-        QUERY_KEYS.OBJECTS.BY_PROJECT(projectId),
+        QUERY_KEYS.ARTIFACTS.BY_PROJECT(projectId),
         {
           experimentIds: stableExperimentIds,
           objectTypes: stableObjectTypes,

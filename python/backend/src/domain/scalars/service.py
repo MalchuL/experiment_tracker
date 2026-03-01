@@ -8,7 +8,7 @@ from domain.experiments.repository import ExperimentRepository
 from domain.rbac.wrapper import PermissionChecker
 from fastapi_users.models import UserProtocol
 
-from .client import ScalarsClientProtocol, ScalarsServiceClient  # noqa: F401
+from clients.scalars_client import ScalarsClientProtocol, ScalarsServiceClient  # noqa: F401
 from .error import ScalarsNotAccessibleError
 
 

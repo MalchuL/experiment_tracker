@@ -1194,8 +1194,9 @@ export default function Scalars() {
                                 nearestStep === null
                                   ? undefined
                                   : experimentStepMap[nearestStep];
-                              const objectSrc = objectAtStep
-                                ? API_ROUTES.OBJECTS.BLOBS.GET(
+                              const objectSrc = objectAtStep && projectId
+                                ? API_ROUTES.PROJECT_ARTIFACTS.BLOBS.GET(
+                                    projectId,
                                     objectAtStep.path,
                                     objectAtStep.metadata?.content_type
                                   )

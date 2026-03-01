@@ -1,14 +1,20 @@
 from config.settings import get_settings
-from domain.objects.service import (
-    NoOpObjectsService,
-    ObjectsService,
-    ObjectsServiceClient,
-    ObjectsServiceProtocol,
+from clients.artifacts_info_client import ArtifactsInfoClient
+from domain.experiment_artifacts.service import (
+    ExperimentArtifactsService,
+    ExperimentArtifactsServiceProtocol,
+    NoOpExperimentArtifactsService,
 )
+from domain.project_artifacts.service import (
+    ProjectArtifactsService,
+    ProjectArtifactsServiceProtocol,
+    NoOpProjectArtifactsService,
+)
+from clients.object_storage_client import ObjectStorageClient
+from clients.scalars_client import ScalarsServiceClient
 from domain.scalars.service import (
     NoOpScalarsService,
     ScalarsService,
-    ScalarsServiceClient,
     ScalarsServiceProtocol,
 )
 from fastapi import Depends
@@ -114,16 +120,40 @@ async def get_scalars_service(
         return NoOpScalarsService()
 
 
-async def get_objects_service(
+async def get_experiment_artifacts_service(
     permission_checker: PermissionChecker = Depends(get_permission_checker),
     experiment_repository: ExperimentRepository = Depends(get_experiment_repository),
-) -> ObjectsServiceProtocol:
+) -> ExperimentArtifactsServiceProtocol:
     settings = get_settings()
-    scalars_service_url = settings.scalars_service_url
-    if scalars_service_url:
-        client = ObjectsServiceClient(scalars_service_url)
-        return ObjectsService(client, permission_checker, experiment_repository)
-    return NoOpObjectsService()
+    scalars_url = settings.scalars_service_url
+    object_storage_url = settings.object_storage_service_url
+    if scalars_url and object_storage_url:
+        obj_client = ObjectStorageClient(object_storage_url)
+        artifacts_client = ArtifactsInfoClient(scalars_url)
+        return ExperimentArtifactsService(
+            object_storage_client=obj_client,
+            artifacts_info_client=artifacts_client,
+            permission_checker=permission_checker,
+            experiment_repository=experiment_repository,
+        )
+    return NoOpExperimentArtifactsService()
+
+
+async def get_project_artifacts_service(
+    permission_checker: PermissionChecker = Depends(get_permission_checker),
+) -> ProjectArtifactsServiceProtocol:
+    settings = get_settings()
+    scalars_url = settings.scalars_service_url
+    object_storage_url = settings.object_storage_service_url
+    if scalars_url and object_storage_url:
+        obj_client = ObjectStorageClient(object_storage_url)
+        artifacts_client = ArtifactsInfoClient(scalars_url)
+        return ProjectArtifactsService(
+            object_storage_client=obj_client,
+            artifacts_info_client=artifacts_client,
+            permission_checker=permission_checker,
+        )
+    return NoOpProjectArtifactsService()
 
 
 # Hypothesis Service Dependencies

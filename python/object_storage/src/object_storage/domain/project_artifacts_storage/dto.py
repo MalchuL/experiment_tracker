@@ -42,3 +42,9 @@ class DeleteBlobResponseDTO(BaseModel):
     """Response DTO describing whether a blob was deleted."""
 
     deleted: bool
+
+
+class DeleteProjectResponseDTO(BaseModel):
+    """Response DTO describing whether a project was deleted."""
+
+    deleted: bool

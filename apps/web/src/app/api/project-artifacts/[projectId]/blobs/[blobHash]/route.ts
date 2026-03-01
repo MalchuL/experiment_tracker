@@ -3,14 +3,14 @@ import { env } from "@/lib/env";
 
 export async function GET(
   request: Request,
-  context: { params: Promise<{ blobHash: string }> }
+  context: { params: Promise<{ projectId: string; blobHash: string }> }
 ) {
-  const { blobHash } = await context.params;
+  const { projectId, blobHash } = await context.params;
   const token = (await cookies()).get("auth_token")?.value;
   const requestedContentType =
     new URL(request.url).searchParams.get("contentType") ?? undefined;
 
-  const targetUrl = `${env.BASE_URL}/api/blobs/${encodeURIComponent(blobHash)}`;
+  const targetUrl = `${env.BASE_URL}/api/project-artifacts/${encodeURIComponent(projectId)}/blobs/${encodeURIComponent(blobHash)}${requestedContentType ? `?contentType=${encodeURIComponent(requestedContentType)}` : ""}`;
   const response = await fetch(targetUrl, {
     method: "GET",
     headers: token ? { Authorization: `Bearer ${token}` } : undefined,
@@ -28,7 +28,6 @@ export async function GET(
     status: 200,
     headers: {
       "Content-Type":
-        // If backend returns generic binary type, prefer UI-provided contentType hint.
         (response.headers.get("content-type") === "application/octet-stream" &&
         requestedContentType
           ? requestedContentType

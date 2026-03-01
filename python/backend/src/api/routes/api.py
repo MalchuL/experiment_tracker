@@ -10,8 +10,8 @@ from domain.scalars.controller import router as scalars_router
 from domain.projects.controller import router as projects_router
 from domain.team.teams.controller import router as teams_router
 from domain.projects.dashboard.controller import router as dashboard_router
-from domain.object_storage.controller import router as object_storage_router
-from domain.objects.controller import router as objects_router
+from domain.experiment_artifacts.controller import router as experiment_artifacts_router
+from domain.project_artifacts.controller import router as project_artifacts_router
 
 router = APIRouter()
 
@@ -26,5 +26,5 @@ router.include_router(teams_router)
 router.include_router(dashboard_router)
 router.include_router(auth_router)
 router.include_router(api_tokens_router)
-router.include_router(object_storage_router)
-router.include_router(objects_router)
+router.include_router(experiment_artifacts_router)
+router.include_router(project_artifacts_router)

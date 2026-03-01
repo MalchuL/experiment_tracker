@@ -60,7 +60,7 @@ class ObjectStorageService:
         await self._repository.commit()
         return True
 
-    async def check_blobs(
+    async def check_project_blobs(
         self, project_id: UUID, hashes: list[str]
     ) -> BlobCheckResponseDTO:
         """Return hashes that are missing from CAS metadata storage."""
@@ -76,7 +76,7 @@ class ObjectStorageService:
         ]
         return mapper.missing_hashes_to_response(missing)
 
-    async def upload_blob(
+    async def upload_project_blob(
         self, project_id: UUID, blob_hash: str, upload: UploadFile
     ) -> UploadBlobResponseDTO:
         """Upload a blob into CAS storage after verifying its hash."""
@@ -119,7 +119,7 @@ class ObjectStorageService:
                 spool.close()
 
     # TODO add project_id to the payload to have simpler deletion of the project
-    async def create_snapshot(
+    async def create_project_snapshot(
         self, payload: SnapshotCreateRequestDTO
     ) -> SnapshotCreateResponseDTO:
         """Create a snapshot that points to existing CAS blob hashes."""
@@ -160,7 +160,7 @@ class ObjectStorageService:
         await self._repository.refresh(snapshot)
         return mapper.snapshot_id_to_response(snapshot.id)
 
-    async def delete_snapshot(self, project_id: UUID, snapshot_id: UUID) -> list[str]:
+    async def delete_project_snapshot(self, project_id: UUID, snapshot_id: UUID) -> list[str]:
         """Delete a snapshot and all its blobs."""
 
         snapshot = await self._repository.fetch_snapshot(snapshot_id)
@@ -179,7 +179,7 @@ class ObjectStorageService:
         await self._repository.commit()
         return deleted_blobs
 
-    async def prepare_snapshot_download(
+    async def prepare_project_snapshot_download(
         self, project_id: UUID, snapshot_id: UUID
     ) -> tuple[str, str]:
         """Create a ZIP archive for a snapshot and return its path and filename."""
@@ -193,7 +193,7 @@ class ObjectStorageService:
         filename = f"snapshot-{snapshot_id}.zip"
         return zip_path, filename
 
-    async def get_blob_stream(self, project_id: UUID, blob_hash: str):
+    async def get_project_blob_stream(self, project_id: UUID, blob_hash: str):
         """Return a streaming handle for a CAS blob by hash."""
         blob_hash = self._normalize_hash(blob_hash)
         blob = await self._repository.fetch_blob(project_id, blob_hash)
@@ -203,7 +203,7 @@ class ObjectStorageService:
         self._storage.ensure_bucket(bucket_name)
         return self._storage.get_blob(bucket_name, blob_hash)
 
-    async def delete_blob(
+    async def delete_project_blob(
         self, project_id: UUID, blob_hash: str
     ) -> DeleteBlobResponseDTO:
         """Delete a single CAS blob and its metadata row."""

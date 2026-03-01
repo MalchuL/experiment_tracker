@@ -142,15 +142,29 @@ export const API_ROUTES = {
       },
     },
 
-    OBJECTS: {
+    EXPERIMENT_ARTIFACTS: {
+      LOG_METADATA: (experimentId: string) =>
+        `/api/experiment-artifacts/${experimentId}/log_metadata`,
+      LOG: (experimentId: string) =>
+        `/api/experiment-artifacts/${experimentId}/log`,
+      DOWNLOAD: (experimentId: string, path: string) =>
+        `/api/experiment-artifacts/${experimentId}/download?path=${encodeURIComponent(path)}`,
+      DELETE: (experimentId: string, path: string) =>
+        `/api/experiment-artifacts/${experimentId}?path=${encodeURIComponent(path)}`,
+      DELETE_ALL: (experimentId: string) =>
+        `/api/experiment-artifacts/experiments/${experimentId}`,
+    },
+    PROJECT_ARTIFACTS: {
+      LOG: (projectId: string, experimentId: string) =>
+        `/api/project-artifacts/${projectId}/log/${experimentId}`,
       BY_PROJECT: {
-        GET: (projectId: string) => `/api/objects/get/project/${projectId}`,
+        GET: (projectId: string) => `/api/project-artifacts/${projectId}/get`,
       },
       BLOBS: {
-        GET: (blobHash: string, contentType?: string) =>
+        GET: (projectId: string, blobHash: string, contentType?: string) =>
           contentType
-            ? `/api/blobs/${blobHash}?contentType=${encodeURIComponent(contentType)}`
-            : `/api/blobs/${blobHash}`,
+            ? `/api/project-artifacts/${projectId}/blobs/${blobHash}?contentType=${encodeURIComponent(contentType)}`
+            : `/api/project-artifacts/${projectId}/blobs/${blobHash}`,
       },
     },
   } as const;

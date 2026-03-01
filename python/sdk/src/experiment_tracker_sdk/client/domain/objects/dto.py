@@ -33,16 +33,14 @@ class LogObjectRequest(BaseModel):
     metadata: dict[str, str] | None = None
     tags: list[str] | None = None
 
-
-class LogObjectsRequest(BaseModel):
-    objects: list[LogObjectRequest]
+    def model_dump(self, **kwargs: object) -> dict:
+        """Serialize for artifacts API (artifact_type instead of object_type)."""
+        d = super().model_dump(**kwargs)
+        if "object_type" in d:
+            d["artifact_type"] = d.pop("object_type")
+        return d
 
 
 class LogObjectResponse(BaseModel):
-    status: str
-    warnings: list[str] | None = None
-
-
-class LogObjectsResponse(BaseModel):
     status: str
     warnings: list[str] | None = None

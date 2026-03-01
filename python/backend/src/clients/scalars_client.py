@@ -9,6 +9,15 @@ import msgpack
 
 
 class ScalarsServiceClient:
+
+    ENDPOINTS = {
+        "create_project_table": "/projects",
+        "log_scalar": lambda project_id, experiment_id: f"/scalars/log/{project_id}/{experiment_id}",
+        "log_scalars_batch": lambda project_id, experiment_id: f"/scalars/log_batch/{project_id}/{experiment_id}",
+        "get_scalars": lambda project_id: f"/scalars/get/{project_id}",
+        "get_last_logged_experiments": lambda project_id: f"/scalars/last_logged/{project_id}",
+    }
+
     def __init__(self, base_url: str, timeout: float = 10.0):
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
@@ -17,7 +26,7 @@ class ScalarsServiceClient:
         payload = {"project_id": str(project_id)}
         return await self._request(
             "POST",
-            "/projects",
+            self.ENDPOINTS["create_project_table"],
             json_payload=payload,
             use_msgpack=False,
         )
@@ -27,7 +36,7 @@ class ScalarsServiceClient:
     ) -> dict[str, Any]:
         return await self._request(
             "POST",
-            f"/scalars/log/{project_id}/{experiment_id}",
+            self.ENDPOINTS["log_scalar"](project_id, experiment_id),
             json_payload=payload,
             use_msgpack=False,
         )
@@ -37,7 +46,7 @@ class ScalarsServiceClient:
     ) -> dict[str, Any]:
         return await self._request(
             "POST",
-            f"/scalars/log_batch/{project_id}/{experiment_id}",
+            self.ENDPOINTS["log_scalars_batch"](project_id, experiment_id),
             json_payload=payload,
             use_msgpack=False,
         )
@@ -64,7 +73,7 @@ class ScalarsServiceClient:
             params["end_time"] = end_time.isoformat()
         return await self._request(
             "GET",
-            f"/scalars/get/{project_id}",
+            self.ENDPOINTS["get_scalars"](project_id),
             params=params,
             accept_msgpack=False,
         )
@@ -74,7 +83,7 @@ class ScalarsServiceClient:
     ) -> dict[str, Any]:
         return await self._request(
             "POST",
-            f"/scalars/last_logged/{project_id}",
+            self.ENDPOINTS["get_last_logged_experiments"](project_id),
             json_payload=payload,
             use_msgpack=False,
         )

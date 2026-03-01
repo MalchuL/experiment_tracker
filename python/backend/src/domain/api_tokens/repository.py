@@ -14,6 +14,7 @@ class ApiTokenRepository:
 
     async def create(self, token: ApiToken) -> ApiToken:
         self.db.add(token)
+        await self.db.flush()
         await self.db.refresh(token)
         return token
 
@@ -43,6 +44,7 @@ class ApiTokenRepository:
         return result.scalar_one_or_none()
 
     async def update(self, token: ApiToken) -> ApiToken:
-        self.db.add(token)
+        self.db.merge(token)
+        await self.db.flush()
         await self.db.refresh(token)
         return token

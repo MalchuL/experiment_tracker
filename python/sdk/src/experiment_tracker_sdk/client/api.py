@@ -71,33 +71,104 @@ class API:
         """Close the request queue and underlying HTTP client."""
         self._client.close()
 
-    def check_blobs(self, hashes: list[str]) -> dict[str, Any]:
-        return self._client.request_json("POST", "/api/blobs/check", json=hashes)
-
-    def upload_blob(
+    def upload_and_log_artifact(
         self,
-        blob_hash: str,
+        project_id: str,
+        experiment_id: str,
         file_name: str,
         file_content: bytes,
-        content_type: str = "application/octet-stream",
+        content_type: str,
+        name: str,
+        artifact_type: str,
+        step: int,
+        metadata: dict[str, str] | None = None,
+        tags: list[str] | None = None,
     ) -> dict[str, Any]:
-        return self._client.upload_file(
-            "/api/blobs/upload",
-            params={"hash": blob_hash},
+        """Single call: upload file to project CAS and log artifact metadata.
+
+        Hash is computed here and verified by object storage on upload.
+        """
+        import json
+
+        from experiment_tracker_shared import compute_sha256_hexdigest
+
+        blob_hash = compute_sha256_hexdigest(file_content)
+        form_data: dict[str, Any] = {
+            "name": name,
+            "artifact_type": artifact_type,
+            "step": str(step),
+            "hash": blob_hash,
+        }
+        if metadata:
+            form_data["metadata"] = json.dumps(metadata)
+        if tags:
+            form_data["tags"] = json.dumps(tags)
+        return self._client.upload_artifact(
+            path=f"/api/project-artifacts/{project_id}/log/{experiment_id}",
             file_name=file_name,
             file_content=file_content,
             content_type=content_type,
+            form_data=form_data,
         )
 
-    def download_blob(self, blob_hash: str) -> bytes:
-        """Download blob bytes by object-storage hash/reference."""
-        return self._client.download_file(f"/api/blobs/{blob_hash}")
+    def upload_and_log_experiment_artifact(
+        self,
+        experiment_id: str,
+        file_name: str,
+        file_content: bytes,
+        content_type: str,
+        name: str,
+        artifact_type: str,
+        step: int,
+        metadata: dict[str, str] | None = None,
+        tags: list[str] | None = None,
+    ) -> dict[str, Any]:
+        """Upload file to experiment bucket and log metadata in one call.
 
-    def download_blob_to_file(
-        self, blob_hash: str, output_path: str | Path
+        Uses experiment-scoped storage (no deduplication). For deduplicated
+        project CAS, use upload_and_log_artifact instead.
+        """
+        import json
+
+        form_data: dict[str, Any] = {
+            "name": name,
+            "artifact_type": artifact_type,
+            "step": str(step),
+        }
+        if metadata:
+            form_data["metadata"] = json.dumps(metadata)
+        if tags:
+            form_data["tags"] = json.dumps(tags)
+        return self._client.upload_artifact(
+            path=f"/api/experiment-artifacts/{experiment_id}/log",
+            file_name=file_name,
+            file_content=file_content,
+            content_type=content_type,
+            form_data=form_data,
+        )
+
+    def download_project_blob(
+        self, project_id: str, blob_hash: str
+    ) -> bytes:
+        """Download blob bytes by project and hash (project-scoped CAS)."""
+        return self._client.download_file(
+            f"/api/project-artifacts/{project_id}/blobs/{blob_hash}"
+        )
+
+    def download_experiment_artifact(
+        self, experiment_id: str, path: str
+    ) -> bytes:
+        """Download artifact by path from experiment bucket."""
+        return self._client.download_file(
+            f"/api/experiment-artifacts/{experiment_id}/download",
+            params={"path": path},
+        )
+
+    def download_project_blob_to_file(
+        self, project_id: str, blob_hash: str, output_path: str | Path
     ) -> Path:
         """Download blob and write it to a local file path."""
         return self._client.download_file_to_path(
-            f"/api/blobs/{blob_hash}",
+            f"/api/project-artifacts/{project_id}/blobs/{blob_hash}",
             output_path=output_path,
         )

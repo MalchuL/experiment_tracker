@@ -7,10 +7,8 @@ from typing import cast
 from uuid import UUID
 
 from experiment_tracker_sdk.logger import logger
-from experiment_tracker_shared import compute_sha256_hexdigest  # pyright: ignore[reportMissingImports]
 from experiment_tracker_sdk.client import API, ExperimentStatus, ExperimentTrackerClient
 from experiment_tracker_sdk.client.domain.experiments.dto import ExperimentResponse
-from experiment_tracker_sdk.client.domain.objects.dto import LogObjectRequest
 from experiment_tracker_sdk.client.domain.projects.dto import ProjectResponse
 from experiment_tracker_sdk.config import load_config
 from experiment_tracker_sdk.error import ExpTrackerAPIError, ExpTrackerProgressError
@@ -393,14 +391,7 @@ class ExpTracker:
                 default_extension=default_extension,
                 default_content_type=default_content_type,
             )
-            # 2) Use content hash as stable object reference (dedup key in object storage).
-            blob_hash = compute_sha256_hexdigest(content_bytes)
-            # 3) Check if this blob already exists to avoid re-uploading identical content.
-            check_result = self._api.check_blobs([blob_hash])
-            missing_hashes = set(check_result.get("missing", []))
-            if blob_hash in missing_hashes:
-                self._api.upload_blob(blob_hash, file_name, content_bytes, content_type)
-            # 4) Log lightweight metadata row to objects API (stored in scalars_service table).
+            # 2) Single call: upload to storage and log metadata (backend handles dedup).
             payload_metadata = {
                 "filename": file_name,
                 "content_type": content_type,
@@ -408,19 +399,16 @@ class ExpTracker:
             }
             if metadata:
                 payload_metadata.update(metadata)
-            self._api.queued_request(
-                self._api.objects.log_object(
-                    self.experiment_id,
-                    LogObjectRequest(
-                        name=tag,
-                        # Object type drives frontend rendering branch (image/video/audio/text/3d).
-                        object_type=object_type,  # type: ignore[arg-type]
-                        # Path keeps object-storage reference; currently this is the blob hash.
-                        path=blob_hash,
-                        step=global_step,
-                        metadata=payload_metadata,
-                    ),
-                )
+            self._api.upload_and_log_artifact(
+                project_id=str(self.project_id),
+                experiment_id=str(self.experiment_id),
+                file_name=file_name,
+                file_content=content_bytes,
+                content_type=content_type,
+                name=tag,
+                artifact_type=object_type,
+                step=global_step,
+                metadata=payload_metadata,
             )
         except Exception as exc:  # noqa: BLE001
             logger.warning(f"Failed to upload/log object '{tag}': {exc}")

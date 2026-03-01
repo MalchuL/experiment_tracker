@@ -63,13 +63,13 @@ async def test_project_artifacts_workflow_with_isolated_containers(
         service = ObjectStorageService(repository, storage)
 
         upload = UploadFile(filename="blob.bin", file=io.BytesIO(payload))
-        upload_result = await service.upload_blob(project_id, blob_hash, upload)
+        upload_result = await service.upload_project_blob(project_id, blob_hash, upload)
         assert upload_result.status == "ok"
 
-        check_result = await service.check_blobs(project_id, [blob_hash])
+        check_result = await service.check_project_blobs(project_id, [blob_hash])
         assert check_result.missing == []
 
-        snapshot_result = await service.create_snapshot(
+        snapshot_result = await service.create_project_snapshot(
             SnapshotCreateRequestDTO(
                 project_id=project_id,
                 experiment_id=uuid4(),
@@ -79,13 +79,13 @@ async def test_project_artifacts_workflow_with_isolated_containers(
         snapshot_id = UUID(snapshot_result.snapshot_id)
 
         with pytest.raises(HTTPException, match="referenced by a snapshot") as exc_info:
-            await service.delete_blob(project_id, blob_hash)
+            await service.delete_project_blob(project_id, blob_hash)
         assert exc_info.value.status_code == 400
 
-        deleted_blobs = await service.delete_snapshot(project_id, snapshot_id)
+        deleted_blobs = await service.delete_project_snapshot(project_id, snapshot_id)
         assert deleted_blobs == [blob_hash]
 
-        delete_result = await service.delete_blob(project_id, blob_hash)
+        delete_result = await service.delete_project_blob(project_id, blob_hash)
         assert delete_result.deleted is False
 
     await engine.dispose()
@@ -113,9 +113,9 @@ async def test_check_blobs_returns_missing_hashes(pytestconfig: pytest.Config) -
         service = ObjectStorageService(repository, storage)
 
         upload = UploadFile(filename="blob.bin", file=io.BytesIO(payload))
-        await service.upload_blob(project_id, present_hash, upload)
+        await service.upload_project_blob(project_id, present_hash, upload)
 
-        check_result = await service.check_blobs(
+        check_result = await service.check_project_blobs(
             project_id, [present_hash, missing_hash]
         )
         assert check_result.missing == [missing_hash]
@@ -144,9 +144,9 @@ async def test_download_blob_roundtrip(pytestconfig: pytest.Config) -> None:
         service = ObjectStorageService(repository, storage)
 
         upload = UploadFile(filename="blob.bin", file=io.BytesIO(payload))
-        await service.upload_blob(project_id, blob_hash, upload)
+        await service.upload_project_blob(project_id, blob_hash, upload)
 
-        blob_stream = await service.get_blob_stream(project_id, blob_hash)
+        blob_stream = await service.get_project_blob_stream(project_id, blob_hash)
         downloaded = _read_stream(blob_stream)
         assert downloaded == payload
 
@@ -177,9 +177,9 @@ async def test_snapshot_download_full_zip(pytestconfig: pytest.Config) -> None:
 
         for payload, h in [(content_a, hash_a), (content_b, hash_b)]:
             upload = UploadFile(filename="x.bin", file=io.BytesIO(payload))
-            await service.upload_blob(project_id, h, upload)
+            await service.upload_project_blob(project_id, h, upload)
 
-        snapshot_result = await service.create_snapshot(
+        snapshot_result = await service.create_project_snapshot(
             SnapshotCreateRequestDTO(
                 project_id=project_id,
                 experiment_id=uuid4(),
@@ -191,7 +191,7 @@ async def test_snapshot_download_full_zip(pytestconfig: pytest.Config) -> None:
         )
         snapshot_id = UUID(snapshot_result.snapshot_id)
 
-        zip_path, _ = await service.prepare_snapshot_download(
+        zip_path, _ = await service.prepare_project_snapshot_download(
             project_id, snapshot_id
         )
         with zipfile.ZipFile(zip_path, "r") as zf:
@@ -224,7 +224,7 @@ async def test_snapshot_download_with_missing_blobs(pytestconfig: pytest.Config)
         service = ObjectStorageService(repository, storage)
 
         upload = UploadFile(filename="blob.bin", file=io.BytesIO(present_payload))
-        await service.upload_blob(project_id, present_hash, upload)
+        await service.upload_project_blob(project_id, present_hash, upload)
 
         session.add(
             TrackedBlob(
@@ -236,7 +236,7 @@ async def test_snapshot_download_with_missing_blobs(pytestconfig: pytest.Config)
         )
         await session.commit()
 
-        snapshot_result = await service.create_snapshot(
+        snapshot_result = await service.create_project_snapshot(
             SnapshotCreateRequestDTO(
                 project_id=project_id,
                 experiment_id=uuid4(),
@@ -248,7 +248,7 @@ async def test_snapshot_download_with_missing_blobs(pytestconfig: pytest.Config)
         )
         snapshot_id = UUID(snapshot_result.snapshot_id)
 
-        zip_path, _ = await service.prepare_snapshot_download(
+        zip_path, _ = await service.prepare_project_snapshot_download(
             project_id, snapshot_id
         )
         with zipfile.ZipFile(zip_path, "r") as zf:

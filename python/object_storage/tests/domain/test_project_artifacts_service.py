@@ -134,7 +134,7 @@ async def test_check_blobs_returns_only_missing_normalized_hashes() -> None:
     storage = FakeStorage()
     service = ObjectStorageService(repo, storage)
 
-    result = await service.check_blobs(project_id, [existing_hash, missing_hash])
+    result = await service.check_project_blobs(project_id, [existing_hash, missing_hash])
 
     assert result.missing == [missing_hash]
     assert storage.ensure_bucket_calls == [f"project-{project_id}"]
@@ -149,7 +149,7 @@ async def test_upload_blob_rejects_hash_mismatch() -> None:
     upload = UploadFile(filename="artifact.bin", file=io.BytesIO(b"payload"))
 
     with pytest.raises(HTTPException, match="Hash mismatch") as exc_info:
-        await service.upload_blob(project_id, "0" * 64, upload)
+        await service.upload_project_blob(project_id, "0" * 64, upload)
 
     assert exc_info.value.status_code == 400
     assert repo.add_blob_calls == []
@@ -170,7 +170,7 @@ async def test_create_snapshot_rejects_parent_traversal_paths() -> None:
     service = ObjectStorageService(repo, storage)
 
     with pytest.raises(HTTPException, match="Invalid path") as exc_info:
-        await service.create_snapshot(payload)
+        await service.create_project_snapshot(payload)
 
     assert exc_info.value.status_code == 400
     assert repo.create_snapshot_calls == 0
@@ -190,7 +190,7 @@ async def test_create_snapshot_rejects_special_symbol_paths(invalid_path: str) -
     service = ObjectStorageService(repo, storage)
 
     with pytest.raises(HTTPException, match="Invalid path") as exc_info:
-        await service.create_snapshot(payload)
+        await service.create_project_snapshot(payload)
 
     assert exc_info.value.status_code == 400
     assert repo.create_snapshot_calls == 0
@@ -206,7 +206,7 @@ async def test_delete_blob_rejects_referenced_blob() -> None:
     service = ObjectStorageService(repo, storage)
 
     with pytest.raises(HTTPException, match="referenced by a snapshot") as exc_info:
-        await service.delete_blob(project_id, blob_hash)
+        await service.delete_project_blob(project_id, blob_hash)
 
     assert exc_info.value.status_code == 400
     assert storage.delete_blob_calls == []
@@ -247,7 +247,7 @@ async def test_prepare_snapshot_download_includes_missing_manifest_file() -> Non
     storage.object_payloads[(bucket_name, present_hash)] = b"existing-content"
     service = ObjectStorageService(repo, storage)
 
-    zip_path, _ = await service.prepare_snapshot_download(project_id, uuid4())
+    zip_path, _ = await service.prepare_project_snapshot_download(project_id, uuid4())
 
     with zipfile.ZipFile(zip_path, "r") as zip_file:
         assert set(zip_file.namelist()) == {
@@ -270,6 +270,6 @@ async def test_prepare_snapshot_download_rejects_invalid_manifest_paths() -> Non
     service = ObjectStorageService(repo, storage)
 
     with pytest.raises(HTTPException, match="Invalid path in snapshot") as exc_info:
-        await service.prepare_snapshot_download(project_id, uuid4())
+        await service.prepare_project_snapshot_download(project_id, uuid4())
 
     assert exc_info.value.status_code == 400

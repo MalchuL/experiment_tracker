@@ -2,8 +2,6 @@ from .dto import (
     ExperimentObjectsResponse,
     LogObjectRequest,
     LogObjectResponse,
-    LogObjectsRequest,
-    LogObjectsResponse,
     ObjectEntryResponse,
     ObjectType,
     ObjectsPointsResponse,
@@ -16,9 +14,7 @@ __all__ = [
     "ExperimentObjectsResponse",
     "ObjectsPointsResponse",
     "LogObjectRequest",
-    "LogObjectsRequest",
     "LogObjectResponse",
-    "LogObjectsResponse",
     "ObjectsRequestSpecFactory",
     "ObjectsService",
 ]

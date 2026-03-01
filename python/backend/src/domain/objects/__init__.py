@@ -1,1 +1,0 @@
-"""Objects domain package."""

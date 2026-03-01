@@ -149,6 +149,25 @@ class ExperimentTrackerClient:
         _raise_for_status(response, self._supress_errors)
         return response.json()
 
+    def upload_artifact(
+        self,
+        path: str,
+        file_name: str,
+        file_content: bytes,
+        content_type: str,
+        form_data: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Upload file with form fields (for artifacts upload+log endpoint)."""
+        with disable_httpx_logging():
+            response = self._client.request(
+                "POST",
+                path,
+                files={"file": (file_name, file_content, content_type)},
+                data=form_data,
+            )
+        _raise_for_status(response, self._supress_errors)
+        return response.json()
+
     def download_file(self, path: str, params: dict[str, Any] | None = None) -> bytes:
         """Download raw file bytes from backend endpoint."""
         with disable_httpx_logging():

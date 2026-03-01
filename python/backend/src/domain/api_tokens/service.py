@@ -185,7 +185,6 @@ class ApiTokenService:
                 expires_at_ts=time.time() + TOKEN_CACHE.ttl_seconds,
             ),
         )
-        await self.db.commit()
         return token
 
     async def mark_used(self, token: ApiToken) -> None:

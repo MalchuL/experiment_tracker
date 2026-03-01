@@ -34,6 +34,10 @@ const AVAILABLE_SCOPES = [
   "metrics.create",
   "metrics.edit",
   "metrics.delete",
+  "scalars.log",
+  "scalars.view",
+  "artifacts.view",
+  "artifacts.log",
 ];
 
 const SCOPE_DESCRIPTIONS: Record<string, string> = {
@@ -58,6 +62,10 @@ const SCOPE_DESCRIPTIONS: Record<string, string> = {
   "metrics.create": "Create metrics.",
   "metrics.edit": "Edit metrics.",
   "metrics.delete": "Delete metrics.",
+  "scalars.log": "Log scalar values (training metrics).",
+  "scalars.view": "View scalar values.",
+  "artifacts.view": "View artifacts (images, videos, etc.).",
+  "artifacts.log": "Log artifacts (upload and log metadata).",
 };
 
 export default function ApiTokensPage() {

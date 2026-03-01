@@ -23,8 +23,8 @@ export const QUERY_KEYS = {
         BY_PROJECT: (projectId: string) => `projects/${projectId}/scalars`,
         LAST_LOGGED: (projectId: string) => `projects/${projectId}/scalars/last-logged`,
     },
-    OBJECTS: {
-        BY_PROJECT: (projectId: string) => `projects/${projectId}/objects`,
+    ARTIFACTS: {
+        BY_PROJECT: (projectId: string) => `projects/${projectId}/artifacts`,
     },
     EVIDENCE: {
         GET: (experimentId: string) => `experiments/${experimentId}/evidence`,
