@@ -5,18 +5,17 @@ import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from api.routes.auth import get_current_user_dual, require_api_token_scopes
+from clients.scalars import (
+    GetScalarsResponseDTO,
+    LastLoggedExperimentsRequestDTO,
+    LastLoggedExperimentsResponseDTO,
+    LogScalarsBatchRequestDTO,
+    LogScalarRequestDTO,
+    LogScalarResponseDTO,
+)
 from domain.rbac.permissions import ProjectActions
 from models import User
 
-from .dto import (
-    LastLoggedExperimentsRequestDTO,
-    LastLoggedExperimentsResultDTO,
-    LogScalarRequestDTO,
-    LogScalarResponseDTO,
-    LogScalarsRequestDTO,
-    LogScalarsResponseDTO,
-    ScalarsPointsResultDTO,
-)
 from .error import ScalarsNotAccessibleError
 from .service import ScalarsServiceProtocol
 from api.routes.service_dependencies import get_scalars_service
@@ -53,11 +52,11 @@ async def log_scalar(
 
 @router.post(
     "/log_batch/{experiment_id}",
-    response_model=LogScalarsResponseDTO,
+    response_model=LogScalarResponseDTO,
 )
 async def log_scalars_batch(
     experiment_id: UUID,
-    data: LogScalarsRequestDTO,
+    data: LogScalarsBatchRequestDTO,
     user: User = Depends(get_current_user_dual),
     _: None = Depends(require_api_token_scopes(ProjectActions.CREATE_METRIC)),
     scalars_service: ScalarsServiceProtocol = Depends(get_scalars_service),
@@ -66,12 +65,12 @@ async def log_scalars_batch(
         result = await scalars_service.log_scalars_batch(
             user, experiment_id, data.model_dump()
         )
-        return LogScalarsResponseDTO.model_validate(result)
+        return LogScalarResponseDTO.model_validate(result)
     except Exception as exc:  # noqa: BLE001
         _raise_scalars_http_error(exc)
 
 
-@router.get("/get/{experiment_id}", response_model=ScalarsPointsResultDTO)
+@router.get("/get/{experiment_id}", response_model=GetScalarsResponseDTO)
 async def get_scalars(
     experiment_id: UUID,
     max_points: int | None = Query(default=None, ge=1),
@@ -91,12 +90,12 @@ async def get_scalars(
             start_time=start_time,
             end_time=end_time,
         )
-        return ScalarsPointsResultDTO.model_validate(result)
+        return GetScalarsResponseDTO.model_validate(result)
     except Exception as exc:  # noqa: BLE001
         _raise_scalars_http_error(exc)
 
 
-@router.get("/get/project/{project_id}", response_model=ScalarsPointsResultDTO)
+@router.get("/get/project/{project_id}", response_model=GetScalarsResponseDTO)
 async def get_project_scalars(
     project_id: UUID,
     experiment_id: list[UUID] | None = Query(default=None),
@@ -118,14 +117,14 @@ async def get_project_scalars(
             start_time=start_time,
             end_time=end_time,
         )
-        return ScalarsPointsResultDTO.model_validate(result)
+        return GetScalarsResponseDTO.model_validate(result)
     except Exception as exc:  # noqa: BLE001
         _raise_scalars_http_error(exc)
 
 
 @router.post(
     "/last_logged/{project_id}",
-    response_model=LastLoggedExperimentsResultDTO,
+    response_model=LastLoggedExperimentsResponseDTO,
 )
 async def get_last_logged_experiments(
     project_id: UUID,
@@ -140,6 +139,6 @@ async def get_last_logged_experiments(
             project_id=project_id,
             experiment_ids=payload.experiment_ids,
         )
-        return LastLoggedExperimentsResultDTO.model_validate(result)
+        return LastLoggedExperimentsResponseDTO.model_validate(result)
     except Exception as exc:  # noqa: BLE001
         _raise_scalars_http_error(exc)

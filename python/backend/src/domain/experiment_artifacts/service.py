@@ -22,7 +22,6 @@ from domain.experiments.repository import ExperimentRepository
 from domain.rbac.wrapper import PermissionChecker
 from fastapi_users.models import UserProtocol
 
-from .dto import LogArtifactRequestDTO, LogArtifactResponseDTO
 from .error import ExperimentArtifactsNotAccessibleError
 
 
@@ -53,10 +52,6 @@ class ExperimentArtifactsServiceProtocol(Protocol):
         metadata: dict[str, str] | None = None,
         tags: list[str] | None = None,
     ) -> ArtifactsInfoLogArtifactResponseDTO: ...
-
-    async def log_artifact(
-        self, user: UserProtocol, experiment_id: UUID, payload: LogArtifactRequestDTO
-    ) -> LogArtifactResponseDTO: ...
 
     async def download_experiment_artifact(
         self, user: UserProtocol, experiment_id: UUID, path: str
@@ -96,11 +91,6 @@ class NoOpExperimentArtifactsService:
         tags: list[str] | None = None,
     ) -> ArtifactsInfoLogArtifactResponseDTO:
         return ArtifactsInfoLogArtifactResponseDTO(status="logged")
-
-    async def log_artifact(
-        self, user: UserProtocol, experiment_id: UUID, payload: LogArtifactRequestDTO
-    ) -> LogArtifactResponseDTO:
-        return LogArtifactResponseDTO(status="logged")
 
     async def download_experiment_artifact(
         self, user: UserProtocol, experiment_id: UUID, path: str

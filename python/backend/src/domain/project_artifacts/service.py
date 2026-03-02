@@ -12,13 +12,13 @@ from clients.object_storage import (
     DeleteProjectArtifactResponseDTO,
     DeleteProjectResponseDTO,
     ObjectStorageClientProtocol,
+    SnapshotCreateRequestDTO,
     SnapshotCreateResponseDTO,
     UploadProjectArtifactResponseDTO,
 )
 from domain.rbac.wrapper import PermissionChecker
 from fastapi_users.models import UserProtocol
 
-from .dto import SnapshotCreateRequestDTO
 from .error import ProjectArtifactsNotAccessibleError
 
 
@@ -148,9 +148,7 @@ class ProjectArtifactsService:
         self, user: UserProtocol, project_id: UUID, payload: SnapshotCreateRequestDTO
     ) -> SnapshotCreateResponseDTO:
         await self._ensure_log_permission(user, project_id)
-        return await self._object_storage.create_project_snapshot(
-            payload.model_dump(mode="json")
-        )
+        return await self._object_storage.create_project_snapshot(project_id, payload)
 
     async def download_project_snapshot(
         self, user: UserProtocol, project_id: UUID, snapshot_id: UUID

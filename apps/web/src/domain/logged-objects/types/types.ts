@@ -5,21 +5,21 @@ export type LoggedObjectType =
   | "text"
   | "point_cloud_3d";
 
-export interface LoggedObjectEntry {
+export interface LoggedArtifactEntry {
   timestamp: string;
   step: number;
   name: string;
-  object_type: LoggedObjectType;
+  artifact_type: LoggedObjectType;
   path: string;
   metadata: Record<string, string>;
   tags: string[];
 }
 
-export interface ExperimentObjects {
+export interface ExperimentArtifactsInfo {
   experiment_id: string;
-  objects: LoggedObjectEntry[];
+  artifacts_info: LoggedArtifactEntry[];
 }
 
-export interface ProjectObjectsResult {
-  data: ExperimentObjects[];
+export interface ArtifactsInfoResult {
+  data: ExperimentArtifactsInfo[];
 }

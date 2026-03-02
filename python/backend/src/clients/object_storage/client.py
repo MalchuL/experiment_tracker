@@ -14,6 +14,7 @@ from .dto import (
     DeleteExperimentArtifactsResponseDTO,
     DeleteProjectArtifactResponseDTO,
     DeleteProjectResponseDTO,
+    SnapshotCreateRequestDTO,
     SnapshotCreateResponseDTO,
     UploadExperimentArtifactResponseDTO,
     UploadProjectArtifactResponseDTO,
@@ -80,12 +81,12 @@ class ObjectStorageClient:
         return response
 
     async def create_project_snapshot(
-        self, project_id: UUID, payload: dict
+        self, project_id: UUID, payload: SnapshotCreateRequestDTO
     ) -> SnapshotCreateResponseDTO:
         response = await self._request(
             "POST",
             self.ENDPOINTS["create_project_snapshot"](project_id),
-            json_payload=payload,
+            json_payload=payload.model_dump(mode="json"),
         )
         return SnapshotCreateResponseDTO.model_validate(response)
 

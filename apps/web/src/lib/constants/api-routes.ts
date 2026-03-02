@@ -149,8 +149,10 @@ export const API_ROUTES = {
         GET: (projectId: string) =>
           `/api/experiment-artifacts/projects/${projectId}/get`,
       },
-      DOWNLOAD: (experimentId: string, path: string) =>
-        `/api/experiment-artifacts/${experimentId}/download?path=${encodeURIComponent(path)}`,
+      DOWNLOAD: (experimentId: string, path: string, mediaType?: string) =>
+        mediaType
+          ? `/api/experiment-artifacts/${experimentId}/download?path=${encodeURIComponent(path)}&media_type=${encodeURIComponent(mediaType)}`
+          : `/api/experiment-artifacts/${experimentId}/download?path=${encodeURIComponent(path)}`,
       DELETE: (experimentId: string, path: string) =>
         `/api/experiment-artifacts/${experimentId}?path=${encodeURIComponent(path)}`,
       DELETE_ALL: (experimentId: string) =>

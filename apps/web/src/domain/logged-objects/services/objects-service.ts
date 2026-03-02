@@ -1,6 +1,6 @@
 import { serviceClients } from "@/lib/api/clients/axios-client";
 import { API_ROUTES } from "@/lib/constants/api-routes";
-import type { ProjectObjectsResult } from "../types";
+import type { ArtifactsInfoResult } from "../types";
 
 export interface GetProjectObjectsParams {
   experimentIds?: string[];
@@ -10,12 +10,11 @@ export interface GetProjectObjectsParams {
   endTime?: string;
 }
 
-function buildObjectsQuery(
+function buildArtifactsQuery(
   basePath: string,
   params?: GetProjectObjectsParams
 ): string {
   const searchParams = new URLSearchParams();
-  searchParams.set("format", "objects");
   if (params?.experimentIds?.length) {
     for (const experimentId of params.experimentIds) {
       searchParams.append("experiment_id", experimentId);
@@ -45,12 +44,12 @@ export const loggedObjectsService = {
   getByProject: async (
     projectId: string,
     params?: GetProjectObjectsParams
-  ): Promise<ProjectObjectsResult> => {
-    const path = buildObjectsQuery(
+  ): Promise<ArtifactsInfoResult> => {
+    const path = buildArtifactsQuery(
       API_ROUTES.EXPERIMENT_ARTIFACTS.BY_PROJECT.GET(projectId),
       params
     );
-    const response = await serviceClients.api.get<ProjectObjectsResult>(path);
+    const response = await serviceClients.api.get<ArtifactsInfoResult>(path);
     return response.data;
   },
 };

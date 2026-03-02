@@ -5,7 +5,9 @@ from .dto import (
     DeleteExperimentArtifactsResponseDTO,
     DeleteProjectArtifactResponseDTO,
     DeleteProjectResponseDTO,
+    SnapshotCreateRequestDTO,
     SnapshotCreateResponseDTO,
+    SnapshotFileEntryDTO,
     UploadExperimentArtifactResponseDTO,
     UploadProjectArtifactResponseDTO,
 )
@@ -19,7 +21,9 @@ __all__ = [
     "DeleteProjectResponseDTO",
     "ObjectStorageClient",
     "ObjectStorageClientProtocol",
+    "SnapshotCreateRequestDTO",
     "SnapshotCreateResponseDTO",
+    "SnapshotFileEntryDTO",
     "UploadExperimentArtifactResponseDTO",
     "UploadProjectArtifactResponseDTO",
 ]

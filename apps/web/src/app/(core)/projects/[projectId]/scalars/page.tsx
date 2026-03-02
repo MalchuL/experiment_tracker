@@ -309,7 +309,7 @@ export default function Scalars() {
     returnTags: false,
   });
   const {
-    objects: projectObjects,
+    artifacts: projectArtifacts,
     isLoading: objectsLoading,
     isFetching: objectsFetching,
     refetch: refetchObjects,
@@ -670,25 +670,25 @@ export default function Scalars() {
     // This makes it cheap to render "one object per experiment for selected step".
     const grouped: LoggedObjectGroups = {};
 
-    projectObjects.forEach((experimentObjects) => {
-      if (!visibleIds.has(experimentObjects.experiment_id)) {
+    projectArtifacts.forEach((experimentArtifacts) => {
+      if (!visibleIds.has(experimentArtifacts.experiment_id)) {
         return;
       }
-      experimentObjects.objects.forEach((obj) => {
-        const typeGroup = grouped[obj.object_type] || {};
+      experimentArtifacts.artifacts_info.forEach((obj) => {
+        const typeGroup = grouped[obj.artifact_type] || {};
         const nameGroup = typeGroup[obj.name] || { steps: [], byExperiment: {} };
-        const byStep = nameGroup.byExperiment[experimentObjects.experiment_id] || {};
+        const byStep = nameGroup.byExperiment[experimentArtifacts.experiment_id] || {};
         byStep[obj.step] = {
           path: obj.path,
           metadata: obj.metadata || {},
           timestamp: obj.timestamp,
         };
-        nameGroup.byExperiment[experimentObjects.experiment_id] = byStep;
+        nameGroup.byExperiment[experimentArtifacts.experiment_id] = byStep;
         if (!nameGroup.steps.includes(obj.step)) {
           nameGroup.steps.push(obj.step);
         }
         typeGroup[obj.name] = nameGroup;
-        grouped[obj.object_type] = typeGroup;
+        grouped[obj.artifact_type] = typeGroup;
       });
     });
 
@@ -699,7 +699,7 @@ export default function Scalars() {
     });
 
     return grouped;
-  }, [projectObjects, visibleExperiments]);
+  }, [projectArtifacts, visibleExperiments]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -1197,7 +1197,8 @@ export default function Scalars() {
                               const objectSrc = objectAtStep
                                 ? API_ROUTES.EXPERIMENT_ARTIFACTS.DOWNLOAD(
                                     experiment.id,
-                                    objectAtStep.path
+                                    objectAtStep.path,
+                                    objectAtStep.metadata?.content_type
                                   )
                                 : "";
                               const currentOverrideIndex = Math.max(

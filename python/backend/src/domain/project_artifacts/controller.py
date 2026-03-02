@@ -18,6 +18,7 @@ from clients.object_storage import (
     CheckProjectArtifactsResponseDTO,
     DeleteProjectArtifactResponseDTO,
     DeleteProjectResponseDTO,
+    SnapshotCreateRequestDTO,
     SnapshotCreateResponseDTO,
     UploadProjectArtifactResponseDTO,
 )
@@ -26,7 +27,6 @@ from api.routes.service_dependencies import get_project_artifacts_service
 from domain.rbac.permissions import ProjectActions
 from models import User
 
-from .dto import SnapshotCreateRequestDTO
 from .error import ProjectArtifactsNotAccessibleError
 from .service import ProjectArtifactsServiceProtocol
 

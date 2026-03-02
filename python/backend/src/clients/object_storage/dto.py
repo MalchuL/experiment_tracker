@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from uuid import UUID
+
 from pydantic import BaseModel, ConfigDict
 
 
@@ -27,6 +29,17 @@ class DeleteProjectResponseDTO(BaseModel):
 
 class SnapshotCreateResponseDTO(BaseModel):
     snapshot_id: str
+
+
+class SnapshotFileEntryDTO(BaseModel):
+    path: str
+    hash: str
+
+
+class SnapshotCreateRequestDTO(BaseModel):
+    project_id: UUID
+    experiment_id: UUID
+    files: list[SnapshotFileEntryDTO]
 
 
 class UploadExperimentArtifactResponseDTO(BaseModel):

@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { QUERY_KEYS } from "@/lib/constants/query-keys";
 import { loggedObjectsService } from "../services";
-import type { ProjectObjectsResult } from "../types";
+import type { ArtifactsInfoResult } from "../types";
 
 export interface UseProjectObjectsParams {
   projectId?: string;
@@ -29,7 +29,7 @@ export function useProjectObjects(params: UseProjectObjectsParams) {
         },
       ]
     : [];
-  const { data, isLoading, isFetching, refetch } = useQuery<ProjectObjectsResult>({
+  const { data, isLoading, isFetching, refetch } = useQuery<ArtifactsInfoResult>({
     queryKey,
     queryFn: () =>
       loggedObjectsService.getByProject(projectId!, {
@@ -42,7 +42,7 @@ export function useProjectObjects(params: UseProjectObjectsParams) {
     enabled: !!projectId,
   });
   return {
-    objects: data?.data ?? [],
+    artifacts: data?.data ?? [],
     isLoading,
     isFetching,
     refetch,

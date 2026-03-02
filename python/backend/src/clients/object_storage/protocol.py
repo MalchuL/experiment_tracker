@@ -12,6 +12,7 @@ from .dto import (
     DeleteExperimentArtifactsResponseDTO,
     DeleteProjectArtifactResponseDTO,
     DeleteProjectResponseDTO,
+    SnapshotCreateRequestDTO,
     SnapshotCreateResponseDTO,
     UploadExperimentArtifactResponseDTO,
     UploadProjectArtifactResponseDTO,
@@ -32,7 +33,7 @@ class ObjectStorageClientProtocol(Protocol):
     ) -> bytes: ...
 
     async def create_project_snapshot(
-        self, project_id: UUID, payload: dict
+        self, project_id: UUID, payload: SnapshotCreateRequestDTO
     ) -> SnapshotCreateResponseDTO: ...
 
     async def download_project_snapshot(

@@ -21,7 +21,6 @@ from api.routes.service_dependencies import get_experiment_artifacts_service
 from domain.rbac.permissions import ProjectActions
 from models import User
 
-from .dto import ProjectObjectsResultDTO
 from .error import ExperimentArtifactsNotAccessibleError
 from .service import ExperimentArtifactsServiceProtocol
 
@@ -44,33 +43,9 @@ def _raise_http_error(error: Exception) -> None:
     raise HTTPException(status_code=400, detail=str(error))
 
 
-def _map_artifacts_to_objects(result: ArtifactsInfoResultDTO) -> ProjectObjectsResultDTO:
-    """Map artifacts_info response to frontend object payload shape."""
-    mapped = [
-        {
-            "experiment_id": str(item.experiment_id),
-            "objects": [
-                {
-                    "timestamp": artifact.timestamp,
-                    "step": artifact.step,
-                    "name": artifact.name,
-                    "object_type": artifact.artifact_type,
-                    "path": artifact.path,
-                    "metadata": artifact.metadata,
-                    "tags": artifact.tags,
-                }
-                for artifact in item.artifacts_info
-            ],
-        }
-        for item in result.data
-    ]
-    return ProjectObjectsResultDTO.model_validate({"data": mapped})
-
-
 @router.get("/projects/{project_id}/get")
 async def get_project_artifacts(
     project_id: UUID,
-    format: str = Query("artifacts"),
     experiment_id: list[UUID] | None = Query(default=None),
     artifact_type: list[str] | None = Query(default=None),
     artifact_name: list[str] | None = Query(default=None),
@@ -81,7 +56,7 @@ async def get_project_artifacts(
     service: ExperimentArtifactsServiceProtocol = Depends(
         get_experiment_artifacts_service
     ),
-) -> ArtifactsInfoResultDTO | ProjectObjectsResultDTO:
+) -> ArtifactsInfoResultDTO:
     """List project artifacts using experiment-artifacts domain."""
     try:
         result = await service.get_project_artifacts(
@@ -93,8 +68,6 @@ async def get_project_artifacts(
             start_time=start_time.isoformat() if start_time else None,
             end_time=end_time.isoformat() if end_time else None,
         )
-        if format == "objects":
-            return _map_artifacts_to_objects(result)
         return result
     except Exception as exc:  # noqa: BLE001
         _raise_http_error(exc)
@@ -150,6 +123,7 @@ async def upload_and_log_experiment_artifact(
 async def download_experiment_artifact(
     experiment_id: UUID,
     path: str = Query(..., min_length=1),
+    media_type: str | None = Query(default=None),
     user: User = Depends(get_current_user_dual),
     _: None = Depends(require_api_token_scopes(ProjectActions.VIEW_ARTIFACT)),
     service: ExperimentArtifactsServiceProtocol = Depends(
@@ -163,7 +137,7 @@ async def download_experiment_artifact(
         )
         return Response(
             content=content,
-            media_type="application/octet-stream",
+            media_type=media_type or "application/octet-stream",
         )
     except Exception as exc:  # noqa: BLE001
         _raise_http_error(exc)
