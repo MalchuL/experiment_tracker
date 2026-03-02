@@ -24,7 +24,7 @@ router = APIRouter(prefix="/project-artifacts")
 
 
 @router.post("/{project_id}/check", response_model=BlobCheckResponseDTO)
-async def check_project_blobs(
+async def check_project_artifacts(
     project_id: UUID,
     hashes: list[str] = Body(..., embed=False),
     service: ObjectStorageService = Depends(get_project_artifacts_service),
@@ -35,25 +35,25 @@ async def check_project_blobs(
 
 
 @router.post("/{project_id}/upload", response_model=UploadBlobResponseDTO)
-async def upload_project_blob(
+async def upload_project_artifact(
     project_id: UUID,
     hash: str = Query(..., min_length=64, max_length=64),
     file: UploadFile = File(...),
     service: ObjectStorageService = Depends(get_project_artifacts_service),
 ):
-    """Upload a single blob into CAS storage after hash verification."""
+    """Upload a single artifact into CAS storage after hash verification."""
 
     return await service.upload_project_blob(project_id, hash, file)
 
 
-@router.get("/{project_id}/blobs/{blob_hash}")
-async def download_project_blob(
-    blob_hash: str,
+@router.get("/{project_id}/artifacts/{artifact_hash}")
+async def download_project_artifact(
+    artifact_hash: str,
     project_id: UUID,
     service: ObjectStorageService = Depends(get_project_artifacts_service),
 ):
-    """Stream a single blob from object storage by content hash."""
-    blob_stream = await service.get_project_blob_stream(project_id, blob_hash)
+    """Stream a single artifact from object storage by content hash."""
+    blob_stream = await service.get_project_blob_stream(project_id, artifact_hash)
 
     async def _iter_stream():
         try:
@@ -71,7 +71,7 @@ async def create_project_snapshot(
     payload: SnapshotCreateRequestDTO,
     service: ObjectStorageService = Depends(get_project_artifacts_service),
 ):
-    """Create a snapshot that links an experiment to existing CAS blobs."""
+    """Create a snapshot that links an experiment to existing CAS artifacts."""
 
     return await service.create_project_snapshot(payload)
 
@@ -82,7 +82,7 @@ async def download_project_snapshot(
     snapshot_id: UUID,
     service: ObjectStorageService = Depends(get_project_artifacts_service),
 ):
-    """Stream a ZIP archive reconstructed from CAS blobs for a snapshot."""
+    """Stream a ZIP archive reconstructed from CAS artifacts for a snapshot."""
 
     zip_path, filename = await service.prepare_project_snapshot_download(
         project_id, snapshot_id
@@ -110,18 +110,20 @@ async def delete_project(
     project_id: UUID,
     service: ObjectStorageService = Depends(get_project_artifacts_service),
 ):
-    """Delete a project and all its blobs and snapshots."""
+    """Delete a project and all its artifacts and snapshots."""
 
     await service.delete_project(project_id)
     return DeleteProjectResponseDTO(deleted=True)
 
 
-@router.delete("/{project_id}/blobs/{blob_hash}", response_model=DeleteBlobResponseDTO)
-async def delete_project_blob(
-    blob_hash: str,
+@router.delete(
+    "/{project_id}/artifacts/{artifact_hash}", response_model=DeleteBlobResponseDTO
+)
+async def delete_project_artifact(
+    artifact_hash: str,
     project_id: UUID,
     service: ObjectStorageService = Depends(get_project_artifacts_service),
 ):
-    """Delete one blob from CAS storage and tracked metadata."""
+    """Delete one artifact from CAS storage and tracked metadata."""
 
-    return await service.delete_project_blob(project_id, blob_hash)
+    return await service.delete_project_blob(project_id, artifact_hash)

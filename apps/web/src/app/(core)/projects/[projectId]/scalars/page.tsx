@@ -1194,11 +1194,10 @@ export default function Scalars() {
                                 nearestStep === null
                                   ? undefined
                                   : experimentStepMap[nearestStep];
-                              const objectSrc = objectAtStep && projectId
-                                ? API_ROUTES.PROJECT_ARTIFACTS.BLOBS.GET(
-                                    projectId,
-                                    objectAtStep.path,
-                                    objectAtStep.metadata?.content_type
+                              const objectSrc = objectAtStep
+                                ? API_ROUTES.EXPERIMENT_ARTIFACTS.DOWNLOAD(
+                                    experiment.id,
+                                    objectAtStep.path
                                   )
                                 : "";
                               const currentOverrideIndex = Math.max(
@@ -1278,7 +1277,6 @@ export default function Scalars() {
                                   {!objectAtStep ? (
                                     <p className="text-xs text-muted-foreground">No object for this step</p>
                                   ) : objectType === "image" ? (
-                                    // Blob endpoint is proxied by backend; path currently stores blob hash.
                                     <button
                                       type="button"
                                       className="w-full"

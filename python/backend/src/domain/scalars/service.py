@@ -8,7 +8,13 @@ from domain.experiments.repository import ExperimentRepository
 from domain.rbac.wrapper import PermissionChecker
 from fastapi_users.models import UserProtocol
 
-from clients.scalars_client import ScalarsClientProtocol, ScalarsServiceClient  # noqa: F401
+from clients.scalars import (
+    LastLoggedExperimentsRequestDTO,
+    LogScalarsBatchRequestDTO,
+    LogScalarRequestDTO,
+    ScalarsClientProtocol,
+    ScalarsQueryDTO,
+)
 from .error import ScalarsNotAccessibleError
 
 
@@ -68,7 +74,8 @@ class ScalarsService:
         self.experiment_repository = experiment_repository
 
     async def create_project_table(self, project_id: UUID) -> dict[str, Any]:
-        return await self.client.create_project_table(project_id)
+        result = await self.client.create_project_table(project_id)
+        return result.model_dump(mode="json")
 
     async def log_scalar(
         self,
@@ -82,8 +89,9 @@ class ScalarsService:
             raise ScalarsNotAccessibleError(
                 f"You are not allowed to log scalars in project {project_id}"
             )
-        result = await self.client.log_scalar(project_id, experiment_id, payload)
-        return result
+        request_payload = LogScalarRequestDTO.model_validate(payload)
+        result = await self.client.log_scalar(project_id, experiment_id, request_payload)
+        return result.model_dump(mode="json")
 
     async def log_scalars_batch(
         self, user: UserProtocol, experiment_id: UUID, payload: dict[str, Any]
@@ -94,8 +102,11 @@ class ScalarsService:
             raise ScalarsNotAccessibleError(
                 f"You are not allowed to log scalars in project {project_id}"
             )
-        result = await self.client.log_scalars_batch(project_id, experiment_id, payload)
-        return result
+        request_payload = LogScalarsBatchRequestDTO.model_validate(payload)
+        result = await self.client.log_scalars_batch(
+            project_id, experiment_id, request_payload
+        )
+        return result.model_dump(mode="json")
 
     async def get_scalars(
         self,
@@ -135,14 +146,17 @@ class ScalarsService:
                     "All experiment_ids must belong to the specified project_id"
                 )
 
-        return await self.client.get_scalars(
-            project_id=project_id,
-            experiment_ids=experiment_ids,
-            max_points=max_points,
-            return_tags=return_tags,
-            start_time=start_time,
-            end_time=end_time,
+        result = await self.client.get_scalars(
+            ScalarsQueryDTO(
+                project_id=project_id,
+                experiment_ids=list(experiment_ids) if experiment_ids else None,
+                max_points=max_points,
+                return_tags=return_tags,
+                start_time=start_time,
+                end_time=end_time,
+            )
         )
+        return result.model_dump(mode="json")
 
     async def get_scalars_for_experiment(
         self,
@@ -175,12 +189,11 @@ class ScalarsService:
             raise ScalarsNotAccessibleError(
                 f"You are not allowed to view scalars in project {project_id}"
             )
-        payload = (
-            {"experiment_ids": None}
-            if experiment_ids is None
-            else {"experiment_ids": [str(experiment_id) for experiment_id in experiment_ids]}
+        payload = LastLoggedExperimentsRequestDTO(
+            experiment_ids=list(experiment_ids) if experiment_ids else None
         )
-        return await self.client.get_last_logged_experiments(project_id, payload)
+        result = await self.client.get_last_logged_experiments(project_id, payload)
+        return result.model_dump(mode="json")
 
 
 class NoOpScalarsService:

@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel
@@ -17,3 +18,22 @@ class LogArtifactRequestDTO(BaseModel):
     step: int
     metadata: dict[str, str] | None = None
     tags: list[str] | None = None
+
+
+class ObjectEntryDTO(BaseModel):
+    timestamp: datetime
+    step: int
+    name: str
+    object_type: ArtifactType
+    path: str
+    metadata: dict[str, str] | None = None
+    tags: list[str] | None = None
+
+
+class ExperimentObjectsResultDTO(BaseModel):
+    experiment_id: str
+    objects: list[ObjectEntryDTO]
+
+
+class ProjectObjectsResultDTO(BaseModel):
+    data: list[ExperimentObjectsResultDTO]

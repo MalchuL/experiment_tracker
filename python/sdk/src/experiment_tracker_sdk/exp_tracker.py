@@ -31,7 +31,12 @@ class ExpTracker:
         - close
     """
 
-    def __init__(self, experiment_id: str | UUID, project_id: str | UUID, api: API):
+    def __init__(
+        self,
+        experiment_id: str | UUID,
+        project_id: str | UUID,
+        api: API,
+    ):
         """Initialize the ExpTracker instance.
         Args:
             log_dir (str): Directory to save logs or use as project/source.
@@ -101,7 +106,11 @@ class ExpTracker:
                     api.experiments.create_experiment(project_obj.id, experiment)
                 ),
             )
-        return cls(experiment_obj.id, project_obj.id, api)
+        return cls(
+            experiment_obj.id,
+            project_obj.id,
+            api,
+        )
 
     def add_scalar(
         self, tag: str, scalar_value, global_step: int = 0, walltime: float = 0
@@ -146,13 +155,12 @@ class ExpTracker:
         - numpy.ndarray in HW or HWC layout
         """
         image_bytes = self._materialize_image_bytes(img_tensor)
-        metadata = {"format": "png"}
-        self._upload_and_log_object(
+        self._upload_and_log_experiment_artifact(
             tag=tag,
             object_type="image",
             content=image_bytes,
             global_step=global_step,
-            metadata=metadata,
+            metadata={"format": "png"},
             default_extension=".png",
             default_content_type="image/png",
         )
@@ -165,7 +173,7 @@ class ExpTracker:
         walltime: float = 0,
     ):
         """Upload and log text as a text object."""
-        self._upload_and_log_object(
+        self._upload_and_log_experiment_artifact(
             tag=tag,
             object_type="text",
             content=text_string,
@@ -225,7 +233,7 @@ class ExpTracker:
             "faces": faces,
             "config": config_dict,
         }
-        self._upload_and_log_object(
+        self._upload_and_log_experiment_artifact(
             tag=tag,
             object_type="point_cloud_3d",
             content=json.dumps(payload, default=str),
@@ -244,7 +252,7 @@ class ExpTracker:
         fps: int = 4,
     ):
         """Upload and log video object."""
-        self._upload_and_log_object(
+        self._upload_and_log_experiment_artifact(
             tag=tag,
             object_type="video",
             content=vid_tensor,
@@ -372,7 +380,7 @@ class ExpTracker:
         self._api.flush()
         self._api.close()
 
-    def _upload_and_log_object(
+    def _upload_and_log_experiment_artifact(
         self,
         tag: str,
         object_type: str,
@@ -391,7 +399,7 @@ class ExpTracker:
                 default_extension=default_extension,
                 default_content_type=default_content_type,
             )
-            # 2) Single call: upload to storage and log metadata (backend handles dedup).
+            # 2) Upload according to selected artifact strategy.
             payload_metadata = {
                 "filename": file_name,
                 "content_type": content_type,
@@ -399,8 +407,7 @@ class ExpTracker:
             }
             if metadata:
                 payload_metadata.update(metadata)
-            self._api.upload_and_log_artifact(
-                project_id=str(self.project_id),
+            self._api.upload_and_log_experiment_artifact(
                 experiment_id=str(self.experiment_id),
                 file_name=file_name,
                 file_content=content_bytes,
@@ -412,6 +419,21 @@ class ExpTracker:
             )
         except Exception as exc:  # noqa: BLE001
             logger.warning(f"Failed to upload/log object '{tag}': {exc}")
+
+    def _upload_project_artifact(
+        self,
+        project_id: str,
+        file_name: str,
+        file_content: bytes,
+        content_type: str,
+    ) -> None:
+        """Upload artifact into project-level CAS with hash validation."""
+        self._api.upload_project_artifact(
+            project_id=project_id,
+            file_name=file_name,
+            file_content=file_content,
+            content_type=content_type,
+        )
 
     def _materialize_content(
         self,

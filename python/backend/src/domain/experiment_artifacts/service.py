@@ -2,17 +2,26 @@
 
 from __future__ import annotations
 
-from typing import Any, Protocol
+from typing import Protocol
 from uuid import UUID
 
 from fastapi import UploadFile
 
+from clients.artifacts_info import (
+    ArtifactsInfoClientProtocol,
+    ArtifactsInfoResultDTO,
+    LogArtifactRequestDTO as ArtifactsInfoLogArtifactRequestDTO,
+    LogArtifactResponseDTO as ArtifactsInfoLogArtifactResponseDTO,
+)
+from clients.object_storage import (
+    DeleteExperimentArtifactResponseDTO,
+    DeleteExperimentArtifactsResponseDTO,
+    ObjectStorageClientProtocol,
+)
 from domain.experiments.repository import ExperimentRepository
 from domain.rbac.wrapper import PermissionChecker
 from fastapi_users.models import UserProtocol
 
-from clients.artifacts_info_client import ArtifactsInfoClientProtocol
-from clients.object_storage_client import ObjectStorageClient
 from .dto import LogArtifactRequestDTO, LogArtifactResponseDTO
 from .error import ExperimentArtifactsNotAccessibleError
 
@@ -22,6 +31,17 @@ def _as_uuid(value: UUID | str) -> UUID:
 
 
 class ExperimentArtifactsServiceProtocol(Protocol):
+    async def get_project_artifacts(
+        self,
+        user: UserProtocol,
+        project_id: UUID,
+        experiment_ids: list[UUID] | None = None,
+        artifact_types: list[str] | None = None,
+        artifact_names: list[str] | None = None,
+        start_time: str | None = None,
+        end_time: str | None = None,
+    ) -> ArtifactsInfoResultDTO: ...
+
     async def upload_and_log_experiment_artifact(
         self,
         user: UserProtocol,
@@ -32,7 +52,7 @@ class ExperimentArtifactsServiceProtocol(Protocol):
         step: int,
         metadata: dict[str, str] | None = None,
         tags: list[str] | None = None,
-    ) -> LogArtifactResponseDTO: ...
+    ) -> ArtifactsInfoLogArtifactResponseDTO: ...
 
     async def log_artifact(
         self, user: UserProtocol, experiment_id: UUID, payload: LogArtifactRequestDTO
@@ -44,14 +64,26 @@ class ExperimentArtifactsServiceProtocol(Protocol):
 
     async def delete_experiment_artifact(
         self, user: UserProtocol, experiment_id: UUID, path: str
-    ) -> dict[str, Any]: ...
+    ) -> DeleteExperimentArtifactResponseDTO: ...
 
     async def delete_experiment_artifacts(
         self, user: UserProtocol, experiment_id: UUID
-    ) -> dict[str, Any]: ...
+    ) -> DeleteExperimentArtifactsResponseDTO: ...
 
 
 class NoOpExperimentArtifactsService:
+    async def get_project_artifacts(
+        self,
+        user: UserProtocol,
+        project_id: UUID,
+        experiment_ids: list[UUID] | None = None,
+        artifact_types: list[str] | None = None,
+        artifact_names: list[str] | None = None,
+        start_time: str | None = None,
+        end_time: str | None = None,
+    ) -> ArtifactsInfoResultDTO:
+        return ArtifactsInfoResultDTO(data=[])
+
     async def upload_and_log_experiment_artifact(
         self,
         user: UserProtocol,
@@ -62,8 +94,8 @@ class NoOpExperimentArtifactsService:
         step: int,
         metadata: dict[str, str] | None = None,
         tags: list[str] | None = None,
-    ) -> LogArtifactResponseDTO:
-        return LogArtifactResponseDTO(status="logged")
+    ) -> ArtifactsInfoLogArtifactResponseDTO:
+        return ArtifactsInfoLogArtifactResponseDTO(status="logged")
 
     async def log_artifact(
         self, user: UserProtocol, experiment_id: UUID, payload: LogArtifactRequestDTO
@@ -77,19 +109,19 @@ class NoOpExperimentArtifactsService:
 
     async def delete_experiment_artifact(
         self, user: UserProtocol, experiment_id: UUID, path: str
-    ) -> dict[str, Any]:
-        return {"deleted": True}
+    ) -> DeleteExperimentArtifactResponseDTO:
+        return DeleteExperimentArtifactResponseDTO(deleted=True)
 
     async def delete_experiment_artifacts(
         self, user: UserProtocol, experiment_id: UUID
-    ) -> dict[str, Any]:
-        return {"deleted_count": 0}
+    ) -> DeleteExperimentArtifactsResponseDTO:
+        return DeleteExperimentArtifactsResponseDTO(deleted_count=0)
 
 
 class ExperimentArtifactsService:
     def __init__(
         self,
-        object_storage_client: ObjectStorageClient,
+        object_storage_client: ObjectStorageClientProtocol,
         artifacts_info_client: ArtifactsInfoClientProtocol,
         permission_checker: PermissionChecker,
         experiment_repository: ExperimentRepository,
@@ -99,7 +131,9 @@ class ExperimentArtifactsService:
         self._permission_checker = permission_checker
         self._experiment_repository = experiment_repository
 
-    async def _ensure_log_permission(self, user: UserProtocol, experiment_id: UUID) -> UUID:
+    async def _ensure_log_permission(
+        self, user: UserProtocol, experiment_id: UUID
+    ) -> UUID:
         experiment = await self._experiment_repository.get_by_id(experiment_id)
         project_id = _as_uuid(experiment.project_id)
         if not await self._permission_checker.can_log_artifact(user.id, project_id):
@@ -108,7 +142,9 @@ class ExperimentArtifactsService:
             )
         return project_id
 
-    async def _ensure_view_permission(self, user: UserProtocol, experiment_id: UUID) -> UUID:
+    async def _ensure_view_permission(
+        self, user: UserProtocol, experiment_id: UUID
+    ) -> UUID:
         experiment = await self._experiment_repository.get_by_id(experiment_id)
         project_id = _as_uuid(experiment.project_id)
         if not await self._permission_checker.can_view_artifact(user.id, project_id):
@@ -116,6 +152,34 @@ class ExperimentArtifactsService:
                 f"You are not allowed to view artifacts in project {project_id}"
             )
         return project_id
+
+    async def _ensure_project_view_permission(
+        self, user: UserProtocol, project_id: UUID
+    ) -> None:
+        if not await self._permission_checker.can_view_artifact(user.id, project_id):
+            raise ExperimentArtifactsNotAccessibleError(
+                f"You are not allowed to view artifacts in project {project_id}"
+            )
+
+    async def get_project_artifacts(
+        self,
+        user: UserProtocol,
+        project_id: UUID,
+        experiment_ids: list[UUID] | None = None,
+        artifact_types: list[str] | None = None,
+        artifact_names: list[str] | None = None,
+        start_time: str | None = None,
+        end_time: str | None = None,
+    ) -> ArtifactsInfoResultDTO:
+        await self._ensure_project_view_permission(user, project_id)
+        return await self._artifacts_info.get_artifacts(
+            project_id=project_id,
+            experiment_ids=experiment_ids,
+            artifact_types=artifact_types,
+            artifact_names=artifact_names,
+            start_time=start_time,
+            end_time=end_time,
+        )
 
     async def upload_and_log_experiment_artifact(
         self,
@@ -127,13 +191,14 @@ class ExperimentArtifactsService:
         step: int,
         metadata: dict[str, str] | None = None,
         tags: list[str] | None = None,
-    ) -> LogArtifactResponseDTO:
+    ) -> ArtifactsInfoLogArtifactResponseDTO:
         project_id = await self._ensure_log_permission(user, experiment_id)
+        # Log the artifact to the object storage
         upload_result = await self._object_storage.upload_experiment_artifact(
             experiment_id, file
         )
-        path = upload_result.get("path", "")
-        size = upload_result.get("size", 0)
+        path = upload_result.path
+        size = upload_result.size
 
         payload_metadata: dict[str, str] = {
             "filename": file.filename or f"{name}_{step}",
@@ -143,7 +208,7 @@ class ExperimentArtifactsService:
         if metadata:
             payload_metadata.update(metadata)
 
-        payload = LogArtifactRequestDTO(
+        payload = ArtifactsInfoLogArtifactRequestDTO(
             name=name,
             artifact_type=artifact_type,
             path=path,
@@ -151,21 +216,11 @@ class ExperimentArtifactsService:
             metadata=payload_metadata,
             tags=tags or [],
         )
+        # Log the info to scalars service
         result = await self._artifacts_info.log_artifact(
-            project_id, experiment_id, payload.model_dump()
+            project_id, experiment_id, payload
         )
-        return LogArtifactResponseDTO.model_validate(result)
-
-    async def log_artifact(
-        self, user: UserProtocol, experiment_id: UUID, payload: LogArtifactRequestDTO
-    ) -> LogArtifactResponseDTO:
-        await self._ensure_log_permission(user, experiment_id)
-        experiment = await self._experiment_repository.get_by_id(experiment_id)
-        project_id = _as_uuid(experiment.project_id)
-        result = await self._artifacts_info.log_artifact(
-            project_id, experiment_id, payload.model_dump()
-        )
-        return LogArtifactResponseDTO.model_validate(result)
+        return result
 
     async def download_experiment_artifact(
         self, user: UserProtocol, experiment_id: UUID, path: str
@@ -178,7 +233,7 @@ class ExperimentArtifactsService:
 
     async def delete_experiment_artifact(
         self, user: UserProtocol, experiment_id: UUID, path: str
-    ) -> dict[str, Any]:
+    ) -> DeleteExperimentArtifactResponseDTO:
         await self._ensure_log_permission(user, experiment_id)
         return await self._object_storage.delete_experiment_artifact(
             experiment_id, path
@@ -186,6 +241,6 @@ class ExperimentArtifactsService:
 
     async def delete_experiment_artifacts(
         self, user: UserProtocol, experiment_id: UUID
-    ) -> dict[str, Any]:
+    ) -> DeleteExperimentArtifactsResponseDTO:
         await self._ensure_log_permission(user, experiment_id)
         return await self._object_storage.delete_experiment_artifacts(experiment_id)

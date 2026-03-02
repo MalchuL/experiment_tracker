@@ -71,14 +71,13 @@ async def update_api_token(
         _raise_api_token_http_error(exc)
 
 
-@router.delete("/{token_id}")
+@router.delete("/{token_id}", response_model=ApiTokenListItemDTO)
 async def revoke_api_token(
     token_id: UUID,
     user: User = Depends(current_active_user),
     api_token_service: ApiTokenService = Depends(get_api_token_service),
-):
+) -> ApiTokenListItemDTO:
     try:
-        await api_token_service.revoke_token(user_id=user.id, token_id=token_id)
+        return await api_token_service.revoke_token(user_id=user.id, token_id=token_id)
     except Exception as exc:  # noqa: BLE001
         _raise_api_token_http_error(exc)
-    return {"success": True}

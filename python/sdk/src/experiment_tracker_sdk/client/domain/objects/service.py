@@ -14,8 +14,8 @@ class ObjectsRequestSpecFactory:
     """Uses artifacts API. Kept as 'objects' for backward compatibility."""
 
     ENDPOINTS = {
-        "log_object": lambda experiment_id: f"/api/experiment-artifacts/{experiment_id}/log_metadata",
-        "get_project_objects": lambda project_id: f"/api/project-artifacts/{project_id}/get",
+        "log_object": lambda experiment_id: f"/api/experiment-artifacts/{experiment_id}/log",
+        "get_project_objects": lambda project_id: f"/api/experiment-artifacts/projects/{project_id}/get",
     }
 
     def log_object(

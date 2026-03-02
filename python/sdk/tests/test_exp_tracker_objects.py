@@ -5,9 +5,8 @@ class _FakeAPI:
     def __init__(self):
         self.uploaded: list[tuple[str, str, bytes, str, dict]] = []
 
-    def upload_and_log_artifact(
+    def upload_and_log_experiment_artifact(
         self,
-        project_id: str,
         experiment_id: str,
         file_name: str,
         file_content: bytes,

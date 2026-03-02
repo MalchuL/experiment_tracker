@@ -1,8 +1,0 @@
-README.md
-pyproject.toml
-src/experiment_tracker_shared/__init__.py
-src/experiment_tracker_shared/hash_utils.py
-src/experiment_tracker_shared.egg-info/PKG-INFO
-src/experiment_tracker_shared.egg-info/SOURCES.txt
-src/experiment_tracker_shared.egg-info/dependency_links.txt
-src/experiment_tracker_shared.egg-info/top_level.txt
