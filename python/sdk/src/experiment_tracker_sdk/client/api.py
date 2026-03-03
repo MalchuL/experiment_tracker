@@ -1,16 +1,21 @@
 from experiment_tracker_sdk.client import ExperimentTrackerClient
 from experiment_tracker_sdk.client.request import ApiRequestSpec
 from experiment_tracker_sdk.client.domain import (
+    ExperimentArtifactsRequestSpecFactory,
     ExperimentRequestSpecFactory,
     MetricRequestSpecFactory,
     ProjectRequestSpecFactory,
+    ProjectArtifactsRequestSpecFactory,
     ScalarsRequestSpecFactory,
     HypothesisRequestSpecFactory,
-    ObjectsRequestSpecFactory,
     TeamRequestSpecFactory,
 )
+from experiment_tracker_sdk.client.domain.experiment_artifacts.dto import (
+    ArtifactType,
+    LogArtifactRequest,
+)
 from pydantic import BaseModel
-from typing import Any, TypeVar
+from typing import Any, TypeVar, cast
 from pathlib import Path
 
 ResponseT = TypeVar("ResponseT", bound=BaseModel)
@@ -25,7 +30,8 @@ class API:
         self._scalars_service = ScalarsRequestSpecFactory()
         self._hypothesis_service = HypothesisRequestSpecFactory()
         self._team_service = TeamRequestSpecFactory()
-        self._objects_service = ObjectsRequestSpecFactory()
+        self._project_artifacts_service = ProjectArtifactsRequestSpecFactory()
+        self._experiment_artifacts_service = ExperimentArtifactsRequestSpecFactory()
 
     @property
     def experiments(self) -> ExperimentRequestSpecFactory:
@@ -52,8 +58,12 @@ class API:
         return self._team_service
 
     @property
-    def objects(self) -> ObjectsRequestSpecFactory:
-        return self._objects_service
+    def project_artifacts(self) -> ProjectArtifactsRequestSpecFactory:
+        return self._project_artifacts_service
+
+    @property
+    def experiment_artifacts(self) -> ExperimentArtifactsRequestSpecFactory:
+        return self._experiment_artifacts_service
 
     def request(
         self, request_spec: ApiRequestSpec[ResponseT]
@@ -74,11 +84,10 @@ class API:
     def check_project_artifacts(
         self, project_id: str, hashes: list[str]
     ) -> dict[str, Any]:
-        return self._client.request_json(
-            method="POST",
-            path=f"/api/project-artifacts/{project_id}/check",
-            json=hashes,
-        )
+        response = self.request(self.project_artifacts.check_project_artifacts(project_id, hashes))
+        if isinstance(response, BaseModel):
+            return cast(dict[str, Any], response.model_dump())
+        return cast(dict[str, Any], response)
 
     def upload_project_artifact(
         self,
@@ -96,9 +105,10 @@ class API:
         missing = set(check_result.get("missing", []))
         if artifact_hash not in missing:
             return {"status": "exists", "hash": artifact_hash}
+        upload_spec = self.project_artifacts.upload_project_artifact(project_id, artifact_hash)
         upload_result = self._client.upload_file(
-            path=f"/api/project-artifacts/{project_id}/upload",
-            params={"hash": artifact_hash},
+            path=upload_spec.endpoint,
+            params=upload_spec.query_params or {},
             file_name=file_name,
             file_content=file_content,
             content_type=content_type,
@@ -124,17 +134,29 @@ class API:
         """
         import json
 
+        request_model = LogArtifactRequest(
+            name=name,
+            artifact_type=cast(ArtifactType, artifact_type),
+            step=step,
+            metadata=metadata,
+            tags=tags,
+        )
+        upload_spec = self.experiment_artifacts.upload_and_log_experiment_artifact(
+            experiment_id=experiment_id,
+            request=request_model,
+        )
+        request_payload = request_model.model_dump(exclude_none=True)
         form_data: dict[str, Any] = {
-            "name": name,
-            "artifact_type": artifact_type,
-            "step": str(step),
+            "name": cast(str, request_payload["name"]),
+            "artifact_type": cast(str, request_payload["artifact_type"]),
+            "step": str(request_payload["step"]),
         }
-        if metadata:
-            form_data["metadata"] = json.dumps(metadata)
-        if tags:
-            form_data["tags"] = json.dumps(tags)
+        if "metadata" in request_payload:
+            form_data["metadata"] = json.dumps(request_payload["metadata"])
+        if "tags" in request_payload:
+            form_data["tags"] = json.dumps(request_payload["tags"])
         return self._client.upload_artifact(
-            path=f"/api/experiment-artifacts/{experiment_id}/log",
+            path=upload_spec.endpoint,
             file_name=file_name,
             file_content=file_content,
             content_type=content_type,
@@ -143,22 +165,36 @@ class API:
 
     def download_project_artifact(self, project_id: str, artifact_hash: str) -> bytes:
         """Download project artifact bytes by hash (project-scoped CAS)."""
+        request_spec = self.project_artifacts.download_project_artifact(
+            project_id=project_id,
+            artifact_hash=artifact_hash,
+        )
         return self._client.download_file(
-            f"/api/project-artifacts/{project_id}/artifacts/{artifact_hash}"
+            path=request_spec.endpoint,
+            params=request_spec.query_params,
         )
 
     def download_experiment_artifact(self, experiment_id: str, path: str) -> bytes:
         """Download artifact by path from experiment bucket."""
+        request_spec = self.experiment_artifacts.download_experiment_artifact(
+            experiment_id=experiment_id,
+            path=path,
+        )
         return self._client.download_file(
-            f"/api/experiment-artifacts/{experiment_id}/download",
-            params={"path": path},
+            path=request_spec.endpoint,
+            params=request_spec.query_params,
         )
 
     def download_project_artifact_to_file(
         self, project_id: str, artifact_hash: str, output_path: str | Path
     ) -> Path:
         """Download project artifact and write it to a local file path."""
+        request_spec = self.project_artifacts.download_project_artifact(
+            project_id=project_id,
+            artifact_hash=artifact_hash,
+        )
         return self._client.download_file_to_path(
-            f"/api/project-artifacts/{project_id}/artifacts/{artifact_hash}",
+            path=request_spec.endpoint,
             output_path=output_path,
+            params=request_spec.query_params,
         )
