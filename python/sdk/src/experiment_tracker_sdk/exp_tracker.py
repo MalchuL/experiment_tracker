@@ -19,6 +19,7 @@ class ExpTracker:
     Minimal TensorBoard-like logging API.
     Methods mirror typical tensorboard.SummaryWriter calls:
         - add_scalar
+        - add_metric
         - add_scalars
         - add_image
         - add_text
@@ -140,6 +141,26 @@ class ExpTracker:
         """Log multiple scalar values under a main tag."""
         for tag, scalar_value in tag_scalar_dict.items():
             self.add_scalar(main_tag + tag, scalar_value, global_step, walltime)
+
+    def add_metric(
+        self,
+        name: str,
+        value: float,
+        step: int = 0,
+        label: str | None = None,
+        walltime: float = 0,
+    ):
+        """Create a metric row immediately (sync mode, no queue)."""
+        _ = walltime  # Kept for API parity with add_scalar-like signatures.
+        self._api.request(
+            self._api.metrics.create_metric(
+                experiment_id=self.experiment_id,
+                name=name,
+                value=value,
+                step=step,
+                label=label,
+            )
+        )
 
     def add_image(
         self,

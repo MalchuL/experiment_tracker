@@ -85,6 +85,28 @@ def _parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def _smooth_image(image: np.ndarray, kernel_size: int = 7) -> np.ndarray:
+    """Simple box blur for demo GT image generation."""
+    if kernel_size < 1 or kernel_size % 2 == 0:
+        raise ValueError("kernel_size must be a positive odd integer")
+    if image.ndim != 3 or image.shape[2] not in (3, 4):
+        raise ValueError("Expected HWC image with 3 or 4 channels")
+
+    height, width, channels = image.shape
+    pad = kernel_size // 2
+    padded = np.pad(
+        image.astype(np.float32),
+        ((pad, pad), (pad, pad), (0, 0)),
+        mode="reflect",
+    )
+    smoothed = np.zeros((height, width, channels), dtype=np.float32)
+    for dy in range(kernel_size):
+        for dx in range(kernel_size):
+            smoothed += padded[dy : dy + height, dx : dx + width, :]
+    smoothed /= float(kernel_size * kernel_size)
+    return np.clip(smoothed, 0, 255).astype(np.uint8)
+
+
 def main() -> None:
     args = _parse_args()
     config = load_config()
@@ -155,10 +177,11 @@ def main() -> None:
             tracker.add_scalar("bce_loss", bce_loss, global_step=step)
             if step % 20 == 0:
                 # Random demo image (HWC, uint8) for object logging examples.
-                random_image = np.random.randint(
+                noise_image = np.random.randint(
                     0, 256, size=(256, 256, 3), dtype=np.uint8
                 )
-                tracker.add_image("generated", random_image, global_step=step)
+                tracker.add_image("generated", noise_image, global_step=step)
+                tracker.add_image("gt", _smooth_image(noise_image), global_step=step)
             tracker.progress(progress)
             logger.info(
                 "training_progress",
@@ -172,13 +195,22 @@ def main() -> None:
                 },
             )
 
-        final_accuracy = random.uniform(0.7, 0.99)
-        final_loss = random.uniform(0.1, 0.6)
-        tracker.add_scalar("final_accuracy", final_accuracy, global_step=steps)
-        tracker.add_scalar("final_loss", final_loss, global_step=steps)
+        final_metrics = {
+            "loss": random.uniform(0.1, 0.6),
+            "accuracy": random.uniform(0.7, 0.99),
+            "precision": random.uniform(0.6, 0.99),
+            "recall": random.uniform(0.6, 0.99),
+        }
+        for metric_name, metric_value in final_metrics.items():
+            tracker.add_metric(
+                name=metric_name,
+                value=metric_value,
+                step=steps,
+                label="final",
+            )
         tracker.flush()
         logger.info(
-            "scalars_logged",
+            "training_logged",
             extra={
                 "experiment_id": experiment_id,
                 "steps": steps,
@@ -186,9 +218,8 @@ def main() -> None:
                     "accuracy",
                     "loss",
                     "bce_loss",
-                    "final_accuracy",
-                    "final_loss",
                 ],
+                "metric_names": list(final_metrics.keys()),
             },
         )
 
