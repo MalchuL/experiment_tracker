@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from object_storage.api import router as api_router
 from object_storage.config import get_settings
 from object_storage.db import create_db_and_tables
+from object_storage.error_logging import configure_logging, register_exception_handlers
 
 
 @asynccontextmanager
@@ -20,6 +21,7 @@ def create_app() -> FastAPI:
     """Create the FastAPI application configured for the CAS service."""
 
     settings = get_settings()
+    configure_logging(settings.log_level)
     app = FastAPI(title=settings.app_name, version="0.1.0", lifespan=lifespan)
     app.add_middleware(
         CORSMiddleware,
@@ -29,6 +31,7 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
     app.include_router(api_router, prefix=settings.api_prefix)
+    register_exception_handlers(app, log_stacktrace=settings.log_stacktrace)
     return app
 
 

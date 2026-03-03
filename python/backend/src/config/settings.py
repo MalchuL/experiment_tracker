@@ -1,9 +1,6 @@
 from functools import lru_cache
 from pydantic_settings import BaseSettings
 
-from pprint import pprint
-
-
 class Settings(BaseSettings):
     api_prefix: str = "/api"
     database_url: str = "sqlite+aiosqlite:///./data.db"
@@ -12,6 +9,8 @@ class Settings(BaseSettings):
     allowed_origins: str = "*"
     scalars_service_url: str = "http://127.0.0.1:8001/api"
     object_storage_service_url: str = "http://127.0.0.1:8010/api"
+    log_level: str = "INFO"
+    log_stacktrace: bool = True
 
     class Config:
         env_prefix = ""
@@ -22,6 +21,3 @@ class Settings(BaseSettings):
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
     return Settings()
-
-
-pprint(get_settings().model_dump())

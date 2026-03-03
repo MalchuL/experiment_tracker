@@ -6,8 +6,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 
-LOGGER_NAME = "experiment_tracker.scalars_service"
-logger = logging.getLogger(LOGGER_NAME)
+LOGGER_NAME = "experiment_tracker.api"
 
 
 def configure_logging(log_level: str) -> None:

@@ -7,6 +7,8 @@ class Settings(BaseSettings):
     app_name: str = "ML Experiment Object Storage"
     api_prefix: str = "/api"
     allowed_origins: str = "*"
+    log_level: str = "INFO"
+    log_stacktrace: bool = True
 
     database_url: str = (
         "postgresql+asyncpg://object_storage:object_storage@localhost:5433/object_storage"

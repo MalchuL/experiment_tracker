@@ -6,6 +6,8 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     PROJECT_NAME: str = "ML Metrics Service"
     API_PREFIX: str = "/api"
+    LOG_LEVEL: str = "INFO"
+    LOG_STACKTRACE: bool = True
 
     # ClickHouse Configuration
     CLICKHOUSE_URL: str = "http://localhost:8123"
