@@ -90,7 +90,7 @@ class ProjectsService:
         Returns:
             DeleteProjectTableResponseDTO: The delete project table response.
         """
-        table_name = SCALARS_DB_UTILS.safe_scalars_table_name(project_id)
+        scalars_table_name = SCALARS_DB_UTILS.safe_scalars_table_name(project_id)
         last_logged_table_name = SCALARS_DB_UTILS.safe_last_logged_table_name(
             project_id
         )
@@ -101,7 +101,7 @@ class ProjectsService:
             SCALARS_DB_UTILS.build_delete_mapping_statement(project_id)
         )
         await self.client.command(
-            SCALARS_DB_UTILS.build_drop_table_statement(table_name)
+            SCALARS_DB_UTILS.build_drop_table_statement(scalars_table_name)
         )
         await self.client.command(
             SCALARS_DB_UTILS.build_drop_table_statement(last_logged_table_name)
@@ -110,5 +110,5 @@ class ProjectsService:
             SCALARS_DB_UTILS.build_drop_table_statement(artifacts_info_table_name)
         )
         return DeleteProjectTableResponseDTO(
-            message=f"Table {table_name} deleted successfully."
+            message=f"Table {scalars_table_name} deleted successfully."
         )
