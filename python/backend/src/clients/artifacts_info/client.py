@@ -12,7 +12,21 @@ from .dto import ArtifactsInfoResultDTO, LogArtifactRequestDTO, LogArtifactRespo
 
 
 class ArtifactsInfoClient:
-    ENDPOINTS = {
+    """HTTP client for scalars_service artifacts_info API.
+
+    This client is used to log and get artifacts info from the scalars_service.
+    Usefull to store artifacts that depends on the experiment and step.
+
+    Args:
+        base_url: The base URL of the scalars_service.
+        timeout: The timeout for the HTTP requests.
+
+    Attributes:
+        base_url: The base URL of the scalars_service.
+        timeout: The timeout for the HTTP requests.
+    """
+
+    ENDPOINTS: dict[str, Any] = {
         "log_artifact": lambda project_id, experiment_id: f"/artifacts_info/log/{project_id}/{experiment_id}",
         "get_artifacts": lambda project_id: f"/artifacts_info/get/{project_id}",
     }
@@ -24,6 +38,16 @@ class ArtifactsInfoClient:
     async def log_artifact(
         self, project_id: UUID, experiment_id: UUID, payload: LogArtifactRequestDTO
     ) -> LogArtifactResponseDTO:
+        """Log an artifact info to the scalars_service.
+
+        Args:
+            project_id: The ID of the project.
+            experiment_id: The ID of the experiment (that under project).
+            payload: The payload to log.
+
+        Returns:
+            The response from the scalars_service.
+        """
         response = await self._request(
             "POST",
             self.ENDPOINTS["log_artifact"](project_id, experiment_id),
@@ -40,6 +64,19 @@ class ArtifactsInfoClient:
         start_time: str | None = None,
         end_time: str | None = None,
     ) -> ArtifactsInfoResultDTO:
+        """Get artifacts info from the scalars_service.
+
+        Args:
+            project_id: The ID of the project.
+            experiment_ids: The IDs of the experiments (that under project).
+            artifact_types: The types of the artifacts.
+            artifact_names: The names of the artifacts.
+            start_time: The start time of the artifacts.
+            end_time: The end time of the artifacts.
+
+        Returns:
+            ArtifactsInfoResultDTO: The response from the scalars_service.
+        """
         params: dict[str, object] = {}
         if experiment_ids:
             params["experiment_id"] = [str(e) for e in experiment_ids]
@@ -75,4 +112,3 @@ class ArtifactsInfoClient:
             )
             response.raise_for_status()
             return response.json()
-

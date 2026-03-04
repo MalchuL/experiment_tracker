@@ -182,6 +182,33 @@ class ExperimentArtifactsService:
         metadata: dict[str, str] | None = None,
         tags: list[str] | None = None,
     ) -> ArtifactsInfoLogArtifactResponseDTO:
+        """Upload and log an experiment artifact to the object storage.
+        This method uploads the artifact to the object storage and logs the metadata to the scalars service.
+        The artifact is logged to the scalars service with the following metadata:
+        - filename: The name of the artifact.
+        - content_type: The content type of the artifact.
+        - size_bytes: The size of the artifact.
+        - path: The path of the artifact in the object storage.
+        - step: The step of the artifact.
+        - metadata: The metadata of the artifact.
+        - tags: The tags of the artifact.
+
+        The artifact is uploaded to the object storage with the following metadata:
+        - content: The content of the artifact.
+
+        Args:
+            user: The user.
+            experiment_id: The ID of the experiment.
+            file: The upload file.
+            name: The name of the artifact.
+            artifact_type: The type of the artifact.
+            step: The step of the artifact.
+            metadata: The metadata of the artifact.
+            tags: The tags of the artifact.
+
+        Returns:
+            The response from the scalars service.
+        """
         project_id = await self._ensure_log_permission(user, experiment_id)
         # Log the artifact to the object storage
         upload_result = await self._object_storage.upload_experiment_artifact(
