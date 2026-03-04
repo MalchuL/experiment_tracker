@@ -1,17 +1,17 @@
-import { ProjectMetric, ProjectSettings } from "./types";
+import { ProjectMetrics, ProjectSetting } from "./types";
 
 export interface InsertProject {
     name: string;
     description: string;
-    metrics?: ProjectMetric[];
-    settings?: ProjectSettings;
+    metrics?: ProjectMetrics;
+    settings?: ProjectSetting[];
     teamId?: string | null;
   }
 
 export interface UpdateProject {
     name?: string;
     description?: string;
-    metrics?: ProjectMetric[];
-    settings?: ProjectSettings;
+    metrics?: ProjectMetrics;
+    settings?: ProjectSetting[];
     teamId?: string | null;
   }

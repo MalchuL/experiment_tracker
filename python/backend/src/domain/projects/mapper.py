@@ -2,11 +2,13 @@ from dataclasses import dataclass
 from domain.projects.dto import (
     ProjectCreateDTO,
     ProjectDTO,
+    ProjectMetricsDTO,
     ProjectOwnerDTO,
+    ProjectSettingDTO,
     ProjectTeamDTO,
     ProjectUpdateDTO,
 )
-from domain.projects.utils import default_metrics
+from domain.projects.utils import default_project_metrics
 from lib.dto_converter import DtoConverter
 from models import Project
 from typing import List, Optional, Sequence, Dict, Any
@@ -31,6 +33,41 @@ class CreateDTOToSchemaProps:
 class ProjectMapper:
     """Mapper for converting between Project DTOs and SQLAlchemy models"""
 
+    @staticmethod
+    def _normalize_metrics(
+        metrics: Any, settings: Any | None = None
+    ) -> Dict[str, List[Dict[str, Any]] | List[str]]:
+        default_metrics = default_project_metrics()
+        tracked_metrics: List[Dict[str, Any]] = []
+        display_metrics: List[str] = []
+
+        if isinstance(metrics, dict):
+            tracked_raw = metrics.get("tracked_metrics", metrics.get("trackedMetrics", []))
+            display_raw = metrics.get("display_metrics", metrics.get("displayMetrics", []))
+            if isinstance(tracked_raw, list):
+                tracked_metrics = tracked_raw
+            if isinstance(display_raw, list):
+                display_metrics = [str(item) for item in display_raw]
+        elif isinstance(metrics, list):
+            tracked_metrics = metrics
+            if isinstance(settings, dict):
+                legacy_display = settings.get(
+                    "display_metrics", settings.get("displayMetrics", [])
+                )
+                if isinstance(legacy_display, list):
+                    display_metrics = [str(item) for item in legacy_display]
+
+        return {
+            "tracked_metrics": tracked_metrics or default_metrics["tracked_metrics"],
+            "display_metrics": display_metrics or default_metrics["display_metrics"],
+        }
+
+    @staticmethod
+    def _normalize_settings(settings: Any) -> List[Dict[str, Any]]:
+        if isinstance(settings, list):
+            return settings
+        return []
+
     def project_schema_to_dto(
         self, project: Project, props: SchemaToDTOProps
     ) -> ProjectDTO:
@@ -50,14 +87,22 @@ class ProjectMapper:
         else:
             team = None
 
+        normalized_metrics = self._normalize_metrics(project.metrics, project.settings)
+        normalized_settings = self._normalize_settings(project.settings)
+
         return ProjectDTO(
             id=str(project.id),
             name=project.name,
             description=project.description,
             owner=owner,
             created_at=project.created_at.isoformat() if project.created_at else "",
-            metrics=project.metrics or [],
-            settings=project.settings or {},
+            metrics=ProjectMetricsDTO(
+                tracked_metrics=normalized_metrics["tracked_metrics"],
+                display_metrics=normalized_metrics["display_metrics"],
+            ),
+            settings=[
+                ProjectSettingDTO.model_validate(item) for item in normalized_settings
+            ],
             experiment_count=props.experiment_count,
             hypothesis_count=props.hypothesis_count,
             team=team,
@@ -82,26 +127,19 @@ class ProjectMapper:
         self, dto: ProjectCreateDTO, props: CreateDTOToSchemaProps
     ) -> Project:
         """Convert ProjectCreateDTO to Project model"""
-        # Convert metrics from Pydantic models to dicts
         converter = DtoConverter[ProjectCreateDTO](ProjectCreateDTO)
-        metrics: List[Dict[str, Any]] = []
-        if dto.metrics:
-            metrics = [converter.dto_to_dict_with_dto_case(m) for m in dto.metrics]
+        converted_dto = converter.dto_to_dict_with_dto_case(dto)
 
-        # Convert settings from Pydantic model to dict
-        if dto.settings:
-            settings = converter.dto_to_dict_with_dto_case(dto.settings)
-        else:
-            settings = default_metrics()  # Returns default settings dict
+        raw_metrics = converted_dto.get("metrics") or {}
+        normalized_metrics = self._normalize_metrics(raw_metrics)
+        settings = self._normalize_settings(converted_dto.get("settings", []))
 
-        # Note: owner_id comes from props (user.id), not from dto.owner
-        # The dto.owner field is just for display purposes in the DTO
         return Project(
             name=dto.name,
             description=dto.description,
             owner_id=props.owner_id,
             team_id=dto.team_id if dto.team_id else None,
-            metrics=metrics,
+            metrics=normalized_metrics,
             settings=settings,
         )
 
@@ -122,20 +160,8 @@ class ProjectMapper:
         if "owner" in converted_dto:
             raise ValueError("Owner cannot be updated")
         if "metrics" in converted_dto:
-            metrics = []
-            for m in converted_dto["metrics"]:
-                metric = {
-                    "name": m["name"],
-                    "direction": m["direction"],
-                    "aggregation": m["aggregation"],
-                }
-                metrics.append(metric)
-            updates["metrics"] = metrics
+            updates["metrics"] = self._normalize_metrics(converted_dto["metrics"])
         if "settings" in converted_dto:
-            settings = {
-                "naming_pattern": converted_dto["settings"]["naming_pattern"],
-                "display_metrics": converted_dto["settings"]["display_metrics"],
-            }
-            updates["settings"] = settings
+            updates["settings"] = self._normalize_settings(converted_dto["settings"])
 
         return updates

@@ -1,12 +1,8 @@
-from typing import List
+from typing import Any
 
 
-DEFAULT_EXPERIMENT_NAME_PATTERN = "{num}_from_{parent}_{change}"
-DEFAULT_METRICS: List[str] = []
-
-
-def default_metrics():
+def default_project_metrics() -> dict[str, Any]:
     return {
-        "namingPattern": DEFAULT_EXPERIMENT_NAME_PATTERN,
-        "displayMetrics": DEFAULT_METRICS,
+        "tracked_metrics": [],
+        "display_metrics": [],
     }

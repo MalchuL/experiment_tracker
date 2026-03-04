@@ -1,4 +1,10 @@
-import type { Project, InsertProject, UpdateProject, DashboardStats } from '../types';
+import type {
+  DashboardStats,
+  InsertProject,
+  Project,
+  ProjectSetting,
+  UpdateProject,
+} from "../types";
 import type { Experiment } from '@/domain/experiments/types';
 import type { Hypothesis } from '@/domain/hypothesis/types';
 import { serviceClients } from "@/lib/api/clients/axios-client";
@@ -17,6 +23,11 @@ export interface ProjectsService {
   update: (id: string, updates: UpdateProject) => Promise<Project>;
   delete: (id: string) => Promise<void>;
   getDashboardStats: (id: string) => Promise<DashboardStats>;
+  addSettings: (id: string, settings: ProjectSetting | ProjectSetting[]) => Promise<ProjectSetting[]>;
+  getSettings: (id: string) => Promise<ProjectSetting[]>;
+  getSettingsMap: (id: string) => Promise<Record<string, unknown>>;
+  updateSettingValue: (id: string, name: string, value: unknown) => Promise<ProjectSetting>;
+  deleteSetting: (id: string, name: string) => Promise<void>;
 }
 
 export const projectsService: ProjectsService = {
@@ -65,5 +76,41 @@ export const projectsService: ProjectsService = {
   getDashboardStats: async (id: string): Promise<DashboardStats> => {
     const response = await serviceClients.api.get<DashboardStats>(API_ROUTES.DASHBOARD.STATS(id));
     return response.data;
+  },
+  addSettings: async (
+    id: string,
+    settings: ProjectSetting | ProjectSetting[]
+  ): Promise<ProjectSetting[]> => {
+    const response = await serviceClients.api.post<ProjectSetting[]>(
+      API_ROUTES.PROJECTS.BY_ID.SETTINGS(id),
+      settings
+    );
+    return response.data;
+  },
+  getSettings: async (id: string): Promise<ProjectSetting[]> => {
+    const response = await serviceClients.api.get<ProjectSetting[]>(
+      API_ROUTES.PROJECTS.BY_ID.SETTINGS(id)
+    );
+    return response.data;
+  },
+  getSettingsMap: async (id: string): Promise<Record<string, unknown>> => {
+    const response = await serviceClients.api.get<Record<string, unknown>>(
+      API_ROUTES.PROJECTS.BY_ID.SETTINGS_MAP(id)
+    );
+    return response.data;
+  },
+  updateSettingValue: async (
+    id: string,
+    name: string,
+    value: unknown
+  ): Promise<ProjectSetting> => {
+    const response = await serviceClients.api.patch<ProjectSetting>(
+      API_ROUTES.PROJECTS.BY_ID.SETTINGS_BY_NAME(id, name),
+      { value }
+    );
+    return response.data;
+  },
+  deleteSetting: async (id: string, name: string): Promise<void> => {
+    await serviceClients.api.delete(API_ROUTES.PROJECTS.BY_ID.SETTINGS_BY_NAME(id, name));
   },
 };

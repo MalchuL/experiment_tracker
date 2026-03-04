@@ -151,7 +151,7 @@ class MetricService:
             raise MetricNotAccessibleError(f"Project {project_id} not accessible")
         # Get project metrics configuration
         project = await project_service.get_project_if_accessible(user, project_id)
-        project_metrics = project.metrics
+        project_metrics = project.metrics.tracked_metrics
 
         # Get experiments and metrics
         experiment_repository = ExperimentRepository(self.db)

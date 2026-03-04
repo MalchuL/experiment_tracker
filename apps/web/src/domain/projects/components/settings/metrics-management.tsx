@@ -73,7 +73,9 @@ export function MetricsManagement({
 
   const handleAddMetric = () => {
     if (!newMetricName.trim() || !project) return;
-    const existingMetric = project.metrics.find(m => m.name === newMetricName.trim());
+    const existingMetric = project.metrics.trackedMetrics.find(
+      (m) => m.name === newMetricName.trim()
+    );
     if (existingMetric) {
       toast({
         title: "Metric already exists",
@@ -130,7 +132,7 @@ export function MetricsManagement({
                 <CommandEmpty>
                   {newMetricName.trim() ? (
                     <div className="p-2 text-sm">
-                      Press Enter or click Add to create "{newMetricName}"
+                      Press Enter or click Add to create &quot;{newMetricName}&quot;
                     </div>
                   ) : (
                     "Type to search or create a metric"
@@ -140,7 +142,7 @@ export function MetricsManagement({
                   {COMMON_METRICS
                     .filter(m => 
                       m.toLowerCase().includes(newMetricName.toLowerCase()) &&
-                      !project.metrics.some(pm => pm.name === m)
+                      !project.metrics.trackedMetrics.some(pm => pm.name === m)
                     )
                     .slice(0, 8)
                     .map((metricName) => (
@@ -182,12 +184,12 @@ export function MetricsManagement({
       </div>
 
       <div className="space-y-2">
-        {project.metrics.length === 0 ? (
+        {project.metrics.trackedMetrics.length === 0 ? (
           <p className="text-sm text-muted-foreground py-4 text-center">
             No metrics configured. Add metrics to track experiment performance.
           </p>
         ) : (
-          project.metrics.map((metric) => (
+          project.metrics.trackedMetrics.map((metric) => (
             <div
               key={metric.name}
               className="flex items-center justify-between gap-4 p-3 rounded-md border"

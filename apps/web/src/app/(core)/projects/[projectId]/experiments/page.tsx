@@ -40,12 +40,13 @@ export default function Experiments() {
   const { reorderExperiments } = useReorderExperiments(projectId);
 
   // Filter metrics by displayMetrics setting
-  const filteredMetrics = useMemo(() => {
-    if (!project?.metrics) return [];
-    const displayMetrics = project?.settings?.displayMetrics || [];
-    if (displayMetrics.length === 0) return project.metrics;
-    return project.metrics.filter(m => displayMetrics.includes(m.name));
-  }, [project?.metrics, project?.settings?.displayMetrics]);
+  const filteredMetrics = !project?.metrics
+    ? []
+    : project.metrics.displayMetrics.length === 0
+      ? project.metrics.trackedMetrics
+      : project.metrics.trackedMetrics.filter((m) =>
+          project.metrics.displayMetrics.includes(m.name)
+        );
 
   const sortedExperiments = useMemo(() => {
     if (!experiments) return [];

@@ -23,15 +23,23 @@ interface NamingPatternFormProps {
 }
 
 export function NamingPatternForm({ project, onSubmit, isPending }: NamingPatternFormProps) {
+  const namingPatternSetting = project.settings.find(
+    (setting) => setting.name === "namingPattern" && setting.type === "string"
+  );
+  const namingPatternValue =
+    typeof namingPatternSetting?.value === "string"
+      ? namingPatternSetting.value
+      : "{num}_from_{parent}_{change}";
+
   const form = useForm<SettingsFormData>({
     resolver: zodResolver(settingsSchema),
     defaultValues: {
-      namingPattern: project?.settings?.namingPattern || "{num}_from_{parent}_{change}",
-      displayMetrics: project?.settings?.displayMetrics || [],
+      namingPattern: namingPatternValue,
+      displayMetrics: project?.metrics?.displayMetrics || [],
     },
     values: {
-      namingPattern: project?.settings?.namingPattern || "{num}_from_{parent}_{change}",
-      displayMetrics: project?.settings?.displayMetrics || [],
+      namingPattern: namingPatternValue,
+      displayMetrics: project?.metrics?.displayMetrics || [],
     },
   });
 

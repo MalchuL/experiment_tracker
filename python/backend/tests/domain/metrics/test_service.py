@@ -20,13 +20,14 @@ async def _create_project(
     name: str = "Service Project",
     metrics: list[dict] | None = None,
 ) -> Project:
+    metrics_payload = metrics or {"tracked_metrics": [], "display_metrics": []}
     project = Project(
         name=name,
         description="Metric service project",
         owner_id=owner.id,
         team_id=None,
-        metrics=metrics or [],
-        settings={},
+        metrics=metrics_payload,
+        settings=[],
     )
     db_session.add(project)
     await db_session.flush()
@@ -268,23 +269,26 @@ class TestMetricService:
         db_session: AsyncSession,
         test_user: User,
     ) -> None:
-        project_metrics = [
-            {
-                "name": "accuracy",
-                "aggregation": "last",
-                "direction": "maximize",
-            },
-            {
-                "name": "loss",
-                "aggregation": "best",
-                "direction": "minimize",
-            },
-            {
-                "name": "score",
-                "aggregation": "best",
-                "direction": "maximize",
-            },
-        ]
+        project_metrics = {
+            "tracked_metrics": [
+                {
+                    "name": "accuracy",
+                    "aggregation": "last",
+                    "direction": "maximize",
+                },
+                {
+                    "name": "loss",
+                    "aggregation": "best",
+                    "direction": "minimize",
+                },
+                {
+                    "name": "score",
+                    "aggregation": "best",
+                    "direction": "maximize",
+                },
+            ],
+            "display_metrics": [],
+        }
         project = await _create_project(db_session, test_user, metrics=project_metrics)
         project_service = ProjectService(db_session)
         experiment = await _create_experiment(db_session, project, "Experiment")
@@ -343,13 +347,16 @@ class TestMetricService:
         db_session: AsyncSession,
         test_user: User,
     ) -> None:
-        project_metrics = [
-            {
-                "name": "average_metric",
-                "aggregation": "average",
-                "direction": "maximize",
-            }
-        ]
+        project_metrics = {
+            "tracked_metrics": [
+                {
+                    "name": "average_metric",
+                    "aggregation": "average",
+                    "direction": "maximize",
+                }
+            ],
+            "display_metrics": [],
+        }
         project = await _create_project(db_session, test_user, metrics=project_metrics)
         project_service = ProjectService(db_session)
         experiment = await _create_experiment(db_session, project, "Experiment")

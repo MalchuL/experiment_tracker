@@ -168,10 +168,12 @@ export default function DAGView() {
   // Filter metrics by displayMetrics setting
   const filteredMetrics = useMemo(() => {
     if (!project?.metrics) return [];
-    const displayMetrics = project?.settings?.displayMetrics || [];
-    if (displayMetrics.length === 0) return project.metrics;
-    return project.metrics.filter((m) => displayMetrics.includes(m.name));
-  }, [project?.metrics, project?.settings?.displayMetrics]);
+    const displayMetrics = project.metrics.displayMetrics || [];
+    if (displayMetrics.length === 0) return project.metrics.trackedMetrics;
+    return project.metrics.trackedMetrics.filter((m) =>
+      displayMetrics.includes(m.name)
+    );
+  }, [project?.metrics]);
 
   const { initialNodes, initialEdges } = useMemo(() => {
     if (!experiments.length) return { initialNodes: [], initialEdges: [] };
@@ -205,8 +207,8 @@ export default function DAGView() {
       columns.get(depth)!.push(exp.id);
     });
 
-    const displayMetrics = project?.settings?.displayMetrics || [];
-    const projectMetrics = project?.metrics || [];
+    const displayMetrics = project?.metrics?.displayMetrics || [];
+    const projectMetrics = project?.metrics?.trackedMetrics || [];
 
     const nodes: Node<ExperimentNodeData>[] = experiments.map((exp) => {
       const depth = depths.get(exp.id) || 0;

@@ -191,8 +191,8 @@ class Project(UUIDBase):
     team_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         UUID(as_uuid=True), ForeignKey("teams.id", ondelete="SET NULL"), nullable=True
     )
-    metrics: Mapped[dict] = mapped_column(JSONB, default=list)
-    settings: Mapped[dict] = mapped_column(JSONB, default=dict)
+    metrics: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
+    settings: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, default=list)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
 
     owner: Mapped["User"] = relationship("User", lazy="raise")

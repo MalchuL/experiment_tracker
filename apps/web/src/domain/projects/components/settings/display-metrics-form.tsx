@@ -29,16 +29,16 @@ export function DisplayMetricsForm({ project, onSubmit, isPending }: DisplayMetr
   const form = useForm<SettingsFormData>({
     resolver: zodResolver(settingsSchema),
     defaultValues: {
-      namingPattern: project?.settings?.namingPattern || "{num}_from_{parent}_{change}",
-      displayMetrics: project?.settings?.displayMetrics || [],
+      namingPattern: "{num}_from_{parent}_{change}",
+      displayMetrics: project?.metrics?.displayMetrics || [],
     },
     values: {
-      namingPattern: project?.settings?.namingPattern || "{num}_from_{parent}_{change}",
-      displayMetrics: project?.settings?.displayMetrics || [],
+      namingPattern: "{num}_from_{parent}_{change}",
+      displayMetrics: project?.metrics?.displayMetrics || [],
     },
   });
 
-  if (project.metrics.length === 0) {
+  if (project.metrics.trackedMetrics.length === 0) {
     return (
       <p className="text-sm text-muted-foreground py-4 text-center">
         No metrics configured. Add metrics below first.
@@ -56,9 +56,9 @@ export function DisplayMetricsForm({ project, onSubmit, isPending }: DisplayMetr
                 <Eye className="w-4 h-4" />
                 {form.watch("displayMetrics").length === 0
                   ? "Select metrics to display..."
-                  : form.watch("displayMetrics").length === project.metrics.length
+                  : form.watch("displayMetrics").length === project.metrics.trackedMetrics.length
                   ? "All metrics selected"
-                  : `${form.watch("displayMetrics").length} of ${project.metrics.length} metrics selected`}
+                  : `${form.watch("displayMetrics").length} of ${project.metrics.trackedMetrics.length} metrics selected`}
               </span>
               <ChevronDown className="w-4 h-4" />
             </Button>
@@ -66,7 +66,7 @@ export function DisplayMetricsForm({ project, onSubmit, isPending }: DisplayMetr
           <DropdownMenuContent className="w-64">
             <DropdownMenuItem
               onClick={() => {
-                form.setValue("displayMetrics", project.metrics.map(m => m.name));
+                form.setValue("displayMetrics", project.metrics.trackedMetrics.map(m => m.name));
               }}
               data-testid="menu-select-all-metrics"
             >
@@ -82,7 +82,7 @@ export function DisplayMetricsForm({ project, onSubmit, isPending }: DisplayMetr
               Clear All
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            {project.metrics.map((metric) => (
+            {project.metrics.trackedMetrics.map((metric) => (
               <DropdownMenuCheckboxItem
                 key={metric.name}
                 checked={form.watch("displayMetrics").includes(metric.name)}

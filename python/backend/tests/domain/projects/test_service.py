@@ -5,6 +5,7 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from domain.projects.dto import ProjectCreateDTO, ProjectUpdateDTO
+from domain.projects.dto import ProjectSettingDTO
 from domain.projects.errors import ProjectNotAccessibleError, ProjectPermissionError
 from domain.projects.service import ProjectService
 from domain.rbac.permissions.project import ProjectActions, role_to_project_permissions
@@ -44,8 +45,8 @@ async def _create_project(
         description="Project service test",
         owner_id=owner.id,
         team_id=team_id,
-        metrics=[],
-        settings={},
+        metrics={"tracked_metrics": [], "display_metrics": []},
+        settings=[],
     )
     db_session.add(project)
     await db_session.flush()
@@ -412,3 +413,77 @@ class TestProjectService:
         created = await project_service.create_project(test_user_2, dto)
 
         assert created.owner.id == team.owner_id
+
+    async def test_project_settings_crud_and_type_validation(
+        self,
+        project_service: ProjectService,
+        db_session: AsyncSession,
+        test_user: User,
+    ) -> None:
+        project = await _create_project(db_session, test_user)
+        permission_service = PermissionService(db_session, auto_commit=True)
+        await permission_service.add_permission(
+            user_id=test_user.id,
+            action=ProjectActions.EDIT_PROJECT,
+            allowed=True,
+            project_id=project.id,
+        )
+        await permission_service.add_permission(
+            user_id=test_user.id,
+            action=ProjectActions.VIEW_PROJECT,
+            allowed=True,
+            project_id=project.id,
+        )
+
+        added_settings = await project_service.add_project_settings(
+            test_user,
+            project.id,
+            [
+                ProjectSettingDTO(
+                    name="maxEpochs",
+                    description="",
+                    type="int",
+                    value=10,
+                )
+            ],
+        )
+        assert len(added_settings) == 1
+        assert added_settings[0].name == "maxEpochs"
+        assert added_settings[0].value == 10
+
+        settings_map = await project_service.get_project_settings_map(test_user, project.id)
+        assert settings_map == {"maxEpochs": 10}
+
+        updated = await project_service.update_project_setting_value(
+            test_user, project.id, "maxEpochs", 15
+        )
+        assert updated.value == 15
+
+        deleted = await project_service.delete_project_setting(
+            test_user, project.id, "maxEpochs"
+        )
+        assert deleted is True
+
+        second_project = await _create_project(db_session, test_user, name="Type Validation")
+        await permission_service.add_permission(
+            user_id=test_user.id,
+            action=ProjectActions.EDIT_PROJECT,
+            allowed=True,
+            project_id=second_project.id,
+        )
+        await project_service.add_project_settings(
+            test_user,
+            second_project.id,
+            [
+                ProjectSettingDTO(
+                    name="isEnabled",
+                    description="",
+                    type="boolean",
+                    value=True,
+                )
+            ],
+        )
+        with pytest.raises(ValueError):
+            await project_service.update_project_setting_value(
+                test_user, second_project.id, "isEnabled", "invalid"
+            )

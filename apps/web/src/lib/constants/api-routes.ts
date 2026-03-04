@@ -82,6 +82,12 @@ export const API_ROUTES = {
           `/api/projects/${projectId}/hypotheses/${hypothesisId}`,
         METRICS: (projectId: string) =>
           `/api/projects/${projectId}/metrics`,
+        SETTINGS: (projectId: string) =>
+          `/api/projects/${projectId}/settings`,
+        SETTINGS_MAP: (projectId: string) =>
+          `/api/projects/${projectId}/settings/map`,
+        SETTINGS_BY_NAME: (projectId: string, name: string) =>
+          `/api/projects/${projectId}/settings/${encodeURIComponent(name)}`,
       },
     },
   

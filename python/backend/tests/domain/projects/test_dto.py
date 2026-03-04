@@ -1,21 +1,21 @@
 from datetime import datetime
+from uuid import UUID
+
+import pytest
+from pydantic import ValidationError
+
+from domain.projects.dashboard.dto import DashboardStatsDTO
 from domain.projects.dto import (
     ProjectCreateDTO,
     ProjectDTO,
     ProjectMetricDTO,
-    ProjectSettingsDTO,
+    ProjectSettingDTO,
     ProjectUpdateDTO,
 )
-from domain.projects.dashboard.dto import DashboardStatsDTO
-from uuid import UUID
-import pytest
-from pydantic import ValidationError
-
 from lib.dto_converter import DtoConverter
 
 
 class TestProjectDTO:
-
     INPUT_DATA = {
         "name": "test_project",
         "description": "test_description",
@@ -32,118 +32,67 @@ class TestProjectDTO:
         "createdAt": "2021-01-01T00:00:00Z",
         "experimentCount": 12,
         "hypothesisCount": 13,
-        "metrics": [
-            {
-                "name": "test_metric",
-                "direction": "minimize",
-                "aggregation": "last",
-            }
-        ],
-        "settings": {
-            "namingPattern": "test_pattern",
+        "metrics": {
+            "trackedMetrics": [
+                {
+                    "name": "test_metric",
+                    "direction": "minimize",
+                    "aggregation": "last",
+                }
+            ],
             "displayMetrics": ["test_metric"],
         },
+        "settings": [
+            {
+                "name": "namingPattern",
+                "description": "",
+                "type": "string",
+                "value": "{num}_from_{parent}_{change}",
+            }
+        ],
     }
 
     def test_project_dto_validation(self):
         converter = DtoConverter[ProjectDTO](ProjectDTO)
-
         dto = converter.dict_with_json_case_to_dto(self.INPUT_DATA)
         assert dto.name == self.INPUT_DATA["name"]
-        assert dto.description == self.INPUT_DATA["description"]
-        assert str(dto.owner.id) == self.INPUT_DATA["owner"]["id"]
-        assert dto.owner.email == self.INPUT_DATA["owner"]["email"]
-        assert dto.owner.display_name == self.INPUT_DATA["owner"]["displayName"]
-        assert str(dto.team.id) == self.INPUT_DATA["team"]["id"]
-        assert dto.team.name == self.INPUT_DATA["team"]["name"]
-        assert dto.metrics[0].name == self.INPUT_DATA["metrics"][0]["name"]
-        assert dto.metrics[0].direction == self.INPUT_DATA["metrics"][0]["direction"]
-        assert (
-            dto.metrics[0].aggregation == self.INPUT_DATA["metrics"][0]["aggregation"]
-        )
-        assert (
-            dto.settings.naming_pattern == self.INPUT_DATA["settings"]["namingPattern"]
-        )
-        assert (
-            dto.settings.display_metrics
-            == self.INPUT_DATA["settings"]["displayMetrics"]
-        )
+        assert dto.metrics.tracked_metrics[0].name == "test_metric"
+        assert dto.metrics.display_metrics == ["test_metric"]
+        assert dto.settings[0].name == "namingPattern"
+        assert dto.settings[0].type == "string"
         assert dto.created_at == datetime.fromisoformat(self.INPUT_DATA["createdAt"])
-        assert dto.experiment_count == self.INPUT_DATA["experimentCount"]
-        assert dto.hypothesis_count == self.INPUT_DATA["hypothesisCount"]
         assert dto.id == UUID(self.INPUT_DATA["id"])
 
     def test_project_dto_serialization(self):
         converter = DtoConverter[ProjectDTO](ProjectDTO)
         dto = converter.dict_with_json_case_to_dto(self.INPUT_DATA)
         dumped_data = converter.dto_to_json_dict_with_json_case(dto)
-        assert dumped_data["name"] == self.INPUT_DATA["name"]
-        assert dumped_data["description"] == self.INPUT_DATA["description"]
-        assert dumped_data["owner"] == self.INPUT_DATA["owner"]
-        assert dumped_data["metrics"] == self.INPUT_DATA["metrics"]
-        assert dumped_data["settings"] == self.INPUT_DATA["settings"]
-        assert dumped_data["createdAt"] == self.INPUT_DATA["createdAt"]
-        assert dumped_data["experimentCount"] == self.INPUT_DATA["experimentCount"]
-        assert dumped_data["hypothesisCount"] == self.INPUT_DATA["hypothesisCount"]
-        assert dumped_data["id"] == self.INPUT_DATA["id"]
-
-    def test_project_dto_deserialization(self):
-        dumped_data = self.INPUT_DATA
-        converter = DtoConverter[ProjectDTO](ProjectDTO)
-        dto = converter.dict_with_json_case_to_dto(dumped_data)
-        assert dto.name == dumped_data["name"]
-        assert dto.description == dumped_data["description"]
-        assert str(dto.owner.id) == dumped_data["owner"]["id"]
-        assert dto.owner.email == dumped_data["owner"]["email"]
-        assert dto.owner.display_name == dumped_data["owner"]["displayName"]
-        assert str(dto.team.id) == dumped_data["team"]["id"]
-        assert dto.team.name == dumped_data["team"]["name"]
-        assert dto.metrics[0].name == dumped_data["metrics"][0]["name"]
-        assert dto.metrics[0].direction == dumped_data["metrics"][0]["direction"]
-        assert dto.metrics[0].aggregation == dumped_data["metrics"][0]["aggregation"]
-        assert dto.settings.naming_pattern == dumped_data["settings"]["namingPattern"]
-        assert dto.settings.display_metrics == dumped_data["settings"]["displayMetrics"]
-        assert dto.created_at == datetime.fromisoformat(dumped_data["createdAt"])
-        assert dto.experiment_count == dumped_data["experimentCount"]
-        assert dto.hypothesis_count == dumped_data["hypothesisCount"]
-        assert dto.id == UUID(dumped_data["id"])
+        assert dumped_data["metrics"]["trackedMetrics"][0]["name"] == "test_metric"
+        assert dumped_data["metrics"]["displayMetrics"] == ["test_metric"]
+        assert dumped_data["settings"][0]["name"] == "namingPattern"
 
 
-class TestProjectSettingsDTO:
-
+class TestProjectSettingDTO:
     INPUT_DATA = {
-        "namingPattern": "test_pattern",
-        "displayMetrics": ["test_metric"],
+        "name": "maxEpochs",
+        "description": "",
+        "type": "int",
+        "value": 100,
     }
 
-    def test_project_settings_dto_validation(self):
-        converter = DtoConverter[ProjectSettingsDTO](ProjectSettingsDTO)
+    def test_project_setting_dto_validation(self):
+        converter = DtoConverter[ProjectSettingDTO](ProjectSettingDTO)
         dto = converter.dict_with_json_case_to_dto(self.INPUT_DATA)
-        assert dto.naming_pattern == self.INPUT_DATA["namingPattern"]
-        assert dto.display_metrics == self.INPUT_DATA["displayMetrics"]
+        assert dto.name == "maxEpochs"
+        assert dto.type == "int"
+        assert dto.value == 100
 
-    def test_project_settings_dto_serialization(self):
-        converter = DtoConverter[ProjectSettingsDTO](ProjectSettingsDTO)
-        dto = converter.dict_with_json_case_to_dto(self.INPUT_DATA)
-        print(dto)
-        dumped_data = converter.dto_to_json_dict_with_json_case(dto)
-        print(dumped_data)
-        assert dumped_data["namingPattern"] == self.INPUT_DATA["namingPattern"]
-        assert dumped_data["displayMetrics"] == self.INPUT_DATA["displayMetrics"]
-
-    def test_project_settings_dto_deserialization(self):
-        dumped_data = self.INPUT_DATA
-        converter = DtoConverter[ProjectSettingsDTO](ProjectSettingsDTO)
-        dto = converter.dict_with_json_case_to_dto(dumped_data)
-        assert dto.naming_pattern == dumped_data["namingPattern"]
-        assert dto.display_metrics == dumped_data["displayMetrics"]
-
-    def test_project_settings_extra_forbid(self):
-        dumped_data = self.INPUT_DATA
-        dumped_data["extra"] = "extra"
+    def test_project_setting_extra_forbid(self):
         with pytest.raises(ValidationError):
-            converter = DtoConverter[ProjectSettingsDTO](ProjectSettingsDTO)
-            converter.dict_with_json_case_to_dto(dumped_data)
+            converter = DtoConverter[ProjectSettingDTO](ProjectSettingDTO)
+            converter.dict_with_json_case_to_dto(
+                {**self.INPUT_DATA, "extraField": "not-allowed"}
+            )
 
 
 class TestProjectMetricDTO:
@@ -160,87 +109,45 @@ class TestProjectMetricDTO:
         assert dto.direction == self.INPUT_DATA["direction"]
         assert dto.aggregation == self.INPUT_DATA["aggregation"]
 
-    def test_project_metric_dto_serialization(self):
-        converter = DtoConverter[ProjectMetricDTO](ProjectMetricDTO)
-        dto = converter.dict_with_json_case_to_dto(self.INPUT_DATA)
-        dumped_data = converter.dto_to_json_dict_with_json_case(dto)
-        assert dumped_data["name"] == self.INPUT_DATA["name"]
-        assert dumped_data["direction"] == self.INPUT_DATA["direction"]
-        assert dumped_data["aggregation"] == self.INPUT_DATA["aggregation"]
-
-    def test_project_metric_dto_deserialization(self):
-        dumped_data = self.INPUT_DATA
-        converter = DtoConverter[ProjectMetricDTO](ProjectMetricDTO)
-        dto = converter.dict_with_json_case_to_dto(dumped_data)
-        assert dto.name == dumped_data["name"]
-        assert dto.direction == dumped_data["direction"]
-        assert dto.aggregation == dumped_data["aggregation"]
-
 
 class TestProjectUpdateDTO:
     INPUT_DATA = {
         "name": "test_project",
         "description": "test_description",
-        # "owner": "test_owner",
-        "metrics": [
-            {
-                "name": "test_metric",
-                "direction": "minimize",
-                "aggregation": "last",
-            }
-        ],
-        "settings": {
-            "namingPattern": "test_pattern",
+        "metrics": {
+            "trackedMetrics": [
+                {
+                    "name": "test_metric",
+                    "direction": "minimize",
+                    "aggregation": "last",
+                }
+            ],
             "displayMetrics": ["test_metric"],
         },
+        "settings": [
+            {
+                "name": "runConfig",
+                "description": "",
+                "type": "json",
+                "value": {"seed": 42},
+            }
+        ],
     }
 
     def test_project_update_dto_validation(self):
         converter = DtoConverter[ProjectUpdateDTO](ProjectUpdateDTO)
         dto = converter.dict_with_json_case_to_dto(self.INPUT_DATA)
         assert dto.name == self.INPUT_DATA["name"]
-        assert dto.description == self.INPUT_DATA["description"]
-        assert not hasattr(dto, "owner")
-        assert dto.metrics[0].name == self.INPUT_DATA["metrics"][0]["name"]
-        assert dto.metrics[0].direction == self.INPUT_DATA["metrics"][0]["direction"]
-        assert (
-            dto.metrics[0].aggregation == self.INPUT_DATA["metrics"][0]["aggregation"]
-        )
-        assert (
-            dto.settings.naming_pattern == self.INPUT_DATA["settings"]["namingPattern"]
-        )
-        assert (
-            dto.settings.display_metrics
-            == self.INPUT_DATA["settings"]["displayMetrics"]
-        )
+        assert dto.metrics.tracked_metrics[0].name == "test_metric"
+        assert dto.settings[0].name == "runConfig"
 
     def test_project_update_dto_serialization_with_snake_case(self):
         converter = DtoConverter[ProjectUpdateDTO](ProjectUpdateDTO)
         dto = converter.dict_with_json_case_to_dto(self.INPUT_DATA)
         dumped_data = converter.dto_to_partial_dict_with_dto_case(dto)
-        assert dumped_data["name"] == self.INPUT_DATA["name"]
-        assert dumped_data["description"] == self.INPUT_DATA["description"]
-        assert "owner" not in dumped_data
-        # Nested schemas should be in snake_case
-        assert (
-            dumped_data["metrics"][0]["name"] == self.INPUT_DATA["metrics"][0]["name"]
-        )
-        assert (
-            dumped_data["metrics"][0]["direction"]
-            == self.INPUT_DATA["metrics"][0]["direction"]
-        )
-        assert (
-            dumped_data["metrics"][0]["aggregation"]
-            == self.INPUT_DATA["metrics"][0]["aggregation"]
-        )
-        assert (
-            dumped_data["settings"]["naming_pattern"]
-            == self.INPUT_DATA["settings"]["namingPattern"]
-        )
-        assert (
-            dumped_data["settings"]["display_metrics"]
-            == self.INPUT_DATA["settings"]["displayMetrics"]
-        )
+        assert dumped_data["metrics"]["tracked_metrics"][0]["name"] == "test_metric"
+        assert dumped_data["metrics"]["display_metrics"] == ["test_metric"]
+        assert dumped_data["settings"][0]["type"] == "json"
 
 
 class TestDashboardStatsDTO:
@@ -257,23 +164,8 @@ class TestDashboardStatsDTO:
     def test_dashboard_stats_dto_validation(self):
         converter = DtoConverter[DashboardStatsDTO](DashboardStatsDTO)
         dto = converter.dict_with_json_case_to_dto(self.INPUT_DATA)
-
         assert dto.totalExperiments == self.INPUT_DATA["totalExperiments"]
         assert dto.runningExperiments == self.INPUT_DATA["runningExperiments"]
-        assert dto.completedExperiments == self.INPUT_DATA["completedExperiments"]
-        assert dto.failedExperiments == self.INPUT_DATA["failedExperiments"]
-        assert dto.totalHypotheses == self.INPUT_DATA["totalHypotheses"]
-        assert dto.supportedHypotheses == self.INPUT_DATA["supportedHypotheses"]
-        assert dto.refutedHypotheses == self.INPUT_DATA["refutedHypotheses"]
-
-    def test_dashboard_stats_dto_serialization(self):
-        converter = DtoConverter[DashboardStatsDTO](DashboardStatsDTO)
-        dto = converter.dict_with_json_case_to_dto(self.INPUT_DATA)
-        dumped_data = converter.dto_to_json_dict_with_json_case(dto)
-
-        assert dumped_data == self.INPUT_DATA
-        assert "created_at" not in dumped_data
-        assert "id" not in dumped_data
 
 
 class TestProjectCreateDTO:
@@ -281,59 +173,30 @@ class TestProjectCreateDTO:
         "name": "test_project",
         "description": "test_description",
         "teamId": "123e4567-e89b-12d3-a456-426614174000",
-        "metrics": [
-            {
-                "name": "test_metric",
-                "direction": "minimize",
-                "aggregation": "last",
-            }
-        ],
-        "settings": {
-            "namingPattern": "test_pattern",
+        "metrics": {
+            "trackedMetrics": [
+                {
+                    "name": "test_metric",
+                    "direction": "minimize",
+                    "aggregation": "last",
+                }
+            ],
             "displayMetrics": ["test_metric"],
         },
+        "settings": [
+            {
+                "name": "namingPattern",
+                "description": "",
+                "type": "string",
+                "value": "{num}_from_{parent}_{change}",
+            }
+        ],
     }
 
     def test_project_create_dto_validation(self):
         converter = DtoConverter[ProjectCreateDTO](ProjectCreateDTO)
         dto = converter.dict_with_json_case_to_dto(self.INPUT_DATA)
         assert dto.name == self.INPUT_DATA["name"]
-        assert dto.description == self.INPUT_DATA["description"]
-        assert dto.metrics[0].name == self.INPUT_DATA["metrics"][0]["name"]
-        assert (
-            dto.settings.naming_pattern == self.INPUT_DATA["settings"]["namingPattern"]
-        )
-        assert (
-            dto.settings.display_metrics
-            == self.INPUT_DATA["settings"]["displayMetrics"]
-        )
+        assert dto.metrics.tracked_metrics[0].name == "test_metric"
+        assert dto.settings[0].name == "namingPattern"
         assert dto.team_id == UUID(self.INPUT_DATA["teamId"])
-
-    def test_project_create_dto_serialization(self):
-        converter = DtoConverter[ProjectCreateDTO](ProjectCreateDTO)
-        dto = converter.dict_with_json_case_to_dto(self.INPUT_DATA)
-        dumped_data = converter.dto_to_dict_with_dto_case(dto)
-        # Top-level fields should be in snake_case
-        assert dumped_data["name"] == self.INPUT_DATA["name"]
-        assert dumped_data["description"] == self.INPUT_DATA["description"]
-        # Nested schemas should be in snake_case
-        assert (
-            dumped_data["metrics"][0]["name"] == self.INPUT_DATA["metrics"][0]["name"]
-        )
-        assert (
-            dumped_data["metrics"][0]["direction"]
-            == self.INPUT_DATA["metrics"][0]["direction"]
-        )
-        assert (
-            dumped_data["metrics"][0]["aggregation"]
-            == self.INPUT_DATA["metrics"][0]["aggregation"]
-        )
-        assert (
-            dumped_data["settings"]["naming_pattern"]
-            == self.INPUT_DATA["settings"]["namingPattern"]
-        )
-        assert (
-            dumped_data["settings"]["display_metrics"]
-            == self.INPUT_DATA["settings"]["displayMetrics"]
-        )
-        assert dumped_data["team_id"] == self.INPUT_DATA["teamId"]

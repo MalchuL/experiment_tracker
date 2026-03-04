@@ -1,4 +1,4 @@
-from typing import Dict, List
+from typing import Any, Dict, List
 from uuid import UUID
 
 from domain.hypotheses.dto import HypothesisDTO
@@ -18,7 +18,13 @@ from models import User
 from domain.rbac.permissions import ProjectActions
 from domain.rbac.permissions.team import TeamActions
 
-from .dto import ProjectCreateDTO, ProjectDTO, ProjectUpdateDTO
+from .dto import (
+    ProjectCreateDTO,
+    ProjectDTO,
+    ProjectSettingDTO,
+    ProjectSettingValueUpdateDTO,
+    ProjectUpdateDTO,
+)
 from .errors import ProjectNotAccessibleError, ProjectPermissionError
 from .service import ProjectService
 from api.routes.service_dependencies import (
@@ -143,6 +149,122 @@ async def update_project(
         return await project_service.update_project(user, project_id, data)
     except Exception as exc:  # noqa: BLE001
         _raise_project_http_error(exc)
+
+
+@router.post("/{project_id}/settings", response_model=List[ProjectSettingDTO])
+async def add_project_settings(
+    project_id: UUID,
+    data: ProjectSettingDTO | List[ProjectSettingDTO],
+    user: User = Depends(get_current_user_dual),
+    _: None = Depends(require_api_token_scopes(ProjectActions.EDIT_PROJECT)),
+    project_service: ProjectService = Depends(get_project_service),
+):
+    """Add one or multiple project setting entries.
+
+    Purpose:
+        Creates plugin/SDK settings in the project's dynamic settings list.
+
+    Response:
+        List[ProjectSettingDTO]: the full, updated settings list after insertion.
+    """
+    entries = data if isinstance(data, list) else [data]
+    try:
+        return await project_service.add_project_settings(user, project_id, entries)
+    except Exception as exc:  # noqa: BLE001
+        _raise_project_http_error(exc)
+
+
+@router.get("/{project_id}/settings", response_model=List[ProjectSettingDTO])
+async def get_project_settings(
+    project_id: UUID,
+    user: User = Depends(get_current_user_dual),
+    _: None = Depends(require_api_token_scopes(ProjectActions.VIEW_PROJECT)),
+    project_service: ProjectService = Depends(get_project_service),
+):
+    """Fetch project settings as full structured entries.
+
+    Purpose:
+        Returns settings editor-friendly data with metadata and typed values.
+
+    Response:
+        List[ProjectSettingDTO]: each item contains `name`, `description`, `type`, `value`.
+    """
+    try:
+        return await project_service.get_project_settings(user, project_id)
+    except Exception as exc:  # noqa: BLE001
+        _raise_project_http_error(exc)
+
+
+@router.get("/{project_id}/settings/map", response_model=Dict[str, Any])
+async def get_project_settings_map(
+    project_id: UUID,
+    user: User = Depends(get_current_user_dual),
+    _: None = Depends(require_api_token_scopes(ProjectActions.VIEW_PROJECT)),
+    project_service: ProjectService = Depends(get_project_service),
+):
+    """Fetch project settings as a name-to-value map.
+
+    Purpose:
+        Provides compact settings for consumers that only need runtime values.
+
+    Response:
+        Dict[str, Any]: `{setting_name: setting_value}`.
+    """
+    try:
+        return await project_service.get_project_settings_map(user, project_id)
+    except Exception as exc:  # noqa: BLE001
+        _raise_project_http_error(exc)
+
+
+@router.patch("/{project_id}/settings/{name}", response_model=ProjectSettingDTO)
+async def update_project_setting_value(
+    project_id: UUID,
+    name: str,
+    data: ProjectSettingValueUpdateDTO,
+    user: User = Depends(get_current_user_dual),
+    _: None = Depends(require_api_token_scopes(ProjectActions.EDIT_PROJECT)),
+    project_service: ProjectService = Depends(get_project_service),
+):
+    """Update one setting value by key with backend type validation.
+
+    Purpose:
+        Changes only the `value` field for an existing setting while enforcing
+        the setting's declared type.
+
+    Response:
+        ProjectSettingDTO: the updated setting entry.
+    """
+    try:
+        return await project_service.update_project_setting_value(
+            user, project_id, name, data.value
+        )
+    except Exception as exc:  # noqa: BLE001
+        _raise_project_http_error(exc)
+
+
+@router.delete("/{project_id}/settings/{name}", response_model=Dict[str, bool])
+async def delete_project_setting(
+    project_id: UUID,
+    name: str,
+    user: User = Depends(get_current_user_dual),
+    _: None = Depends(require_api_token_scopes(ProjectActions.EDIT_PROJECT)),
+    project_service: ProjectService = Depends(get_project_service),
+):
+    """Delete a project setting by key.
+
+    Purpose:
+        Removes one dynamic setting entry from the project's settings list.
+
+    Response:
+        Dict[str, bool]: `{\"success\": true}` when deletion succeeds.
+    """
+    try:
+        success = await project_service.delete_project_setting(user, project_id, name)
+    except Exception as exc:  # noqa: BLE001
+        _raise_project_http_error(exc)
+    if not success:
+        raise HTTPException(status_code=404, detail=f"Project setting '{name}' not found")
+    return {"success": True}
 
 
 @router.delete("/{project_id}")

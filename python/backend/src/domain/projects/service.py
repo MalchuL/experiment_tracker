@@ -1,4 +1,4 @@
-from typing import List
+from typing import Any, List
 from domain.projects.repository import ProjectRepository
 from domain.projects.mapper import (
     CreateDTOToSchemaProps,
@@ -14,7 +14,13 @@ from lib.dto_converter import DtoConverter
 from lib.protocols.user_protocol import UserProtocol
 from lib.types import UUID_TYPE
 from sqlalchemy.ext.asyncio import AsyncSession
-from domain.projects.dto import ProjectDTO, ProjectCreateDTO, ProjectUpdateDTO
+from domain.projects.dto import (
+    ProjectCreateDTO,
+    ProjectDTO,
+    ProjectSettingDTO,
+    ProjectSettingType,
+    ProjectUpdateDTO,
+)
 from models import Role
 from domain.team.teams.repository import TeamRepository
 from domain.scalars.service import NoOpScalarsService, ScalarsServiceProtocol
@@ -37,6 +43,53 @@ class ProjectService:
         self.team_repository = team_repository
         self.project_mapper = ProjectMapper()
         self.scalars_service = scalars_service or NoOpScalarsService()
+
+    @staticmethod
+    def _is_json_compatible(value: Any) -> bool:
+        if value is None:
+            return True
+        if isinstance(value, (str, int, float, bool)):
+            return True
+        if isinstance(value, list):
+            return all(ProjectService._is_json_compatible(item) for item in value)
+        if isinstance(value, dict):
+            return all(
+                isinstance(key, str) and ProjectService._is_json_compatible(val)
+                for key, val in value.items()
+            )
+        return False
+
+    @staticmethod
+    def _normalize_settings(raw_settings: Any) -> list[dict[str, Any]]:
+        if isinstance(raw_settings, list):
+            return raw_settings
+        return []
+
+    @staticmethod
+    def _validate_setting_value(setting_type: ProjectSettingType | str, value: Any) -> None:
+        if isinstance(setting_type, str):
+            setting_type = ProjectSettingType(setting_type)
+        if setting_type == ProjectSettingType.INT:
+            if not isinstance(value, int) or isinstance(value, bool):
+                raise ValueError("Setting value must be int")
+            return
+        if setting_type == ProjectSettingType.FLOAT:
+            if not isinstance(value, (int, float)) or isinstance(value, bool):
+                raise ValueError("Setting value must be float")
+            return
+        if setting_type == ProjectSettingType.STRING:
+            if not isinstance(value, str):
+                raise ValueError("Setting value must be string")
+            return
+        if setting_type == ProjectSettingType.BOOLEAN:
+            if not isinstance(value, bool):
+                raise ValueError("Setting value must be boolean")
+            return
+        if setting_type == ProjectSettingType.JSON:
+            if not ProjectService._is_json_compatible(value):
+                raise ValueError("Setting value must be valid json")
+            return
+        raise ValueError("Unknown setting type")
 
     async def get_accessible_project_ids(
         self, user: UserProtocol, actions: list[str] | str | None
@@ -124,6 +177,115 @@ class ProjectService:
                     hypothesis_count=len(updated_project.hypotheses),
                 ),
             )
+        except Exception as e:
+            await self.db.rollback()
+            raise e
+
+    async def get_project_settings(
+        self, user: UserProtocol, project_id: UUID_TYPE
+    ) -> list[ProjectSettingDTO]:
+        project = await self.get_project_if_accessible(user, project_id)
+        if not project:
+            raise ProjectNotAccessibleError(f"Project {project_id} not accessible")
+        settings = self._normalize_settings(project.settings)
+        return [ProjectSettingDTO.model_validate(item) for item in settings]
+
+    async def get_project_settings_map(
+        self, user: UserProtocol, project_id: UUID_TYPE
+    ) -> dict[str, Any]:
+        settings = await self.get_project_settings(user, project_id)
+        return {setting.name: setting.value for setting in settings}
+
+    async def add_project_settings(
+        self,
+        user: UserProtocol,
+        project_id: UUID_TYPE,
+        entries: list[ProjectSettingDTO],
+    ) -> list[ProjectSettingDTO]:
+        try:
+            project_model = await self.project_repository.get_by_id(project_id)
+            if not await self.permission_checker.can_edit_project(user.id, project_id):
+                raise ProjectPermissionError(
+                    f"User {user.id} does not have permission to update project {project_id}"
+                )
+            existing_settings = self._normalize_settings(project_model.settings)
+            existing_names = {str(item.get("name")) for item in existing_settings}
+            payload_names = set()
+            for entry in entries:
+                self._validate_setting_value(entry.type, entry.value)
+                if entry.name in payload_names:
+                    raise ValueError(f"Duplicate setting name in payload: {entry.name}")
+                if entry.name in existing_names:
+                    raise ValueError(f"Setting already exists: {entry.name}")
+                payload_names.add(entry.name)
+            new_entries = [
+                entry.model_dump(by_alias=False, mode="json") for entry in entries
+            ]
+            project_model.settings = [*existing_settings, *new_entries]
+            await self.db.commit()
+            await self.db.refresh(project_model)
+            return [ProjectSettingDTO.model_validate(item) for item in project_model.settings]
+        except DBNotFoundError:
+            await self.db.rollback()
+            raise ProjectNotAccessibleError(f"Project {project_id} not accessible")
+        except Exception as e:
+            await self.db.rollback()
+            raise e
+
+    async def update_project_setting_value(
+        self, user: UserProtocol, project_id: UUID_TYPE, name: str, value: Any
+    ) -> ProjectSettingDTO:
+        try:
+            project_model = await self.project_repository.get_by_id(project_id)
+            if not await self.permission_checker.can_edit_project(user.id, project_id):
+                raise ProjectPermissionError(
+                    f"User {user.id} does not have permission to update project {project_id}"
+                )
+            settings = self._normalize_settings(project_model.settings)
+            for idx, item in enumerate(settings):
+                if item.get("name") != name:
+                    continue
+                setting_type = item.get("type")
+                self._validate_setting_value(setting_type, value)
+                updated_settings = [dict(setting) for setting in settings]
+                updated_settings[idx]["value"] = value
+                project_model.settings = updated_settings
+                await self.db.commit()
+                await self.db.refresh(project_model)
+                return ProjectSettingDTO.model_validate(updated_settings[idx])
+            raise DBNotFoundError(f"Project setting '{name}' does not exist")
+        except DBNotFoundError as e:
+            await self.db.rollback()
+            message = str(e)
+            if "Project setting" in message:
+                raise ProjectNotAccessibleError(message)
+            raise ProjectNotAccessibleError(f"Project {project_id} not accessible")
+        except Exception as e:
+            await self.db.rollback()
+            raise e
+
+    async def delete_project_setting(
+        self, user: UserProtocol, project_id: UUID_TYPE, name: str
+    ) -> bool:
+        try:
+            project_model = await self.project_repository.get_by_id(project_id)
+            if not await self.permission_checker.can_edit_project(user.id, project_id):
+                raise ProjectPermissionError(
+                    f"User {user.id} does not have permission to update project {project_id}"
+                )
+            settings = self._normalize_settings(project_model.settings)
+            filtered_settings = [item for item in settings if item.get("name") != name]
+            if len(filtered_settings) == len(settings):
+                raise DBNotFoundError(f"Project setting '{name}' does not exist")
+            project_model.settings = filtered_settings
+            await self.db.commit()
+            return True
+        except DBNotFoundError as e:
+            await self.db.rollback()
+            message = str(e)
+            if "Project setting" in message:
+                raise ProjectNotAccessibleError(message)
+            raise ProjectNotAccessibleError(f"Project {project_id} not accessible")
         except Exception as e:
             await self.db.rollback()
             raise e

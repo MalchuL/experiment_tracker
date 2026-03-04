@@ -7,7 +7,7 @@ export const basicInfoSchema = z.object({
 });
 
 export const settingsSchema = z.object({
-  namingPattern: z.string(),
+  namingPattern: z.string().default("{num}_from_{parent}_{change}"),
   displayMetrics: z.array(z.string()),
 });
 

@@ -269,3 +269,63 @@ class TestProjectControllerDelete:
         response = client2.delete(f"/api/v1/projects/{project['id']}")
 
         assert response.status_code == 403
+
+
+class TestProjectControllerSettings:
+    async def test_settings_crud_flow(self, client: TestClient):
+        project = _create_project(client, name="Settings Project")
+
+        add_response = client.post(
+            f"/api/v1/projects/{project['id']}/settings",
+            json={
+                "name": "maxEpochs",
+                "description": "",
+                "type": "int",
+                "value": 10,
+            },
+        )
+        assert add_response.status_code == 200
+        settings = add_response.json()
+        assert len(settings) == 1
+        assert settings[0]["name"] == "maxEpochs"
+        assert settings[0]["value"] == 10
+
+        get_response = client.get(f"/api/v1/projects/{project['id']}/settings")
+        assert get_response.status_code == 200
+        assert get_response.json()[0]["name"] == "maxEpochs"
+
+        map_response = client.get(f"/api/v1/projects/{project['id']}/settings/map")
+        assert map_response.status_code == 200
+        assert map_response.json() == {"maxEpochs": 10}
+
+        update_response = client.patch(
+            f"/api/v1/projects/{project['id']}/settings/maxEpochs",
+            json={"value": 20},
+        )
+        assert update_response.status_code == 200
+        assert update_response.json()["value"] == 20
+
+        delete_response = client.delete(
+            f"/api/v1/projects/{project['id']}/settings/maxEpochs"
+        )
+        assert delete_response.status_code == 200
+        assert delete_response.json()["success"] is True
+
+    async def test_settings_update_validates_type(self, client: TestClient):
+        project = _create_project(client, name="Settings Type Validation")
+        add_response = client.post(
+            f"/api/v1/projects/{project['id']}/settings",
+            json={
+                "name": "isEnabled",
+                "description": "",
+                "type": "boolean",
+                "value": True,
+            },
+        )
+        assert add_response.status_code == 200
+
+        invalid_update = client.patch(
+            f"/api/v1/projects/{project['id']}/settings/isEnabled",
+            json={"value": "yes"},
+        )
+        assert invalid_update.status_code == 400

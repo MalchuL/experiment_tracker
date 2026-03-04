@@ -1,7 +1,6 @@
+from enum import Enum
 from uuid import UUID
-from domain.experiments.utils import DEFAULT_EXPERIMENT_NAME_PATTERN
-from pydantic import AliasGenerator, BaseModel, ConfigDict, Field
-from pydantic.alias_generators import to_camel, to_snake
+from pydantic import BaseModel, Field
 
 from typing import Optional, List, Any
 from datetime import datetime
@@ -33,9 +32,26 @@ class ProjectMetricDTO(BaseModel):
     model_config = model_config()
 
 
-class ProjectSettingsDTO(BaseModel):
-    naming_pattern: str = DEFAULT_EXPERIMENT_NAME_PATTERN
+class ProjectMetricsDTO(BaseModel):
+    tracked_metrics: List[ProjectMetricDTO] = []
     display_metrics: List[str] = []
+
+    model_config = model_config()
+
+
+class ProjectSettingType(str, Enum):
+    INT = "int"
+    FLOAT = "float"
+    STRING = "string"
+    BOOLEAN = "boolean"
+    JSON = "json"
+
+
+class ProjectSettingDTO(BaseModel):
+    name: str = Field(..., min_length=1, max_length=255)
+    description: str = ""
+    type: ProjectSettingType
+    value: Any
 
     model_config = model_config()
 
@@ -43,8 +59,8 @@ class ProjectSettingsDTO(BaseModel):
 class ProjectBaseDTO(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
     description: str = Field(default="", max_length=500)
-    metrics: List[ProjectMetricDTO] = []
-    settings: ProjectSettingsDTO = ProjectSettingsDTO()
+    metrics: ProjectMetricsDTO = ProjectMetricsDTO()
+    settings: List[ProjectSettingDTO] = []
 
     model_config = model_config()
 
@@ -69,13 +85,19 @@ class ProjectDataDTO(ProjectBaseDTO):
 class ProjectUpdateDTO(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=100)
     description: Optional[str] = Field(None, max_length=500)
-    metrics: Optional[List[ProjectMetricDTO]] = None
-    settings: Optional[ProjectSettingsDTO] = None
+    metrics: Optional[ProjectMetricsDTO] = None
+    settings: Optional[List[ProjectSettingDTO]] = None
 
     model_config = model_config()
 
 
 class ProjectCreateDTO(ProjectBaseDTO):
     team_id: Optional[UUID] = None
+
+    model_config = model_config()
+
+
+class ProjectSettingValueUpdateDTO(BaseModel):
+    value: Any
 
     model_config = model_config()

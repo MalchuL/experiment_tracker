@@ -6,11 +6,20 @@ export interface ProjectMetric {
     direction: MetricDirectionType;
     aggregation: MetricAggregationType;
   }
-  
-  export interface ProjectSettings {
-    namingPattern: string;
-    displayMetrics: string[];
-  }
+
+export type ProjectSettingType = "int" | "float" | "string" | "boolean" | "json";
+
+export interface ProjectSetting {
+  name: string;
+  description: string;
+  type: ProjectSettingType;
+  value: unknown;
+}
+
+export interface ProjectMetrics {
+  trackedMetrics: ProjectMetric[];
+  displayMetrics: string[];
+}
   
 
 export type ProjectOwner = Pick<User, "id" | "email" | "displayName">;
@@ -23,8 +32,8 @@ export interface Project {
     createdAt: string;
     experimentCount: number;
     hypothesisCount: number;
-    metrics: ProjectMetric[];
-    settings: ProjectSettings;
+    metrics: ProjectMetrics;
+    settings: ProjectSetting[];
     teamId?: string | null;
     teamName?: string | null;
   }

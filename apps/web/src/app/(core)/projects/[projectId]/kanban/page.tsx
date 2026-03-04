@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useCallback } from "react";
+import { useCallback } from "react";
 import { PageHeader } from "@/components/shared/page-header";
 import { ListSkeleton } from "@/components/shared/loading-skeleton";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -39,12 +39,13 @@ export default function Kanban() {
   const { updateStatus } = useUpdateExperimentStatus(projectId);
   const { toast } = useToast();
   // Filter metrics by displayMetrics setting
-  const filteredMetrics = useMemo(() => {
-    if (!project?.metrics) return [];
-    const displayMetrics = project?.settings?.displayMetrics || [];
-    if (displayMetrics.length === 0) return project.metrics;
-    return project.metrics.filter((m) => displayMetrics.includes(m.name));
-  }, [project?.metrics, project?.settings?.displayMetrics]);
+  const filteredMetrics = !project?.metrics
+    ? []
+    : project.metrics.displayMetrics.length === 0
+      ? project.metrics.trackedMetrics
+      : project.metrics.trackedMetrics.filter((m) =>
+          project.metrics.displayMetrics.includes(m.name)
+        );
 
   const handleStatusUpdate = useCallback(
     (experimentId: string, status: ExperimentStatusType) => {
