@@ -163,15 +163,19 @@ def main() -> None:
         step_seconds = duration_seconds / steps
         start_time = time.time()
 
+        accuracy = random.uniform(0.6, 0.99)
+        loss = random.uniform(0.1, 1.2)
+        bce_loss = random.uniform(0.05, 0.9)
+
         for step in range(1, steps + 1):
             time.sleep(step_seconds)
             elapsed = time.time() - start_time
             progress = min(100, int((elapsed / duration_seconds) * 100))
 
             # Simulate training metrics and log several scalar values per step.
-            accuracy = random.uniform(0.6, 0.99)
-            loss = random.uniform(0.1, 1.2)
-            bce_loss = random.uniform(0.05, 0.9)
+            accuracy += random.uniform(-0.1, 0.1)
+            loss += random.uniform(-0.1, 0.1)
+            bce_loss += random.uniform(-0.1, 0.1)
             tracker.add_scalar("accuracy", accuracy, global_step=step)
             tracker.add_scalar("loss", loss, global_step=step)
             tracker.add_scalar("bce_loss", bce_loss, global_step=step)
