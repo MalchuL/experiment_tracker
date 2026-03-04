@@ -161,6 +161,11 @@ class ExpTracker:
     ):
         """Create a metric row immediately (sync mode, no queue)."""
         _ = walltime  # Kept for API parity with add_scalar-like signatures.
+        if not math.isfinite(value):
+            logger.warning(
+                f"Invalid metric value: {value} for name: {name}, step: {step}"
+            )
+            return
         self._api.request(
             self._api.metrics.create_metric(
                 experiment_id=self.experiment_id,
