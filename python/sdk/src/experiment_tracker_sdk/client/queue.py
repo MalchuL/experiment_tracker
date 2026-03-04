@@ -3,6 +3,7 @@ import logging
 import queue
 import threading
 from dataclasses import dataclass
+import traceback
 from typing import Any, Optional
 
 from .utils import log_error_response
@@ -80,7 +81,9 @@ class RequestQueue:
                         item.method, item.path, json=item.json, params=item.params
                     )
                 response.raise_for_status()
+            except httpx.HTTPStatusError as exc:
+                log_error_response(exc.response, logger)
             except Exception as exc:  # noqa: BLE001
-                log_error_response(response, logger)
+                traceback.print_exc()
             finally:
                 self._queue.task_done()

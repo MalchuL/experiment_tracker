@@ -1,3 +1,4 @@
+import math
 import re
 import json
 import mimetypes
@@ -117,6 +118,14 @@ class ExpTracker:
         self, tag: str, scalar_value, global_step: int = 0, walltime: float = 0
     ):
         """Log a single scalar value."""
+        # TODO: Add NaN and Inf handling in the future for scalars service.
+        if not isinstance(scalar_value, (int, float)) or not math.isfinite(
+            scalar_value
+        ):
+            logger.warning(
+                f"Invalid scalar value: {scalar_value} for tag: {tag}, global_step: {global_step}"
+            )
+            return
         if global_step == self._last_logged_step:
             # We try to group scalars by step to reduce API calls (table have separate column per scalar name)
             self._current_values[tag] = scalar_value

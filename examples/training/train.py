@@ -175,6 +175,11 @@ def main() -> None:
             tracker.add_scalar("accuracy", accuracy, global_step=step)
             tracker.add_scalar("loss", loss, global_step=step)
             tracker.add_scalar("bce_loss", bce_loss, global_step=step)
+            tracker.add_scalar(
+                "rng",
+                float("NaN") if step % 3 == 0 else float(random.random()),
+                global_step=step,
+            )
             if step % 20 == 0:
                 # Random demo image (HWC, uint8) for object logging examples.
                 noise_image = np.random.randint(

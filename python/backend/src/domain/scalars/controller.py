@@ -44,7 +44,9 @@ async def log_scalar(
     scalars_service: ScalarsServiceProtocol = Depends(get_scalars_service),
 ):
     try:
-        result = await scalars_service.log_scalar(user, experiment_id, data.model_dump())
+        result = await scalars_service.log_scalar(
+            user, experiment_id, data.model_dump()
+        )
         return LogScalarResponseDTO.model_validate(result)
     except Exception as exc:  # noqa: BLE001
         _raise_scalars_http_error(exc)
