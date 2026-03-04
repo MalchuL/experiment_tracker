@@ -40,3 +40,23 @@ export interface ScalarSavedView {
   createdAt: string;
   updatedAt: string;
 }
+
+export type SyncMode = "all" | "x-only" | "y-only" | "independent";
+
+export interface ChartDomain {
+  x: [number, number] | null;
+  y: [number, number] | null;
+}
+
+export interface LoggedObjectRef {
+  path: string;
+  metadata: Record<string, string>;
+  timestamp: string;
+}
+
+export interface LoggedObjectNameGroup {
+  steps: number[];
+  byExperiment: Record<string, Record<number, LoggedObjectRef>>;
+}
+
+export type LoggedObjectGroups = Record<string, Record<string, LoggedObjectNameGroup>>;
