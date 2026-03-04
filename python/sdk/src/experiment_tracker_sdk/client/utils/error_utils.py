@@ -10,6 +10,6 @@ def log_error_response(response: Response, logger: logging.Logger) -> None:
     except json.JSONDecodeError:
         data = response.text
     logger.error(
-        f"error_response: {data}",
+        f"error_response: {data} at {response.request.url}",
         extra={"path": response.request.url, "error": data},
     )

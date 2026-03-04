@@ -4,8 +4,10 @@ from .dto import (
     MetricDirection,
     ProjectCreateRequest,
     ProjectMetricResponse,
+    ProjectMetricsResponse,
     ProjectResponse,
-    ProjectSettingsResponse,
+    ProjectSettingResponse,
+    ProjectSettingType,
     ProjectUpdateRequest,
 )
 from .service import ProjectRequestSpecFactory, ProjectService
@@ -16,9 +18,11 @@ __all__ = [
     "MetricDirection",
     "ProjectCreateRequest",
     "ProjectMetricResponse",
+    "ProjectMetricsResponse",
     "ProjectRequestSpecFactory",
     "ProjectResponse",
     "ProjectService",
-    "ProjectSettingsResponse",
+    "ProjectSettingResponse",
+    "ProjectSettingType",
     "ProjectUpdateRequest",
 ]

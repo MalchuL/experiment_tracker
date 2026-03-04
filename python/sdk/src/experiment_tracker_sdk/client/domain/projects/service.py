@@ -3,9 +3,9 @@ from uuid import UUID
 
 from .dto import (
     ProjectCreateRequest,
-    ProjectMetricResponse,
+    ProjectMetricsResponse,
     ProjectResponse,
-    ProjectSettingsResponse,
+    ProjectSettingResponse,
     ProjectUpdateRequest,
     SuccessResponse,
 )
@@ -44,16 +44,16 @@ class ProjectRequestSpecFactory:
         self,
         name: str,
         description: str = "",
-        metrics: list[ProjectMetricResponse] | None = None,
-        settings: ProjectSettingsResponse | None = None,
+        metrics: ProjectMetricsResponse | None = None,
+        settings: list[ProjectSettingResponse] | None = None,
         team_id: str | None = None,
     ) -> ApiRequestSpec[ProjectResponse]:
         endpoint = cast(str, self.ENDPOINTS["create_project"])
         payload = ProjectCreateRequest(
             name=name,
             description=description,
-            metrics=metrics or [],
-            settings=settings,
+            metrics=metrics or ProjectMetricsResponse(),
+            settings=settings or [],
             teamId=team_id,
         )
         return ApiRequestSpec(
@@ -68,8 +68,8 @@ class ProjectRequestSpecFactory:
         project_id: str | UUID,
         name: str | None = None,
         description: str | None = None,
-        metrics: list[ProjectMetricResponse] | None = None,
-        settings: ProjectSettingsResponse | None = None,
+        metrics: ProjectMetricsResponse | None = None,
+        settings: list[ProjectSettingResponse] | None = None,
     ) -> ApiRequestSpec[ProjectResponse]:
         if isinstance(project_id, UUID):
             project_id = str(project_id)

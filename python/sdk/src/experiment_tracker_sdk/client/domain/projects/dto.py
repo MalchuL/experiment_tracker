@@ -31,32 +31,47 @@ class ProjectMetricResponse(BaseModel):
     aggregation: MetricAggregation
 
 
-class ProjectSettingsResponse(BaseModel):
-    namingPattern: str
+class ProjectMetricsResponse(BaseModel):
+    trackedMetrics: list[ProjectMetricResponse] = []
     displayMetrics: list[str] = []
+
+
+class ProjectSettingType(str, Enum):
+    INT = "int"
+    FLOAT = "float"
+    STRING = "string"
+    BOOLEAN = "boolean"
+    JSON = "json"
+
+
+class ProjectSettingResponse(BaseModel):
+    name: str
+    description: str = ""
+    type: ProjectSettingType
+    value: object | None = None
 
 
 class ProjectCreateRequest(BaseModel):
     name: str
     description: str = ""
-    metrics: list[ProjectMetricResponse] = []
-    settings: ProjectSettingsResponse | None = None
+    metrics: ProjectMetricsResponse = ProjectMetricsResponse()
+    settings: list[ProjectSettingResponse] = []
     teamId: str | None = None
 
 
 class ProjectUpdateRequest(BaseModel):
     name: str | None = None
     description: str | None = None
-    metrics: list[ProjectMetricResponse] | None = None
-    settings: ProjectSettingsResponse | None = None
+    metrics: ProjectMetricsResponse | None = None
+    settings: list[ProjectSettingResponse] | None = None
 
 
 class ProjectResponse(BaseModel):
     id: str
     name: str
     description: str
-    metrics: list[ProjectMetricResponse]
-    settings: ProjectSettingsResponse
+    metrics: ProjectMetricsResponse
+    settings: list[ProjectSettingResponse]
     owner: ProjectOwnerResponse
     createdAt: datetime
     experimentCount: int = 0
