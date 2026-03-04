@@ -311,14 +311,9 @@ class ExpTracker:
     def progress(self, progress: int | float):
         """Update the progress of the experiment."""
         if isinstance(progress, int) and (progress < 0 or progress > 100):
-            raise ExpTrackerProgressError(
-                f"Progress must be between 0 and 100, got {progress}"
-            )
+            progress = min(max(progress, 0), 100)
         if isinstance(progress, float):
-            if progress < 0 or progress > 1:
-                raise ExpTrackerProgressError(
-                    f"Progress must be between 0 and 1, got {progress}"
-                )
+            progress = min(max(progress, 0), 1)
             progress = round(progress * 100)
         self._api.queued_request(
             self._api.experiments.update_experiment(
