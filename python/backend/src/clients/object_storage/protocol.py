@@ -144,4 +144,3 @@ class ObjectStorageClientProtocol(Protocol):
         Args:
             experiment_id: The ID of the experiment.
         """
-
