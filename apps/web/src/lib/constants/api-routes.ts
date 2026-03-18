@@ -149,20 +149,31 @@ export const API_ROUTES = {
     },
 
     EXPERIMENT_ARTIFACTS: {
-      LOG: (experimentId: string) =>
-        `/api/experiment-artifacts/${experimentId}/log`,
+      LOG_AT_STEP: (experimentId: string) =>
+        `/api/experiment-artifacts/${experimentId}/log-at-step`,
       BY_PROJECT: {
-        GET: (projectId: string) =>
-          `/api/experiment-artifacts/projects/${projectId}/get`,
+        GET_AT_STEP: (projectId: string) =>
+          `/api/experiment-artifacts/projects/${projectId}/get-at-step`,
       },
-      DOWNLOAD: (experimentId: string, path: string, mediaType?: string) =>
+      DOWNLOAD_AT_STEP: (experimentId: string, path: string, mediaType?: string) =>
         mediaType
-          ? `/api/experiment-artifacts/${experimentId}/download?path=${encodeURIComponent(path)}&media_type=${encodeURIComponent(mediaType)}`
-          : `/api/experiment-artifacts/${experimentId}/download?path=${encodeURIComponent(path)}`,
-      DELETE: (experimentId: string, path: string) =>
-        `/api/experiment-artifacts/${experimentId}?path=${encodeURIComponent(path)}`,
-      DELETE_ALL: (experimentId: string) =>
-        `/api/experiment-artifacts/experiments/${experimentId}`,
+          ? `/api/experiment-artifacts/${experimentId}/download-at-step?path=${encodeURIComponent(path)}&media_type=${encodeURIComponent(mediaType)}`
+          : `/api/experiment-artifacts/${experimentId}/download-at-step?path=${encodeURIComponent(path)}`,
+      DELETE_AT_STEP: (experimentId: string, path: string) =>
+        `/api/experiment-artifacts/${experimentId}/at-step?path=${encodeURIComponent(path)}`,
+      DELETE_ALL_AT_STEP: (experimentId: string) =>
+        `/api/experiment-artifacts/${experimentId}/at-step`,
+      UPSERT: "/api/experiment-artifacts/upsert",
+      GET: (experimentId: string, name: string, filepath: string) =>
+        `/api/experiment-artifacts/get?experiment_id=${encodeURIComponent(experimentId)}&name=${encodeURIComponent(name)}&filepath=${encodeURIComponent(filepath)}`,
+      DOWNLOAD: (experimentId: string, name: string, filepath: string) =>
+        `/api/experiment-artifacts/download?experiment_id=${encodeURIComponent(experimentId)}&name=${encodeURIComponent(name)}&filepath=${encodeURIComponent(filepath)}`,
+      DOWNLOAD_ARCHIVE: (experimentId: string, name: string) =>
+        `/api/experiment-artifacts/download/archive?experiment_id=${encodeURIComponent(experimentId)}&name=${encodeURIComponent(name)}`,
+      DELETE: (experimentId: string, name: string, filepath?: string) =>
+        filepath
+          ? `/api/experiment-artifacts/delete?experiment_id=${encodeURIComponent(experimentId)}&name=${encodeURIComponent(name)}&filepath=${encodeURIComponent(filepath)}`
+          : `/api/experiment-artifacts/delete?experiment_id=${encodeURIComponent(experimentId)}&name=${encodeURIComponent(name)}`,
     },
     PROJECT_ARTIFACTS: {
       ARTIFACTS: {

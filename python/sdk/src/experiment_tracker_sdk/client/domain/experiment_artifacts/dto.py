@@ -2,13 +2,14 @@ from __future__ import annotations
 
 from datetime import datetime
 from typing import Literal
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
 ArtifactType = Literal["image", "video", "audio", "text", "point_cloud_3d"]
 
 
-class ArtifactInfoEntryResponse(BaseModel):
+class ArtifactInfoAtStepEntryResponse(BaseModel):
     timestamp: datetime
     step: int
     name: str
@@ -18,16 +19,16 @@ class ArtifactInfoEntryResponse(BaseModel):
     tags: list[str] = Field(default_factory=list)
 
 
-class ExperimentArtifactsInfoResponse(BaseModel):
+class ExperimentArtifactsAtStepInfoResponse(BaseModel):
     experiment_id: str
-    artifacts_info: list[ArtifactInfoEntryResponse]
+    artifacts_info: list[ArtifactInfoAtStepEntryResponse]
 
 
-class ArtifactsInfoResultResponse(BaseModel):
-    data: list[ExperimentArtifactsInfoResponse]
+class ArtifactsAtStepInfoResultResponse(BaseModel):
+    data: list[ExperimentArtifactsAtStepInfoResponse]
 
 
-class LogArtifactRequest(BaseModel):
+class LogArtifactAtStepRequest(BaseModel):
     name: str
     artifact_type: ArtifactType
     step: int
@@ -35,18 +36,30 @@ class LogArtifactRequest(BaseModel):
     tags: list[str] | None = None
 
 
-class LogArtifactResponse(BaseModel):
+class LogArtifactAtStepResponse(BaseModel):
     status: str
     warnings: list[str] | None = None
 
 
-class DeleteExperimentArtifactResponse(BaseModel):
+class DeleteExperimentArtifactAtStepResponse(BaseModel):
     model_config = ConfigDict(extra="allow")
 
     deleted: bool | None = None
 
 
-class DeleteExperimentArtifactsResponse(BaseModel):
+class DeleteExperimentArtifactsAtStepResponse(BaseModel):
     model_config = ConfigDict(extra="allow")
 
     deleted_count: int | None = None
+
+
+class ExperimentArtifactResponse(BaseModel):
+    id: UUID
+    experiment_id: UUID
+    name: str
+    filepath: str
+    filename: str
+    mime_type: str
+    storage_path: str
+    created_at: datetime
+    updated_at: datetime

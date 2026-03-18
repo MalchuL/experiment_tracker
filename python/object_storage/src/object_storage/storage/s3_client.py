@@ -3,13 +3,37 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, BinaryIO
+from typing import BinaryIO, Protocol
 from uuid import UUID
 
 import boto3  # type: ignore[import-not-found]
 from botocore.exceptions import ClientError  # type: ignore[import-not-found]
 
 from object_storage.config import get_settings
+
+
+class S3PaginatorProtocol(Protocol):
+    def paginate(self, **kwargs): ...
+
+
+class S3ClientProtocol(Protocol):
+    def head_bucket(self, **kwargs) -> None: ...
+
+    def create_bucket(self, **kwargs) -> None: ...
+
+    def delete_bucket(self, **kwargs) -> None: ...
+
+    def head_object(self, **kwargs) -> None: ...
+
+    def upload_fileobj(self, fileobj: BinaryIO, bucket: str, key: str) -> None: ...
+
+    def get_object(self, **kwargs) -> dict[str, object]: ...
+
+    def delete_object(self, **kwargs) -> None: ...
+
+    def get_paginator(self, operation_name: str) -> S3PaginatorProtocol: ...
+
+    def delete_objects(self, **kwargs) -> dict[str, object]: ...
 
 
 def _blob_key(blob_hash: str) -> str:
@@ -22,7 +46,7 @@ def _blob_key(blob_hash: str) -> str:
 class S3Storage:
     """Thin wrapper around boto3 for CAS object storage."""
 
-    client: Any
+    client: S3ClientProtocol
 
     def ensure_bucket(self, bucket_name: str) -> None:
         """Create the bucket if it does not already exist."""
@@ -76,6 +100,34 @@ class S3Storage:
             return False
         self.client.delete_object(Bucket=bucket_name, Key=_blob_key(blob_hash))
         return True
+
+    def list_blobs(self, bucket_name: str, prefix: str = "") -> list[str]:
+        """List object keys in a bucket optionally filtered by prefix."""
+
+        paginator = self.client.get_paginator("list_objects_v2")
+        keys: list[str] = []
+        for page in paginator.paginate(Bucket=bucket_name, Prefix=prefix):
+            for item in page.get("Contents", []):
+                key = item.get("Key")
+                if key:
+                    keys.append(str(key))
+        return keys
+
+    def delete_blobs(self, bucket_name: str, keys: list[str]) -> int:
+        """Delete multiple object keys and return deleted count."""
+
+        if not keys:
+            return 0
+        deleted_count = 0
+        batch_size = 1000
+        for i in range(0, len(keys), batch_size):
+            chunk = keys[i : i + batch_size]
+            response = self.client.delete_objects(
+                Bucket=bucket_name,
+                Delete={"Objects": [{"Key": key} for key in chunk], "Quiet": True},
+            )
+            deleted_count += len(response.get("Deleted", []))
+        return deleted_count
 
 
 class _S3BlobStream:

@@ -6,6 +6,7 @@ from uuid import UUID
 
 from minio import Minio  # type: ignore[import-not-found]
 from minio.error import S3Error  # type: ignore[import-not-found]
+from minio.deleteobjects import DeleteObject  # type: ignore[import-not-found]
 
 from object_storage.config import get_settings
 
@@ -66,6 +67,26 @@ class MinioStorage:
             return False
         self.client.remove_object(bucket_name, _blob_key(blob_hash))
         return True
+
+    def list_blobs(self, bucket_name: str, prefix: str = "") -> list[str]:
+        """List object keys from MinIO with optional prefix."""
+
+        return [
+            obj.object_name
+            for obj in self.client.list_objects(bucket_name, prefix=prefix, recursive=True)
+        ]
+
+    def delete_blobs(self, bucket_name: str, keys: list[str]) -> int:
+        """Delete many object keys from MinIO and return deleted count."""
+
+        if not keys:
+            return 0
+        errors = list(
+            self.client.remove_objects(
+                bucket_name, [DeleteObject(key) for key in keys]
+            )
+        )
+        return len(keys) - len(errors)
 
 
 def get_minio_storage() -> MinioStorage:

@@ -112,7 +112,7 @@ export function LoggedObjectsSection({
                         const nearestStep = closestStep(targetStep, experimentSteps);
                         const objectAtStep = nearestStep === null ? undefined : experimentStepMap[nearestStep];
                         const objectSrc = objectAtStep
-                          ? API_ROUTES.EXPERIMENT_ARTIFACTS.DOWNLOAD(
+                          ? API_ROUTES.EXPERIMENT_ARTIFACTS.DOWNLOAD_AT_STEP(
                               experiment.id,
                               objectAtStep.path,
                               objectAtStep.metadata?.content_type

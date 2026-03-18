@@ -46,7 +46,7 @@ export const loggedObjectsService = {
     params?: GetProjectObjectsParams
   ): Promise<ArtifactsInfoResult> => {
     const path = buildArtifactsQuery(
-      API_ROUTES.EXPERIMENT_ARTIFACTS.BY_PROJECT.GET(projectId),
+      API_ROUTES.EXPERIMENT_ARTIFACTS.BY_PROJECT.GET_AT_STEP(projectId),
       params
     );
     const response = await serviceClients.api.get<ArtifactsInfoResult>(path);

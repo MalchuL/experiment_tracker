@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import tempfile
-from pathlib import PurePosixPath
+from typing import BinaryIO, cast
 from uuid import UUID, uuid4
 
-from fastapi import HTTPException, UploadFile
+from fastapi import UploadFile
 
 from . import mapper
 from .dto import (
@@ -31,16 +31,21 @@ class ArtifactsStorageService:
         return f"experiment-{str(experiment_id)}"
 
     async def upload_artifact(
-        self, experiment_id: UUID, upload: UploadFile
+        self, experiment_id: UUID, upload: UploadFile, path: str | None = None
     ) -> UploadArtifactResponseDTO:
         """Upload one artifact under an experiment-specific prefix."""
         bucket_name = self._get_experiment_bucket_name(experiment_id)
-        artifact_path = uuid4().hex
+        artifact_path = path or uuid4().hex
         self._storage.ensure_bucket(bucket_name)
         spool: tempfile.SpooledTemporaryFile | None = None
         try:
             spool, size = await self._spool_upload(upload)
-            self._storage.put_blob(bucket_name, artifact_path, spool, size)
+            self._storage.put_blob(
+                bucket_name,
+                artifact_path,
+                cast(BinaryIO, spool),
+                size,
+            )
             return mapper.upload_to_response(path=artifact_path, size=size)
         finally:
             if spool is not None:

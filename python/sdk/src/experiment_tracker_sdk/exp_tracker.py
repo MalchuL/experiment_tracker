@@ -190,7 +190,7 @@ class ExpTracker:
         - numpy.ndarray in HW or HWC layout
         """
         image_bytes = self._materialize_image_bytes(img_tensor)
-        self._upload_and_log_experiment_artifact(
+        self._upload_and_log_experiment_artifact_at_step(
             tag=tag,
             object_type="image",
             content=image_bytes,
@@ -208,7 +208,7 @@ class ExpTracker:
         walltime: float = 0,
     ):
         """Upload and log text as a text object."""
-        self._upload_and_log_experiment_artifact(
+        self._upload_and_log_experiment_artifact_at_step(
             tag=tag,
             object_type="text",
             content=text_string,
@@ -268,7 +268,7 @@ class ExpTracker:
             "faces": faces,
             "config": config_dict,
         }
-        self._upload_and_log_experiment_artifact(
+        self._upload_and_log_experiment_artifact_at_step(
             tag=tag,
             object_type="point_cloud_3d",
             content=json.dumps(payload, default=str),
@@ -287,7 +287,7 @@ class ExpTracker:
         fps: int = 4,
     ):
         """Upload and log video object."""
-        self._upload_and_log_experiment_artifact(
+        self._upload_and_log_experiment_artifact_at_step(
             tag=tag,
             object_type="video",
             content=vid_tensor,
@@ -410,7 +410,7 @@ class ExpTracker:
         self._api.flush()
         self._api.close()
 
-    def _upload_and_log_experiment_artifact(
+    def _upload_and_log_experiment_artifact_at_step(
         self,
         tag: str,
         object_type: str,
@@ -437,7 +437,7 @@ class ExpTracker:
             }
             if metadata:
                 payload_metadata.update(metadata)
-            self._api.upload_and_log_experiment_artifact(
+            self._api.upload_and_log_experiment_artifact_at_step(
                 experiment_id=str(self.experiment_id),
                 file_name=file_name,
                 file_content=content_bytes,

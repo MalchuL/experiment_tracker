@@ -10,6 +10,9 @@ import httpx
 
 from .dto import ArtifactsInfoResultDTO, LogArtifactRequestDTO, LogArtifactResponseDTO
 
+QueryParamScalar = str | int | float | bool | None
+QueryParamValue = QueryParamScalar | list[QueryParamScalar]
+
 
 class ArtifactsInfoClient:
     """HTTP client for scalars_service artifacts_info API.
@@ -27,7 +30,7 @@ class ArtifactsInfoClient:
     """
 
     ENDPOINTS: dict[str, Any] = {
-        "log_artifact": lambda project_id, experiment_id: f"/artifacts_info/log/{project_id}/{experiment_id}",
+        "log_artifact_at_step": lambda project_id, experiment_id: f"/artifacts_info/log/{project_id}/{experiment_id}",
         "get_artifacts": lambda project_id: f"/artifacts_info/get/{project_id}",
     }
 
@@ -35,7 +38,7 @@ class ArtifactsInfoClient:
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
 
-    async def log_artifact(
+    async def log_artifact_at_step(
         self, project_id: UUID, experiment_id: UUID, payload: LogArtifactRequestDTO
     ) -> LogArtifactResponseDTO:
         """Log an artifact info to the scalars_service.
@@ -50,7 +53,7 @@ class ArtifactsInfoClient:
         """
         response = await self._request(
             "POST",
-            self.ENDPOINTS["log_artifact"](project_id, experiment_id),
+            self.ENDPOINTS["log_artifact_at_step"](project_id, experiment_id),
             json_payload=payload.model_dump(mode="json"),
         )
         return LogArtifactResponseDTO.model_validate(response)
@@ -77,7 +80,7 @@ class ArtifactsInfoClient:
         Returns:
             ArtifactsInfoResultDTO: The response from the scalars_service.
         """
-        params: dict[str, object] = {}
+        params: dict[str, QueryParamValue] = {}
         if experiment_ids:
             params["experiment_id"] = [str(e) for e in experiment_ids]
         if artifact_types:
@@ -100,7 +103,7 @@ class ArtifactsInfoClient:
         method: str,
         path: str,
         json_payload: dict[str, Any] | None = None,
-        params: dict[str, object] | None = None,
+        params: dict[str, QueryParamValue] | None = None,
     ) -> dict[str, Any]:
         url = f"{self.base_url}{path}"
         async with httpx.AsyncClient(timeout=self.timeout) as client:

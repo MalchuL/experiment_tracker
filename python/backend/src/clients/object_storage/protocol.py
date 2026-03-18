@@ -107,7 +107,7 @@ class ObjectStorageClientProtocol(Protocol):
         """
 
     async def upload_experiment_artifact(
-        self, experiment_id: UUID, file: UploadFile
+        self, experiment_id: UUID, file: UploadFile, path: str | None = None
     ) -> UploadExperimentArtifactResponseDTO:
         """Upload an experiment artifact to the object storage.
 
@@ -144,3 +144,4 @@ class ObjectStorageClientProtocol(Protocol):
         Args:
             experiment_id: The ID of the experiment.
         """
+

@@ -7,7 +7,7 @@ from .dto import ArtifactsInfoResultDTO, LogArtifactRequestDTO, LogArtifactRespo
 
 
 class ArtifactsInfoClientProtocol(Protocol):
-    async def log_artifact(
+    async def log_artifact_at_step(
         self, project_id: UUID, experiment_id: UUID, payload: LogArtifactRequestDTO
     ) -> LogArtifactResponseDTO:
         """Log an artifact info to the scalars_service.

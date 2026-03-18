@@ -22,11 +22,12 @@ router = APIRouter(prefix="/experiment-artifacts")
 async def upload_artifact(
     experiment_id: UUID,
     file: UploadFile = File(...),
+    path: str | None = Query(default=None),
     service: ArtifactsStorageService = Depends(get_experiment_artifacts_service),
 ):
     """Upload one artifact file for an experiment."""
 
-    return await service.upload_artifact(experiment_id, file)
+    return await service.upload_artifact(experiment_id, file, path=path)
 
 
 @router.get("/{experiment_id}/download")

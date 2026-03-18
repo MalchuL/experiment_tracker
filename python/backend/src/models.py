@@ -22,6 +22,7 @@ from sqlalchemy import (
     Integer,
     Float,
     Text,
+    UniqueConstraint,
 )
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship, DeclarativeBase, Mapped, mapped_column
@@ -307,6 +308,38 @@ class Metric(UUIDBase):
 
     experiment: Mapped["Experiment"] = relationship(
         "Experiment", back_populates="metrics", lazy="raise"
+    )
+
+
+class ExperimentArtifact(UUIDBase):
+    __tablename__ = "experiment_artifacts"
+    __table_args__ = (
+        UniqueConstraint(
+            "experiment_id",
+            "name",
+            "filepath",
+            name="uq_experiment_artifacts_identity",
+        ),
+        Index(
+            "ix_experiment_artifacts_experiment_name",
+            "experiment_id",
+            "name",
+        ),
+    )
+
+    experiment_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("experiments.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    filepath: Mapped[str] = mapped_column(String(1024), nullable=False)
+    filename: Mapped[str] = mapped_column(String(255), nullable=False)
+    mime_type: Mapped[str] = mapped_column(String(255), nullable=False)
+    storage_path: Mapped[str] = mapped_column(String(1024), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=utc_now, onupdate=utc_now
     )
 
 

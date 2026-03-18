@@ -80,7 +80,7 @@ export default function Scalars() {
     returnTags: false,
   });
   const {
-    artifacts: projectArtifacts,
+    artifacts: projectArtifactsAtStep,
     isLoading: objectsLoading,
     isFetching: objectsFetching,
     refetch: refetchObjects,
@@ -138,7 +138,7 @@ export default function Scalars() {
   );
 
   const objectState = useLoggedObjectsState();
-  const objectGroups = useLoggedObjectGroups(projectArtifacts, visibleExperiments);
+  const objectGroups = useLoggedObjectGroups(projectArtifactsAtStep, visibleExperiments);
   const fullscreenMetricData = fullscreenMetric ? chartDataByMetric[fullscreenMetric] || [] : [];
 
   const handleSmoothingChange = (value: number[]) => {

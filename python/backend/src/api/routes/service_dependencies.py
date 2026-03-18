@@ -1,10 +1,15 @@
 from config.settings import get_settings
-from clients.artifacts_info import ArtifactsInfoClient
+from clients.artifacts_info import (
+    ArtifactsInfoClient,
+    ArtifactsInfoResultDTO,
+    LogArtifactResponseDTO,
+)
 from domain.experiment_artifacts.service import (
     ExperimentArtifactsService,
     ExperimentArtifactsServiceProtocol,
     NoOpExperimentArtifactsService,
 )
+from domain.experiment_artifacts.repository import ExperimentArtifactRepository
 from domain.project_artifacts.service import (
     ProjectArtifactsService,
     ProjectArtifactsServiceProtocol,
@@ -41,6 +46,14 @@ from domain.projects.service import ProjectService
 
 from domain.team.teams.repository import TeamRepository
 from domain.team.teams.service import TeamService
+
+
+class _NoOpArtifactsInfoClient:
+    async def get_artifacts(self, *args, **kwargs) -> ArtifactsInfoResultDTO:
+        return ArtifactsInfoResultDTO(data=[])
+
+    async def log_artifact_at_step(self, *args, **kwargs) -> LogArtifactResponseDTO:
+        return LogArtifactResponseDTO(status="logged")
 
 
 async def get_project_repository(
@@ -95,6 +108,12 @@ async def get_experiment_repository(
     return ExperimentRepository(db=session)
 
 
+async def get_experiment_artifact_repository(
+    session: AsyncSession = Depends(get_async_session),
+) -> ExperimentArtifactRepository:
+    return ExperimentArtifactRepository(session)
+
+
 async def get_experiment_service(
     session: AsyncSession = Depends(get_async_session),
     experiment_repository: ExperimentRepository = Depends(get_experiment_repository),
@@ -123,18 +142,26 @@ async def get_scalars_service(
 async def get_experiment_artifacts_service(
     permission_checker: PermissionChecker = Depends(get_permission_checker),
     experiment_repository: ExperimentRepository = Depends(get_experiment_repository),
+    artifact_repository: ExperimentArtifactRepository = Depends(
+        get_experiment_artifact_repository
+    ),
 ) -> ExperimentArtifactsServiceProtocol:
     settings = get_settings()
     scalars_url = settings.scalars_service_url
     object_storage_url = settings.object_storage_service_url
-    if scalars_url and object_storage_url:
+    if object_storage_url:
         obj_client = ObjectStorageClient(object_storage_url)
-        artifacts_client = ArtifactsInfoClient(scalars_url)
+        artifacts_client = (
+            ArtifactsInfoClient(scalars_url)
+            if scalars_url
+            else _NoOpArtifactsInfoClient()
+        )
         return ExperimentArtifactsService(
             object_storage_client=obj_client,
-            artifacts_info_client=artifacts_client,
+            artifacts_info_at_step_client=artifacts_client,
             permission_checker=permission_checker,
             experiment_repository=experiment_repository,
+            artifact_repository=artifact_repository,
         )
     return NoOpExperimentArtifactsService()
 

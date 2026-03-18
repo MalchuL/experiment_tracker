@@ -12,7 +12,7 @@ from experiment_tracker_sdk.client.domain import (
 )
 from experiment_tracker_sdk.client.domain.experiment_artifacts.dto import (
     ArtifactType,
-    LogArtifactRequest,
+    LogArtifactAtStepRequest,
 )
 from pydantic import BaseModel
 from typing import Any, TypeVar, cast
@@ -115,7 +115,7 @@ class API:
         )
         return {"status": "uploaded", "hash": artifact_hash, "upload": upload_result}
 
-    def upload_and_log_experiment_artifact(
+    def upload_and_log_experiment_artifact_at_step(
         self,
         experiment_id: str,
         file_name: str,
@@ -134,14 +134,14 @@ class API:
         """
         import json
 
-        request_model = LogArtifactRequest(
+        request_model = LogArtifactAtStepRequest(
             name=name,
             artifact_type=cast(ArtifactType, artifact_type),
             step=step,
             metadata=metadata,
             tags=tags,
         )
-        upload_spec = self.experiment_artifacts.upload_and_log_experiment_artifact(
+        upload_spec = self.experiment_artifacts.upload_and_log_experiment_artifact_at_step(
             experiment_id=experiment_id,
             request=request_model,
         )
@@ -174,15 +174,46 @@ class API:
             params=request_spec.query_params,
         )
 
-    def download_experiment_artifact(self, experiment_id: str, path: str) -> bytes:
+    def download_experiment_artifact_at_step(self, experiment_id: str, path: str) -> bytes:
         """Download artifact by path from experiment bucket."""
-        request_spec = self.experiment_artifacts.download_experiment_artifact(
+        request_spec = self.experiment_artifacts.download_experiment_artifact_at_step(
             experiment_id=experiment_id,
             path=path,
         )
         return self._client.download_file(
             path=request_spec.endpoint,
             params=request_spec.query_params,
+        )
+
+    # Backward-compatible wrappers.
+    def upload_and_log_experiment_artifact(
+        self,
+        experiment_id: str,
+        file_name: str,
+        file_content: bytes,
+        content_type: str,
+        name: str,
+        artifact_type: str,
+        step: int,
+        metadata: dict[str, str] | None = None,
+        tags: list[str] | None = None,
+    ) -> dict[str, Any]:
+        return self.upload_and_log_experiment_artifact_at_step(
+            experiment_id=experiment_id,
+            file_name=file_name,
+            file_content=file_content,
+            content_type=content_type,
+            name=name,
+            artifact_type=artifact_type,
+            step=step,
+            metadata=metadata,
+            tags=tags,
+        )
+
+    def download_experiment_artifact(self, experiment_id: str, path: str) -> bytes:
+        return self.download_experiment_artifact_at_step(
+            experiment_id=experiment_id,
+            path=path,
         )
 
     def download_project_artifact_to_file(

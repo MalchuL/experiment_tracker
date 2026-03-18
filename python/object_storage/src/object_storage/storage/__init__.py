@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import BinaryIO, Protocol
+from typing import BinaryIO, Protocol, cast
 from uuid import UUID
 
 from object_storage.config import get_settings
@@ -33,6 +33,12 @@ class StorageBackend(Protocol):
     def delete_blob(self, bucket_name: str, blob_hash: str) -> bool:
         """Delete one blob by hash from the bucket."""
 
+    def list_blobs(self, bucket_name: str, prefix: str = "") -> list[str]:
+        """List object keys for a bucket and prefix."""
+
+    def delete_blobs(self, bucket_name: str, keys: list[str]) -> int:
+        """Delete many objects from a bucket and return deleted count."""
+
 
 def get_storage() -> StorageBackend:
     """Return the default storage backend (S3 by default)."""
@@ -40,8 +46,8 @@ def get_storage() -> StorageBackend:
     settings = get_settings()
     backend = getattr(settings, "storage_backend", "s3").lower()
     if backend == "minio":
-        return get_minio_storage()
-    return get_s3_storage()
+        return cast(StorageBackend, get_minio_storage())
+    return cast(StorageBackend, get_s3_storage())
 
 
 __all__ = [

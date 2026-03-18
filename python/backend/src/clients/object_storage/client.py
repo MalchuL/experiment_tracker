@@ -175,7 +175,7 @@ class ObjectStorageClient:
         return DeleteProjectResponseDTO.model_validate(response)
 
     async def upload_experiment_artifact(
-        self, experiment_id: UUID, file: UploadFile
+        self, experiment_id: UUID, file: UploadFile, path: str | None = None
     ) -> UploadExperimentArtifactResponseDTO:
         """Upload an experiment artifact to the object storage.
 
@@ -195,6 +195,7 @@ class ObjectStorageClient:
             "POST",
             self.ENDPOINTS["upload_experiment_artifact"](experiment_id),
             files=files,
+            params={"path": path} if path else None,
             timeout=None,
         )
         return UploadExperimentArtifactResponseDTO.model_validate(response)

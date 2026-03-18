@@ -3,9 +3,9 @@ from experiment_tracker_sdk.exp_tracker import ExpTracker
 
 class _FakeAPI:
     def __init__(self):
-        self.uploaded: list[tuple[str, str, bytes, str, dict]] = []
+        self.uploaded: list[tuple[str, bytes, str, str, dict]] = []
 
-    def upload_and_log_experiment_artifact(
+    def upload_and_log_experiment_artifact_at_step(
         self,
         experiment_id: str,
         file_name: str,
