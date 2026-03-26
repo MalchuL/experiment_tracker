@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, cast
+from typing import Any, Protocol, cast
 from uuid import UUID
 
 import httpx
@@ -21,6 +21,95 @@ from .dto import (
 )
 
 
+class TransferStrategyProtocol(Protocol):
+    async def upload_file(
+        self,
+        base_url: str,
+        path: str,
+        upload: UploadFile,
+        params: dict[str, Any] | None = None,
+        timeout: float | None = None,
+    ) -> dict[str, Any]: ...
+
+    async def download_bytes(
+        self,
+        base_url: str,
+        path: str,
+        params: dict[str, Any] | None = None,
+        timeout: float | None = None,
+    ) -> bytes: ...
+
+    async def download_response(
+        self,
+        base_url: str,
+        path: str,
+        params: dict[str, Any] | None = None,
+        timeout: float | None = None,
+    ) -> httpx.Response: ...
+
+
+class HttpxTransferStrategy:
+    """Reusable upload/download transport used by object-storage endpoints."""
+
+    async def upload_file(
+        self,
+        base_url: str,
+        path: str,
+        upload: UploadFile,
+        params: dict[str, Any] | None = None,
+        timeout: float | None = None,
+    ) -> dict[str, Any]:
+        upload.file.seek(0)
+        files = {
+            "file": (
+                upload.filename,
+                upload.file,
+                upload.content_type or "application/octet-stream",
+            )
+        }
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            response = await client.request(
+                method="POST",
+                url=f"{base_url}{path}",
+                params=params,
+                files=files,
+            )
+            response.raise_for_status()
+            return cast(dict[str, Any], response.json())
+
+    async def download_bytes(
+        self,
+        base_url: str,
+        path: str,
+        params: dict[str, Any] | None = None,
+        timeout: float | None = None,
+    ) -> bytes:
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            response = await client.request(
+                method="GET",
+                url=f"{base_url}{path}",
+                params=params,
+            )
+            response.raise_for_status()
+            return response.content
+
+    async def download_response(
+        self,
+        base_url: str,
+        path: str,
+        params: dict[str, Any] | None = None,
+        timeout: float | None = None,
+    ) -> httpx.Response:
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            response = await client.request(
+                method="GET",
+                url=f"{base_url}{path}",
+                params=params,
+            )
+            response.raise_for_status()
+            return response
+
+
 class ObjectStorageClient:
     """HTTP client for object storage service (project-artifacts, experiment-artifacts).
 
@@ -32,20 +121,27 @@ class ObjectStorageClient:
 
     ENDPOINTS: dict[str, Any] = {
         "check_project_artifacts": lambda project_id: f"/project-artifacts/{project_id}/check",
-        "upload_project_artifact": lambda project_id, artifact_hash: f"/project-artifacts/{project_id}/upload?hash={artifact_hash}",
+        "upload_project_artifact": lambda project_id: f"/project-artifacts/{project_id}/upload",
         "download_project_artifact": lambda project_id, artifact_hash: f"/project-artifacts/{project_id}/artifacts/{artifact_hash}",
         "create_project_snapshot": lambda project_id: f"/project-artifacts/{project_id}/snapshots",
         "download_project_snapshot": lambda project_id, snapshot_id: f"/project-artifacts/{project_id}/snapshots/{snapshot_id}/download",
         "delete_project_artifact": lambda project_id, artifact_hash: f"/project-artifacts/{project_id}/artifacts/{artifact_hash}",
         "delete_project": lambda project_id: f"/project-artifacts/{project_id}",
         "upload_experiment_artifact": lambda experiment_id: f"/experiment-artifacts/{experiment_id}/upload",
-        "download_experiment_artifact": lambda experiment_id, path: f"/experiment-artifacts/{experiment_id}/download?path={path}",
-        "delete_experiment_artifact": lambda experiment_id, path: f"/experiment-artifacts/{experiment_id}?path={path}",
+        "download_experiment_artifact": lambda experiment_id: f"/experiment-artifacts/{experiment_id}/download",
+        "delete_experiment_artifact": lambda experiment_id: f"/experiment-artifacts/{experiment_id}",
         "delete_experiment_artifacts": lambda experiment_id: f"/experiment-artifacts/experiments/{experiment_id}",
     }
 
-    def __init__(self, base_url: str) -> None:
+    def __init__(
+        self,
+        base_url: str,
+        transfer_strategy: TransferStrategyProtocol | None = None,
+    ) -> None:
         self.base_url = base_url.rstrip("/")
+        self._transfer_strategy: TransferStrategyProtocol = (
+            transfer_strategy or HttpxTransferStrategy()
+        )
 
     async def check_project_artifacts(
         self, project_id: UUID, hashes: list[str]
@@ -76,19 +172,11 @@ class ObjectStorageClient:
             artifact_hash: The hash of the project artifact.
             upload: The upload file.
         """
-        upload.file.seek(0)
-        files = {
-            "file": (
-                upload.filename,
-                upload.file,
-                upload.content_type or "application/octet-stream",
-            )
-        }
-        response = await self._request(
-            "POST",
-            self.ENDPOINTS["upload_project_artifact"](project_id, artifact_hash),
+        response = await self._transfer_strategy.upload_file(
+            base_url=self.base_url,
+            path=self.ENDPOINTS["upload_project_artifact"](project_id),
+            upload=upload,
             params={"hash": artifact_hash},
-            files=files,
             timeout=None,
         )
         return UploadProjectArtifactResponseDTO.model_validate(response)
@@ -105,13 +193,12 @@ class ObjectStorageClient:
         Returns:
             The response from the object storage.
         """
-        response = await self._request(
-            "GET",
-            self.ENDPOINTS["download_project_artifact"](project_id, artifact_hash),
+        response = await self._transfer_strategy.download_bytes(
+            base_url=self.base_url,
+            path=self.ENDPOINTS["download_project_artifact"](project_id, artifact_hash),
             timeout=None,
-            return_bytes=True,
         )
-        return cast(bytes, response)
+        return response
 
     async def create_project_snapshot(
         self, project_id: UUID, payload: SnapshotCreateRequestDTO
@@ -183,18 +270,10 @@ class ObjectStorageClient:
             experiment_id: The ID of the experiment.
             file: The upload file.
         """
-        file.file.seek(0)
-        files = {
-            "file": (
-                file.filename,
-                file.file,
-                file.content_type or "application/octet-stream",
-            )
-        }
-        response = await self._request(
-            "POST",
-            self.ENDPOINTS["upload_experiment_artifact"](experiment_id),
-            files=files,
+        response = await self._transfer_strategy.upload_file(
+            base_url=self.base_url,
+            path=self.ENDPOINTS["upload_experiment_artifact"](experiment_id),
+            upload=file,
             params={"path": path} if path else None,
             timeout=None,
         )
@@ -212,12 +291,12 @@ class ObjectStorageClient:
         Returns:
             The response from the object storage.
         """
-        response = await self._request(
-            "GET",
-            self.ENDPOINTS["download_experiment_artifact"](experiment_id, path),
-            return_response=True,
+        response = await self._transfer_strategy.download_response(
+            base_url=self.base_url,
+            path=self.ENDPOINTS["download_experiment_artifact"](experiment_id),
+            params={"path": path},
         )
-        return cast(httpx.Response, response)
+        return response
 
     async def delete_experiment_artifact(
         self, experiment_id: UUID, path: str
@@ -233,7 +312,8 @@ class ObjectStorageClient:
         """
         response = await self._request(
             "DELETE",
-            self.ENDPOINTS["delete_experiment_artifact"](experiment_id, path),
+            self.ENDPOINTS["delete_experiment_artifact"](experiment_id),
+            params={"path": path},
         )
         return DeleteExperimentArtifactResponseDTO.model_validate(response)
 
