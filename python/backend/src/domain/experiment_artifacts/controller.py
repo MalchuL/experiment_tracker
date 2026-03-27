@@ -53,6 +53,27 @@ def _raise_http_error(error: Exception) -> None:
     raise HTTPException(status_code=400, detail=str(error))
 
 
+@router.get("/experiments/{experiment_id}", response_model=list[ExperimentArtifactDTO])
+async def list_experiment_artifacts(
+    experiment_id: UUID,
+    name: list[str] | None = Query(default=None),
+    user: User = Depends(get_current_user_dual),
+    _: None = Depends(require_api_token_scopes(ProjectActions.VIEW_ARTIFACT)),
+    service: ExperimentArtifactsServiceProtocol = Depends(
+        get_experiment_artifacts_service
+    ),
+) -> list[ExperimentArtifactDTO]:
+    """List named artifacts for one experiment."""
+    try:
+        return await service.list_experiment_artifacts(
+            user=user,
+            experiment_id=experiment_id,
+            names=name,
+        )
+    except Exception as exc:  # noqa: BLE001
+        _raise_http_error(exc)
+
+
 @router.get("/projects/{project_id}/get-at-step")
 async def get_project_artifacts_at_step(
     project_id: UUID,

@@ -13,6 +13,7 @@
     "@radix-ui/react-slot": "^1.2.4",
     "@types/lodash": "^4.17.21",
     "@types/plotly.js": "^3.0.9",
+    "@uiw/react-json-view": "2.0.0-alpha.41",
     "@xyflow/react": "^12.10.0",
     "axios": "^1.13.2",
     "class-variance-authority": "^0.7.1",
@@ -27,6 +28,8 @@
     "react-hook-form": "^7.69.0",
     "react-plotly.js": "^2.6.0",
     "tailwind-merge": "^3.4.0",
+    "toml": "^3.0.0",
+    "yaml": "^2.8.3",
     "zod": "^4.1.11"
   },
   "devDependencies": {

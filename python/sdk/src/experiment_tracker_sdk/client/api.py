@@ -163,6 +163,34 @@ class API:
             form_data=form_data,
         )
 
+    def upsert_named_experiment_artifact(
+        self,
+        experiment_id: str,
+        name: str,
+        filepath: str,
+        file_name: str,
+        file_content: bytes,
+        content_type: str,
+    ) -> dict[str, Any]:
+        """Upsert named final artifact for an experiment."""
+        upload_spec = self.experiment_artifacts.upsert_named_experiment_artifact(
+            experiment_id=experiment_id,
+            name=name,
+            filepath=filepath,
+        )
+        form_data = {
+            "experiment_id": experiment_id,
+            "name": name,
+            "filepath": filepath,
+        }
+        return self._client.upload_artifact(
+            path=upload_spec.endpoint,
+            file_name=file_name,
+            file_content=file_content,
+            content_type=content_type,
+            form_data=form_data,
+        )
+
     def download_project_artifact(self, project_id: str, artifact_hash: str) -> bytes:
         """Download project artifact bytes by hash (project-scoped CAS)."""
         request_spec = self.project_artifacts.download_project_artifact(

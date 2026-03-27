@@ -44,6 +44,13 @@ def _as_uuid(value: UUID | str) -> UUID:
 
 
 class ExperimentArtifactsServiceProtocol(Protocol):
+    async def list_experiment_artifacts(
+        self,
+        user: UserProtocol,
+        experiment_id: UUID,
+        names: list[str] | None = None,
+    ) -> list[ExperimentArtifactDTO]: ...
+
     async def get_project_artifacts_at_step(
         self,
         user: UserProtocol,
@@ -121,6 +128,14 @@ class ExperimentArtifactsServiceProtocol(Protocol):
 
 
 class NoOpExperimentArtifactsService:
+    async def list_experiment_artifacts(
+        self,
+        user: UserProtocol,
+        experiment_id: UUID,
+        names: list[str] | None = None,
+    ) -> list[ExperimentArtifactDTO]:
+        return []
+
     async def get_project_artifacts_at_step(
         self,
         user: UserProtocol,
@@ -287,6 +302,18 @@ class ExperimentArtifactsService:
             raise ExperimentArtifactsNotAccessibleError(
                 f"You are not allowed to view artifacts in project {project_id}"
             )
+
+    async def list_experiment_artifacts(
+        self,
+        user: UserProtocol,
+        experiment_id: UUID,
+        names: list[str] | None = None,
+    ) -> list[ExperimentArtifactDTO]:
+        await self._ensure_view_permission(user, experiment_id)
+        artifacts = await self._artifacts_info_repository.list_by_experiment(
+            experiment_id, names
+        )
+        return [self._to_artifact_dto(artifact) for artifact in artifacts]
 
     async def get_project_artifacts_at_step(
         self,

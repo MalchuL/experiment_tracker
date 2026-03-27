@@ -25,6 +25,7 @@ export const QUERY_KEYS = {
     },
     ARTIFACTS: {
         BY_PROJECT: (projectId: string) => `projects/${projectId}/artifacts`,
+        NAMED_BY_EXPERIMENT: (experimentId: string) => `experiments/${experimentId}/artifacts/named`,
     },
     EVIDENCE: {
         GET: (experimentId: string) => `experiments/${experimentId}/evidence`,

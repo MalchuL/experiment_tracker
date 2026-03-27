@@ -149,6 +149,8 @@ export const API_ROUTES = {
     },
 
     EXPERIMENT_ARTIFACTS: {
+      LIST_BY_EXPERIMENT: (experimentId: string) =>
+        `/api/experiment-artifacts/experiments/${experimentId}`,
       LOG_AT_STEP: (experimentId: string) =>
         `/api/experiment-artifacts/${experimentId}/log-at-step`,
       BY_PROJECT: {

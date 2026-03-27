@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import Link from "next/link";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { ExperimentEditForm } from "@/components/shared/experiment-edit-form";
 import { Button } from "@/components/ui/button";
@@ -27,10 +27,11 @@ import {
 import { format } from "date-fns";
 import type { Experiment } from "@/domain/experiments/types";
 import type { Metric } from "@/domain/metrics/types";
-import type { Project, ProjectMetric } from "@/domain/projects/types";
+import type { ProjectMetric } from "@/domain/projects/types";
 import { useExperimentMetrics } from "@/domain/metrics/hooks";
 import { useProject } from "@/domain/projects/hooks/project-hook";
 import { REFRESH_EXPERIMENT_SIDEBAR_INTERVAL } from "@/lib/constants/rates";
+import { FRONTEND_ROUTES } from "@/lib/constants/frontend-routes";
 
 interface ExperimentSidebarProps {
   experimentId: string | null;
@@ -86,7 +87,7 @@ export function ExperimentSidebar({
           },
         }
       );
-    } catch (error) {
+    } catch {
       toast({
         title: "Error",
         description: "Failed to update experiment.",
@@ -118,7 +119,7 @@ export function ExperimentSidebar({
           },
         }
       );
-    } catch (error) {
+    } catch {
       toast({
         title: "Error",
         description: "Failed to update status.",
@@ -150,18 +151,38 @@ export function ExperimentSidebar({
         />
       }
       headerActions={
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => refetch()}
-          disabled={experimentFetching || !experimentId}
-          data-testid="button-refresh-experiment"
-          aria-label="Refresh experiment"
-        >
-          <RefreshCw
-            className={`w-4 h-4 ${experimentFetching ? "animate-spin" : ""}`}
-          />
-        </Button>
+        <div className="flex items-center gap-1">
+          {experiment && (
+            <Button
+              asChild
+              variant="ghost"
+              size="sm"
+              className="h-8 px-2"
+              data-testid="button-open-final-artifacts"
+            >
+              <Link
+                href={FRONTEND_ROUTES.PROJECT_PAGES.EXPERIMENT_ARTIFACTS(
+                  experiment.projectId,
+                  experiment.id
+                )}
+              >
+                Artifacts
+              </Link>
+            </Button>
+          )}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => refetch()}
+            disabled={experimentFetching || !experimentId}
+            data-testid="button-refresh-experiment"
+            aria-label="Refresh experiment"
+          >
+            <RefreshCw
+              className={`w-4 h-4 ${experimentFetching ? "animate-spin" : ""}`}
+            />
+          </Button>
+        </div>
       }
       onClose={onClose}
       testId="experiment-sidebar"

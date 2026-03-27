@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import argparse
+import importlib.metadata
 import logging
 import random
+import subprocess
+import sys
 import time
 from typing import Any, Optional
 
@@ -82,6 +85,11 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--project-name", default="SDK Training")
     parser.add_argument("--experiment-name", default="SDK Training Run")
     parser.add_argument("--team-name", default=None)
+    parser.add_argument(
+        "--config-path",
+        default=None,
+        help="Optional path to YAML config file to upload as final artifact",
+    )
     return parser.parse_args()
 
 
@@ -105,6 +113,56 @@ def _smooth_image(image: np.ndarray, kernel_size: int = 7) -> np.ndarray:
             smoothed += padded[dy : dy + height, dx : dx + width, :]
     smoothed /= float(kernel_size * kernel_size)
     return np.clip(smoothed, 0, 255).astype(np.uint8)
+
+
+def _build_run_config_yaml(args: argparse.Namespace, steps: int, duration_seconds: int) -> str:
+    lines = [
+        "run:",
+        f"  project_name: {args.project_name}",
+        f"  experiment_name: {args.experiment_name}",
+        f"  team_name: {args.team_name or 'null'}",
+        f"  steps: {steps}",
+        f"  duration_seconds: {duration_seconds}",
+    ]
+    return "\n".join(lines) + "\n"
+
+
+def _capture_installed_packages() -> str:
+    commands = (
+        ["uv", "pip", "freeze"],
+        [sys.executable, "-m", "pip", "freeze"],
+    )
+    for command in commands:
+        try:
+            result = subprocess.run(
+                command,
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            output = result.stdout.strip()
+            if output:
+                return output + "\n"
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("packages_capture_command_failed", extra={"command": command, "error": str(exc)})
+
+    # Fallback: gather installed distributions directly from runtime metadata.
+    try:
+        packages: list[str] = []
+        for dist in importlib.metadata.distributions():
+            package_name = (
+                dist.metadata.get("Name")
+                or dist.metadata.get("name")
+                or "unknown-package"
+            )
+            packages.append(f"{package_name}=={dist.version}")
+        packages.sort()
+        if packages:
+            return "\n".join(packages) + "\n"
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("packages_capture_metadata_failed", extra={"error": str(exc)})
+
+    return "package-capture-unavailable\n"
 
 
 def main() -> None:
@@ -162,6 +220,27 @@ def main() -> None:
         steps = 120
         step_seconds = duration_seconds / steps
         start_time = time.time()
+
+        if args.config_path:
+            with open(args.config_path, encoding="utf-8") as config_file:
+                config_yaml = config_file.read()
+        else:
+            config_yaml = _build_run_config_yaml(args, steps, duration_seconds)
+        tracker.log_final_artifact(
+            "run_config",
+            config_yaml,
+            filepath="final/config.yaml",
+            default_extension=".yaml",
+            default_content_type="application/x-yaml",
+        )
+        tracker.log_final_artifact(
+            "python_packages",
+            _capture_installed_packages(),
+            filepath="final/pip-freeze.txt",
+            default_extension=".txt",
+            default_content_type="text/plain",
+        )
+        logger.info("final_artifacts_logged", extra={"experiment_id": experiment_id})
 
         accuracy = random.uniform(0.6, 0.99)
         loss = random.uniform(0.1, 1.2)

@@ -145,6 +145,25 @@ class ExperimentArtifactsRequestSpecFactory:
             response_model=ExperimentArtifactResponse,
         )
 
+    def upsert_named_experiment_artifact(
+        self,
+        experiment_id: str | UUID,
+        name: str,
+        filepath: str,
+    ) -> ApiRequestSpec[ExperimentArtifactResponse]:
+        if isinstance(experiment_id, UUID):
+            experiment_id = str(experiment_id)
+        return ApiRequestSpec(
+            method="POST",
+            endpoint=cast(str, self.ENDPOINTS["upsert_named_experiment_artifact"]),
+            request_payload={
+                "experiment_id": experiment_id,
+                "name": name,
+                "filepath": filepath,
+            },
+            response_model=ExperimentArtifactResponse,
+        )
+
     def download_named_experiment_artifact(
         self,
         experiment_id: str | UUID,

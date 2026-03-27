@@ -218,6 +218,40 @@ class ExpTracker:
             default_content_type="text/plain",
         )
 
+    def log_final_artifact(
+        self,
+        tag: str,
+        content,
+        filepath: str | None = None,
+        metadata: dict[str, str] | None = None,
+        default_extension: str = "",
+        default_content_type: str = "application/octet-stream",
+    ) -> None:
+        """Upload a named final artifact without step-based logging."""
+        try:
+            if metadata:
+                logger.info(
+                    "log_final_artifact metadata is currently not persisted by named artifacts API"
+                )
+            file_name, content_bytes, content_type = self._materialize_content(
+                tag=tag,
+                step=None,
+                content=content,
+                default_extension=default_extension,
+                default_content_type=default_content_type,
+            )
+            final_filepath = filepath or f"final/{file_name}"
+            self._api.upsert_named_experiment_artifact(
+                experiment_id=str(self.experiment_id),
+                name=tag,
+                filepath=final_filepath,
+                file_name=file_name,
+                file_content=content_bytes,
+                content_type=content_type,
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(f"Failed to log final artifact '{tag}': {exc}")
+
     def add_histogram(
         self,
         tag: str,
@@ -468,7 +502,7 @@ class ExpTracker:
     def _materialize_content(
         self,
         tag: str,
-        step: int,
+        step: int | None,
         content,
         default_extension: str,
         default_content_type: str,
@@ -489,9 +523,10 @@ class ExpTracker:
         `content_type` is not used for hash calculation (hash is computed from raw bytes),
         but it is important for transport semantics and later rendering.
         """
+        step_suffix = f"_{step}" if step is not None else ""
         # Raw bytes were provided directly by user code.
         if isinstance(content, bytes):
-            file_name = f"{tag}_{step}{default_extension}"
+            file_name = f"{tag}{step_suffix}{default_extension}"
             return file_name, content, default_content_type
         # String can be either a filesystem path or plain text payload.
         if isinstance(content, (str, Path)):
@@ -506,7 +541,7 @@ class ExpTracker:
                     guessed_type or default_content_type,
                 )
             # If the content is a string and not a path, we assume it is a plain text payload.
-            file_name = f"{tag}_{step}{default_extension or '.txt'}"
+            file_name = f"{tag}{step_suffix}{default_extension or '.txt'}"
             return file_name, content.encode("utf-8"), "text/plain"
         # File-like object with .read() support.
         if hasattr(content, "read") and callable(content.read):
@@ -514,13 +549,13 @@ class ExpTracker:
             if isinstance(raw, str):
                 raw = raw.encode("utf-8")
             if isinstance(raw, bytes):
-                file_name = f"{tag}_{step}{default_extension}"
+                file_name = f"{tag}{step_suffix}{default_extension}"
                 return file_name, raw, default_content_type
         # Tensor/array-like object exposing .tobytes() for zero-copy binary extraction.
         if hasattr(content, "tobytes") and callable(content.tobytes):
             raw = content.tobytes()
             if isinstance(raw, bytes):
-                file_name = f"{tag}_{step}{default_extension}"
+                file_name = f"{tag}{step_suffix}{default_extension}"
                 return file_name, raw, default_content_type
         raise ExpTrackerAPIError(
             "Unsupported content type. Use bytes, file path, file-like, or string."

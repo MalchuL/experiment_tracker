@@ -44,6 +44,21 @@ class ExperimentArtifactRepository(BaseRepository):
         )
         return list(result.scalars().all())
 
+    async def list_by_experiment(
+        self,
+        experiment_id: UUID,
+        names: list[str] | None = None,
+    ) -> list[ExperimentArtifact]:
+        stmt = (
+            select(ExperimentArtifact)
+            .where(ExperimentArtifact.experiment_id == experiment_id)
+            .order_by(ExperimentArtifact.name.asc(), ExperimentArtifact.filepath.asc())
+        )
+        if names:
+            stmt = stmt.where(ExperimentArtifact.name.in_(names))
+        result = await self.db.execute(stmt)
+        return list(result.scalars().all())
+
     async def delete_by_identity(
         self,
         experiment_id: UUID,
