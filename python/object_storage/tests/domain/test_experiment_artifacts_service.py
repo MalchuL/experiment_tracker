@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import io
+import re
 from uuid import uuid4
 
 import pytest
-from fastapi import UploadFile
+from fastapi import HTTPException, UploadFile
+from sqlalchemy.exc import IntegrityError
 from starlette.datastructures import Headers
 
 from object_storage.db.models import ExperimentBlob
@@ -29,14 +31,26 @@ class FakeBlobStream:
         return None
 
 
-class FakeBucketsService:
+class _FakeObjectStorage:
     def __init__(self) -> None:
+        self.deleted: list[tuple[str, str]] = []
+
+    def delete_blob(self, bucket_name: str, blob_hash: str) -> bool:
+        self.deleted.append((bucket_name, blob_hash))
+        return True
+
+
+class FakeBucketsService:
+    def __init__(self, *, commit_raises: bool = False) -> None:
+        self.storage = _FakeObjectStorage()
         self.ensure_bucket_calls: list[tuple[str, str]] = []
         self.upload_blob_calls: list[tuple[str, str, str]] = []
         self.get_blob_stream_calls: list[tuple[str, str, str]] = []
         self.delete_blob_calls: list[tuple[str, str, str]] = []
         self.delete_bucket_calls: list[tuple[str, str]] = []
         self.committed = False
+        self.rollback_called = False
+        self._commit_raises = commit_raises
         self.upload_result = UploadBlobResult(size=0, hash="")
         self.stream = FakeBlobStream()
 
@@ -61,12 +75,19 @@ class FakeBucketsService:
         self.delete_bucket_calls.append((str(project_id), str(experiment_id)))
 
     async def commit(self) -> None:
+        if self._commit_raises:
+            raise RuntimeError("simulated commit failure")
         self.committed = True
+
+    async def rollback(self) -> None:
+        self.rollback_called = True
 
 
 class FakeArtifactsRepository:
     def __init__(self) -> None:
         self.commit_called = False
+        self.rollback_called = False
+        self.fail_commit_with_integrity = False
         self.created: list[ExperimentBlob] = []
         self.list_result: list[ExperimentBlob] = []
         self.get_result: ExperimentBlob | None = None
@@ -100,7 +121,12 @@ class FakeArtifactsRepository:
         return True
 
     async def commit(self) -> None:
+        if self.fail_commit_with_integrity:
+            raise IntegrityError(None, None, Exception("simulated unique violation"))
         self.commit_called = True
+
+    async def rollback(self) -> None:
+        self.rollback_called = True
 
 
 @pytest.mark.asyncio
@@ -128,6 +154,30 @@ async def test_upload_artifact_and_forget_stores_hash_and_size() -> None:
     )
     assert buckets_service.committed is True
     assert repo.created == []
+    assert buckets_service.upload_blob_calls[0][2] == result.hash
+    assert re.fullmatch(r"[0-9a-f]{32}", result.hash)
+
+
+@pytest.mark.asyncio
+async def test_upload_artifact_and_forget_explicit_hash_matches_upload_key() -> None:
+    project_id = uuid4()
+    experiment_id = uuid4()
+    buckets_service = FakeBucketsService()
+    repo = FakeArtifactsRepository()
+    service = ArtifactsStorageService(buckets_service, repo)
+    payload = b"payload"
+    explicit = "7" * 64
+    upload = UploadFile(filename="f.bin", file=io.BytesIO(payload))
+
+    result = await service.upload_artifact_and_forget(
+        project_id=project_id,
+        experiment_id=experiment_id,
+        upload=upload,
+        hash=explicit,
+    )
+
+    assert result.hash == explicit
+    assert buckets_service.upload_blob_calls[0][2] == explicit
 
 
 @pytest.mark.asyncio
@@ -148,6 +198,7 @@ async def test_upload_artifact_and_track_persists_experiment_blob() -> None:
         project_id=project_id,
         experiment_id=experiment_id,
         upload=upload,
+        content_type="application/json",
         hash="a" * 64,
         path="metrics/final.json",
     )
@@ -155,8 +206,93 @@ async def test_upload_artifact_and_track_persists_experiment_blob() -> None:
     assert result.hash == "a" * 64
     assert result.file_path == "metrics/final.json"
     assert len(repo.created) == 1
+    assert repo.created[0].artifact_hash == "a" * 64
     assert repo.created[0].mime_type == "application/json"
     assert repo.commit_called is True
+    assert buckets_service.upload_blob_calls[0][2] == "a" * 64
+
+
+@pytest.mark.asyncio
+async def test_upload_tracked_uses_content_type_argument_not_upload_header() -> None:
+    """Stored MIME type comes from ``content_type``, not from UploadFile headers."""
+
+    project_id = uuid4()
+    experiment_id = uuid4()
+    buckets_service = FakeBucketsService()
+    repo = FakeArtifactsRepository()
+    service = ArtifactsStorageService(buckets_service, repo)
+    upload = UploadFile(
+        filename="x.json",
+        file=io.BytesIO(b"{}"),
+        headers=Headers({"content-type": "text/plain"}),
+    )
+
+    await service.upload_artifact_and_track(
+        project_id=project_id,
+        experiment_id=experiment_id,
+        upload=upload,
+        content_type="application/json",
+        hash="c" * 64,
+        path="cfg/x.json",
+    )
+
+    assert repo.created[0].mime_type == "application/json"
+
+
+@pytest.mark.asyncio
+async def test_upload_tracked_uses_upload_content_type_when_param_omitted() -> None:
+    project_id = uuid4()
+    experiment_id = uuid4()
+    buckets_service = FakeBucketsService()
+    repo = FakeArtifactsRepository()
+    service = ArtifactsStorageService(buckets_service, repo)
+    upload = UploadFile(
+        filename="x.json",
+        file=io.BytesIO(b"{}"),
+        headers=Headers({"content-type": "text/plain"}),
+    )
+
+    await service.upload_artifact_and_track(
+        project_id=project_id,
+        experiment_id=experiment_id,
+        upload=upload,
+        hash="c" * 64,
+        path="cfg/x.json",
+    )
+
+    assert repo.created[0].mime_type == "text/plain"
+
+
+@pytest.mark.asyncio
+async def test_upload_artifact_and_track_without_hash_aligns_db_blob_and_upload_key() -> (
+    None
+):
+    """Omitted hash: response, experiment_blobs.artifact_hash, and upload_blob key match."""
+
+    project_id = uuid4()
+    experiment_id = uuid4()
+    buckets_service = FakeBucketsService()
+    repo = FakeArtifactsRepository()
+    service = ArtifactsStorageService(buckets_service, repo)
+    upload = UploadFile(
+        filename="x.bin",
+        file=io.BytesIO(b"blob"),
+        headers=Headers({"content-type": "application/octet-stream"}),
+    )
+
+    result = await service.upload_artifact_and_track(
+        project_id=project_id,
+        experiment_id=experiment_id,
+        upload=upload,
+        content_type="application/octet-stream",
+        path="dir/x.bin",
+    )
+
+    h = result.hash
+    assert re.fullmatch(r"[0-9a-f]{32}", h)
+    assert buckets_service.upload_blob_calls[0][2] == h
+    assert len(repo.created) == 1
+    assert repo.created[0].artifact_hash == h
 
 
 @pytest.mark.asyncio
@@ -201,3 +337,88 @@ async def test_delete_experiment_deletes_bucket_and_metadata() -> None:
     assert repo.delete_all_calls == [(str(project_id), str(experiment_id))]
     assert repo.commit_called is True
     assert result.deleted_count == 0
+
+
+@pytest.mark.asyncio
+async def test_upload_tracked_invalid_path_rolls_back_and_removes_s3_object() -> None:
+    project_id = uuid4()
+    experiment_id = uuid4()
+    buckets_service = FakeBucketsService()
+    repo = FakeArtifactsRepository()
+    service = ArtifactsStorageService(buckets_service, repo)
+    payload = b"tracked-content"
+    upload = UploadFile(
+        filename="metrics.json",
+        file=io.BytesIO(payload),
+        headers=Headers({"content-type": "application/json"}),
+    )
+    bad_path = "../outside.json"
+
+    with pytest.raises(ValueError, match="Invalid file path"):
+        await service.upload_artifact_and_track(
+            project_id=project_id,
+            experiment_id=experiment_id,
+            upload=upload,
+            content_type="application/json",
+            hash="a" * 64,
+            path=bad_path,
+        )
+
+    assert repo.rollback_called is True
+    assert repo.commit_called is False
+    assert repo.created == []
+    assert buckets_service.storage.deleted == [("bucket", "a" * 64)]
+
+
+@pytest.mark.asyncio
+async def test_upload_tracked_integrity_error_rolls_back_and_removes_s3_object() -> None:
+    project_id = uuid4()
+    experiment_id = uuid4()
+    buckets_service = FakeBucketsService()
+    repo = FakeArtifactsRepository()
+    repo.fail_commit_with_integrity = True
+    service = ArtifactsStorageService(buckets_service, repo)
+    payload = b"tracked-content"
+    upload = UploadFile(
+        filename="metrics.json",
+        file=io.BytesIO(payload),
+        headers=Headers({"content-type": "application/json"}),
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        await service.upload_artifact_and_track(
+            project_id=project_id,
+            experiment_id=experiment_id,
+            upload=upload,
+            content_type="application/json",
+            hash="b" * 64,
+            path="metrics/final.json",
+        )
+
+    assert exc_info.value.status_code == 500
+    assert repo.rollback_called is True
+    assert buckets_service.storage.deleted == [("bucket", "b" * 64)]
+
+
+@pytest.mark.asyncio
+async def test_upload_untracked_commit_failure_rolls_back_and_removes_s3_object() -> None:
+    project_id = uuid4()
+    experiment_id = uuid4()
+    buckets_service = FakeBucketsService(commit_raises=True)
+    repo = FakeArtifactsRepository()
+    service = ArtifactsStorageService(buckets_service, repo)
+    payload = b"raw-bytes"
+    upload = UploadFile(filename="blob.bin", file=io.BytesIO(payload))
+    artifact_hash = "c" * 64
+
+    with pytest.raises(RuntimeError, match="simulated commit failure"):
+        await service.upload_artifact_and_forget(
+            project_id=project_id,
+            experiment_id=experiment_id,
+            upload=upload,
+            hash=artifact_hash,
+        )
+
+    assert buckets_service.rollback_called is True
+    assert buckets_service.committed is False
+    assert buckets_service.storage.deleted == [("bucket", artifact_hash)]

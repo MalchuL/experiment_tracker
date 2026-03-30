@@ -48,6 +48,13 @@ async def upload_artifact_tracked(
     project_id: UUID,
     experiment_id: UUID,
     file: UploadFile = File(...),
+    content_type: str | None = Query(
+        default=None,
+        description=(
+            "Optional MIME type for tracked metadata; if omitted, uses the file part's "
+            "content type, then application/octet-stream."
+        ),
+    ),
     hash: str | None = Query(default=None),
     path: str | None = Query(default=None),
     service: ArtifactsStorageService = Depends(get_experiment_artifacts_service),
@@ -58,6 +65,7 @@ async def upload_artifact_tracked(
         project_id=project_id,
         experiment_id=experiment_id,
         upload=file,
+        content_type=content_type,
         hash=hash,
         path=path,
     )

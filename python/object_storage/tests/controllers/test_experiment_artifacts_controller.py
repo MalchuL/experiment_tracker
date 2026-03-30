@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from uuid import UUID, uuid4
 
 import pytest
@@ -77,6 +78,33 @@ async def test_experiment_controller_untracked_upload_and_download(http_client) 
 
 
 @pytest.mark.asyncio
+async def test_experiment_controller_untracked_no_hash_response_key_matches_download(
+    http_client,
+) -> None:
+    """Omitted hash query: JSON hash must be the object key used for download."""
+
+    project_id = uuid4()
+    experiment_id = uuid4()
+    payload = b"no-hash-query-untracked"
+
+    upload = await http_client.post(
+        f"/api/experiment-artifacts/projects/{project_id}/experiments/{experiment_id}/upload-untracked",
+        files={"file": ("blob.bin", payload, "application/octet-stream")},
+    )
+    assert upload.status_code == 200
+    body = upload.json()
+    h = body["hash"]
+    assert re.fullmatch(r"[0-9a-f]{32}", h)
+    assert body["size"] == len(payload)
+
+    download = await http_client.get(
+        f"/api/experiment-artifacts/projects/{project_id}/experiments/{experiment_id}/artifacts/{h}"
+    )
+    assert download.status_code == 200
+    assert download.content == payload
+
+
+@pytest.mark.asyncio
 async def test_experiment_controller_tracked_upload_list_download_delete(http_client) -> None:
     project_id = uuid4()
     experiment_id = uuid4()
@@ -86,7 +114,11 @@ async def test_experiment_controller_tracked_upload_list_download_delete(http_cl
 
     upload = await http_client.post(
         f"/api/experiment-artifacts/projects/{project_id}/experiments/{experiment_id}/upload-tracked",
-        params={"hash": artifact_hash, "path": artifact_path},
+        params={
+            "hash": artifact_hash,
+            "path": artifact_path,
+            "content_type": "application/x-yaml",
+        },
         files={"file": ("train.yaml", payload, "application/x-yaml")},
     )
     assert upload.status_code == 200
@@ -125,3 +157,48 @@ async def test_experiment_controller_tracked_upload_list_download_delete(http_cl
     )
     assert delete_experiment.status_code == 200
     assert delete_experiment.json()["deleted_count"] == 0
+
+
+@pytest.mark.asyncio
+async def test_experiment_controller_tracked_no_hash_list_and_download_use_same_key(
+    http_client,
+) -> None:
+    """Omitted hash query: list + download must use the same key as upload response."""
+
+    project_id = uuid4()
+    experiment_id = uuid4()
+    payload = b"tracked-without-hash-param"
+    artifact_path = "artifacts/run.bin"
+
+    upload = await http_client.post(
+        f"/api/experiment-artifacts/projects/{project_id}/experiments/{experiment_id}/upload-tracked",
+        params={"path": artifact_path},
+        files={"file": ("run.bin", payload, "application/octet-stream")},
+    )
+    assert upload.status_code == 200
+    upload_body = upload.json()
+    h = upload_body["hash"]
+    assert re.fullmatch(r"[0-9a-f]{32}", h)
+    assert upload_body["file_path"] == artifact_path
+    assert upload_body["mime_type"] == "application/octet-stream"
+
+    listed = await http_client.get(
+        f"/api/experiment-artifacts/projects/{project_id}/experiments/{experiment_id}/artifacts"
+    )
+    assert listed.status_code == 200
+    artifacts = listed.json()
+    assert len(artifacts) == 1
+    assert artifacts[0]["hash"] == h
+    assert artifacts[0]["file_path"] == artifact_path
+
+    tracked_download = await http_client.get(
+        f"/api/experiment-artifacts/projects/{project_id}/experiments/{experiment_id}/artifacts/{h}",
+        params={"tracked": "true"},
+    )
+    assert tracked_download.status_code == 200
+    assert tracked_download.content == payload
+
+    delete_experiment = await http_client.delete(
+        f"/api/experiment-artifacts/projects/{project_id}/experiments/{experiment_id}"
+    )
+    assert delete_experiment.status_code == 200

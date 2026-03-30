@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import io
 import zipfile
 from types import SimpleNamespace
@@ -87,6 +88,24 @@ class FakeBucketsService:
         body = await upload.read()
         self._storage.put_blob(name, hash, io.BytesIO(body), len(body))
         return UploadBlobResult(size=len(body), hash=hash)
+
+    async def upload_blob_verifying_sha256(
+        self,
+        project_id,
+        experiment_id,
+        upload,
+        expected_sha256_hex: str,
+    ) -> UploadBlobResult:
+        body = await upload.read()
+        computed = hashlib.sha256(body).hexdigest()
+        expected = expected_sha256_hex.strip().lower()
+        if computed.lower() != expected:
+            raise ValueError(
+                f"Hash mismatch, computed: {computed}, expected: {expected_sha256_hex}"
+            )
+        name = project_experiment_bucket_name(project_id, experiment_id)
+        self._storage.put_blob(name, expected, io.BytesIO(body), len(body))
+        return UploadBlobResult(size=len(body), hash=expected)
 
     async def delete_blob(self, project_id, experiment_id, hash) -> bool:
         self.delete_blob_calls.append((project_id, experiment_id, hash))

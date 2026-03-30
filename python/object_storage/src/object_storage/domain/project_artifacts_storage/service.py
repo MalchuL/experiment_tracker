@@ -10,9 +10,6 @@ from uuid import UUID
 
 import anyio
 from fastapi import HTTPException, UploadFile
-from experiment_tracker_shared import (
-    create_sha256_hasher,
-)  # pyright: ignore[reportMissingImports]
 from sqlalchemy.exc import IntegrityError
 
 from . import mapper
@@ -33,12 +30,6 @@ from object_storage.domain.buckets.service import (
 class ObjectStorageService:
     _SHA256_HEX_RE = re.compile(r"^[0-9a-fA-F]{64}$")
     _INVALID_PATH_CHARS_RE = re.compile(r"[:\x00-\x1f]")
-
-    # 10MB for spooled uploads (temporary file on RAM memory)
-    MAX_SPOOL_SIZE = 10 * 1024 * 1024
-
-    # 1MB for chunked uploads (streaming from the client)
-    MAX_CHUNK_SIZE = 1024 * 1024
 
     """CAS workflow service for blob checking, uploads, and snapshots."""
 
@@ -88,43 +79,33 @@ class ObjectStorageService:
         if existing:
             return mapper.upload_status_to_response("exists")
 
-        spool: tempfile.SpooledTemporaryFile | None = None
+        await self._buckets_service.ensure_bucket(project_id, None)
         try:
-            await self._buckets_service.ensure_bucket(project_id, None)
-            spool, size, computed = await self._spool_upload(upload)
-            if computed != blob_hash:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Hash mismatch, computed: {computed}, expected: {blob_hash}",
-                )
-
-            spool.seek(0)
-            upload_for_bucket = UploadFile(
-                filename=upload.filename,
-                file=spool,
-                headers=upload.headers,
+            upload_result = await self._buckets_service.upload_blob_verifying_sha256(
+                project_id, None, upload, blob_hash
             )
-            await self._buckets_service.upload_blob(
-                project_id, None, upload_for_bucket, blob_hash
+        except ValueError as exc:
+            detail = str(exc)
+            if detail.startswith("Hash mismatch"):
+                raise HTTPException(status_code=400, detail=detail)
+            raise
+        await self._repository.add_blob(
+            project_id,
+            upload_result.hash,
+            upload_result.size,
+            upload.content_type or "application/octet-stream",
+        )
+        try:
+            await self._repository.commit()
+        except IntegrityError:
+            await self._repository.rollback()
+            await self._buckets_service.delete_blob(
+                project_id, None, upload_result.hash
             )
-            await self._repository.add_blob(
-                project_id,
-                blob_hash,
-                size,
-                upload.content_type or "application/octet-stream",
+            raise HTTPException(
+                status_code=500, detail="Failed to add blob to repository"
             )
-            try:
-                await self._repository.commit()
-            except IntegrityError:
-                await self._repository.rollback()
-                await self._buckets_service.delete_blob(project_id, None, blob_hash)
-                raise HTTPException(
-                    status_code=500, detail="Failed to add blob to repository"
-                )
-            return mapper.upload_status_to_response("ok")
-        finally:
-            if spool is not None:
-                spool.close()
+        return mapper.upload_status_to_response("ok")
 
     async def create_project_snapshot(
         self, payload: SnapshotCreateRequestDTO
@@ -268,24 +249,6 @@ class ObjectStorageService:
         ):
             return False
         return True
-
-    async def _spool_upload(
-        self, upload: UploadFile
-    ) -> tuple[tempfile.SpooledTemporaryFile, int, str]:
-        """Stream the upload into a spooled file while computing its SHA-256 hash."""
-
-        hasher = create_sha256_hasher()
-        size = 0
-        spool = tempfile.SpooledTemporaryFile(max_size=self.MAX_SPOOL_SIZE)
-        while True:
-            chunk = await upload.read(self.MAX_CHUNK_SIZE)
-            if not chunk:
-                break
-            size += len(chunk)
-            hasher.update(chunk)
-            spool.write(chunk)
-        spool.seek(0)
-        return spool, size, hasher.hexdigest()
 
     def _build_zip(
         self, storage, project_id: UUID, manifest: list[dict]

@@ -6,11 +6,13 @@ import os
 import re
 from uuid import UUID, uuid4
 
-from fastapi import UploadFile
+from fastapi import HTTPException, UploadFile
+from sqlalchemy.exc import IntegrityError
 
 from object_storage.domain.experiment_artifacts_storage.error import (
     HashNotValidError,
 )
+from object_storage.logger import logger
 from object_storage.db.models import ExperimentBlob
 
 from .mapper import ArtifactsStorageMapper
@@ -39,6 +41,19 @@ class ArtifactsStorageService:
         self._buckets_service = buckets_service
         self._artifacts_repository = artifacts_repository
         self._mapper = ArtifactsStorageMapper()
+
+    def _remove_orphan_object_after_failed_upload(
+        self, bucket_name: str, blob_hash: str
+    ) -> None:
+        """Delete S3/MinIO object after DB rollback; ignores errors (best-effort)."""
+
+        try:
+            self._buckets_service.storage.delete_blob(bucket_name, blob_hash)
+        except Exception:
+            logger.exception(
+                "Failed to delete orphan object after failed upload",
+                extra={"bucket": bucket_name, "hash": blob_hash},
+            )
 
     def check_hash(self, hash: str) -> None:
         """Check if the hash is valid."""
@@ -71,19 +86,41 @@ class ArtifactsStorageService:
         """
         artifact_hash = hash or uuid4().hex
         self.check_hash(artifact_hash)
-        await self._buckets_service.ensure_bucket(project_id, experiment_id)
+        bucket_name = await self._buckets_service.ensure_bucket(
+            project_id, experiment_id
+        )
         upload_result = await self._buckets_service.upload_blob(
             project_id, experiment_id, upload, artifact_hash
         )
-        await self._buckets_service.commit()
+        try:
+            await self._buckets_service.commit()
+        except Exception:
+            await self._buckets_service.rollback()
+            self._remove_orphan_object_after_failed_upload(
+                bucket_name, upload_result.hash
+            )
+            raise
         return self._mapper.upload_artifact_to_untracked_response(upload_result)
 
-    # TODO implement this
+    @staticmethod
+    def _mime_type_for_tracked(
+        upload: UploadFile, content_type: str | None
+    ) -> str:
+        if content_type is not None:
+            stripped = content_type.strip()
+            if stripped:
+                return stripped
+        from_upload = (upload.content_type or "").strip()
+        if from_upload:
+            return from_upload
+        return "application/octet-stream"
+
     async def upload_artifact_and_track(
         self,
         project_id: UUID,
         experiment_id: UUID,
         upload: UploadFile,
+        content_type: str | None = None,
         hash: str | None = None,
         path: str | None = None,
     ) -> TrackedUploadArtifactResponseDTO:
@@ -96,6 +133,8 @@ class ArtifactsStorageService:
             project_id: The ID of the project.
             experiment_id: The ID of the experiment.
             upload: The upload file.
+            content_type: Optional MIME type for the tracked row; when omitted or blank,
+                uses the upload part's content type, then ``application/octet-stream``.
             hash: The hash of the artifact.
             path: The path of the artifact.
 
@@ -106,27 +145,45 @@ class ArtifactsStorageService:
         artifact_hash = hash or uuid4().hex
         self.check_hash(artifact_hash)
 
-        await self._buckets_service.ensure_bucket(project_id, experiment_id)
+        bucket_name = await self._buckets_service.ensure_bucket(
+            project_id, experiment_id
+        )
         upload_result = await self._buckets_service.upload_blob(
             project_id, experiment_id, upload, artifact_hash
         )
 
-        # Upload to database
-        file_path = normalize_path(path or upload.filename)
-        if not validate_relative_path(file_path):
-            raise ValueError(f"Invalid file path: {file_path}")
-        model_blob = await self._artifacts_repository.create_experiment_blob(
-            ExperimentBlob(
-                project_id=project_id,
-                experiment_id=experiment_id,
-                artifact_hash=upload_result.hash,
-                file_path=file_path,
-                mime_type=upload.content_type,
-                size=upload_result.size,
+        try:
+            file_path = normalize_path(path or upload.filename or artifact_hash)
+            if not validate_relative_path(file_path):
+                raise ValueError(f"Invalid file path: {file_path}")
+            model_blob = await self._artifacts_repository.create_experiment_blob(
+                ExperimentBlob(
+                    project_id=project_id,
+                    experiment_id=experiment_id,
+                    artifact_hash=upload_result.hash,
+                    file_path=file_path,
+                    mime_type=self._mime_type_for_tracked(upload, content_type),
+                    size=upload_result.size,
+                )
             )
-        )
 
-        await self._artifacts_repository.commit()
+            await self._artifacts_repository.commit()
+        except IntegrityError as exc:
+            await self._artifacts_repository.rollback()
+            self._remove_orphan_object_after_failed_upload(
+                bucket_name, upload_result.hash
+            )
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to persist experiment artifact metadata",
+            ) from exc
+        except Exception:
+            await self._artifacts_repository.rollback()
+            self._remove_orphan_object_after_failed_upload(
+                bucket_name, upload_result.hash
+            )
+            raise
+
         return self._mapper.experiment_model_to_tracked_response(model_blob)
 
     async def list_artifacts(

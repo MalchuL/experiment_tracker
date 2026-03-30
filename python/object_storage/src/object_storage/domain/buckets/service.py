@@ -102,6 +102,46 @@ class BucketRegistryService:
             if spool is not None:
                 spool.close()
 
+    async def upload_blob_verifying_sha256(
+        self,
+        project_id: UUID,
+        experiment_id: UUID | None,
+        upload: UploadFile,
+        expected_sha256_hex: str,
+    ) -> UploadBlobResult:
+        """Spool the upload, verify SHA-256 matches ``expected_sha256_hex``, store under that key.
+
+        Comparison is case-insensitive. The object key uses the lowercase form of
+        ``expected_sha256_hex``. Raises :class:`ValueError` with a ``Hash mismatch`` message
+        if the content digest differs.
+        """
+
+        bucket_name = await self.get_bucket_name(project_id, experiment_id)
+        if bucket_name is None:
+            raise ValueError(f"Bucket {project_id} {experiment_id} not found")
+        expected = expected_sha256_hex.strip().lower()
+        spool: tempfile.SpooledTemporaryFile | None = None
+        try:
+            spool, size, computed_hash = await self._spool_upload(upload)
+            if computed_hash.lower() != expected:
+                raise ValueError(
+                    f"Hash mismatch, computed: {computed_hash}, expected: {expected_sha256_hex}"
+                )
+            self._storage.put_blob(
+                bucket_name,
+                expected,
+                cast(BinaryIO, spool),
+                size,
+            )
+            await self._repository.increment_bucket_size(
+                project_id, experiment_id, size
+            )
+            await self._repository.flush()
+            return UploadBlobResult(size=size, hash=expected)
+        finally:
+            if spool is not None:
+                spool.close()
+
     async def delete_blob(
         self,
         project_id: UUID,
@@ -176,3 +216,6 @@ class BucketRegistryService:
 
     async def commit(self) -> None:
         await self._repository.commit()
+
+    async def rollback(self) -> None:
+        await self._repository.rollback()
