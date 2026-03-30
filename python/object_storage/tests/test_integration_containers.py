@@ -7,9 +7,15 @@ from uuid import UUID, uuid4
 
 import pytest
 from fastapi import HTTPException, UploadFile
+from starlette.datastructures import Headers
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from object_storage.db.models import Base, TrackedBlob
+from object_storage.db.models import Base, ProjectBlob
+from object_storage.domain.buckets.repository import BucketsRepository
+from object_storage.domain.buckets.service import BucketRegistryService
+from object_storage.domain.experiment_artifacts_storage.repository import (
+    ExperimentArtifactsRepository,
+)
 from object_storage.domain.experiment_artifacts_storage.service import (
     ArtifactsStorageService,
 )
@@ -60,7 +66,8 @@ async def test_project_artifacts_workflow_with_isolated_containers(
     async with session_factory() as session:
         repository = ObjectStorageRepository(session)
         storage = get_s3_storage()
-        service = ObjectStorageService(repository, storage)
+        buckets = BucketRegistryService(BucketsRepository(session), storage)
+        service = ObjectStorageService(repository, buckets)
 
         upload = UploadFile(filename="blob.bin", file=io.BytesIO(payload))
         upload_result = await service.upload_project_blob(project_id, blob_hash, upload)
@@ -110,7 +117,8 @@ async def test_check_blobs_returns_missing_hashes(pytestconfig: pytest.Config) -
     async with session_factory() as session:
         repository = ObjectStorageRepository(session)
         storage = get_s3_storage()
-        service = ObjectStorageService(repository, storage)
+        buckets = BucketRegistryService(BucketsRepository(session), storage)
+        service = ObjectStorageService(repository, buckets)
 
         upload = UploadFile(filename="blob.bin", file=io.BytesIO(payload))
         await service.upload_project_blob(project_id, present_hash, upload)
@@ -141,7 +149,8 @@ async def test_download_blob_roundtrip(pytestconfig: pytest.Config) -> None:
     async with session_factory() as session:
         repository = ObjectStorageRepository(session)
         storage = get_s3_storage()
-        service = ObjectStorageService(repository, storage)
+        buckets = BucketRegistryService(BucketsRepository(session), storage)
+        service = ObjectStorageService(repository, buckets)
 
         upload = UploadFile(filename="blob.bin", file=io.BytesIO(payload))
         await service.upload_project_blob(project_id, blob_hash, upload)
@@ -173,7 +182,8 @@ async def test_snapshot_download_full_zip(pytestconfig: pytest.Config) -> None:
     async with session_factory() as session:
         repository = ObjectStorageRepository(session)
         storage = get_s3_storage()
-        service = ObjectStorageService(repository, storage)
+        buckets = BucketRegistryService(BucketsRepository(session), storage)
+        service = ObjectStorageService(repository, buckets)
 
         for payload, h in [(content_a, hash_a), (content_b, hash_b)]:
             upload = UploadFile(filename="x.bin", file=io.BytesIO(payload))
@@ -221,15 +231,17 @@ async def test_snapshot_download_with_missing_blobs(pytestconfig: pytest.Config)
     async with session_factory() as session:
         repository = ObjectStorageRepository(session)
         storage = get_s3_storage()
-        service = ObjectStorageService(repository, storage)
+        buckets = BucketRegistryService(BucketsRepository(session), storage)
+        service = ObjectStorageService(repository, buckets)
 
         upload = UploadFile(filename="blob.bin", file=io.BytesIO(present_payload))
         await service.upload_project_blob(project_id, present_hash, upload)
 
         session.add(
-            TrackedBlob(
+            ProjectBlob(
                 hash=missing_hash,
                 project_id=project_id,
+                mime_type="application/octet-stream",
                 size=10,
                 ref_count=0,
             )
@@ -262,29 +274,83 @@ async def test_snapshot_download_with_missing_blobs(pytestconfig: pytest.Config)
 
 @pytest.mark.asyncio
 async def test_experiment_artifacts_workflow(pytestconfig: pytest.Config) -> None:
-    """Upload, download, delete artifact and delete experiment against real S3."""
+    """Upload tracked and untracked experiment artifacts against real S3 + DB."""
     database_url = pytestconfig.cache.get("object_storage/test_database_url", "")
     assert database_url
-    storage = get_s3_storage()
-    service = ArtifactsStorageService(storage)
+    engine = create_async_engine(database_url, echo=False)
+    session_factory = async_sessionmaker(engine, expire_on_commit=False)
 
+    async with engine.begin() as connection:
+        await connection.run_sync(Base.metadata.create_all)
+
+    project_id = uuid4()
     experiment_id = uuid4()
-    payload = b"experiment-artifact-content"
-    upload = UploadFile(filename="weights.bin", file=io.BytesIO(payload))
+    tracked_payload = b"experiment-tracked-content"
+    untracked_payload = b"experiment-untracked-content"
+    tracked_hash = "d" * 64
+    untracked_hash = "e" * 64
 
-    upload_result = await service.upload_artifact(experiment_id, upload)
-    assert upload_result.status == "ok"
-    assert upload_result.size == len(payload)
-    assert len(upload_result.path) == 32
+    async with session_factory() as session:
+        storage = get_s3_storage()
+        buckets_service = BucketRegistryService(BucketsRepository(session), storage)
+        artifacts_repository = ExperimentArtifactsRepository(session)
+        service = ArtifactsStorageService(buckets_service, artifacts_repository)
 
-    stream = await service.get_artifact_stream(experiment_id, upload_result.path)
-    downloaded = _read_stream(stream)
-    assert downloaded == payload
+        tracked_upload = UploadFile(
+            filename="weights.bin",
+            file=io.BytesIO(tracked_payload),
+            headers=Headers({"content-type": "application/octet-stream"}),
+        )
+        tracked_result = await service.upload_artifact_and_track(
+            project_id=project_id,
+            experiment_id=experiment_id,
+            upload=tracked_upload,
+            hash=tracked_hash,
+            path="weights/final.bin",
+        )
+        assert tracked_result.hash == tracked_hash
+        assert tracked_result.size == len(tracked_payload)
 
-    delete_result = await service.delete_artifact(
-        experiment_id, upload_result.path
-    )
-    assert delete_result.deleted is True
+        untracked_upload = UploadFile(
+            filename="sample.png",
+            file=io.BytesIO(untracked_payload),
+            headers=Headers({"content-type": "image/png"}),
+        )
+        untracked_result = await service.upload_artifact_and_forget(
+            project_id=project_id,
+            experiment_id=experiment_id,
+            upload=untracked_upload,
+            hash=untracked_hash,
+        )
+        assert untracked_result.hash == untracked_hash
+        assert untracked_result.size == len(untracked_payload)
 
-    exp_delete = await service.delete_experiment(experiment_id)
-    assert exp_delete.deleted_count >= 1
+        tracked_stream = await service.get_artifact_stream(
+            project_id=project_id,
+            experiment_id=experiment_id,
+            artifact_hash=tracked_hash,
+            tracked=True,
+        )
+        tracked_downloaded = _read_stream(tracked_stream.stream)
+        assert tracked_downloaded == tracked_payload
+
+        untracked_stream = await service.get_artifact_stream(
+            project_id=project_id,
+            experiment_id=experiment_id,
+            artifact_hash=untracked_hash,
+            tracked=False,
+        )
+        untracked_downloaded = _read_stream(untracked_stream.stream)
+        assert untracked_downloaded == untracked_payload
+
+        delete_result = await service.delete_artifact(
+            project_id=project_id,
+            experiment_id=experiment_id,
+            artifact_hash=tracked_hash,
+        )
+        assert delete_result.deleted is True
+
+        exp_delete = await service.delete_experiment(project_id, experiment_id)
+        assert exp_delete.deleted_count == 0
+
+    await engine.dispose()

@@ -13,7 +13,7 @@ from .request import ApiRequestSpec
 from ..logger import logger
 from pydantic import BaseModel
 
-ResponseT = TypeVar("ResponseT")
+ResponseT = TypeVar("ResponseT", bound=BaseModel)
 
 
 def _raise_for_status(response: httpx.Response, supress_errors: bool) -> None:
@@ -127,16 +127,28 @@ class ExperimentTrackerClient:
 
     def upload_file(
         self,
-        path: str,
+        endpoint: str,
         params: dict[str, Any],
         file_name: str,
         file_content: bytes,
         content_type: str = "application/octet-stream",
+        form_data: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
+        """Upload file to backend endpoint.
+
+        Args:
+            endpoint: The endpoint to upload the file to.
+            params: The parameters to pass to the URI path of the endpoint.
+            file_name: The name of the file to upload.
+            file_content: The content of the file to upload.
+            content_type: The content type of the file to upload (request still will use multipart/form-data for file upload).
+            form_data: The form data to pass to the endpoint (backend will parse as Form data this params (not JSON)).
+        """
         with disable_httpx_logging():
+            # This request still uses multipart/form-data for file upload.
             response = self._client.request(
                 "POST",
-                path,
+                endpoint,
                 params=params,
                 files={
                     "file": (
@@ -145,45 +157,43 @@ class ExperimentTrackerClient:
                         content_type,
                     )
                 },
-            )
-        _raise_for_status(response, self._supress_errors)
-        return response.json()
-
-    def upload_artifact(
-        self,
-        path: str,
-        file_name: str,
-        file_content: bytes,
-        content_type: str,
-        form_data: dict[str, Any],
-    ) -> dict[str, Any]:
-        """Upload file with form fields (for artifacts upload+log endpoint)."""
-        with disable_httpx_logging():
-            response = self._client.request(
-                "POST",
-                path,
-                files={"file": (file_name, file_content, content_type)},
                 data=form_data,
             )
         _raise_for_status(response, self._supress_errors)
         return response.json()
 
-    def download_file(self, path: str, params: dict[str, Any] | None = None) -> bytes:
-        """Download raw file bytes from backend endpoint."""
+    def download_file(
+        self, endpoint: str, params: dict[str, Any] | None = None
+    ) -> bytes:
+        """Download raw file bytes from backend endpoint.
+
+        Args:
+            endpoint: The endpoint to download the file from.
+            params: The parameters to pass to the URI path of the endpoint.
+        """
         with disable_httpx_logging():
             response = self._client.request(
                 "GET",
-                path,
+                endpoint,
                 params=params,
             )
         _raise_for_status(response, self._supress_errors)
         return response.content
 
     def download_file_to_path(
-        self, path: str, output_path: str | Path, params: dict[str, Any] | None = None
+        self,
+        endpoint: str,
+        output_path: str | Path,
+        params: dict[str, Any] | None = None,
     ) -> Path:
-        """Download bytes and persist them to local filesystem."""
-        content = self.download_file(path=path, params=params)
+        """Download bytes and persist them to local filesystem.
+
+        Args:
+            endpoint: The endpoint to download the file from.
+            output_path: The path to save the file to.
+            params: The parameters to pass to the URI path of the endpoint.
+        """
+        content = self.download_file(endpoint=endpoint, params=params)
         destination = Path(output_path)
         destination.parent.mkdir(parents=True, exist_ok=True)
         destination.write_bytes(content)

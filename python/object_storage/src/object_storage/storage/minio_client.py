@@ -21,10 +21,13 @@ def _blob_key(blob_hash: str) -> str:
 class MinioStorage:
     client: Minio
 
+    def bucket_exists(self, bucket_name: str) -> bool:
+        return self.client.bucket_exists(bucket_name)
+
     def ensure_bucket(self, bucket_name: str) -> None:
         """Create the target bucket if it does not already exist."""
 
-        if not self.client.bucket_exists(bucket_name):
+        if not self.bucket_exists(bucket_name):
             self.client.make_bucket(bucket_name)
 
     def delete_bucket(self, bucket_name: str) -> bool:
@@ -33,7 +36,7 @@ class MinioStorage:
         self.client.remove_bucket(bucket_name)
         return True
 
-    def stat_blob(self, bucket_name: str, blob_hash: str) -> bool:
+    def exists_blob(self, bucket_name: str, blob_hash: str) -> bool:
         """Return True if a blob exists in MinIO for the given hash."""
 
         try:
@@ -41,6 +44,11 @@ class MinioStorage:
             return True
         except S3Error:
             return False
+
+    def size_blob(self, bucket_name: str, blob_hash: str) -> int:
+        """Get the size of a blob."""
+
+        return self.client.stat_object(bucket_name, _blob_key(blob_hash)).size
 
     def put_blob(
         self, bucket_name: str, blob_hash: str, data: BinaryIO, size: int
@@ -63,7 +71,7 @@ class MinioStorage:
     def delete_blob(self, bucket_name: str, blob_hash: str) -> bool:
         """Delete one blob by hash from MinIO."""
 
-        if not self.stat_blob(bucket_name, blob_hash):
+        if not self.exists_blob(bucket_name, blob_hash):
             return False
         self.client.remove_object(bucket_name, _blob_key(blob_hash))
         return True
@@ -73,7 +81,9 @@ class MinioStorage:
 
         return [
             obj.object_name
-            for obj in self.client.list_objects(bucket_name, prefix=prefix, recursive=True)
+            for obj in self.client.list_objects(
+                bucket_name, prefix=prefix, recursive=True
+            )
         ]
 
     def delete_blobs(self, bucket_name: str, keys: list[str]) -> int:
@@ -82,9 +92,7 @@ class MinioStorage:
         if not keys:
             return 0
         errors = list(
-            self.client.remove_objects(
-                bucket_name, [DeleteObject(key) for key in keys]
-            )
+            self.client.remove_objects(bucket_name, [DeleteObject(key) for key in keys])
         )
         return len(keys) - len(errors)
 

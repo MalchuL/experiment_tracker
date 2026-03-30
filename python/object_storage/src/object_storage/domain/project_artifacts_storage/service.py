@@ -24,7 +24,10 @@ from .dto import (
     UploadBlobResponseDTO,
 )
 from .repository import ObjectStorageRepository
-from object_storage.storage import StorageBackend
+from object_storage.domain.buckets.service import (
+    BucketRegistryService,
+    project_experiment_bucket_name,
+)
 
 
 class ObjectStorageService:
@@ -39,22 +42,20 @@ class ObjectStorageService:
 
     """CAS workflow service for blob checking, uploads, and snapshots."""
 
-    def _get_bucket_name(self, project_id: UUID) -> str:
-        """Get the bucket name for a project."""
-        return f"project-{str(project_id)}"
-
     def __init__(
-        self, repository: ObjectStorageRepository, storage: StorageBackend
+        self,
+        repository: ObjectStorageRepository,
+        buckets_service: BucketRegistryService,
     ) -> None:
-        """Initialize with a repository for metadata and a MinIO storage client."""
+        """Initialize with metadata repository and project-scoped bucket registry."""
 
         self._repository = repository
-        self._storage = storage
+        self._buckets_service = buckets_service
 
     async def delete_project(self, project_id: UUID) -> bool:
         """Delete a project and all its blobs."""
-        bucket_name = self._get_bucket_name(project_id)
-        self._storage.delete_bucket(bucket_name)
+
+        await self._buckets_service.delete_all_project_buckets(project_id)
         await self._repository.delete_all_blobs(project_id)
         await self._repository.delete_all_snapshots(project_id)
         await self._repository.commit()
@@ -64,7 +65,8 @@ class ObjectStorageService:
         self, project_id: UUID, hashes: list[str]
     ) -> BlobCheckResponseDTO:
         """Return hashes that are missing from CAS metadata storage."""
-        self._storage.ensure_bucket(self._get_bucket_name(project_id))
+
+        await self._buckets_service.ensure_bucket(project_id, None)
         if not hashes:
             return mapper.missing_hashes_to_response([])
         normalized_hashes = [self._normalize_hash(blob_hash) for blob_hash in hashes]
@@ -88,8 +90,7 @@ class ObjectStorageService:
 
         spool: tempfile.SpooledTemporaryFile | None = None
         try:
-            bucket_name = self._get_bucket_name(project_id)
-            self._storage.ensure_bucket(bucket_name)
+            await self._buckets_service.ensure_bucket(project_id, None)
             spool, size, computed = await self._spool_upload(upload)
             if computed != blob_hash:
                 raise HTTPException(
@@ -97,19 +98,26 @@ class ObjectStorageService:
                     detail=f"Hash mismatch, computed: {computed}, expected: {blob_hash}",
                 )
 
-            await anyio.to_thread.run_sync(
-                self._storage.put_blob,  # type: ignore[arg-type]
-                bucket_name,
-                blob_hash,
-                spool,
-                size,
+            spool.seek(0)
+            upload_for_bucket = UploadFile(
+                filename=upload.filename,
+                file=spool,
+                headers=upload.headers,
             )
-            await self._repository.add_blob(project_id, blob_hash, size)
+            await self._buckets_service.upload_blob(
+                project_id, None, upload_for_bucket, blob_hash
+            )
+            await self._repository.add_blob(
+                project_id,
+                blob_hash,
+                size,
+                upload.content_type or "application/octet-stream",
+            )
             try:
                 await self._repository.commit()
             except IntegrityError:
                 await self._repository.rollback()
-                self._storage.delete_blob(bucket_name, blob_hash)
+                await self._buckets_service.delete_blob(project_id, None, blob_hash)
                 raise HTTPException(
                     status_code=500, detail="Failed to add blob to repository"
                 )
@@ -118,7 +126,6 @@ class ObjectStorageService:
             if spool is not None:
                 spool.close()
 
-    # TODO add project_id to the payload to have simpler deletion of the project
     async def create_project_snapshot(
         self, payload: SnapshotCreateRequestDTO
     ) -> SnapshotCreateResponseDTO:
@@ -153,14 +160,16 @@ class ObjectStorageService:
                 )
 
         manifest = mapper.snapshot_files_to_manifest(normalized_files)
-        snapshot = await self._repository.create_snapshot(manifest)
+        snapshot = await self._repository.create_snapshot(payload.project_id, manifest)
         if hashes:
             await self._repository.increment_blob_ref_counts(payload.project_id, hashes)
         await self._repository.commit()
         await self._repository.refresh(snapshot)
         return mapper.snapshot_id_to_response(snapshot.id)
 
-    async def delete_project_snapshot(self, project_id: UUID, snapshot_id: UUID) -> list[str]:
+    async def delete_project_snapshot(
+        self, project_id: UUID, snapshot_id: UUID
+    ) -> list[str]:
         """Delete a snapshot and all its blobs."""
 
         snapshot = await self._repository.fetch_snapshot(snapshot_id)
@@ -172,7 +181,7 @@ class ObjectStorageService:
         for hash in snapshot_hashes:
             blob = await self._repository.fetch_blob(project_id, hash)
             if blob is not None and blob.ref_count <= 0:
-                self._storage.delete_blob(self._get_bucket_name(project_id), hash)
+                await self._buckets_service.delete_blob(project_id, None, hash)
                 await self._repository.delete_blob(project_id, hash)
                 deleted_blobs.append(hash)
         await self._repository.delete_snapshot(snapshot_id)
@@ -187,21 +196,27 @@ class ObjectStorageService:
         snapshot = await self._repository.fetch_snapshot(snapshot_id)
         if snapshot is None:
             raise HTTPException(status_code=404, detail="Snapshot not found")
+        await self._buckets_service.ensure_bucket(project_id, None)
         zip_path = await anyio.to_thread.run_sync(
-            self._build_zip, self._storage, project_id, snapshot.manifest
+            self._build_zip,
+            self._buckets_service.storage,
+            project_id,
+            snapshot.manifest,
         )
         filename = f"snapshot-{snapshot_id}.zip"
         return zip_path, filename
 
     async def get_project_blob_stream(self, project_id: UUID, blob_hash: str):
         """Return a streaming handle for a CAS blob by hash."""
+
         blob_hash = self._normalize_hash(blob_hash)
         blob = await self._repository.fetch_blob(project_id, blob_hash)
         if blob is None:
             raise HTTPException(status_code=404, detail="Blob not found")
-        bucket_name = self._get_bucket_name(project_id)
-        self._storage.ensure_bucket(bucket_name)
-        return self._storage.get_blob(bucket_name, blob_hash)
+        await self._buckets_service.ensure_bucket(project_id, None)
+        return await self._buckets_service.get_blob_stream(
+            project_id, None, blob_hash
+        )
 
     async def delete_project_blob(
         self, project_id: UUID, blob_hash: str
@@ -209,20 +224,22 @@ class ObjectStorageService:
         """Delete a single CAS blob and its metadata row."""
 
         blob_hash = self._normalize_hash(blob_hash)
-        bucket_name = self._get_bucket_name(project_id)
         metadata = await self._repository.fetch_blob(project_id, blob_hash)
         if metadata is not None and metadata.ref_count > 0:
             raise HTTPException(
                 status_code=400, detail=f"Blob {blob_hash} is referenced by a snapshot"
             )
         deleted_metadata = await self._repository.delete_blob(project_id, blob_hash)
-        deleted_storage = self._storage.delete_blob(bucket_name, blob_hash)
-        if deleted_metadata:
+        deleted_storage = await self._buckets_service.delete_blob(
+            project_id, None, blob_hash
+        )
+        if deleted_metadata or deleted_storage:
             await self._repository.commit()
         return mapper.delete_blob_to_response(deleted_metadata or deleted_storage)
 
     def _normalize_hash(self, blob_hash: str) -> str:
         """Validate SHA-256 hex format and normalize to lowercase."""
+
         normalized = blob_hash.strip()
         if not self._SHA256_HEX_RE.fullmatch(normalized):
             raise HTTPException(status_code=400, detail="Invalid blob hash format")
@@ -230,6 +247,7 @@ class ObjectStorageService:
 
     def _normalize_path(self, path: str) -> str:
         """Normalize the path to a relative path."""
+
         return path.strip().replace("\\", "/")
 
     def _validate_relative_path(self, path: str) -> bool:
@@ -270,7 +288,7 @@ class ObjectStorageService:
         return spool, size, hasher.hexdigest()
 
     def _build_zip(
-        self, storage: StorageBackend, project_id: UUID, manifest: list[dict]
+        self, storage, project_id: UUID, manifest: list[dict]
     ) -> str:
         """Materialize a snapshot manifest into a ZIP file using CAS blobs."""
 
@@ -278,6 +296,7 @@ class ObjectStorageService:
         tmp_path = tmp.name
         tmp.close()
 
+        bucket_name = project_experiment_bucket_name(project_id, None)
         missing_blobs = []
         with zipfile.ZipFile(
             tmp_path, mode="w", compression=zipfile.ZIP_DEFLATED
@@ -297,8 +316,7 @@ class ObjectStorageService:
                         ),
                     )
                 blob_hash = self._normalize_hash(str(blob_hash))
-                bucket_name = self._get_bucket_name(project_id)
-                exists = storage.stat_blob(bucket_name, blob_hash)
+                exists = storage.exists_blob(bucket_name, blob_hash)
                 if not exists:
                     missing_blobs.append(f"{path}: {blob_hash}")
                     continue

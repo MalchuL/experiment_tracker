@@ -3,7 +3,7 @@
 from object_storage.domain.project_artifacts_storage.dto import (
     BlobCheckResponseDTO as BlobCheckResponse,
     DeleteBlobResponseDTO as DeleteBlobResponse,
-    DeleteExperimentResponseDTO as DeleteExperimentResponse,
+    DeleteProjectResponseDTO as DeleteExperimentResponse,
     SnapshotCreateRequestDTO as SnapshotCreateRequest,
     SnapshotCreateResponseDTO as SnapshotCreateResponse,
     SnapshotFileEntryDTO as SnapshotFileEntry,
@@ -13,7 +13,8 @@ from object_storage.domain.experiment_artifacts_storage.dto import (
     DeleteArtifactResponseDTO as DeleteArtifactResponse,
     DeleteExperimentArtifactsResponseDTO as DeleteExperimentArtifactsResponse,
     ExperimentArtifactsSizeResponseDTO as ExperimentArtifactsSizeResponse,
-    UploadArtifactResponseDTO as UploadArtifactResponse,
+    TrackedUploadArtifactResponseDTO as TrackedUploadArtifactResponse,
+    UntrackedUploadArtifactResponseDTO as UntrackedUploadArtifactResponse,
 )
 
 __all__ = [
@@ -27,5 +28,6 @@ __all__ = [
     "DeleteArtifactResponse",
     "DeleteExperimentArtifactsResponse",
     "ExperimentArtifactsSizeResponse",
-    "UploadArtifactResponse",
+    "TrackedUploadArtifactResponse",
+    "UntrackedUploadArtifactResponse",
 ]

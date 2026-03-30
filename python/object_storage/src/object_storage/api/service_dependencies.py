@@ -29,21 +29,36 @@ async def get_project_artifacts_repository(
 
 
 async def get_project_artifacts_service(
-    repository: "ObjectStorageRepository" = Depends(get_project_artifacts_repository),
+    session: AsyncSession = Depends(get_async_session),
     storage: StorageBackend = Depends(get_storage),
 ) -> "ObjectStorageService":
+    from object_storage.domain.buckets.repository import BucketsRepository
+    from object_storage.domain.buckets.service import BucketRegistryService
+    from object_storage.domain.project_artifacts_storage.repository import (
+        ObjectStorageRepository,
+    )
     from object_storage.domain.project_artifacts_storage.service import (
         ObjectStorageService,
     )
 
-    return ObjectStorageService(repository, storage)
+    buckets_service = BucketRegistryService(BucketsRepository(session), storage)
+    repository = ObjectStorageRepository(session)
+    return ObjectStorageService(repository, buckets_service)
 
 
 async def get_experiment_artifacts_service(
+    session: AsyncSession = Depends(get_async_session),
     storage: StorageBackend = Depends(get_storage),
 ) -> "ArtifactsStorageService":
+    from object_storage.domain.buckets.repository import BucketsRepository
+    from object_storage.domain.buckets.service import BucketRegistryService
+    from object_storage.domain.experiment_artifacts_storage.repository import (
+        ExperimentArtifactsRepository,
+    )
     from object_storage.domain.experiment_artifacts_storage.service import (
         ArtifactsStorageService,
     )
 
-    return ArtifactsStorageService(storage)
+    buckets_service = BucketRegistryService(BucketsRepository(session), storage)
+    artifacts_repository = ExperimentArtifactsRepository(session)
+    return ArtifactsStorageService(buckets_service, artifacts_repository)

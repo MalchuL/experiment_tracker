@@ -1,14 +1,37 @@
 """Pydantic DTOs for experiment-scoped artifacts storage."""
 
+from dataclasses import dataclass
+from typing import BinaryIO
+from uuid import UUID
 from pydantic import BaseModel
 
 
-class UploadArtifactResponseDTO(BaseModel):
-    """Response DTO for artifact upload."""
+class UntrackedUploadArtifactResponseDTO(BaseModel):
+    """Response DTO for uploading an artifact."""
 
-    status: str
-    path: str
+    hash: str
     size: int
+
+
+class TrackedUploadArtifactResponseDTO(BaseModel):
+    """Response DTO for uploading an artifact."""
+
+    id: UUID
+    hash: str
+    file_path: str
+    mime_type: str
+    size: int
+
+
+@dataclass
+class ArtifactStreamResponseDTO:
+    """Response DTO for streaming an artifact."""
+
+    stream: BinaryIO
+    size: int | None = None
+    mime_type: str = "application/octet-stream"
+    filename: str | None = None
+    file_path: str | None = None
 
 
 class DeleteArtifactResponseDTO(BaseModel):
@@ -27,3 +50,9 @@ class ExperimentArtifactsSizeResponseDTO(BaseModel):
     """Response DTO returning total artifacts size for one experiment."""
 
     total_size_bytes: int
+
+
+class ListArtifactsResponseDTO(BaseModel):
+    """Response DTO listing all artifacts for an experiment."""
+
+    artifacts: list[str]

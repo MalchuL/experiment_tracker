@@ -8,6 +8,8 @@ from uuid import uuid4
 import pytest
 from fastapi import HTTPException, UploadFile
 
+from object_storage.domain.buckets.dto import UploadBlobResult
+from object_storage.domain.buckets.service import project_experiment_bucket_name
 from object_storage.domain.project_artifacts_storage.dto import (
     SnapshotCreateRequestDTO,
     SnapshotFileEntryDTO,
@@ -31,7 +33,7 @@ class FakeStorage:
         self.delete_bucket_calls.append(bucket_name)
         return True
 
-    def stat_blob(self, bucket_name: str, blob_hash: str) -> bool:
+    def exists_blob(self, bucket_name: str, blob_hash: str) -> bool:
         return self.stat_blob_map.get((bucket_name, blob_hash), False)
 
     def put_blob(self, bucket_name: str, blob_hash: str, data, size: int) -> None:
@@ -61,6 +63,46 @@ class FakeStorage:
         return True
 
 
+class FakeBucketsService:
+    """Minimal async stand-in for BucketRegistryService in unit tests."""
+
+    def __init__(self, storage: FakeStorage) -> None:
+        self._storage = storage
+        self.ensure_bucket_calls: list[tuple[object, object | None]] = []
+        self.delete_all_project_buckets_calls: list[object] = []
+        self.delete_blob_calls: list[tuple[object, object | None, str]] = []
+
+    @property
+    def storage(self) -> FakeStorage:
+        return self._storage
+
+    async def ensure_bucket(self, project_id, experiment_id) -> str:
+        self.ensure_bucket_calls.append((project_id, experiment_id))
+        name = project_experiment_bucket_name(project_id, experiment_id)
+        self._storage.ensure_bucket(name)
+        return name
+
+    async def upload_blob(self, project_id, experiment_id, upload, hash) -> UploadBlobResult:
+        name = project_experiment_bucket_name(project_id, experiment_id)
+        body = await upload.read()
+        self._storage.put_blob(name, hash, io.BytesIO(body), len(body))
+        return UploadBlobResult(size=len(body), hash=hash)
+
+    async def delete_blob(self, project_id, experiment_id, hash) -> bool:
+        self.delete_blob_calls.append((project_id, experiment_id, hash))
+        name = project_experiment_bucket_name(project_id, experiment_id)
+        return self._storage.delete_blob(name, hash)
+
+    async def delete_all_project_buckets(self, project_id) -> None:
+        self.delete_all_project_buckets_calls.append(project_id)
+        name = project_experiment_bucket_name(project_id, None)
+        self._storage.delete_bucket(name)
+
+    async def get_blob_stream(self, project_id, experiment_id, hash):
+        name = project_experiment_bucket_name(project_id, experiment_id)
+        return self._storage.get_blob(name, hash)
+
+
 class FakeRepository:
     def __init__(self) -> None:
         self.existing_hashes: set[str] = set()
@@ -82,10 +124,13 @@ class FakeRepository:
     async def fetch_blob(self, project_id, blob_hash):
         return self.blob_to_return
 
-    async def add_blob(self, project_id, blob_hash: str, size: int) -> None:
+    async def add_blob(
+        self, project_id, blob_hash: str, size: int, mime_type: str = "application/octet-stream"
+    ) -> None:
+        _ = mime_type
         self.add_blob_calls.append((blob_hash, size))
 
-    async def create_snapshot(self, manifest: list[dict]):
+    async def create_snapshot(self, project_id, manifest: list[dict]):
         self.create_snapshot_calls += 1
         return SimpleNamespace(id=uuid4(), manifest=manifest)
 
@@ -132,12 +177,14 @@ async def test_check_blobs_returns_only_missing_normalized_hashes() -> None:
     repo = FakeRepository()
     repo.existing_hashes = {existing_hash.lower()}
     storage = FakeStorage()
-    service = ObjectStorageService(repo, storage)
+    buckets = FakeBucketsService(storage)
+    service = ObjectStorageService(repo, buckets)
 
     result = await service.check_project_blobs(project_id, [existing_hash, missing_hash])
 
     assert result.missing == [missing_hash]
-    assert storage.ensure_bucket_calls == [f"project-{project_id}"]
+    assert buckets.ensure_bucket_calls == [(project_id, None)]
+    assert storage.ensure_bucket_calls == [project_experiment_bucket_name(project_id, None)]
 
 
 @pytest.mark.asyncio
@@ -145,7 +192,8 @@ async def test_upload_blob_rejects_hash_mismatch() -> None:
     project_id = uuid4()
     repo = FakeRepository()
     storage = FakeStorage()
-    service = ObjectStorageService(repo, storage)
+    buckets = FakeBucketsService(storage)
+    service = ObjectStorageService(repo, buckets)
     upload = UploadFile(filename="artifact.bin", file=io.BytesIO(b"payload"))
 
     with pytest.raises(HTTPException, match="Hash mismatch") as exc_info:
@@ -167,7 +215,8 @@ async def test_create_snapshot_rejects_parent_traversal_paths() -> None:
     )
     repo = FakeRepository()
     storage = FakeStorage()
-    service = ObjectStorageService(repo, storage)
+    buckets = FakeBucketsService(storage)
+    service = ObjectStorageService(repo, buckets)
 
     with pytest.raises(HTTPException, match="Invalid path") as exc_info:
         await service.create_project_snapshot(payload)
@@ -187,7 +236,8 @@ async def test_create_snapshot_rejects_special_symbol_paths(invalid_path: str) -
     )
     repo = FakeRepository()
     storage = FakeStorage()
-    service = ObjectStorageService(repo, storage)
+    buckets = FakeBucketsService(storage)
+    service = ObjectStorageService(repo, buckets)
 
     with pytest.raises(HTTPException, match="Invalid path") as exc_info:
         await service.create_project_snapshot(payload)
@@ -203,12 +253,14 @@ async def test_delete_blob_rejects_referenced_blob() -> None:
     repo = FakeRepository()
     repo.blob_to_return = SimpleNamespace(ref_count=1)
     storage = FakeStorage()
-    service = ObjectStorageService(repo, storage)
+    buckets = FakeBucketsService(storage)
+    service = ObjectStorageService(repo, buckets)
 
     with pytest.raises(HTTPException, match="referenced by a snapshot") as exc_info:
         await service.delete_project_blob(project_id, blob_hash)
 
     assert exc_info.value.status_code == 400
+    assert buckets.delete_blob_calls == []
     assert storage.delete_blob_calls == []
 
 
@@ -217,12 +269,14 @@ async def test_delete_project_removes_bucket_and_metadata_rows() -> None:
     project_id = uuid4()
     repo = FakeRepository()
     storage = FakeStorage()
-    service = ObjectStorageService(repo, storage)
+    buckets = FakeBucketsService(storage)
+    service = ObjectStorageService(repo, buckets)
 
     result = await service.delete_project(project_id)
 
     assert result is True
-    assert storage.delete_bucket_calls == [f"project-{project_id}"]
+    assert buckets.delete_all_project_buckets_calls == [project_id]
+    assert storage.delete_bucket_calls == [project_experiment_bucket_name(project_id, None)]
     assert repo.deleted_all_blobs_for == project_id
     assert repo.deleted_all_snapshots_for == project_id
     assert repo.commit_calls == 1
@@ -241,11 +295,12 @@ async def test_prepare_snapshot_download_includes_missing_manifest_file() -> Non
         ]
     )
     storage = FakeStorage()
-    bucket_name = f"project-{project_id}"
+    bucket_name = project_experiment_bucket_name(project_id, None)
     storage.stat_blob_map[(bucket_name, present_hash)] = True
     storage.stat_blob_map[(bucket_name, missing_hash)] = False
     storage.object_payloads[(bucket_name, present_hash)] = b"existing-content"
-    service = ObjectStorageService(repo, storage)
+    buckets = FakeBucketsService(storage)
+    service = ObjectStorageService(repo, buckets)
 
     zip_path, _ = await service.prepare_project_snapshot_download(project_id, uuid4())
 
@@ -267,7 +322,8 @@ async def test_prepare_snapshot_download_rejects_invalid_manifest_paths() -> Non
         manifest=[{"path": "bad:path.txt", "hash": "c" * 64}]
     )
     storage = FakeStorage()
-    service = ObjectStorageService(repo, storage)
+    buckets = FakeBucketsService(storage)
+    service = ObjectStorageService(repo, buckets)
 
     with pytest.raises(HTTPException, match="Invalid path in snapshot") as exc_info:
         await service.prepare_project_snapshot_download(project_id, uuid4())

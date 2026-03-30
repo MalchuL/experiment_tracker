@@ -11,7 +11,7 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from object_storage.db import get_async_session
-from object_storage.db.models import Base, Snapshot, TrackedBlob
+from object_storage.db.models import Base, ProjectBlob, Snapshot
 from object_storage.domain.project_artifacts_storage.controller import router
 from object_storage.storage import get_storage
 from object_storage.storage.s3_client import get_s3_storage
@@ -88,7 +88,7 @@ async def test_controller_upload_create_snapshot_and_deletion_errors(http_client
     assert create_snapshot.status_code == 200
 
     delete_response = await http_client.delete(
-        f"/api/project-artifacts/{project_id}/blobs/{blob_hash}"
+        f"/api/project-artifacts/{project_id}/artifacts/{blob_hash}"
     )
     assert delete_response.status_code == 400
     assert "referenced by a snapshot" in delete_response.json()["detail"]
@@ -131,9 +131,10 @@ async def test_controller_download_snapshot_contains_missing_manifest(
 
     async with db_session_factory() as session:
         session.add(
-            TrackedBlob(
+            ProjectBlob(
                 hash=missing_hash,
                 project_id=project_id,
+                mime_type="application/octet-stream",
                 size=10,
                 ref_count=0,
             )
@@ -173,14 +174,16 @@ async def test_controller_download_snapshot_rejects_invalid_manifest_path(
     blob_hash = "c" * 64
     async with db_session_factory() as session:
         session.add(
-            TrackedBlob(
+            ProjectBlob(
                 hash=blob_hash,
                 project_id=project_id,
+                mime_type="application/octet-stream",
                 size=12,
                 ref_count=0,
             )
         )
         snapshot = Snapshot(
+            project_id=project_id,
             manifest=[
                 {"path": "bad:path.txt", "hash": blob_hash},
             ]

@@ -13,14 +13,20 @@ from object_storage.storage.s3_client import S3Storage, get_s3_storage
 class StorageBackend(Protocol):
     """Protocol that storage backends must implement for CAS operations."""
 
+    def bucket_exists(self, bucket_name: str) -> bool:
+        """Check whether a bucket exists."""
+
     def ensure_bucket(self, bucket_name: str) -> None:
         """Ensure the target bucket exists."""
 
     def delete_bucket(self, bucket_name: str) -> bool:
         """Delete the bucket."""
 
-    def stat_blob(self, bucket_name: str, blob_hash: str) -> bool:
+    def exists_blob(self, bucket_name: str, blob_hash: str) -> bool:
         """Check whether a blob exists."""
+
+    def size_blob(self, bucket_name: str, blob_hash: str) -> int:
+        """Get the size of a blob."""
 
     def put_blob(
         self, bucket_name: str, blob_hash: str, data: BinaryIO, size: int

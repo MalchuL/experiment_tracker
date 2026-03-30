@@ -302,15 +302,7 @@ class ExpTracker:
             "faces": faces,
             "config": config_dict,
         }
-        self._upload_and_log_experiment_artifact_at_step(
-            tag=tag,
-            object_type="point_cloud_3d",
-            content=json.dumps(payload, default=str),
-            global_step=global_step,
-            metadata={"format": "json"},
-            default_extension=".json",
-            default_content_type="application/json",
-        )
+        logger.warning("add_mesh is not implemented")
 
     def add_video(
         self,
@@ -321,14 +313,7 @@ class ExpTracker:
         fps: int = 4,
     ):
         """Upload and log video object."""
-        self._upload_and_log_experiment_artifact_at_step(
-            tag=tag,
-            object_type="video",
-            content=vid_tensor,
-            global_step=global_step,
-            metadata={"fps": str(fps)},
-            default_content_type="video/mp4",
-        )
+        logger.warning("add_video is not implemented")
 
     def add_embedding(
         self,
@@ -397,6 +382,7 @@ class ExpTracker:
                 self._api.experiments.get_experiments_by_project(self.project_id)
             ),
         )
+        # TODO: Must be paginated in the future
         parent_experiment_obj = next(
             (
                 e
@@ -498,144 +484,3 @@ class ExpTracker:
             file_content=file_content,
             content_type=content_type,
         )
-
-    def _materialize_content(
-        self,
-        tag: str,
-        step: int | None,
-        content,
-        default_extension: str,
-        default_content_type: str,
-    ) -> tuple[str, bytes, str]:
-        """Convert user input into an upload-ready tuple: (file_name, bytes, content_type).
-
-        Purpose of each return item:
-        - file_name:
-            Sent as multipart filename when uploading blob, and stored in metadata for UI/debug.
-        - bytes:
-            Actual binary payload uploaded to object storage and hashed for deduplication.
-        - content_type (MIME):
-            Used as HTTP Content-Type for the multipart file part.
-            Also persisted in metadata, so downstream consumers (frontend/renderers)
-            can decide how to display object (image/video/audio/text fallback).
-
-        Note:
-        `content_type` is not used for hash calculation (hash is computed from raw bytes),
-        but it is important for transport semantics and later rendering.
-        """
-        step_suffix = f"_{step}" if step is not None else ""
-        # Raw bytes were provided directly by user code.
-        if isinstance(content, bytes):
-            file_name = f"{tag}{step_suffix}{default_extension}"
-            return file_name, content, default_content_type
-        # String can be either a filesystem path or plain text payload.
-        if isinstance(content, (str, Path)):
-            path = Path(content)
-            if path.exists() and path.is_file() or isinstance(content, Path):
-                file_name = path.name
-                content_bytes = path.read_bytes()
-                guessed_type = mimetypes.guess_type(file_name)[0]
-                return (
-                    file_name,
-                    content_bytes,
-                    guessed_type or default_content_type,
-                )
-            # If the content is a string and not a path, we assume it is a plain text payload.
-            file_name = f"{tag}{step_suffix}{default_extension or '.txt'}"
-            return file_name, content.encode("utf-8"), "text/plain"
-        # File-like object with .read() support.
-        if hasattr(content, "read") and callable(content.read):
-            raw = content.read()
-            if isinstance(raw, str):
-                raw = raw.encode("utf-8")
-            if isinstance(raw, bytes):
-                file_name = f"{tag}{step_suffix}{default_extension}"
-                return file_name, raw, default_content_type
-        # Tensor/array-like object exposing .tobytes() for zero-copy binary extraction.
-        if hasattr(content, "tobytes") and callable(content.tobytes):
-            raw = content.tobytes()
-            if isinstance(raw, bytes):
-                file_name = f"{tag}{step_suffix}{default_extension}"
-                return file_name, raw, default_content_type
-        raise ExpTrackerAPIError(
-            "Unsupported content type. Use bytes, file path, file-like, or string."
-        )
-
-    def _materialize_image_bytes(self, image_input) -> bytes:
-        """Convert PIL image or numpy ndarray to PNG bytes.
-
-        ndarray contract:
-        - layout must be HW or HWC
-        - HW is expanded to RGB (3 channels)
-        - HWC supports only 3 (RGB) or 4 (RGBA) channels
-        - float dtypes are normalized to [0, 1] (min-max if out of range), then scaled to uint8
-        - non-uint8 integer-like dtypes are clipped to [0, 255] and cast to uint8
-        """
-        try:
-            import numpy as np  # type: ignore[import-not-found]
-        except Exception as exc:  # noqa: BLE001
-            raise ExpTrackerAPIError(
-                "numpy is required for image logging. Install numpy to use add_image."
-            ) from exc
-
-        try:
-            from PIL import Image  # type: ignore[import-not-found]
-        except Exception as exc:  # noqa: BLE001
-            raise ExpTrackerAPIError(
-                "Pillow is required for image logging. Install pillow to use add_image."
-            ) from exc
-
-        image = None
-        if isinstance(image_input, Image.Image):
-            # Ensure stable color modes for serialization.
-            if image_input.mode == "RGBA":
-                image = image_input
-            elif "A" in image_input.getbands():
-                image = image_input.convert("RGBA")
-            else:
-                image = image_input.convert("RGB")
-        elif isinstance(image_input, np.ndarray):
-            arr = np.asarray(image_input)
-            if arr.ndim == 2:
-                # HW grayscale -> RGB by channel replication.
-                arr = np.repeat(arr[..., None], 3, axis=2)
-            elif arr.ndim == 3:
-                channels = int(arr.shape[2])
-                if channels not in (3, 4):
-                    raise ExpTrackerAPIError(
-                        f"Unsupported HWC channel count: {channels}. Only 3 (RGB) or 4 (RGBA) are supported."
-                    )
-            else:
-                raise ExpTrackerAPIError(
-                    f"Unsupported ndarray shape {arr.shape}. Expected HW or HWC."
-                )
-
-            if np.issubdtype(arr.dtype, np.floating):
-                arr = arr.astype(np.float32)
-                finite_mask = np.isfinite(arr)
-                if not finite_mask.any():
-                    raise ExpTrackerAPIError("Image array contains no finite values.")
-                finite_values = arr[finite_mask]
-                arr_min = float(finite_values.min())
-                arr_max = float(finite_values.max())
-                # If values are outside [0, 1], normalize using min-max.
-                if arr_min < 0.0 or arr_max > 1.0:
-                    if arr_max == arr_min:
-                        arr = np.zeros_like(arr, dtype=np.float32)
-                    else:
-                        arr = (arr - arr_min) / (arr_max - arr_min)
-                arr = np.clip(arr, 0.0, 1.0)
-                arr = (arr * 255.0).round().astype(np.uint8)
-            elif arr.dtype != np.uint8:
-                arr = np.clip(arr, 0, 255).astype(np.uint8)
-
-            mode = "RGBA" if arr.shape[2] == 4 else "RGB"
-            image = Image.fromarray(arr, mode=mode)
-        else:
-            raise ExpTrackerAPIError(
-                "Unsupported image type. add_image accepts PIL.Image.Image or numpy.ndarray."
-            )
-
-        buffer = io.BytesIO()
-        image.save(buffer, format="PNG")
-        return buffer.getvalue()

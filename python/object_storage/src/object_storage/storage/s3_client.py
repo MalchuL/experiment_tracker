@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import BinaryIO, Protocol
+from typing import BinaryIO, Protocol, cast
 from uuid import UUID
 
 import boto3  # type: ignore[import-not-found]
@@ -23,7 +23,7 @@ class S3ClientProtocol(Protocol):
 
     def delete_bucket(self, **kwargs) -> None: ...
 
-    def head_object(self, **kwargs) -> None: ...
+    def head_object(self, **kwargs) -> dict[str, object]: ...
 
     def upload_fileobj(self, fileobj: BinaryIO, bucket: str, key: str) -> None: ...
 
@@ -48,17 +48,23 @@ class S3Storage:
 
     client: S3ClientProtocol
 
-    def ensure_bucket(self, bucket_name: str) -> None:
-        """Create the bucket if it does not already exist."""
+    def bucket_exists(self, bucket_name: str) -> bool:
+        """Check whether a bucket exists."""
 
         try:
             self.client.head_bucket(Bucket=bucket_name)
+            return True
         except ClientError as exc:
             error_code = exc.response.get("Error", {}).get("Code")
             if error_code in {"404", "NoSuchBucket", "NotFound"}:
-                self.client.create_bucket(Bucket=bucket_name)
-                return
+                return False
             raise
+
+    def ensure_bucket(self, bucket_name: str) -> None:
+        """Create the bucket if it does not already exist."""
+
+        if not self.bucket_exists(bucket_name):
+            self.client.create_bucket(Bucket=bucket_name)
 
     def delete_bucket(self, bucket_name: str) -> bool:
         """Delete the bucket."""
@@ -66,7 +72,7 @@ class S3Storage:
         self.client.delete_bucket(Bucket=bucket_name)
         return True
 
-    def stat_blob(self, bucket_name: str, blob_hash: str) -> bool:
+    def exists_blob(self, bucket_name: str, blob_hash: str) -> bool:
         """Return True if the blob exists in the configured bucket."""
 
         try:
@@ -77,6 +83,16 @@ class S3Storage:
             if error_code in {"404", "NoSuchKey", "NotFound"}:
                 return False
             raise
+
+    def size_blob(self, bucket_name: str, blob_hash: str) -> int:
+        """Get the size of a blob."""
+
+        return cast(
+            int,
+            self.client.head_object(Bucket=bucket_name, Key=_blob_key(blob_hash)).get(
+                "ContentLength"
+            ),
+        )
 
     def put_blob(
         self, bucket_name: str, blob_hash: str, data: BinaryIO, size: int
@@ -96,7 +112,7 @@ class S3Storage:
     def delete_blob(self, bucket_name: str, blob_hash: str) -> bool:
         """Delete one blob object by hash."""
 
-        if not self.stat_blob(bucket_name, blob_hash):
+        if not self.exists_blob(bucket_name, blob_hash):
             return False
         self.client.delete_object(Bucket=bucket_name, Key=_blob_key(blob_hash))
         return True
@@ -126,7 +142,7 @@ class S3Storage:
                 Bucket=bucket_name,
                 Delete={"Objects": [{"Key": key} for key in chunk], "Quiet": True},
             )
-            deleted_count += len(response.get("Deleted", []))
+            deleted_count += len(cast(list, response.get("Deleted", [])))
         return deleted_count
 
 

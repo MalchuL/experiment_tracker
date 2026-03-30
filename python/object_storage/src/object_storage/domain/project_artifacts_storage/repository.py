@@ -8,7 +8,7 @@ from uuid import UUID
 from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from object_storage.db.models import TrackedBlob, Snapshot
+from object_storage.db.models import ProjectBlob, Snapshot
 
 
 class ObjectStorageRepository:
@@ -27,28 +27,40 @@ class ObjectStorageRepository:
         if not hashes:
             return set()
         result = await self._session.execute(
-            select(TrackedBlob.hash).where(
-                TrackedBlob.project_id == project_id, TrackedBlob.hash.in_(hashes)
+            select(ProjectBlob.hash).where(
+                ProjectBlob.project_id == project_id, ProjectBlob.hash.in_(hashes)
             )
         )
         return {row[0] for row in result.all()}
 
-    async def fetch_blob(self, project_id: UUID, blob_hash: str) -> TrackedBlob | None:
+    async def fetch_blob(self, project_id: UUID, blob_hash: str) -> ProjectBlob | None:
         """Fetch a blob by hash, or return None if it is absent."""
 
-        return await self._session.get(TrackedBlob, (blob_hash, project_id))
+        return await self._session.get(ProjectBlob, (blob_hash, project_id))
 
-    async def add_blob(self, project_id: UUID, blob_hash: str, size: int) -> None:
+    async def add_blob(
+        self,
+        project_id: UUID,
+        blob_hash: str,
+        size: int,
+        mime_type: str = "application/octet-stream",
+    ) -> None:
         """Stage a new blob record for insert in the current session."""
 
         self._session.add(
-            TrackedBlob(project_id=project_id, hash=blob_hash, size=size, ref_count=0)
+            ProjectBlob(
+                project_id=project_id,
+                hash=blob_hash,
+                mime_type=mime_type,
+                size=size,
+                ref_count=0,
+            )
         )
 
-    async def create_snapshot(self, manifest: list[dict]) -> Snapshot:
+    async def create_snapshot(self, project_id: UUID, manifest: list[dict]) -> Snapshot:
         """Stage a new snapshot for the given manifest."""
 
-        snapshot = Snapshot(manifest=manifest)
+        snapshot = Snapshot(project_id=project_id, manifest=manifest)
         self._session.add(snapshot)
         return snapshot
 
@@ -60,9 +72,9 @@ class ObjectStorageRepository:
         if not hashes:
             return
         await self._session.execute(
-            update(TrackedBlob)
-            .where(TrackedBlob.project_id == project_id, TrackedBlob.hash.in_(hashes))
-            .values(ref_count=TrackedBlob.ref_count + 1)
+            update(ProjectBlob)
+            .where(ProjectBlob.project_id == project_id, ProjectBlob.hash.in_(hashes))
+            .values(ref_count=ProjectBlob.ref_count + 1)
         )
 
     async def decrement_blob_ref_counts(
@@ -73,9 +85,9 @@ class ObjectStorageRepository:
         if not hashes:
             return
         await self._session.execute(
-            update(TrackedBlob)
-            .where(TrackedBlob.project_id == project_id, TrackedBlob.hash.in_(hashes))
-            .values(ref_count=TrackedBlob.ref_count - 1)
+            update(ProjectBlob)
+            .where(ProjectBlob.project_id == project_id, ProjectBlob.hash.in_(hashes))
+            .values(ref_count=ProjectBlob.ref_count - 1)
         )
 
     async def fetch_snapshot(self, snapshot_id: UUID) -> Snapshot | None:
@@ -123,7 +135,7 @@ class ObjectStorageRepository:
         """Delete all blobs for a project."""
 
         await self._session.execute(
-            delete(TrackedBlob).where(TrackedBlob.project_id == project_id)
+            delete(ProjectBlob).where(ProjectBlob.project_id == project_id)
         )
 
     async def delete_all_snapshots(self, project_id: UUID) -> None:

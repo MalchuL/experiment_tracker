@@ -2,6 +2,15 @@
 
 FastAPI service providing content-addressable storage (CAS) backed by MinIO and Postgres.
 
+Detailed API behavior for experiment artifacts (tracked vs untracked, hash-based
+storage, service methods, and endpoints):
+
+- `python/object_storage/EXPERIMENT_ARTIFACTS_API.md`
+
+Project-wide CAS (snapshots, `ProjectBlob` metadata, bucket registry for the project bucket):
+
+- `python/object_storage/PROJECT_ARTIFACTS_API.md`
+
 ## Local Development
 # Setup Database
 

@@ -5,8 +5,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
-
-LOGGER_NAME = "experiment_tracker.object_storage"
+from object_storage.logger import logger
 
 
 def configure_logging(log_level: str) -> None:
@@ -18,10 +17,11 @@ def configure_logging(log_level: str) -> None:
 
 
 def register_exception_handlers(app: FastAPI, *, log_stacktrace: bool) -> None:
-    logger = logging.getLogger(LOGGER_NAME)
 
     @app.exception_handler(HTTPException)
-    async def http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
+    async def http_exception_handler(
+        request: Request, exc: HTTPException
+    ) -> JSONResponse:
         logger.error(
             "HTTPException %s %s -> %s detail=%r",
             request.method,
@@ -47,7 +47,9 @@ def register_exception_handlers(app: FastAPI, *, log_stacktrace: bool) -> None:
         return JSONResponse(status_code=422, content={"detail": errors})
 
     @app.exception_handler(Exception)
-    async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    async def unhandled_exception_handler(
+        request: Request, exc: Exception
+    ) -> JSONResponse:
         logger.error(
             "UnhandledException %s %s -> 500",
             request.method,
@@ -56,4 +58,6 @@ def register_exception_handlers(app: FastAPI, *, log_stacktrace: bool) -> None:
         )
         if not log_stacktrace:
             logger.error("%s: %s", type(exc).__name__, exc)
-        return JSONResponse(status_code=500, content={"detail": "Internal server error"})
+        return JSONResponse(
+            status_code=500, content={"detail": "Internal server error"}
+        )
