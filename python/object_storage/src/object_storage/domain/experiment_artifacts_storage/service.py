@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import re
+from typing import Any
 from uuid import UUID, uuid4
 
 from fastapi import HTTPException, UploadFile
@@ -122,7 +123,8 @@ class ArtifactsStorageService:
         upload: UploadFile,
         content_type: str | None = None,
         hash: str | None = None,
-        path: str | None = None,
+        file_path: str | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> TrackedUploadArtifactResponseDTO:
         """
         Upload one artifact under an experiment-specific prefix.
@@ -136,7 +138,8 @@ class ArtifactsStorageService:
             content_type: Optional MIME type for the tracked row; when omitted or blank,
                 uses the upload part's content type, then ``application/octet-stream``.
             hash: The hash of the artifact.
-            path: The path of the artifact.
+            file_path: Relative path for the tracked blob (stored on the row).
+            metadata: Optional JSON object stored as-is on the blob row (default ``{}``).
 
         Returns:
             The response from the object storage.
@@ -153,17 +156,20 @@ class ArtifactsStorageService:
         )
 
         try:
-            file_path = normalize_path(path or upload.filename or artifact_hash)
-            if not validate_relative_path(file_path):
-                raise ValueError(f"Invalid file path: {file_path}")
+            stored_rel_path = normalize_path(
+                file_path or upload.filename or artifact_hash
+            )
+            if not validate_relative_path(stored_rel_path):
+                raise ValueError(f"Invalid file path: {stored_rel_path}")
             model_blob = await self._artifacts_repository.create_experiment_blob(
                 ExperimentBlob(
                     project_id=project_id,
                     experiment_id=experiment_id,
                     artifact_hash=upload_result.hash,
-                    file_path=file_path,
+                    file_path=stored_rel_path,
                     mime_type=self._mime_type_for_tracked(upload, content_type),
                     size=upload_result.size,
+                    artifact_metadata=dict(metadata or {}),
                 )
             )
 

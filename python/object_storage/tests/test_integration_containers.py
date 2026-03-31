@@ -369,7 +369,7 @@ async def test_experiment_artifacts_workflow(pytestconfig: pytest.Config) -> Non
             experiment_id=experiment_id,
             upload=tracked_upload,
             hash=tracked_hash,
-            path="weights/final.bin",
+            file_path="weights/final.bin",
         )
         assert tracked_result.hash == tracked_hash
         assert tracked_result.size == len(tracked_payload)
@@ -455,7 +455,7 @@ async def test_tracked_upload_explicit_hash_db_row_and_object_store_key_match(
             upload=upload,
             content_type="application/octet-stream",
             hash=explicit_hash,
-            path="weights/model.pt",
+            file_path="weights/model.pt",
         )
 
     assert result.hash == explicit_hash
@@ -478,6 +478,67 @@ async def test_tracked_upload_explicit_hash_db_row_and_object_store_key_match(
 
     async with session_factory() as session:
         buckets_service = BucketRegistryService(BucketsRepository(session), storage)
+        artifacts_repository = ExperimentArtifactsRepository(session)
+        service = ArtifactsStorageService(buckets_service, artifacts_repository)
+        await service.delete_experiment(project_id, experiment_id)
+
+    await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_tracked_upload_metadata_roundtrip_in_database(
+    pytestconfig: pytest.Config,
+) -> None:
+    """JSON metadata is stored on ``experiment_blobs.metadata`` and returned on upload."""
+
+    database_url = pytestconfig.cache.get("object_storage/test_database_url", "")
+    assert database_url
+    engine = create_async_engine(database_url, echo=False)
+    session_factory = async_sessionmaker(engine, expire_on_commit=False)
+
+    async with engine.begin() as connection:
+        await connection.run_sync(Base.metadata.create_all)
+
+    project_id = uuid4()
+    experiment_id = uuid4()
+    payload = b"meta-payload-bytes"
+    blob_hash = "5" * 64
+    meta = {"name": "integration-blob", "epoch": 7, "tags": ["a", "b"]}
+
+    async with session_factory() as session:
+        storage = get_s3_storage()
+        buckets_service = BucketRegistryService(BucketsRepository(session), storage)
+        artifacts_repository = ExperimentArtifactsRepository(session)
+        service = ArtifactsStorageService(buckets_service, artifacts_repository)
+        upload = UploadFile(
+            filename="w.pt",
+            file=io.BytesIO(payload),
+            headers=Headers({"content-type": "application/octet-stream"}),
+        )
+        result = await service.upload_artifact_and_track(
+            project_id=project_id,
+            experiment_id=experiment_id,
+            upload=upload,
+            hash=blob_hash,
+            file_path="artifacts/w.pt",
+            metadata=meta,
+        )
+
+    assert result.metadata == meta
+
+    async with session_factory() as read_session:
+        row = await read_session.execute(
+            select(ExperimentBlob).where(
+                ExperimentBlob.project_id == project_id,
+                ExperimentBlob.experiment_id == experiment_id,
+                ExperimentBlob.artifact_hash == blob_hash,
+            )
+        )
+        blob = row.scalar_one()
+        assert blob.artifact_metadata == meta
+
+    async with session_factory() as session:
+        buckets_service = BucketRegistryService(BucketsRepository(session), get_s3_storage())
         artifacts_repository = ExperimentArtifactsRepository(session)
         service = ArtifactsStorageService(buckets_service, artifacts_repository)
         await service.delete_experiment(project_id, experiment_id)
@@ -519,7 +580,7 @@ async def test_tracked_upload_omitted_hash_db_row_object_store_and_response_alig
             experiment_id=experiment_id,
             upload=upload,
             content_type="text/plain",
-            path="data/file.bin",
+            file_path="data/file.bin",
         )
 
     h = result.hash
@@ -711,7 +772,7 @@ async def test_tracked_upload_invalid_path_leaves_db_and_object_store_clean(
                 upload=upload,
                 content_type="application/octet-stream",
                 hash=artifact_hash,
-                path="../outside.bin",
+                file_path="../outside.bin",
             )
 
     async with session_factory() as read_session:
@@ -773,7 +834,7 @@ async def test_tracked_upload_commit_failure_leaves_db_and_object_store_clean(
                     upload=upload,
                     content_type="application/octet-stream",
                     hash=artifact_hash,
-                    path="safe/relative/path.bin",
+                    file_path="safe/relative/path.bin",
                 )
             assert exc_info.value.status_code == 500
 

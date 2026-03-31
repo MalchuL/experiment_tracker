@@ -1,14 +1,16 @@
 """Mapping helpers for artifacts domain DTOs."""
 
+from typing import Any
+
+from object_storage.db.models import ExperimentBlob
+from object_storage.domain.buckets.dto import UploadBlobResult
+
 from .dto import (
     DeleteArtifactResponseDTO,
     DeleteExperimentArtifactsResponseDTO,
-    UntrackedUploadArtifactResponseDTO,
     TrackedUploadArtifactResponseDTO,
+    UntrackedUploadArtifactResponseDTO,
 )
-from object_storage.domain.buckets.dto import UploadBlobResult
-from object_storage.db.models import ExperimentBlob
-from uuid import UUID
 
 
 class ArtifactsStorageMapper:
@@ -25,12 +27,14 @@ class ArtifactsStorageMapper:
     def experiment_model_to_tracked_response(
         self, experiment_model: ExperimentBlob
     ) -> TrackedUploadArtifactResponseDTO:
+        meta: dict[str, Any] = experiment_model.artifact_metadata or {}
         return TrackedUploadArtifactResponseDTO(
             id=experiment_model.id,
             hash=experiment_model.artifact_hash,
             file_path=experiment_model.file_path,
             mime_type=experiment_model.mime_type,
             size=experiment_model.size,
+            metadata=meta,
         )
 
     def delete_artifact_to_response(self, deleted: bool) -> DeleteArtifactResponseDTO:
@@ -40,19 +44,3 @@ class ArtifactsStorageMapper:
         self, deleted_count: int
     ) -> DeleteExperimentArtifactsResponseDTO:
         return DeleteExperimentArtifactsResponseDTO(deleted_count=deleted_count)
-
-    def create_experiment_model(
-        self,
-        project_id: UUID,
-        experiment_id: UUID,
-        artifact_hash: str,
-        filename: str,
-        mime_type: str,
-    ) -> ExperimentBlob:
-        return ExperimentBlob(
-            project_id=project_id,
-            experiment_id=experiment_id,
-            artifact_hash=artifact_hash,
-            filename=filename,
-            mime_type=mime_type,
-        )

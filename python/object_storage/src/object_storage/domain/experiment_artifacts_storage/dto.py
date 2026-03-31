@@ -1,9 +1,10 @@
 """Pydantic DTOs for experiment-scoped artifacts storage."""
 
 from dataclasses import dataclass
-from typing import BinaryIO
+from typing import Any, BinaryIO
 from uuid import UUID
-from pydantic import BaseModel
+
+from pydantic import BaseModel, Field
 
 
 class UntrackedUploadArtifactResponseDTO(BaseModel):
@@ -21,6 +22,7 @@ class TrackedUploadArtifactResponseDTO(BaseModel):
     file_path: str
     mime_type: str
     size: int
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 @dataclass

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import re
 from uuid import UUID, uuid4
 
@@ -116,7 +117,7 @@ async def test_experiment_controller_tracked_upload_list_download_delete(http_cl
         f"/api/experiment-artifacts/projects/{project_id}/experiments/{experiment_id}/upload-tracked",
         params={
             "hash": artifact_hash,
-            "path": artifact_path,
+            "file_path": artifact_path,
             "content_type": "application/x-yaml",
         },
         files={"file": ("train.yaml", payload, "application/x-yaml")},
@@ -172,7 +173,7 @@ async def test_experiment_controller_tracked_no_hash_list_and_download_use_same_
 
     upload = await http_client.post(
         f"/api/experiment-artifacts/projects/{project_id}/experiments/{experiment_id}/upload-tracked",
-        params={"path": artifact_path},
+        params={"file_path": artifact_path},
         files={"file": ("run.bin", payload, "application/octet-stream")},
     )
     assert upload.status_code == 200
@@ -202,3 +203,68 @@ async def test_experiment_controller_tracked_no_hash_list_and_download_use_same_
         f"/api/experiment-artifacts/projects/{project_id}/experiments/{experiment_id}"
     )
     assert delete_experiment.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_experiment_controller_tracked_upload_metadata_query_roundtrip(http_client) -> None:
+    """``metadata`` query JSON is returned on upload and on list."""
+
+    project_id = uuid4()
+    experiment_id = uuid4()
+    payload = b"meta-query-body"
+    artifact_hash = "f" * 64
+    artifact_path = "weights/model.pt"
+    meta = {"name": "from-query", "epoch": 2, "tags": ["x"]}
+
+    upload = await http_client.post(
+        f"/api/experiment-artifacts/projects/{project_id}/experiments/{experiment_id}/upload-tracked",
+        params={
+            "hash": artifact_hash,
+            "file_path": artifact_path,
+            "metadata": json.dumps(meta),
+        },
+        files={"file": ("model.pt", payload, "application/octet-stream")},
+    )
+    assert upload.status_code == 200
+    body = upload.json()
+    assert body["hash"] == artifact_hash
+    assert body["file_path"] == artifact_path
+    assert body["metadata"] == meta
+
+    listed = await http_client.get(
+        f"/api/experiment-artifacts/projects/{project_id}/experiments/{experiment_id}/artifacts"
+    )
+    assert listed.status_code == 200
+    artifacts = listed.json()
+    assert len(artifacts) == 1
+    assert artifacts[0]["metadata"] == meta
+
+
+@pytest.mark.asyncio
+async def test_experiment_controller_tracked_upload_invalid_metadata_json_returns_400(
+    http_client,
+) -> None:
+    project_id = uuid4()
+    experiment_id = uuid4()
+    upload = await http_client.post(
+        f"/api/experiment-artifacts/projects/{project_id}/experiments/{experiment_id}/upload-tracked",
+        params={"hash": "a" * 64, "file_path": "x.bin", "metadata": "not-json{"},
+        files={"file": ("x.bin", b"x", "application/octet-stream")},
+    )
+    assert upload.status_code == 400
+    assert upload.json()["detail"] == "metadata must be valid JSON"
+
+
+@pytest.mark.asyncio
+async def test_experiment_controller_tracked_upload_non_object_metadata_returns_400(
+    http_client,
+) -> None:
+    project_id = uuid4()
+    experiment_id = uuid4()
+    upload = await http_client.post(
+        f"/api/experiment-artifacts/projects/{project_id}/experiments/{experiment_id}/upload-tracked",
+        params={"hash": "b" * 64, "file_path": "x.bin", "metadata": "[1,2,3]"},
+        files={"file": ("x.bin", b"x", "application/octet-stream")},
+    )
+    assert upload.status_code == 400
+    assert upload.json()["detail"] == "metadata must be a JSON object"

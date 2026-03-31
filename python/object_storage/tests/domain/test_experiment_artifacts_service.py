@@ -200,7 +200,7 @@ async def test_upload_artifact_and_track_persists_experiment_blob() -> None:
         upload=upload,
         content_type="application/json",
         hash="a" * 64,
-        path="metrics/final.json",
+        file_path="metrics/final.json",
     )
 
     assert result.hash == "a" * 64
@@ -210,6 +210,90 @@ async def test_upload_artifact_and_track_persists_experiment_blob() -> None:
     assert repo.created[0].mime_type == "application/json"
     assert repo.commit_called is True
     assert buckets_service.upload_blob_calls[0][2] == "a" * 64
+
+
+@pytest.mark.asyncio
+async def test_upload_tracked_persists_metadata_and_returns_in_dto() -> None:
+    project_id = uuid4()
+    experiment_id = uuid4()
+    buckets_service = FakeBucketsService()
+    repo = FakeArtifactsRepository()
+    service = ArtifactsStorageService(buckets_service, repo)
+    payload = b"x"
+    upload = UploadFile(
+        filename="out.pt",
+        file=io.BytesIO(payload),
+        headers=Headers({"content-type": "application/octet-stream"}),
+    )
+    meta = {"name": "run-a", "epoch": 3, "tags": ["train"]}
+
+    result = await service.upload_artifact_and_track(
+        project_id=project_id,
+        experiment_id=experiment_id,
+        upload=upload,
+        hash="a" * 64,
+        file_path="weights/out.pt",
+        metadata=meta,
+    )
+
+    assert result.metadata == meta
+    assert len(repo.created) == 1
+    assert repo.created[0].artifact_metadata == meta
+
+
+@pytest.mark.asyncio
+async def test_upload_tracked_without_metadata_stores_empty_dict() -> None:
+    project_id = uuid4()
+    experiment_id = uuid4()
+    buckets_service = FakeBucketsService()
+    repo = FakeArtifactsRepository()
+    service = ArtifactsStorageService(buckets_service, repo)
+    upload = UploadFile(
+        filename="only.bin",
+        file=io.BytesIO(b"x"),
+        headers=Headers({"content-type": "application/octet-stream"}),
+    )
+
+    result = await service.upload_artifact_and_track(
+        project_id=project_id,
+        experiment_id=experiment_id,
+        upload=upload,
+        hash="d" * 64,
+        file_path="dir/only.bin",
+    )
+
+    assert result.metadata == {}
+    assert repo.created[0].artifact_metadata == {}
+
+
+@pytest.mark.asyncio
+async def test_list_artifacts_includes_metadata_in_response() -> None:
+    project_id = uuid4()
+    experiment_id = uuid4()
+    blob_id = uuid4()
+    meta = {"name": "listed", "version": 2}
+    repo = FakeArtifactsRepository()
+    repo.list_result = [
+        ExperimentBlob(
+            id=blob_id,
+            project_id=project_id,
+            experiment_id=experiment_id,
+            artifact_hash="f" * 64,
+            file_path="group/file.bin",
+            mime_type="application/octet-stream",
+            size=99,
+            artifact_metadata=meta,
+        )
+    ]
+    buckets_service = FakeBucketsService()
+    service = ArtifactsStorageService(buckets_service, repo)
+
+    out = await service.list_artifacts(project_id, experiment_id)
+
+    assert len(out) == 1
+    assert out[0].metadata == meta
+    assert out[0].hash == "f" * 64
+    assert out[0].file_path == "group/file.bin"
 
 
 @pytest.mark.asyncio
@@ -233,7 +317,7 @@ async def test_upload_tracked_uses_content_type_argument_not_upload_header() -> 
         upload=upload,
         content_type="application/json",
         hash="c" * 64,
-        path="cfg/x.json",
+        file_path="cfg/x.json",
     )
 
     assert repo.created[0].mime_type == "application/json"
@@ -257,7 +341,7 @@ async def test_upload_tracked_uses_upload_content_type_when_param_omitted() -> N
         experiment_id=experiment_id,
         upload=upload,
         hash="c" * 64,
-        path="cfg/x.json",
+        file_path="cfg/x.json",
     )
 
     assert repo.created[0].mime_type == "text/plain"
@@ -285,7 +369,7 @@ async def test_upload_artifact_and_track_without_hash_aligns_db_blob_and_upload_
         experiment_id=experiment_id,
         upload=upload,
         content_type="application/octet-stream",
-        path="dir/x.bin",
+        file_path="dir/x.bin",
     )
 
     h = result.hash
@@ -361,7 +445,7 @@ async def test_upload_tracked_invalid_path_rolls_back_and_removes_s3_object() ->
             upload=upload,
             content_type="application/json",
             hash="a" * 64,
-            path=bad_path,
+            file_path=bad_path,
         )
 
     assert repo.rollback_called is True
@@ -392,7 +476,7 @@ async def test_upload_tracked_integrity_error_rolls_back_and_removes_s3_object()
             upload=upload,
             content_type="application/json",
             hash="b" * 64,
-            path="metrics/final.json",
+            file_path="metrics/final.json",
         )
 
     assert exc_info.value.status_code == 500

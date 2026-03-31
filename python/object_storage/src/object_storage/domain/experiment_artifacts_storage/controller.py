@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import json
+from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, Query, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from starlette.responses import StreamingResponse
 
 from object_storage.api.service_dependencies import get_experiment_artifacts_service
@@ -17,6 +19,20 @@ from .dto import (
 from .service import ArtifactsStorageService
 
 router = APIRouter(prefix="/experiment-artifacts")
+
+
+def _parse_metadata_query(raw: str | None) -> dict[str, Any] | None:
+    if raw is None or not str(raw).strip():
+        return None
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise HTTPException(
+            status_code=400, detail="metadata must be valid JSON"
+        ) from exc
+    if not isinstance(parsed, dict):
+        raise HTTPException(status_code=400, detail="metadata must be a JSON object")
+    return parsed
 
 
 @router.post(
@@ -56,7 +72,14 @@ async def upload_artifact_tracked(
         ),
     ),
     hash: str | None = Query(default=None),
-    path: str | None = Query(default=None),
+    file_path: str | None = Query(default=None),
+    metadata: str | None = Query(
+        default=None,
+        description=(
+            r'Optional JSON object stored on the blob row as-is, e.g. {"name": "weights"}. '
+            "Omitted or empty means ``{}``."
+        ),
+    ),
     service: ArtifactsStorageService = Depends(get_experiment_artifacts_service),
 ):
     """Upload one artifact file and track metadata in the database."""
@@ -67,7 +90,8 @@ async def upload_artifact_tracked(
         upload=file,
         content_type=content_type,
         hash=hash,
-        path=path,
+        file_path=file_path,
+        metadata=_parse_metadata_query(metadata),
     )
 
 
