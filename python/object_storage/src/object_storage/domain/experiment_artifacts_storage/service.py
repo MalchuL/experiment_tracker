@@ -79,7 +79,7 @@ class ArtifactsStorageService:
             project_id: The ID of the project.
             experiment_id: The ID of the experiment.
             upload: The upload file.
-            hash: The hash of the artifact.
+            hash: The hash of the artifact that used to store in storage.
 
         Returns:
             The response from the object storage.
@@ -104,9 +104,7 @@ class ArtifactsStorageService:
         return self._mapper.upload_artifact_to_untracked_response(upload_result)
 
     @staticmethod
-    def _mime_type_for_tracked(
-        upload: UploadFile, content_type: str | None
-    ) -> str:
+    def _mime_type_for_tracked(upload: UploadFile, content_type: str | None) -> str:
         if content_type is not None:
             stripped = content_type.strip()
             if stripped:
@@ -137,7 +135,7 @@ class ArtifactsStorageService:
             upload: The upload file.
             content_type: Optional MIME type for the tracked row; when omitted or blank,
                 uses the upload part's content type, then ``application/octet-stream``.
-            hash: The hash of the artifact.
+            hash: The hash of the artifact that used to store in storage.
             file_path: Relative path for the tracked blob (stored on the row).
             metadata: Optional JSON object stored as-is on the blob row (default ``{}``).
 
