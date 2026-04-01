@@ -58,17 +58,23 @@ class FakeBucketsService:
         self.ensure_bucket_calls.append((str(project_id), str(experiment_id)))
         return "bucket"
 
-    async def upload_blob(self, project_id, experiment_id, upload, hash):
-        self.upload_blob_calls.append((str(project_id), str(experiment_id), hash))
-        self.upload_result = UploadBlobResult(size=len(await upload.read()), hash=hash)
+    async def upload_blob(self, project_id, experiment_id, upload, artifact_hash):
+        self.upload_blob_calls.append((str(project_id), str(experiment_id), artifact_hash))
+        self.upload_result = UploadBlobResult(
+            size=len(await upload.read()), hash=artifact_hash
+        )
         return self.upload_result
 
-    async def get_blob_stream(self, project_id, experiment_id, hash):
-        self.get_blob_stream_calls.append((str(project_id), str(experiment_id), hash))
+    async def get_blob_stream(self, project_id, experiment_id, artifact_hash):
+        self.get_blob_stream_calls.append(
+            (str(project_id), str(experiment_id), artifact_hash)
+        )
         return self.stream
 
-    async def delete_blob(self, project_id, experiment_id, hash) -> bool:
-        self.delete_blob_calls.append((str(project_id), str(experiment_id), hash))
+    async def delete_blob(self, project_id, experiment_id, artifact_hash) -> bool:
+        self.delete_blob_calls.append(
+            (str(project_id), str(experiment_id), artifact_hash)
+        )
         return True
 
     async def delete_bucket(self, project_id, experiment_id) -> None:
@@ -173,7 +179,7 @@ async def test_upload_artifact_and_forget_explicit_hash_matches_upload_key() -> 
         project_id=project_id,
         experiment_id=experiment_id,
         upload=upload,
-        hash=explicit,
+        artifact_hash=explicit,
     )
 
     assert result.hash == explicit
@@ -199,7 +205,7 @@ async def test_upload_artifact_and_track_persists_experiment_blob() -> None:
         experiment_id=experiment_id,
         upload=upload,
         content_type="application/json",
-        hash="a" * 64,
+        artifact_hash="a" * 64,
         file_path="metrics/final.json",
     )
 
@@ -231,7 +237,7 @@ async def test_upload_tracked_persists_metadata_and_returns_in_dto() -> None:
         project_id=project_id,
         experiment_id=experiment_id,
         upload=upload,
-        hash="a" * 64,
+        artifact_hash="a" * 64,
         file_path="weights/out.pt",
         metadata=meta,
     )
@@ -258,7 +264,7 @@ async def test_upload_tracked_without_metadata_stores_empty_dict() -> None:
         project_id=project_id,
         experiment_id=experiment_id,
         upload=upload,
-        hash="d" * 64,
+        artifact_hash="d" * 64,
         file_path="dir/only.bin",
     )
 
@@ -316,7 +322,7 @@ async def test_upload_tracked_uses_content_type_argument_not_upload_header() -> 
         experiment_id=experiment_id,
         upload=upload,
         content_type="application/json",
-        hash="c" * 64,
+        artifact_hash="c" * 64,
         file_path="cfg/x.json",
     )
 
@@ -340,7 +346,7 @@ async def test_upload_tracked_uses_upload_content_type_when_param_omitted() -> N
         project_id=project_id,
         experiment_id=experiment_id,
         upload=upload,
-        hash="c" * 64,
+        artifact_hash="c" * 64,
         file_path="cfg/x.json",
     )
 
@@ -444,7 +450,7 @@ async def test_upload_tracked_invalid_path_rolls_back_and_removes_s3_object() ->
             experiment_id=experiment_id,
             upload=upload,
             content_type="application/json",
-            hash="a" * 64,
+            artifact_hash="a" * 64,
             file_path=bad_path,
         )
 
@@ -475,7 +481,7 @@ async def test_upload_tracked_integrity_error_rolls_back_and_removes_s3_object()
             experiment_id=experiment_id,
             upload=upload,
             content_type="application/json",
-            hash="b" * 64,
+            artifact_hash="b" * 64,
             file_path="metrics/final.json",
         )
 
@@ -500,7 +506,7 @@ async def test_upload_untracked_commit_failure_rolls_back_and_removes_s3_object(
             project_id=project_id,
             experiment_id=experiment_id,
             upload=upload,
-            hash=artifact_hash,
+            artifact_hash=artifact_hash,
         )
 
     assert buckets_service.rollback_called is True

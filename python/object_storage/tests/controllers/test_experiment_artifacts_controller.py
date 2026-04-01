@@ -63,7 +63,7 @@ async def test_experiment_controller_untracked_upload_and_download(http_client) 
 
     upload = await http_client.post(
         f"/api/experiment-artifacts/projects/{project_id}/experiments/{experiment_id}/upload-untracked",
-        params={"hash": artifact_hash},
+        params={"artifact_hash": artifact_hash},
         files={"file": ("artifact.bin", payload, "application/octet-stream")},
     )
     assert upload.status_code == 200
@@ -116,7 +116,7 @@ async def test_experiment_controller_tracked_upload_list_download_delete(http_cl
     upload = await http_client.post(
         f"/api/experiment-artifacts/projects/{project_id}/experiments/{experiment_id}/upload-tracked",
         params={
-            "hash": artifact_hash,
+            "artifact_hash": artifact_hash,
             "file_path": artifact_path,
             "content_type": "application/x-yaml",
         },
@@ -219,7 +219,7 @@ async def test_experiment_controller_tracked_upload_metadata_query_roundtrip(htt
     upload = await http_client.post(
         f"/api/experiment-artifacts/projects/{project_id}/experiments/{experiment_id}/upload-tracked",
         params={
-            "hash": artifact_hash,
+            "artifact_hash": artifact_hash,
             "file_path": artifact_path,
             "metadata": json.dumps(meta),
         },
@@ -248,7 +248,7 @@ async def test_experiment_controller_tracked_upload_invalid_metadata_json_return
     experiment_id = uuid4()
     upload = await http_client.post(
         f"/api/experiment-artifacts/projects/{project_id}/experiments/{experiment_id}/upload-tracked",
-        params={"hash": "a" * 64, "file_path": "x.bin", "metadata": "not-json{"},
+        params={"artifact_hash": "a" * 64, "file_path": "x.bin", "metadata": "not-json{"},
         files={"file": ("x.bin", b"x", "application/octet-stream")},
     )
     assert upload.status_code == 400
@@ -263,7 +263,7 @@ async def test_experiment_controller_tracked_upload_non_object_metadata_returns_
     experiment_id = uuid4()
     upload = await http_client.post(
         f"/api/experiment-artifacts/projects/{project_id}/experiments/{experiment_id}/upload-tracked",
-        params={"hash": "b" * 64, "file_path": "x.bin", "metadata": "[1,2,3]"},
+        params={"artifact_hash": "b" * 64, "file_path": "x.bin", "metadata": "[1,2,3]"},
         files={"file": ("x.bin", b"x", "application/octet-stream")},
     )
     assert upload.status_code == 400

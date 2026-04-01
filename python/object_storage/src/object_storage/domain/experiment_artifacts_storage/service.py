@@ -68,7 +68,7 @@ class ArtifactsStorageService:
         project_id: UUID,
         experiment_id: UUID,
         upload: UploadFile,
-        hash: str | None = None,
+        artifact_hash: str | None = None,
     ) -> UntrackedUploadArtifactResponseDTO:
         """
         Upload one artifact under an experiment-specific prefix.
@@ -79,13 +79,13 @@ class ArtifactsStorageService:
             project_id: The ID of the project.
             experiment_id: The ID of the experiment.
             upload: The upload file.
-            hash: The hash of the artifact that used to store in storage.
+            artifact_hash: The hash of the artifact that used to store in storage.
 
         Returns:
             The response from the object storage.
             The response contains the hash and size of the uploaded artifact.
         """
-        artifact_hash = hash or uuid4().hex
+        artifact_hash = artifact_hash or uuid4().hex
         self.check_hash(artifact_hash)
         bucket_name = await self._buckets_service.ensure_bucket(
             project_id, experiment_id
@@ -120,7 +120,7 @@ class ArtifactsStorageService:
         experiment_id: UUID,
         upload: UploadFile,
         content_type: str | None = None,
-        hash: str | None = None,
+        artifact_hash: str | None = None,
         file_path: str | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> TrackedUploadArtifactResponseDTO:
@@ -135,7 +135,7 @@ class ArtifactsStorageService:
             upload: The upload file.
             content_type: Optional MIME type for the tracked row; when omitted or blank,
                 uses the upload part's content type, then ``application/octet-stream``.
-            hash: The hash of the artifact that used to store in storage.
+            artifact_hash: The hash of the artifact that used to store in storage.
             file_path: Relative path for the tracked blob (stored on the row).
             metadata: Optional JSON object stored as-is on the blob row (default ``{}``).
 
@@ -143,7 +143,7 @@ class ArtifactsStorageService:
             The response from the object storage.
             The response contains the hash and size of the uploaded artifact.
         """
-        artifact_hash = hash or uuid4().hex
+        artifact_hash = artifact_hash or uuid4().hex
         self.check_hash(artifact_hash)
 
         bucket_name = await self._buckets_service.ensure_bucket(

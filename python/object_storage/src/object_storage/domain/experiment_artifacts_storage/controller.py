@@ -43,16 +43,28 @@ async def upload_artifact_untracked(
     project_id: UUID,
     experiment_id: UUID,
     file: UploadFile = File(...),
-    hash: str | None = Query(default=None),
+    artifact_hash: str | None = Query(default=None),
     service: ArtifactsStorageService = Depends(get_experiment_artifacts_service),
-):
-    """Upload one artifact file without creating experiment metadata."""
+) -> UntrackedUploadArtifactResponseDTO:
+    """
+    Upload one artifact file without creating experiment metadata.
+
+    Args:
+        project_id: The ID of the project.
+        experiment_id: The ID of the experiment.
+        file: The upload file.
+        artifact_hash: The hash of the artifact that used to store in storage.
+
+    Returns:
+        The response from the object storage.
+        The response contains the hash and size of the uploaded artifact.
+    """
 
     return await service.upload_artifact_and_forget(
         project_id=project_id,
         experiment_id=experiment_id,
         upload=file,
-        hash=hash,
+        artifact_hash=artifact_hash,
     )
 
 
@@ -71,7 +83,7 @@ async def upload_artifact_tracked(
             "content type, then application/octet-stream."
         ),
     ),
-    hash: str | None = Query(default=None),
+    artifact_hash: str | None = Query(default=None),
     file_path: str | None = Query(default=None),
     metadata: str | None = Query(
         default=None,
@@ -81,15 +93,31 @@ async def upload_artifact_tracked(
         ),
     ),
     service: ArtifactsStorageService = Depends(get_experiment_artifacts_service),
-):
-    """Upload one artifact file and track metadata in the database."""
+) -> TrackedUploadArtifactResponseDTO:
+    """
+    Upload one artifact file and track metadata in the database.
+
+    Args:
+        project_id: The ID of the project.
+        experiment_id: The ID of the experiment.
+        file: The upload file.
+        content_type: Optional MIME type for the tracked row; when omitted or blank,
+            uses the upload part's content type, then ``application/octet-stream``.
+        artifact_hash: The hash of the artifact that used to store in storage.
+        file_path: Relative path for the tracked blob (stored on the row).
+        metadata: Optional JSON object stored as-is on the blob row (default ``{}``).
+
+    Returns:
+        The response from the object storage.
+        The response contains the hash and size of the uploaded artifact.
+    """
 
     return await service.upload_artifact_and_track(
         project_id=project_id,
         experiment_id=experiment_id,
         upload=file,
         content_type=content_type,
-        hash=hash,
+        artifact_hash=artifact_hash,
         file_path=file_path,
         metadata=_parse_metadata_query(metadata),
     )
@@ -102,21 +130,43 @@ async def list_tracked_artifacts(
     limit: int = Query(default=100, ge=1),
     offset: int = Query(default=0, ge=0),
     service: ArtifactsStorageService = Depends(get_experiment_artifacts_service),
-):
-    """List tracked artifacts for one experiment."""
+) -> list[TrackedUploadArtifactResponseDTO]:
+    """List tracked artifacts for one experiment.
+
+    Args:
+        project_id: The ID of the project.
+        experiment_id: The ID of the experiment.
+        limit: The maximum number of artifacts to return.
+        offset: The offset of the artifacts to return.
+    Returns:
+        The response from the object storage.
+        The response contains the list of tracked artifacts.
+    """
 
     return await service.list_artifacts(project_id, experiment_id, limit, offset)
 
 
-@router.get("/projects/{project_id}/experiments/{experiment_id}/artifacts/{artifact_hash}")
+@router.get(
+    "/projects/{project_id}/experiments/{experiment_id}/artifacts/{artifact_hash}"
+)
 async def download_artifact(
     project_id: UUID,
     experiment_id: UUID,
     artifact_hash: str,
     tracked: bool = Query(default=False),
     service: ArtifactsStorageService = Depends(get_experiment_artifacts_service),
-):
-    """Stream one artifact by hash for a project/experiment pair."""
+) -> StreamingResponse:
+    """Stream one artifact by hash for a project/experiment pair.
+
+    Args:
+        project_id: The ID of the project.
+        experiment_id: The ID of the experiment.
+        artifact_hash: The hash of the artifact.
+        tracked: Whether the artifact is tracked.
+    Returns:
+        The response from the object storage.
+        The response contains the streamed artifact.
+    """
 
     artifact = await service.get_artifact_stream(
         project_id=project_id,
@@ -153,8 +203,17 @@ async def delete_artifact(
     experiment_id: UUID,
     artifact_hash: str,
     service: ArtifactsStorageService = Depends(get_experiment_artifacts_service),
-):
-    """Delete one artifact for an experiment."""
+) -> DeleteArtifactResponseDTO:
+    """Delete one artifact for an experiment.
+
+    Args:
+        project_id: The ID of the project.
+        experiment_id: The ID of the experiment.
+        artifact_hash: The hash of the artifact.
+    Returns:
+        The response from the object storage.
+        The response contains the deleted artifact.
+    """
 
     return await service.delete_artifact(project_id, experiment_id, artifact_hash)
 
@@ -167,7 +226,16 @@ async def delete_experiment_artifacts(
     project_id: UUID,
     experiment_id: UUID,
     service: ArtifactsStorageService = Depends(get_experiment_artifacts_service),
-):
-    """Delete all artifacts and metadata for one experiment."""
+) -> DeleteExperimentArtifactsResponseDTO:
+    """Delete all artifacts and metadata for one experiment.
+
+    Args:
+        project_id: The ID of the project.
+        experiment_id: The ID of the experiment.
+
+    Returns:
+        The response from the object storage.
+        The response contains the number of deleted artifacts.
+    """
 
     return await service.delete_experiment(project_id, experiment_id)

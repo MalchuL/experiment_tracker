@@ -368,7 +368,7 @@ async def test_experiment_artifacts_workflow(pytestconfig: pytest.Config) -> Non
             project_id=project_id,
             experiment_id=experiment_id,
             upload=tracked_upload,
-            hash=tracked_hash,
+            artifact_hash=tracked_hash,
             file_path="weights/final.bin",
         )
         assert tracked_result.hash == tracked_hash
@@ -383,7 +383,7 @@ async def test_experiment_artifacts_workflow(pytestconfig: pytest.Config) -> Non
             project_id=project_id,
             experiment_id=experiment_id,
             upload=untracked_upload,
-            hash=untracked_hash,
+            artifact_hash=untracked_hash,
         )
         assert untracked_result.hash == untracked_hash
         assert untracked_result.size == len(untracked_payload)
@@ -454,7 +454,7 @@ async def test_tracked_upload_explicit_hash_db_row_and_object_store_key_match(
             experiment_id=experiment_id,
             upload=upload,
             content_type="application/octet-stream",
-            hash=explicit_hash,
+            artifact_hash=explicit_hash,
             file_path="weights/model.pt",
         )
 
@@ -519,7 +519,7 @@ async def test_tracked_upload_metadata_roundtrip_in_database(
             project_id=project_id,
             experiment_id=experiment_id,
             upload=upload,
-            hash=blob_hash,
+            artifact_hash=blob_hash,
             file_path="artifacts/w.pt",
             metadata=meta,
         )
@@ -645,7 +645,7 @@ async def test_untracked_upload_explicit_hash_object_store_key_matches_response(
             project_id=project_id,
             experiment_id=experiment_id,
             upload=upload,
-            hash=explicit_hash,
+            artifact_hash=explicit_hash,
         )
 
     assert result.hash == explicit_hash
@@ -771,7 +771,7 @@ async def test_tracked_upload_invalid_path_leaves_db_and_object_store_clean(
                 experiment_id=experiment_id,
                 upload=upload,
                 content_type="application/octet-stream",
-                hash=artifact_hash,
+                artifact_hash=artifact_hash,
                 file_path="../outside.bin",
             )
 
@@ -833,7 +833,7 @@ async def test_tracked_upload_commit_failure_leaves_db_and_object_store_clean(
                     experiment_id=experiment_id,
                     upload=upload,
                     content_type="application/octet-stream",
-                    hash=artifact_hash,
+                    artifact_hash=artifact_hash,
                     file_path="safe/relative/path.bin",
                 )
             assert exc_info.value.status_code == 500
