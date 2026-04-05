@@ -454,6 +454,7 @@ class ClickHouseScalarsDBUtils:
         experiment_ids: Sequence[UUID] | None = None,
         artifact_types: Sequence[str] | None = None,
         names: Sequence[str] | None = None,
+        steps: Sequence[int] | None = None,
         start_time: datetime | None = None,
         end_time: datetime | None = None,
     ) -> str:
@@ -481,6 +482,11 @@ class ClickHouseScalarsDBUtils:
             )
             where_clauses.append(
                 f"{ArtifactsInfoTableColumns.NAME.value} IN ({escaped_names})"
+            )
+        if steps:
+            step_list = ", ".join(str(int(s)) for s in steps)
+            where_clauses.append(
+                f"{ArtifactsInfoTableColumns.STEP.value} IN ({step_list})"
             )
         if start_time is not None:
             where_clauses.append(

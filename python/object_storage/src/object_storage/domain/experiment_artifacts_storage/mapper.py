@@ -8,6 +8,7 @@ from object_storage.domain.buckets.dto import UploadBlobResult
 from .dto import (
     DeleteArtifactResponseDTO,
     DeleteExperimentArtifactsResponseDTO,
+    TrackedArtifactInfoResponseDTO,
     TrackedUploadArtifactResponseDTO,
     UntrackedUploadArtifactResponseDTO,
 )
@@ -35,6 +36,21 @@ class ArtifactsStorageMapper:
             mime_type=experiment_model.mime_type,
             size=experiment_model.size,
             metadata=meta,
+        )
+
+    def experiment_model_to_tracked_info_response(
+        self, experiment_model: ExperimentBlob
+    ) -> TrackedArtifactInfoResponseDTO:
+        meta: dict[str, Any] = experiment_model.artifact_metadata or {}
+        return TrackedArtifactInfoResponseDTO(
+            id=experiment_model.id,
+            hash=experiment_model.artifact_hash,
+            file_path=experiment_model.file_path,
+            mime_type=experiment_model.mime_type,
+            size=experiment_model.size,
+            metadata=meta,
+            created_at=experiment_model.created_at,
+            updated_at=experiment_model.updated_at,
         )
 
     def delete_artifact_to_response(self, deleted: bool) -> DeleteArtifactResponseDTO:

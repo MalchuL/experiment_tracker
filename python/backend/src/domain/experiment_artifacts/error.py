@@ -4,3 +4,7 @@ class ExperimentArtifactsNotAccessibleError(Exception):
 
 class ExperimentArtifactNotFoundError(Exception):
     """Raised when an experiment artifact cannot be found."""
+
+
+class ExperimentArtifactAmbiguousError(Exception):
+    """Raised when multiple logged artifacts match the same step/name query."""

@@ -2,6 +2,7 @@
 
 import json
 from datetime import datetime
+from urllib.parse import quote
 from uuid import UUID
 
 from clients.artifacts_info import (
@@ -24,13 +25,13 @@ from models import User
 
 from .dto import (
     ExperimentArtifactDTO,
-    ExperimentArtifactsDeleteResponseDTO,
 )
 from .error import (
     ExperimentArtifactsNotAccessibleError,
+    ExperimentArtifactAmbiguousError,
     ExperimentArtifactNotFoundError,
 )
-from .service import ExperimentArtifactsServiceProtocol
+from .protocol import ExperimentArtifactsServiceProtocol
 
 router = APIRouter(prefix="/experiment-artifacts", tags=["experiment-artifacts"])
 
@@ -40,6 +41,8 @@ def _raise_http_error(error: Exception) -> None:
         raise HTTPException(status_code=403, detail=str(error))
     if isinstance(error, ExperimentArtifactNotFoundError):
         raise HTTPException(status_code=404, detail=str(error))
+    if isinstance(error, ExperimentArtifactAmbiguousError):
+        raise HTTPException(status_code=400, detail=str(error))
     if isinstance(error, httpx.HTTPStatusError):
         raise HTTPException(
             status_code=error.response.status_code,
@@ -56,30 +59,35 @@ def _raise_http_error(error: Exception) -> None:
 @router.get("/experiments/{experiment_id}", response_model=list[ExperimentArtifactDTO])
 async def list_experiment_artifacts(
     experiment_id: UUID,
-    name: list[str] | None = Query(default=None),
+    file_paths: list[str] | None = Query(
+        default=None,
+        description="Filter by exact stored file_path (repeat param for multiple values).",
+    ),
     user: User = Depends(get_current_user_dual),
     _: None = Depends(require_api_token_scopes(ProjectActions.VIEW_ARTIFACT)),
     service: ExperimentArtifactsServiceProtocol = Depends(
         get_experiment_artifacts_service
     ),
 ) -> list[ExperimentArtifactDTO]:
-    """List named artifacts for one experiment."""
+    """List tracked artifacts for one experiment."""
     try:
         return await service.list_experiment_artifacts(
             user=user,
             experiment_id=experiment_id,
-            names=name,
+            file_paths=file_paths,
         )
     except Exception as exc:  # noqa: BLE001
         _raise_http_error(exc)
 
 
+# TODO move to post
 @router.get("/projects/{project_id}/get-at-step")
-async def get_project_artifacts_at_step(
+async def get_experiments_artifacts_at_step(
     project_id: UUID,
     experiment_id: list[UUID] | None = Query(default=None),
     artifact_type: list[str] | None = Query(default=None),
     artifact_name: list[str] | None = Query(default=None),
+    step: list[int] | None = Query(default=None),
     start_time: datetime | None = Query(default=None),
     end_time: datetime | None = Query(default=None),
     user: User = Depends(get_current_user_dual),
@@ -90,12 +98,13 @@ async def get_project_artifacts_at_step(
 ) -> ArtifactsInfoResultDTO:
     """List project artifacts using experiment-artifacts domain."""
     try:
-        result = await service.get_project_artifacts_at_step(
+        result = await service.get_experiments_artifacts_at_step(
             user=user,
             project_id=project_id,
             experiment_ids=experiment_id,
             artifact_types=artifact_type,
             artifact_names=artifact_name,
+            steps=step,
             start_time=start_time.isoformat() if start_time else None,
             end_time=end_time.isoformat() if end_time else None,
         )
@@ -153,7 +162,9 @@ async def upload_and_log_experiment_artifact_at_step(
 @router.get("/{experiment_id}/download-at-step")
 async def download_experiment_artifact_at_step(
     experiment_id: UUID,
-    path: str = Query(..., min_length=1),
+    step: int = Query(..., ge=0),
+    name: str = Query(..., min_length=1),
+    artifact_type: str | None = Query(default=None),
     media_type: str | None = Query(default=None),
     user: User = Depends(get_current_user_dual),
     _: None = Depends(require_api_token_scopes(ProjectActions.VIEW_ARTIFACT)),
@@ -161,41 +172,47 @@ async def download_experiment_artifact_at_step(
         get_experiment_artifacts_service
     ),
 ):
-    """Download artifact by path from experiment bucket."""
+    """Download artifact bytes for a logged step/name (resolved via scalars)."""
     try:
-        content = await service.download_experiment_artifact_at_step(
-            user=user, experiment_id=experiment_id, path=path
+        payload = await service.download_experiment_artifact_at_step(
+            user=user,
+            experiment_id=experiment_id,
+            step=step,
+            name=name,
+            artifact_type=artifact_type,
         )
+        disposition = f"attachment; filename*=UTF-8''{quote(payload.filename, safe='')}"
         return Response(
-            content=content,
-            media_type=media_type or "application/octet-stream",
+            content=payload.content,
+            media_type=media_type or payload.content_type,
+            headers={"Content-Disposition": disposition},
         )
     except Exception as exc:  # noqa: BLE001
         _raise_http_error(exc)
 
 
 @router.delete("/{experiment_id}/at-step")
-async def delete_experiment_artifact_at_step(
+async def delete_experiment_artifact_by_hash(
     experiment_id: UUID,
-    path: str = Query(..., min_length=1),
+    hash: str = Query(..., min_length=1),
     user: User = Depends(get_current_user_dual),
     _: None = Depends(require_api_token_scopes(ProjectActions.LOG_ARTIFACT)),
     service: ExperimentArtifactsServiceProtocol = Depends(
         get_experiment_artifacts_service
     ),
 ) -> DeleteExperimentArtifactResponseDTO:
-    """Delete one artifact by path from experiment bucket."""
+    """Delete one artifact by hash from experiment bucket."""
     try:
-        result = await service.delete_experiment_artifact_at_step(
-            user=user, experiment_id=experiment_id, path=path
+        result = await service.delete_experiment_artifact_by_hash(
+            user=user, experiment_id=experiment_id, hash=hash
         )
         return result
     except Exception as exc:  # noqa: BLE001
         _raise_http_error(exc)
 
 
-@router.delete("/{experiment_id}/at-step")
-async def delete_all_experiment_artifacts_at_step(
+@router.delete("/{experiment_id}/all")
+async def delete_experiment_all_artifacts(
     experiment_id: UUID,
     user: User = Depends(get_current_user_dual),
     _: None = Depends(require_api_token_scopes(ProjectActions.LOG_ARTIFACT)),
@@ -205,7 +222,7 @@ async def delete_all_experiment_artifacts_at_step(
 ) -> DeleteExperimentArtifactsResponseDTO:
     """Delete all artifacts for an experiment."""
     try:
-        result = await service.delete_experiment_artifacts_at_step(
+        result = await service.delete_experiment_all_artifacts(
             user=user, experiment_id=experiment_id
         )
         return result
@@ -216,7 +233,7 @@ async def delete_all_experiment_artifacts_at_step(
 @router.post("/upsert", response_model=ExperimentArtifactDTO)
 async def upsert_experiment_artifact(
     experiment_id: UUID = Form(...),
-    name: str = Form(...),
+    name: str | None = Form(default=None),
     filepath: str = Form(...),
     file: UploadFile = File(...),
     user: User = Depends(get_current_user_dual),
@@ -225,7 +242,13 @@ async def upsert_experiment_artifact(
         get_experiment_artifacts_service
     ),
 ) -> ExperimentArtifactDTO:
-    """Upsert one artifact metadata row and object payload."""
+    """
+    Upsert one artifact metadata row and object payload.
+    If the artifact already exists, it will be updated.
+    If the artifact does not exist, it will be created.
+    filepath is the path to the artifact in the object storage.
+    If artifact already exists, it will be updated by *filepath*.
+    """
     try:
         return await service.upsert_experiment_artifact(
             user=user,
@@ -241,8 +264,9 @@ async def upsert_experiment_artifact(
 @router.get("/get", response_model=ExperimentArtifactDTO)
 async def get_experiment_artifact(
     experiment_id: UUID,
-    name: str = Query(..., min_length=1),
-    filepath: str = Query(..., min_length=1),
+    filepath: str | None = Query(default=None, min_length=1),
+    blob_id: UUID | None = Query(default=None),
+    artifact_hash: str | None = Query(default=None, min_length=1),
     user: User = Depends(get_current_user_dual),
     _: None = Depends(require_api_token_scopes(ProjectActions.VIEW_ARTIFACT)),
     service: ExperimentArtifactsServiceProtocol = Depends(
@@ -254,8 +278,9 @@ async def get_experiment_artifact(
         return await service.get_experiment_artifact(
             user=user,
             experiment_id=experiment_id,
-            name=name,
             filepath=filepath,
+            blob_id=blob_id,
+            artifact_hash=artifact_hash,
         )
     except Exception as exc:  # noqa: BLE001
         _raise_http_error(exc)
@@ -264,21 +289,23 @@ async def get_experiment_artifact(
 @router.get("/download")
 async def download_experiment_artifact(
     experiment_id: UUID,
-    name: str = Query(..., min_length=1),
-    filepath: str = Query(..., min_length=1),
+    filepath: str | None = Query(default=None, min_length=1),
+    blob_id: UUID | None = Query(default=None),
+    artifact_hash: str | None = Query(default=None, min_length=1),
     user: User = Depends(get_current_user_dual),
     _: None = Depends(require_api_token_scopes(ProjectActions.VIEW_ARTIFACT)),
     service: ExperimentArtifactsServiceProtocol = Depends(
         get_experiment_artifacts_service
     ),
 ):
-    """Download one artifact by experiment/name/filepath."""
+    """Download one tracked artifact by filepath/blob_id/hash."""
     try:
         content, mime_type, filename = await service.download_experiment_artifact(
             user=user,
             experiment_id=experiment_id,
-            name=name,
             filepath=filepath,
+            blob_id=blob_id,
+            artifact_hash=artifact_hash,
         )
         return Response(
             content=content,
@@ -323,24 +350,3 @@ async def download_experiment_artifacts_archive(
         _raise_http_error(exc)
 
 
-@router.delete("/delete", response_model=ExperimentArtifactsDeleteResponseDTO)
-async def delete_experiment_artifacts(
-    experiment_id: UUID,
-    name: str = Query(..., min_length=1),
-    filepath: str | None = Query(default=None),
-    user: User = Depends(get_current_user_dual),
-    _: None = Depends(require_api_token_scopes(ProjectActions.LOG_ARTIFACT)),
-    service: ExperimentArtifactsServiceProtocol = Depends(
-        get_experiment_artifacts_service
-    ),
-) -> ExperimentArtifactsDeleteResponseDTO:
-    """Delete artifacts by name or by name+filepath."""
-    try:
-        return await service.delete_experiment_artifacts(
-            user=user,
-            experiment_id=experiment_id,
-            name=name,
-            filepath=filepath,
-        )
-    except Exception as exc:  # noqa: BLE001
-        _raise_http_error(exc)

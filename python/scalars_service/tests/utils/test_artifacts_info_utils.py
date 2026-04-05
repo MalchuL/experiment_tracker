@@ -26,7 +26,9 @@ def test_build_select_artifacts_info_statement() -> None:
         experiment_ids=[project_id],
         artifact_types=["image"],
         names=["predictions"],
+        steps=[1, 2],
     )
     assert "FROM artifacts_info_project" in query
     assert "__artifact_type__ IN ('image')" in query
     assert "__name__ IN ('predictions')" in query
+    assert "__step__ IN (1, 2)" in query

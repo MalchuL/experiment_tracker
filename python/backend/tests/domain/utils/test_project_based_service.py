@@ -27,7 +27,7 @@ async def _create_project(
         owner_id=owner.id,
         team_id=None,
         metrics=metrics or [],
-        settings=settings or {},
+        settings=settings or [],
     )
     db_session.add(project)
     await db_session.flush()
@@ -94,17 +94,24 @@ class TestProjectBasedService:
         db_session: AsyncSession,
         test_user: User,
     ) -> None:
-        metrics = [
-            {
-                "name": "accuracy",
-                "direction": "minimize",
-                "aggregation": "last",
-            }
-        ]
-        settings = {
-            "naming_pattern": "{num}_from_{parent}_{change}",
+        metrics = {
+            "tracked_metrics": [
+                {
+                    "name": "accuracy",
+                    "direction": "minimize",
+                    "aggregation": "last",
+                }
+            ],
             "display_metrics": ["accuracy"],
         }
+        settings = [
+            {
+                "name": "naming_pattern",
+                "type": "string",
+                "value": "{num}_from_{parent}_{change}",
+            },
+            {"name": "display_metrics", "type": "json", "value": ["accuracy"]},
+        ]
         project = await _create_project(
             db_session,
             test_user,
@@ -126,7 +133,9 @@ class TestProjectBasedService:
         assert isinstance(result, ProjectBaseDTO)
         assert result.name == project.name
         assert result.description == project.description
-        assert len(result.metrics) == 1
-        assert result.metrics[0].name == "accuracy"
-        assert result.settings.naming_pattern == settings["naming_pattern"]
-        assert result.settings.display_metrics == settings["display_metrics"]
+        assert len(result.metrics.tracked_metrics) == 1
+        assert result.metrics.tracked_metrics[0].name == "accuracy"
+        assert result.metrics.display_metrics[0] == "accuracy"
+        assert result.settings[0].name == "naming_pattern"
+        assert result.settings[0].type == "string"
+        assert result.settings[0].value == "{num}_from_{parent}_{change}"

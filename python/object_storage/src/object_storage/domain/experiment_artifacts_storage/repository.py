@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from typing import Any, cast
 from sqlalchemy.ext.asyncio import AsyncSession
 from object_storage.db.models import ExperimentBlob
 from uuid import UUID
@@ -18,14 +19,30 @@ class ExperimentArtifactsRepository:
         return experiment_blob
 
     async def get_experiment_blob(
-        self, project_id: UUID, experiment_id: UUID, artifact_hash: str
+        self,
+        project_id: UUID,
+        experiment_id: UUID,
+        *,
+        artifact_hash: str | None = None,
+        file_path: str | None = None,
+        blob_id: UUID | None = None,
     ) -> ExperimentBlob | None:
-        result = await self._session.execute(
-            select(ExperimentBlob).where(
-                ExperimentBlob.project_id == project_id,
-                ExperimentBlob.experiment_id == experiment_id,
-                ExperimentBlob.artifact_hash == artifact_hash,
+        if artifact_hash is None and file_path is None and blob_id is None:
+            raise ValueError(
+                "Provide at least one identifier: artifact_hash, file_path, or blob_id"
             )
+        clauses = [
+            ExperimentBlob.project_id == project_id,
+            ExperimentBlob.experiment_id == experiment_id,
+        ]
+        if artifact_hash is not None:
+            clauses.append(ExperimentBlob.artifact_hash == artifact_hash)
+        if file_path is not None:
+            clauses.append(ExperimentBlob.file_path == file_path)
+        if blob_id is not None:
+            clauses.append(ExperimentBlob.id == blob_id)
+        result = await self._session.execute(
+            select(ExperimentBlob).where(*clauses)
         )
         return result.scalar_one_or_none()
 
@@ -57,18 +74,17 @@ class ExperimentArtifactsRepository:
                 ExperimentBlob.artifact_hash == artifact_hash,
             )
         )
-        return result.rowcount > 0
+        return cast(int, cast(Any, result).rowcount or 0) > 0
 
     async def delete_all_experiment_blobs(
         self, project_id: UUID, experiment_id: UUID
     ) -> None:
-        result = await self._session.execute(
+        await self._session.execute(
             delete(ExperimentBlob).where(
                 ExperimentBlob.project_id == project_id,
                 ExperimentBlob.experiment_id == experiment_id,
             )
         )
-        return result.rowcount > 0
 
     async def commit(self) -> None:
         await self._session.commit()

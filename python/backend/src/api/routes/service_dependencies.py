@@ -4,17 +4,12 @@ from clients.artifacts_info import (
     ArtifactsInfoResultDTO,
     LogArtifactResponseDTO,
 )
-from domain.experiment_artifacts.service import (
-    ExperimentArtifactsService,
-    ExperimentArtifactsServiceProtocol,
-    NoOpExperimentArtifactsService,
-)
-from domain.experiment_artifacts.repository import ExperimentArtifactRepository
-from domain.project_artifacts.service import (
-    ProjectArtifactsService,
-    ProjectArtifactsServiceProtocol,
-    NoOpProjectArtifactsService,
-)
+from domain.experiment_artifacts.noop_service import NoOpExperimentArtifactsService
+from domain.experiment_artifacts.protocol import ExperimentArtifactsServiceProtocol
+from domain.experiment_artifacts.service import ExperimentArtifactsService
+from domain.project_artifacts.noop_service import NoOpProjectArtifactsService
+from domain.project_artifacts.protocol import ProjectArtifactsServiceProtocol
+from domain.project_artifacts.service import ProjectArtifactsService
 from clients.object_storage import ObjectStorageClient
 from clients.scalars import ScalarsServiceClient
 from domain.scalars.service import (
@@ -108,12 +103,6 @@ async def get_experiment_repository(
     return ExperimentRepository(db=session)
 
 
-async def get_experiment_artifact_repository(
-    session: AsyncSession = Depends(get_async_session),
-) -> ExperimentArtifactRepository:
-    return ExperimentArtifactRepository(session)
-
-
 async def get_experiment_service(
     session: AsyncSession = Depends(get_async_session),
     experiment_repository: ExperimentRepository = Depends(get_experiment_repository),
@@ -142,9 +131,6 @@ async def get_scalars_service(
 async def get_experiment_artifacts_service(
     permission_checker: PermissionChecker = Depends(get_permission_checker),
     experiment_repository: ExperimentRepository = Depends(get_experiment_repository),
-    artifact_repository: ExperimentArtifactRepository = Depends(
-        get_experiment_artifact_repository
-    ),
 ) -> ExperimentArtifactsServiceProtocol:
     settings = get_settings()
     scalars_url = settings.scalars_service_url
@@ -161,7 +147,6 @@ async def get_experiment_artifacts_service(
             artifacts_info_at_step_client=artifacts_client,
             permission_checker=permission_checker,
             experiment_repository=experiment_repository,
-            artifact_repository=artifact_repository,
         )
     return NoOpExperimentArtifactsService()
 

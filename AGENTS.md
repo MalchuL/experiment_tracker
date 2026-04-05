@@ -1,37 +1,153 @@
 # AGENTS
 
-Quick project-specific guidance for coding agents.
+Guidance for coding agents working on this repository: architecture, layout, and how to run things.
 
-## Frontend
-- This repo uses Turborepo. Run the frontend through Turborepo, not directly.
-- Inside `apps/`, use `pnpm` for all frontend commands.
+## High-level architecture
 
-Example commands:
-- From repo root: `pnpm dlx turbo dev`
-- From `apps/web`: `pnpm run dev`
+This is a **monorepo** for an **ML experiment tracker**: projects, experiments, metrics/scalars, and file artifacts (per experiment or per project). The browser talks to a **Next.js** app, which proxies API calls to a **Python backend**. The backend owns **relational state** (PostgreSQL) and orchestrates two satellite services: **scalars** (time-series and artifact metadata in ClickHouse) and **object storage** (content-addressed blobs in S3-compatible storage).
 
-# Web
-- This is main frontend project.
-- Firstly exports `export NEXT_PUBLIC_BASE_URL=http://127.0.0.1:8000` to use backend.
-- Then run `pnpm run dev` to start the frontend.
+```mermaid
+flowchart LR
+  Web["apps/web\n(Next.js)"]
+  API["python/backend\n(FastAPI + Postgres)"]
+  Scalars["python/scalars_service\n(FastAPI + ClickHouse)"]
+  Blobs["python/object_storage\n(FastAPI + MinIO/S3)"]
+  SDK["python/sdk\n(client library)"]
 
-## Python
-- Use `uv` for Python workflows.
-- The only Python subproject is `python/backend`.
+  Web -->|"HTTP / BFF routes"| API
+  API --> Scalars
+  API --> Blobs
+  SDK --> API
+```
 
-Example commands:
-- From `python/backend`: `uv run pytest`
-- From `python/backend`: `uv run python -m src.main`
+- **Frontend (`apps/web`)**: UI, dashboard, charts. Uses **Route Handlers** under `src/app/api/` as a BFF that forwards to the backend with auth cookies/headers.
+- **Backend (`python/backend`)**: Primary API (`api.main:app`), users/teams/RBAC, projects, experiments, hypotheses, metrics orchestration. Calls **scalars_service** and **object_storage** via HTTP clients in `src/clients/`.
+- **Scalars service (`python/scalars_service`)**: Stores scalar runs, tags, **artifacts_info** tables (per-project), and related query APIs. Backed by **ClickHouse** (and supporting infra as configured in that package).
+- **Object storage (`python/object_storage`)**: Upload/download/delete for experiment and project blobs; uses **MinIO** or **S3** and metadata in Postgres.
+- **SDK (`python/sdk`)**: `experiment_tracker_sdk` — typed HTTP client used by training jobs and tools to talk to the backend API.
+- **Shared (`python/shared`)**: Shared Python types/utilities consumed by other Python packages where applicable.
 
-## Backend
+## Repository layout (where things live)
 
-# Python Backend
-- Use `uv` for Python workflows.
-- The only Python subproject is `python/backend`.
+| Path | Role |
+|------|------|
+| `apps/web/` | Next.js app (pnpm). UI, `src/app/api/*` BFF proxies to backend. |
+| `python/backend/src/` | FastAPI app: `api/` routes, `domain/*` bounded contexts, `clients/*` HTTP clients, `db/`, `lib/`. |
+| `python/scalars_service/src/` | FastAPI scalars/artifacts_info service. |
+| `python/object_storage/src/` | FastAPI storage service (buckets, experiment/project artifacts). |
+| `python/sdk/src/experiment_tracker_sdk/` | Public Python SDK for the tracker API. |
+| `python/shared/` | Shared package (`experiment-tracker-shared`). |
+| `examples/training/` | Example training integration (optional). |
+| `turbo.json` | Turborepo task graph (`build`, `dev`, etc.). |
 
-Running tests:
-Example command: `uv run pytest -s -v tests/`
+Domain concepts in the backend are grouped under `python/backend/src/domain/` (e.g. `experiments/`, `projects/`, `metrics/`, `scalars/`, `experiment_artifacts/`, `project_artifacts/`, `rbac/`, `team/`, `api_tokens/`).
 
-Running the server:
-Set database url via `export DATABASE_URL="postgresql://myuser:myuser@localhost:5432/experiment_tracker` - Use as is (This database set up for development purposes).
-Example command: `uv run uvicorn api.main:app --reload --port 8000 --log-level debug`
+## Artifact logging flows
+
+Training code and UIs upload files through three different patterns. **SDK URL templates** live in request-spec factories; **HTTP clients** in the backend point at the satellite services.
+
+| Layer | Experiment @ step | Experiment named (no step) | Project CAS (shared) |
+|-------|---------------------|------------------------------|------------------------|
+| **SDK endpoint definitions** | `python/sdk/src/experiment_tracker_sdk/client/domain/experiment_artifacts/service.py` (`ENDPOINTS`, e.g. `log-at-step`) | Same package: `upsert` / `get` / `download` routes | `python/sdk/src/experiment_tracker_sdk/client/domain/project_artifacts/service.py` (`BASE_ENDPOINT = /api/project-artifacts`) |
+| **SDK convenience API** | `python/sdk/src/experiment_tracker_sdk/client/blob_api.py` (`upload_and_log_experiment_artifact_at_step`) | `blob_api.py` (`upsert_named_experiment_artifact`, etc.) | `blob_api.py` (`upload_project_artifact`: hash check + upload) |
+| **High-level trainer** | `python/sdk/src/experiment_tracker_sdk/exp_tracker.py` (`_upload_and_log_experiment_artifact_at_step`, `_upload_project_artifact`) | (named flows often via direct API / blob helpers) | `_upload_project_artifact` |
+| **API composition** | `python/sdk/src/experiment_tracker_sdk/client/api.py` exposes `experiment_artifacts` and `project_artifacts` factories | | |
+
+### 1) Upload **at step** (logged objects during training)
+
+Use case: images, audio, or other outputs tied to **`global_step`**, with metadata in scalars for UI queries (by step, name, type).
+
+1. **SDK** builds `POST /api/experiment-artifacts/{experiment_id}/log-at-step` (multipart: file + `name`, `artifact_type`, `step`, optional `metadata` / `tags`). See `experiment_artifacts/service.py` and `blob_api.upload_and_log_experiment_artifact_at_step`.
+2. **Backend** `python/backend/src/domain/experiment_artifacts/controller.py` → `ExperimentArtifactsService.upload_and_log_experiment_artifact_at_step` in `domain/experiment_artifacts/service.py`.
+3. **Object storage**: upload **untracked** blob; service computes/stores content and returns a **content hash** used as the logical key. The backend calls through `python/backend/src/clients/object_storage/client.py` → object_storage routes such as `POST .../experiment-artifacts/projects/{project_id}/experiments/{experiment_id}/upload-untracked` (see `python/object_storage/src/object_storage/domain/experiment_artifacts_storage/controller.py`).
+4. **Scalars**: backend calls `python/backend/src/clients/artifacts_info/client.py` → `POST /artifacts_info/log/{project_id}/{experiment_id}` on **scalars_service**, which persists a row in **artifacts_info** (step, name, type, **path = hash**, metadata). Implementation: `python/scalars_service/src/app/domain/artifacts_info/` (`controller.py`, `service.py`).
+
+Downloads at step resolve **hash via scalars** (`get_artifacts` with step/name filters) then fetch bytes from object storage — see `download_experiment_artifact_at_step` in the same backend service.
+
+```mermaid
+sequenceDiagram
+  participant SDK
+  participant Backend
+  participant Obj as object_storage
+  participant Sc as scalars_service
+
+  SDK->>Backend: POST log-at-step (multipart)
+  Backend->>Obj: upload untracked blob → hash
+  Backend->>Sc: POST artifacts_info log (hash, step, name, type, …)
+```
+
+### 2) Upload **without step** (named / “tracked” experiment artifacts)
+
+Use case: checkpoints, configs, final exports: stable **`name` + `filepath`**, rich metadata and listing — **no** `artifacts_info` / step table in scalars.
+
+1. **SDK** uses routes like **`POST /api/experiment-artifacts/upsert`** (see `experiment_artifacts/service.py` and `blob_api.upsert_named_experiment_artifact`).
+2. **Backend** `python/backend/src/domain/experiment_artifacts/controller.py` (`/upsert`) → `ExperimentArtifactsService.upsert_experiment_artifact` in `service.py`.
+3. **Object storage** only: **tracked** upload with `file_path`, content hash, MIME type, and metadata; the **object_storage** service stores the blob and **database rows** for listing (hash, path, filename-derived fields, etc.). Client paths are defined in `python/backend/src/clients/object_storage/client.py` (e.g. `upload-tracked`, list/delete artifact routes under `experiment-artifacts/projects/.../experiments/...`).
+
+This path does **not** call **scalars_service** `artifacts_info` for logging.
+
+### 3) Upload to **project** scope (shared across experiments)
+
+Use case: **code snapshots, datasets, shared assets** — **content-addressed storage (CAS)** per project so identical bytes are stored once and referenced by hash.
+
+1. **SDK** (`blob_api.upload_project_artifact`): compute SHA-256 → **`POST /api/project-artifacts/{project_id}/check`** with hashes → if hash **missing**, **`POST /api/project-artifacts/{project_id}/upload?hash=...`** with file. Endpoints: `python/sdk/src/experiment_tracker_sdk/client/domain/project_artifacts/service.py`.
+2. **Backend** `python/backend/src/domain/project_artifacts/controller.py` + `domain/project_artifacts/service.py` — **only** forwards to **object_storage** (no scalars step logging).
+3. **Object storage** stores the blob and project-level metadata in its DB (dedup by hash). See `python/object_storage` project-artifacts domain and `python/backend/src/clients/object_storage/client.py` (`check_project_artifacts`, `upload_project_artifact`, etc.).
+
+```mermaid
+sequenceDiagram
+  participant SDK
+  participant Backend
+  participant Obj as object_storage
+
+  SDK->>Backend: POST check (hashes)
+  alt hash missing
+    SDK->>Backend: POST upload?hash=…
+    Backend->>Obj: store blob + metadata (CAS)
+  end
+```
+
+## Python: use `uv`
+
+**All Python subprojects in this repo use [uv](https://docs.astral.sh/uv/)** for environments, dependency sync, and command execution. Each Python package has its own `pyproject.toml` and typically its own `.venv` when you run commands from that directory.
+
+Work from the package root, for example:
+
+- `cd python/backend && uv run pytest`
+- `cd python/backend && uv run uvicorn api.main:app --reload --port 8000`
+- `cd python/scalars_service && uv run pytest`
+- `cd python/object_storage && uv run pytest`
+- `cd python/sdk && uv run pytest`
+
+Do **not** assume a single global `python/backend`-only layout; **scalars_service**, **object_storage**, and **sdk** are first-class packages with their own `uv` workflows.
+
+## Frontend: Turborepo and pnpm
+
+- Orchestrated with **Turborepo** (`turbo.json`). Prefer running tasks via Turbo from the repo root when appropriate.
+- Inside `apps/web`, use **pnpm** for install and scripts.
+
+Examples:
+
+- From repo root: `pnpm dlx turbo dev` (or your repo’s documented dev task).
+- From `apps/web`: `pnpm run dev`.
+
+For local development against the backend, set the web env so the UI and BFF target the API (for example `NEXT_PUBLIC_BASE_URL=http://127.0.0.1:8000`).
+
+## Backend (main API) quick reference
+
+- **Run server** (from `python/backend`):  
+  `uv run uvicorn api.main:app --reload --port 8000 --log-level debug`
+- **Database**: PostgreSQL via `DATABASE_URL`, e.g.  
+  `export DATABASE_URL="postgresql://myuser:myuser@localhost:5432/experiment_tracker"`  
+  (example for local dev; adjust to your environment).
+- **Tests**: `uv run pytest -s -v tests/` from `python/backend`.
+
+The HTTP API is mounted with a configurable prefix (see `config/settings.py` / `api_prefix`); client code and the Next.js BFF should stay aligned with that prefix.
+
+## Cross-service configuration
+
+Running the full stack locally requires the backend plus whatever URLs you configure for **scalars** and **object storage** services (and their databases/ClickHouse). Those are typically set via environment variables consumed by `python/backend`’s settings and the respective services’ configs—check each package’s `config` or `README` when wiring a new environment.
+
+## Documentation policy for agents
+
+Prefer updating this file or code comments when changing global runbooks; avoid adding new markdown files unless the user asks for them.

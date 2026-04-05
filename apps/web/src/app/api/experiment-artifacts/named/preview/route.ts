@@ -58,12 +58,13 @@ export async function GET(request: Request) {
   const token = (await cookies()).get("auth_token")?.value;
   const requestUrl = new URL(request.url);
   const experimentId = requestUrl.searchParams.get("experiment_id");
-  const name = requestUrl.searchParams.get("name");
   const filepath = requestUrl.searchParams.get("filepath");
+  const blobId = requestUrl.searchParams.get("blob_id");
+  const artifactHash = requestUrl.searchParams.get("artifact_hash");
   const maxBytesRaw = Number(requestUrl.searchParams.get("max_bytes") ?? DEFAULT_MAX_BYTES);
   const maxBytes = Number.isFinite(maxBytesRaw) && maxBytesRaw > 0 ? maxBytesRaw : DEFAULT_MAX_BYTES;
 
-  if (!experimentId || !name || !filepath) {
+  if (!experimentId || (!filepath && !blobId && !artifactHash)) {
     return Response.json(
       { status: "decode_error", message: "Missing required query parameters", sizeBytes: 0, contentType: "application/octet-stream" } satisfies PreviewResponse,
       { status: 400 }
@@ -72,8 +73,9 @@ export async function GET(request: Request) {
 
   const targetUrl = new URL(`${env.BASE_URL}/api/experiment-artifacts/download`);
   targetUrl.searchParams.set("experiment_id", experimentId);
-  targetUrl.searchParams.set("name", name);
-  targetUrl.searchParams.set("filepath", filepath);
+  if (filepath) targetUrl.searchParams.set("filepath", filepath);
+  if (blobId) targetUrl.searchParams.set("blob_id", blobId);
+  if (artifactHash) targetUrl.searchParams.set("artifact_hash", artifactHash);
 
   const response = await fetch(targetUrl.toString(), {
     method: "GET",
@@ -92,7 +94,7 @@ export async function GET(request: Request) {
   const contentLength = Number(response.headers.get("content-length") ?? NaN);
   const declaredSize = Number.isFinite(contentLength) && contentLength >= 0 ? contentLength : 0;
 
-  if (!isTextByExtension(filepath) && !isTextByContentType(contentType)) {
+  if (!isTextByExtension(filepath ?? "") && !isTextByContentType(contentType)) {
     return Response.json({
       status: "binary",
       message: "Binary file can't be shown in UI preview.",

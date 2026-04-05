@@ -36,17 +36,26 @@ class FakeArtifactsService:
             updated_at=now,
         )
 
-    async def get_experiment_artifact(self, user, experiment_id, name, filepath):
+    async def get_experiment_artifact(
+        self, user, experiment_id, filepath=None, blob_id=None, artifact_hash=None
+    ):
         raise ExperimentArtifactNotFoundError("not found")
 
-    async def download_experiment_artifact(self, user, experiment_id, name, filepath):
+    async def download_experiment_artifact(
+        self, user, experiment_id, filepath=None, blob_id=None, artifact_hash=None
+    ):
         return b"payload", "application/octet-stream", "artifact.bin"
 
     async def download_experiment_artifacts_archive(self, user, experiment_id, name):
         raise ExperimentArtifactNotFoundError("archive not found")
 
     async def delete_experiment_artifacts(
-        self, user, experiment_id, name, filepath=None
+        self,
+        user,
+        experiment_id,
+        filepath=None,
+        blob_id=None,
+        artifact_hash=None,
     ) -> ExperimentArtifactsDeleteResponseDTO:
         return ExperimentArtifactsDeleteResponseDTO(deleted_count=1)
 
@@ -94,7 +103,6 @@ def test_get_artifact_not_found_maps_to_404(client: TestClient) -> None:
         "/api/v1/experiment-artifacts/get",
         params={
             "experiment_id": str(uuid4()),
-            "name": "configs",
             "filepath": "missing.yaml",
         },
     )

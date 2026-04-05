@@ -124,12 +124,18 @@ class BlobAPI:
         )
 
     def download_experiment_artifact_at_step(
-        self, experiment_id: str, path: str
+        self,
+        experiment_id: str,
+        step: int,
+        name: str,
+        artifact_type: str | None = None,
     ) -> bytes:
-        """Download artifact by path from experiment bucket."""
+        """Download artifact bytes for a logged step/name (resolved via scalars)."""
         request_spec = self.experiment_artifacts.download_experiment_artifact_at_step(
             experiment_id=experiment_id,
-            path=path,
+            step=step,
+            name=name,
+            artifact_type=artifact_type,
         )
         return self._tracker_client.download_file(
             path=request_spec.endpoint,
@@ -161,10 +167,18 @@ class BlobAPI:
             tags=tags,
         )
 
-    def download_experiment_artifact(self, experiment_id: str, path: str) -> bytes:
+    def download_experiment_artifact(
+        self,
+        experiment_id: str,
+        step: int,
+        name: str,
+        artifact_type: str | None = None,
+    ) -> bytes:
         return self.download_experiment_artifact_at_step(
             experiment_id=experiment_id,
-            path=path,
+            step=step,
+            name=name,
+            artifact_type=artifact_type,
         )
 
     def download_project_artifact_to_file(

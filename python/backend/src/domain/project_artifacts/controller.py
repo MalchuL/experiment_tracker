@@ -28,7 +28,7 @@ from domain.rbac.permissions import ProjectActions
 from models import User
 
 from .error import ProjectArtifactsNotAccessibleError
-from .service import ProjectArtifactsServiceProtocol
+from .protocol import ProjectArtifactsServiceProtocol
 
 router = APIRouter(prefix="/project-artifacts", tags=["project-artifacts"])
 

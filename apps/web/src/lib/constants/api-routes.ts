@@ -157,25 +157,66 @@ export const API_ROUTES = {
         GET_AT_STEP: (projectId: string) =>
           `/api/experiment-artifacts/projects/${projectId}/get-at-step`,
       },
-      DOWNLOAD_AT_STEP: (experimentId: string, path: string, mediaType?: string) =>
-        mediaType
-          ? `/api/experiment-artifacts/${experimentId}/download-at-step?path=${encodeURIComponent(path)}&media_type=${encodeURIComponent(mediaType)}`
-          : `/api/experiment-artifacts/${experimentId}/download-at-step?path=${encodeURIComponent(path)}`,
-      DELETE_AT_STEP: (experimentId: string, path: string) =>
-        `/api/experiment-artifacts/${experimentId}/at-step?path=${encodeURIComponent(path)}`,
+      DOWNLOAD_AT_STEP: (
+        experimentId: string,
+        step: number,
+        name: string,
+        artifactType?: string,
+        mediaType?: string
+      ) => {
+        const q = new URLSearchParams();
+        q.set("step", String(step));
+        q.set("name", name);
+        if (artifactType) q.set("artifact_type", artifactType);
+        if (mediaType) q.set("media_type", mediaType);
+        return `/api/experiment-artifacts/${experimentId}/download-at-step?${q.toString()}`;
+      },
+      DELETE_AT_STEP: (experimentId: string, hash: string) =>
+        `/api/experiment-artifacts/${experimentId}/at-step?hash=${encodeURIComponent(hash)}`,
       DELETE_ALL_AT_STEP: (experimentId: string) =>
         `/api/experiment-artifacts/${experimentId}/at-step`,
       UPSERT: "/api/experiment-artifacts/upsert",
-      GET: (experimentId: string, name: string, filepath: string) =>
-        `/api/experiment-artifacts/get?experiment_id=${encodeURIComponent(experimentId)}&name=${encodeURIComponent(name)}&filepath=${encodeURIComponent(filepath)}`,
-      DOWNLOAD: (experimentId: string, name: string, filepath: string) =>
-        `/api/experiment-artifacts/download?experiment_id=${encodeURIComponent(experimentId)}&name=${encodeURIComponent(name)}&filepath=${encodeURIComponent(filepath)}`,
+      GET: (
+        experimentId: string,
+        filepath?: string,
+        blobId?: string,
+        artifactHash?: string
+      ) => {
+        const q = new URLSearchParams();
+        q.set("experiment_id", experimentId);
+        if (filepath) q.set("filepath", filepath);
+        if (blobId) q.set("blob_id", blobId);
+        if (artifactHash) q.set("artifact_hash", artifactHash);
+        return `/api/experiment-artifacts/get?${q.toString()}`;
+      },
+      DOWNLOAD: (
+        experimentId: string,
+        filepath?: string,
+        blobId?: string,
+        artifactHash?: string
+      ) => {
+        const q = new URLSearchParams();
+        q.set("experiment_id", experimentId);
+        if (filepath) q.set("filepath", filepath);
+        if (blobId) q.set("blob_id", blobId);
+        if (artifactHash) q.set("artifact_hash", artifactHash);
+        return `/api/experiment-artifacts/download?${q.toString()}`;
+      },
       DOWNLOAD_ARCHIVE: (experimentId: string, name: string) =>
         `/api/experiment-artifacts/download/archive?experiment_id=${encodeURIComponent(experimentId)}&name=${encodeURIComponent(name)}`,
-      DELETE: (experimentId: string, name: string, filepath?: string) =>
-        filepath
-          ? `/api/experiment-artifacts/delete?experiment_id=${encodeURIComponent(experimentId)}&name=${encodeURIComponent(name)}&filepath=${encodeURIComponent(filepath)}`
-          : `/api/experiment-artifacts/delete?experiment_id=${encodeURIComponent(experimentId)}&name=${encodeURIComponent(name)}`,
+      DELETE: (
+        experimentId: string,
+        filepath?: string,
+        blobId?: string,
+        artifactHash?: string
+      ) => {
+        const q = new URLSearchParams();
+        q.set("experiment_id", experimentId);
+        if (filepath) q.set("filepath", filepath);
+        if (blobId) q.set("blob_id", blobId);
+        if (artifactHash) q.set("artifact_hash", artifactHash);
+        return `/api/experiment-artifacts/delete?${q.toString()}`;
+      },
     },
     PROJECT_ARTIFACTS: {
       ARTIFACTS: {

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from typing import Any, Protocol, cast
 from uuid import UUID
 
@@ -14,9 +15,12 @@ from .dto import (
     DeleteExperimentArtifactsResponseDTO,
     DeleteProjectArtifactResponseDTO,
     DeleteProjectResponseDTO,
+    ExperimentTrackedArtifactItemDTO,
+    ExperimentTrackedArtifactInfoDTO,
+    ExperimentTrackedUploadResponseDTO,
+    ExperimentUntrackedUploadResponseDTO,
     SnapshotCreateRequestDTO,
     SnapshotCreateResponseDTO,
-    UploadExperimentArtifactResponseDTO,
     UploadProjectArtifactResponseDTO,
 )
 
@@ -127,10 +131,27 @@ class ObjectStorageClient:
         "download_project_snapshot": lambda project_id, snapshot_id: f"/project-artifacts/{project_id}/snapshots/{snapshot_id}/download",
         "delete_project_artifact": lambda project_id, artifact_hash: f"/project-artifacts/{project_id}/artifacts/{artifact_hash}",
         "delete_project": lambda project_id: f"/project-artifacts/{project_id}",
-        "upload_experiment_artifact": lambda experiment_id: f"/experiment-artifacts/{experiment_id}/upload",
-        "download_experiment_artifact": lambda experiment_id: f"/experiment-artifacts/{experiment_id}/download",
-        "delete_experiment_artifact": lambda experiment_id: f"/experiment-artifacts/{experiment_id}",
-        "delete_experiment_artifacts": lambda experiment_id: f"/experiment-artifacts/experiments/{experiment_id}",
+        "upload_experiment_untracked": lambda pid, eid: (
+            f"/experiment-artifacts/projects/{pid}/experiments/{eid}/upload-untracked"
+        ),
+        "upload_experiment_tracked": lambda pid, eid: (
+            f"/experiment-artifacts/projects/{pid}/experiments/{eid}/upload-tracked"
+        ),
+        "list_experiment_tracked": lambda pid, eid: (
+            f"/experiment-artifacts/projects/{pid}/experiments/{eid}/artifacts"
+        ),
+        "get_experiment_tracked_info": lambda pid, eid: (
+            f"/experiment-artifacts/projects/{pid}/experiments/{eid}/artifacts/info"
+        ),
+        "download_experiment_artifact": lambda pid, eid, h: (
+            f"/experiment-artifacts/projects/{pid}/experiments/{eid}/artifacts/{h}"
+        ),
+        "delete_experiment_artifact": lambda pid, eid, h: (
+            f"/experiment-artifacts/projects/{pid}/experiments/{eid}/artifacts/{h}"
+        ),
+        "delete_all_experiment_artifacts": lambda pid, eid: (
+            f"/experiment-artifacts/projects/{pid}/experiments/{eid}"
+        ),
     }
 
     def __init__(
@@ -176,7 +197,7 @@ class ObjectStorageClient:
             base_url=self.base_url,
             path=self.ENDPOINTS["upload_project_artifact"](project_id),
             upload=upload,
-            params={"hash": artifact_hash},
+            params={"artifact_hash": artifact_hash},
             timeout=None,
         )
         return UploadProjectArtifactResponseDTO.model_validate(response)
@@ -261,68 +282,142 @@ class ObjectStorageClient:
         )
         return DeleteProjectResponseDTO.model_validate(response)
 
-    async def upload_experiment_artifact(
-        self, experiment_id: UUID, file: UploadFile, path: str | None = None
-    ) -> UploadExperimentArtifactResponseDTO:
-        """Upload an experiment artifact to the object storage.
-
-        Args:
-            experiment_id: The ID of the experiment.
-            file: The upload file.
-        """
+    async def upload_experiment_untracked(
+        self,
+        project_id: UUID,
+        experiment_id: UUID,
+        file: UploadFile,
+        artifact_hash: str | None = None,
+    ) -> ExperimentUntrackedUploadResponseDTO:
+        params: dict[str, Any] | None = (
+            {"artifact_hash": artifact_hash} if artifact_hash else None
+        )
         response = await self._transfer_strategy.upload_file(
             base_url=self.base_url,
-            path=self.ENDPOINTS["upload_experiment_artifact"](experiment_id),
+            path=self.ENDPOINTS["upload_experiment_untracked"](
+                project_id, experiment_id
+            ),
             upload=file,
-            params={"path": path} if path else None,
+            params=params,
             timeout=None,
         )
-        return UploadExperimentArtifactResponseDTO.model_validate(response)
+        return ExperimentUntrackedUploadResponseDTO.model_validate(response)
+
+    async def upload_experiment_tracked(
+        self,
+        project_id: UUID,
+        experiment_id: UUID,
+        file: UploadFile,
+        artifact_hash: str | None = None,
+        file_path: str | None = None,
+        content_type: str | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> ExperimentTrackedUploadResponseDTO:
+        params: dict[str, Any] = {}
+        if content_type is not None:
+            params["content_type"] = content_type
+        if artifact_hash is not None:
+            params["artifact_hash"] = artifact_hash
+        if file_path is not None:
+            params["file_path"] = file_path
+        if metadata is not None:
+            params["metadata"] = json.dumps(metadata)
+        response = await self._transfer_strategy.upload_file(
+            base_url=self.base_url,
+            path=self.ENDPOINTS["upload_experiment_tracked"](project_id, experiment_id),
+            upload=file,
+            params=params,
+            timeout=None,
+        )
+        return ExperimentTrackedUploadResponseDTO.model_validate(response)
+
+    async def list_experiment_tracked_artifacts(
+        self,
+        project_id: UUID,
+        experiment_id: UUID,
+        *,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> list[ExperimentTrackedArtifactItemDTO]:
+        path = self.ENDPOINTS["list_experiment_tracked"](project_id, experiment_id)
+        url = f"{self.base_url}{path}"
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.request(
+                "GET",
+                url,
+                params={"limit": limit, "offset": offset},
+            )
+            response.raise_for_status()
+            payload = response.json()
+        if not isinstance(payload, list):
+            msg = "Expected list of tracked artifacts from object storage"
+            raise TypeError(msg)
+        return [
+            ExperimentTrackedArtifactItemDTO.model_validate(item) for item in payload
+        ]
+
+    async def get_experiment_tracked_artifact_info(
+        self,
+        project_id: UUID,
+        experiment_id: UUID,
+        *,
+        file_path: str | None = None,
+        blob_id: UUID | None = None,
+        artifact_hash: str | None = None,
+    ) -> ExperimentTrackedArtifactInfoDTO:
+        params: dict[str, Any] = {}
+        if file_path is not None:
+            params["file_path"] = file_path
+        if blob_id is not None:
+            params["blob_id"] = str(blob_id)
+        if artifact_hash is not None:
+            params["artifact_hash"] = artifact_hash
+        response = await self._request(
+            "GET",
+            self.ENDPOINTS["get_experiment_tracked_info"](project_id, experiment_id),
+            params=params,
+        )
+        return ExperimentTrackedArtifactInfoDTO.model_validate(response)
 
     async def download_experiment_artifact(
-        self, experiment_id: UUID, path: str
+        self,
+        project_id: UUID,
+        experiment_id: UUID,
+        artifact_hash: str,
+        *,
+        tracked: bool = False,
     ) -> httpx.Response:
-        """Download an experiment artifact from the object storage.
-
-        Args:
-            experiment_id: The ID of the experiment.
-            path: The path of the experiment artifact.
-
-        Returns:
-            The response from the object storage.
-        """
         response = await self._transfer_strategy.download_response(
             base_url=self.base_url,
-            path=self.ENDPOINTS["download_experiment_artifact"](experiment_id),
-            params={"path": path},
+            path=self.ENDPOINTS["download_experiment_artifact"](
+                project_id, experiment_id, artifact_hash
+            ),
+            params={"tracked": "true" if tracked else "false"},
         )
         return response
 
     async def delete_experiment_artifact(
-        self, experiment_id: UUID, path: str
+        self,
+        project_id: UUID,
+        experiment_id: UUID,
+        artifact_hash: str,
     ) -> DeleteExperimentArtifactResponseDTO:
-        """Delete an experiment artifact from the object storage.
-
-        Args:
-            experiment_id: The ID of the experiment.
-            path: The path of the experiment artifact.
-
-        Returns:
-            The response from the object storage.
-        """
         response = await self._request(
             "DELETE",
-            self.ENDPOINTS["delete_experiment_artifact"](experiment_id),
-            params={"path": path},
+            self.ENDPOINTS["delete_experiment_artifact"](
+                project_id, experiment_id, artifact_hash
+            ),
         )
         return DeleteExperimentArtifactResponseDTO.model_validate(response)
 
-    async def delete_experiment_artifacts(
-        self, experiment_id: UUID
+    async def delete_all_experiment_artifacts(
+        self, project_id: UUID, experiment_id: UUID
     ) -> DeleteExperimentArtifactsResponseDTO:
         response = await self._request(
             "DELETE",
-            self.ENDPOINTS["delete_experiment_artifacts"](experiment_id),
+            self.ENDPOINTS["delete_all_experiment_artifacts"](
+                project_id, experiment_id
+            ),
         )
         return DeleteExperimentArtifactsResponseDTO.model_validate(response)
 

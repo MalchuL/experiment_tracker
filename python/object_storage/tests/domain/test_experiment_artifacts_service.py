@@ -59,7 +59,9 @@ class FakeBucketsService:
         return "bucket"
 
     async def upload_blob(self, project_id, experiment_id, upload, artifact_hash):
-        self.upload_blob_calls.append((str(project_id), str(experiment_id), artifact_hash))
+        self.upload_blob_calls.append(
+            (str(project_id), str(experiment_id), artifact_hash)
+        )
         self.upload_result = UploadBlobResult(
             size=len(await upload.read()), hash=artifact_hash
         )
@@ -100,7 +102,9 @@ class FakeArtifactsRepository:
         self.delete_blob_calls: list[tuple[str, str, str]] = []
         self.delete_all_calls: list[tuple[str, str]] = []
 
-    async def create_experiment_blob(self, experiment_blob: ExperimentBlob) -> ExperimentBlob:
+    async def create_experiment_blob(
+        self, experiment_blob: ExperimentBlob
+    ) -> ExperimentBlob:
         if experiment_blob.id is None:
             experiment_blob.id = uuid4()
         self.created.append(experiment_blob)
@@ -112,11 +116,21 @@ class FakeArtifactsRepository:
         _ = (project_id, experiment_id, limit, offset)
         return self.list_result
 
-    async def get_experiment_blob(self, project_id, experiment_id, artifact_hash):
-        _ = (project_id, experiment_id, artifact_hash)
+    async def get_experiment_blob(
+        self,
+        project_id,
+        experiment_id,
+        artifact_hash=None,
+        *,
+        file_path=None,
+        blob_id=None,
+    ):
+        _ = (project_id, experiment_id, artifact_hash, file_path, blob_id)
         return self.get_result
 
-    async def delete_experiment_blob(self, project_id, experiment_id, artifact_hash) -> bool:
+    async def delete_experiment_blob(
+        self, project_id, experiment_id, artifact_hash
+    ) -> bool:
         self.delete_blob_calls.append(
             (str(project_id), str(experiment_id), artifact_hash)
         )
@@ -153,7 +167,9 @@ async def test_upload_artifact_and_forget_stores_hash_and_size() -> None:
 
     assert result.hash
     assert result.size == len(payload)
-    assert buckets_service.ensure_bucket_calls == [(str(project_id), str(experiment_id))]
+    assert buckets_service.ensure_bucket_calls == [
+        (str(project_id), str(experiment_id))
+    ]
     assert buckets_service.upload_blob_calls[0][0:2] == (
         str(project_id),
         str(experiment_id),
@@ -423,10 +439,32 @@ async def test_delete_experiment_deletes_bucket_and_metadata() -> None:
 
     result = await service.delete_experiment(project_id, experiment_id)
 
-    assert buckets_service.delete_bucket_calls == [(str(project_id), str(experiment_id))]
+    assert buckets_service.delete_bucket_calls == [
+        (str(project_id), str(experiment_id))
+    ]
     assert repo.delete_all_calls == [(str(project_id), str(experiment_id))]
     assert repo.commit_called is True
-    assert result.deleted_count == 0
+    assert result.deleted_count == -1
+
+
+@pytest.mark.asyncio
+async def test_delete_artifact_when_hash_not_in_database_still_deletes_blob() -> None:
+    project_id = uuid4()
+    experiment_id = uuid4()
+    missing_hash = "f" * 64
+    buckets_service = FakeBucketsService()
+    repo = FakeArtifactsRepository()
+    repo.get_result = None
+    service = ArtifactsStorageService(buckets_service, repo)
+
+    result = await service.delete_artifact(project_id, experiment_id, missing_hash)
+
+    assert result.deleted is True
+    assert repo.delete_blob_calls == [(str(project_id), str(experiment_id), missing_hash)]
+    assert buckets_service.delete_blob_calls == [
+        (str(project_id), str(experiment_id), missing_hash)
+    ]
+    assert repo.commit_called is True
 
 
 @pytest.mark.asyncio
@@ -461,7 +499,9 @@ async def test_upload_tracked_invalid_path_rolls_back_and_removes_s3_object() ->
 
 
 @pytest.mark.asyncio
-async def test_upload_tracked_integrity_error_rolls_back_and_removes_s3_object() -> None:
+async def test_upload_tracked_integrity_error_rolls_back_and_removes_s3_object() -> (
+    None
+):
     project_id = uuid4()
     experiment_id = uuid4()
     buckets_service = FakeBucketsService()
@@ -491,7 +531,9 @@ async def test_upload_tracked_integrity_error_rolls_back_and_removes_s3_object()
 
 
 @pytest.mark.asyncio
-async def test_upload_untracked_commit_failure_rolls_back_and_removes_s3_object() -> None:
+async def test_upload_untracked_commit_failure_rolls_back_and_removes_s3_object() -> (
+    None
+):
     project_id = uuid4()
     experiment_id = uuid4()
     buckets_service = FakeBucketsService(commit_raises=True)

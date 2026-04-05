@@ -64,6 +64,7 @@ class ArtifactsInfoClient:
         experiment_ids: Iterable[UUID] | None = None,
         artifact_types: Iterable[str] | None = None,
         artifact_names: Iterable[str] | None = None,
+        steps: Iterable[int] | None = None,
         start_time: str | None = None,
         end_time: str | None = None,
     ) -> ArtifactsInfoResultDTO:
@@ -74,6 +75,7 @@ class ArtifactsInfoClient:
             experiment_ids: The IDs of the experiments (that under project).
             artifact_types: The types of the artifacts.
             artifact_names: The names of the artifacts.
+            steps: Training step indices to filter by.
             start_time: The start time of the artifacts.
             end_time: The end time of the artifacts.
 
@@ -87,6 +89,8 @@ class ArtifactsInfoClient:
             params["artifact_type"] = list(artifact_types)
         if artifact_names:
             params["artifact_name"] = list(artifact_names)
+        if steps:
+            params["step"] = list(steps)
         if start_time:
             params["start_time"] = start_time
         if end_time:

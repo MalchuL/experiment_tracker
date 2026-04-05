@@ -122,6 +122,7 @@ class ArtifactsInfoService:
         experiment_id: UUID | list[UUID] | tuple[UUID, ...] | None = None,
         artifact_types: list[str] | None = None,
         artifact_names: list[str] | None = None,
+        steps: list[int] | None = None,
         start_time: datetime | None = None,
         end_time: datetime | None = None,
     ) -> ArtifactsInfoResultDTO:
@@ -139,6 +140,7 @@ class ArtifactsInfoService:
             experiment_ids=experiment_ids,
             artifact_types=artifact_types,
             names=artifact_names,
+            steps=steps,
             start_time=start_time,
             end_time=end_time,
         )

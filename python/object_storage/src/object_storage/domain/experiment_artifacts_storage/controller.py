@@ -13,6 +13,7 @@ from object_storage.api.service_dependencies import get_experiment_artifacts_ser
 from .dto import (
     DeleteArtifactResponseDTO,
     DeleteExperimentArtifactsResponseDTO,
+    TrackedArtifactInfoResponseDTO,
     TrackedUploadArtifactResponseDTO,
     UntrackedUploadArtifactResponseDTO,
 )
@@ -144,6 +145,33 @@ async def list_tracked_artifacts(
     """
 
     return await service.list_artifacts(project_id, experiment_id, limit, offset)
+
+
+@router.get(
+    "/projects/{project_id}/experiments/{experiment_id}/artifacts/info",
+    response_model=TrackedArtifactInfoResponseDTO,
+)
+async def get_tracked_artifact_info(
+    project_id: UUID,
+    experiment_id: UUID,
+    file_path: str | None = Query(default=None),
+    blob_id: UUID | None = Query(default=None),
+    artifact_hash: str | None = Query(default=None),
+    service: ArtifactsStorageService = Depends(get_experiment_artifacts_service),
+) -> TrackedArtifactInfoResponseDTO:
+    """Return tracked artifact DB metadata by filepath, row id, or artifact hash."""
+    try:
+        return await service.get_tracked_artifact_info(
+            project_id=project_id,
+            experiment_id=experiment_id,
+            file_path=file_path,
+            blob_id=blob_id,
+            artifact_hash=artifact_hash,
+        )
+    except ValueError as exc:
+        message = str(exc)
+        status = 404 if "not found" in message.lower() else 400
+        raise HTTPException(status_code=status, detail=message) from exc
 
 
 @router.get(

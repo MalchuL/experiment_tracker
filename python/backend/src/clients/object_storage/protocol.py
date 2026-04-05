@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Protocol
+from typing import Any, Protocol
 from uuid import UUID
 
 import httpx
@@ -12,9 +12,12 @@ from .dto import (
     DeleteExperimentArtifactsResponseDTO,
     DeleteProjectArtifactResponseDTO,
     DeleteProjectResponseDTO,
+    ExperimentTrackedArtifactItemDTO,
+    ExperimentTrackedArtifactInfoDTO,
+    ExperimentTrackedUploadResponseDTO,
+    ExperimentUntrackedUploadResponseDTO,
     SnapshotCreateRequestDTO,
     SnapshotCreateResponseDTO,
-    UploadExperimentArtifactResponseDTO,
     UploadProjectArtifactResponseDTO,
 )
 
@@ -106,41 +109,60 @@ class ObjectStorageClientProtocol(Protocol):
             The response from the object storage.
         """
 
-    async def upload_experiment_artifact(
-        self, experiment_id: UUID, file: UploadFile, path: str | None = None
-    ) -> UploadExperimentArtifactResponseDTO:
-        """Upload an experiment artifact to the object storage.
+    async def upload_experiment_untracked(
+        self,
+        project_id: UUID,
+        experiment_id: UUID,
+        file: UploadFile,
+        artifact_hash: str | None = None,
+    ) -> ExperimentUntrackedUploadResponseDTO: ...
 
-        Args:
-            experiment_id: The ID of the experiment.
-            file: The upload file.
-        """
+    async def upload_experiment_tracked(
+        self,
+        project_id: UUID,
+        experiment_id: UUID,
+        file: UploadFile,
+        artifact_hash: str | None = None,
+        file_path: str | None = None,
+        content_type: str | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> ExperimentTrackedUploadResponseDTO: ...
+
+    async def list_experiment_tracked_artifacts(
+        self,
+        project_id: UUID,
+        experiment_id: UUID,
+        *,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> list[ExperimentTrackedArtifactItemDTO]: ...
+
+    async def get_experiment_tracked_artifact_info(
+        self,
+        project_id: UUID,
+        experiment_id: UUID,
+        *,
+        file_path: str | None = None,
+        blob_id: UUID | None = None,
+        artifact_hash: str | None = None,
+    ) -> ExperimentTrackedArtifactInfoDTO: ...
 
     async def download_experiment_artifact(
-        self, experiment_id: UUID, path: str
-    ) -> httpx.Response:
-        """Download an experiment artifact from the object storage.
-
-        Args:
-            experiment_id: The ID of the experiment.
-            path: The path of the experiment artifact.
-        """
+        self,
+        project_id: UUID,
+        experiment_id: UUID,
+        artifact_hash: str,
+        *,
+        tracked: bool = False,
+    ) -> httpx.Response: ...
 
     async def delete_experiment_artifact(
-        self, experiment_id: UUID, path: str
-    ) -> DeleteExperimentArtifactResponseDTO:
-        """Delete an experiment artifact from the object storage.
+        self,
+        project_id: UUID,
+        experiment_id: UUID,
+        artifact_hash: str,
+    ) -> DeleteExperimentArtifactResponseDTO: ...
 
-        Args:
-            experiment_id: The ID of the experiment.
-            path: The path of the experiment artifact.
-        """
-
-    async def delete_experiment_artifacts(
-        self, experiment_id: UUID
-    ) -> DeleteExperimentArtifactsResponseDTO:
-        """Delete all experiment artifacts from the object storage.
-
-        Args:
-            experiment_id: The ID of the experiment.
-        """
+    async def delete_all_experiment_artifacts(
+        self, project_id: UUID, experiment_id: UUID
+    ) -> DeleteExperimentArtifactsResponseDTO: ...

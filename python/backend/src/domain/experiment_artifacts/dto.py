@@ -1,10 +1,21 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import datetime
+from typing import Any
 from uuid import UUID
 
 from lib.dto_config import model_config
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+
+
+@dataclass(frozen=True, slots=True)
+class ExperimentArtifactAtStepDownloadDTO:
+    """Payload for a step-logged artifact: raw bytes plus display metadata from scalars log."""
+
+    content: bytes
+    filename: str
+    content_type: str
 
 
 class ExperimentArtifactDTO(BaseModel):
@@ -15,6 +26,7 @@ class ExperimentArtifactDTO(BaseModel):
     filename: str
     mime_type: str
     storage_path: str
+    metadata: dict[str, Any] = Field(default_factory=dict)
     created_at: datetime
     updated_at: datetime
 

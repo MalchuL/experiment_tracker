@@ -1,6 +1,7 @@
 """Pydantic DTOs for experiment-scoped artifacts storage."""
 
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any, BinaryIO
 from uuid import UUID
 
@@ -23,6 +24,19 @@ class TrackedUploadArtifactResponseDTO(BaseModel):
     mime_type: str
     size: int
     metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class TrackedArtifactInfoResponseDTO(BaseModel):
+    """Tracked artifact metadata stored in DB."""
+
+    id: UUID
+    hash: str
+    file_path: str
+    mime_type: str
+    size: int
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    created_at: datetime
+    updated_at: datetime
 
 
 @dataclass
@@ -52,9 +66,3 @@ class ExperimentArtifactsSizeResponseDTO(BaseModel):
     """Response DTO returning total artifacts size for one experiment."""
 
     total_size_bytes: int
-
-
-class ListArtifactsResponseDTO(BaseModel):
-    """Response DTO listing all artifacts for an experiment."""
-
-    artifacts: list[str]

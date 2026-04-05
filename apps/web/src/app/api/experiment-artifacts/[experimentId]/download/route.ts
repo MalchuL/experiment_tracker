@@ -8,16 +8,26 @@ export async function GET(
   const { experimentId } = await context.params;
   const token = (await cookies()).get("auth_token")?.value;
   const requestUrl = new URL(request.url);
-  const path = requestUrl.searchParams.get("path");
+  const stepRaw = requestUrl.searchParams.get("step");
+  const name = requestUrl.searchParams.get("name");
+  const artifactType = requestUrl.searchParams.get("artifact_type");
   const mediaType = requestUrl.searchParams.get("media_type");
-  if (!path) {
-    return new Response("Missing path query parameter", { status: 400 });
+  if (stepRaw === null || name === null || name === "") {
+    return new Response("Missing step or name query parameter", { status: 400 });
+  }
+  const step = Number(stepRaw);
+  if (!Number.isFinite(step)) {
+    return new Response("Invalid step", { status: 400 });
   }
 
   const targetUrl = new URL(
     `${env.BASE_URL}/api/experiment-artifacts/${encodeURIComponent(experimentId)}/download-at-step`
   );
-  targetUrl.searchParams.set("path", path);
+  targetUrl.searchParams.set("step", String(step));
+  targetUrl.searchParams.set("name", name);
+  if (artifactType) {
+    targetUrl.searchParams.set("artifact_type", artifactType);
+  }
   if (mediaType) {
     targetUrl.searchParams.set("media_type", mediaType);
   }

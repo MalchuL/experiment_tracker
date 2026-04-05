@@ -21,6 +21,7 @@ from .dto import (
     ArtifactStreamResponseDTO,
     DeleteArtifactResponseDTO,
     DeleteExperimentArtifactsResponseDTO,
+    TrackedArtifactInfoResponseDTO,
     TrackedUploadArtifactResponseDTO,
     UntrackedUploadArtifactResponseDTO,
 )
@@ -212,7 +213,7 @@ class ArtifactsStorageService:
         """Get a streaming handle for one artifact."""
         if tracked:
             blob = await self._artifacts_repository.get_experiment_blob(
-                project_id, experiment_id, artifact_hash
+                project_id, experiment_id, artifact_hash=artifact_hash
             )
             if blob is None:
                 raise ValueError(f"Artifact {artifact_hash} not found")
@@ -226,22 +227,49 @@ class ArtifactsStorageService:
                 filename=os.path.basename(blob.file_path),
                 file_path=blob.file_path,
             )
-        else:
-            blob_stream = await self._buckets_service.get_blob_stream(
-                project_id, experiment_id, artifact_hash
-            )
-            return ArtifactStreamResponseDTO(
-                stream=blob_stream,
-                size=None,
-                mime_type="application/octet-stream",
-                filename=None,
-                file_path=None,
-            )
+        blob_stream = await self._buckets_service.get_blob_stream(
+            project_id, experiment_id, artifact_hash
+        )
+        return ArtifactStreamResponseDTO(
+            stream=blob_stream,
+            size=None,
+            mime_type="application/octet-stream",
+            filename=None,
+            file_path=None,
+        )
+
+    async def get_tracked_artifact_info(
+        self,
+        project_id: UUID,
+        experiment_id: UUID,
+        *,
+        file_path: str | None = None,
+        blob_id: UUID | None = None,
+        artifact_hash: str | None = None,
+    ) -> TrackedArtifactInfoResponseDTO:
+        if file_path is None and blob_id is None and artifact_hash is None:
+            raise ValueError("file_path, blob_id, or artifact_hash is required")
+        normalized_path: str | None = None
+        if file_path is not None:
+            normalized_path = normalize_path(file_path)
+            if not validate_relative_path(normalized_path):
+                raise ValueError(f"Invalid file path: {normalized_path}")
+        blob = await self._artifacts_repository.get_experiment_blob(
+            project_id,
+            experiment_id,
+            artifact_hash=artifact_hash,
+            file_path=normalized_path,
+            blob_id=blob_id,
+        )
+        if blob is None:
+            raise ValueError("Tracked artifact not found")
+        return self._mapper.experiment_model_to_tracked_info_response(blob)
 
     async def delete_artifact(
         self, project_id: UUID, experiment_id: UUID, artifact_hash: str
     ) -> DeleteArtifactResponseDTO:
-        """Delete one artifact for an experiment."""
+        """Delete one artifact for an experiment for tracked and untracked artifacts."""
+        # Delete the artifact from the database (if not tracked just skipped)
         await self._artifacts_repository.delete_experiment_blob(
             project_id, experiment_id, artifact_hash
         )
@@ -261,4 +289,5 @@ class ArtifactsStorageService:
             project_id, experiment_id
         )
         await self._artifacts_repository.commit()
-        return self._mapper.delete_experiment_to_response(deleted_count=0)
+        # TODO: count the number of deleted artifacts or return "all"
+        return self._mapper.delete_experiment_to_response(deleted_count=-1)

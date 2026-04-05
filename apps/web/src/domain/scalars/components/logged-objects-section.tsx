@@ -114,7 +114,9 @@ export function LoggedObjectsSection({
                         const objectSrc = objectAtStep
                           ? API_ROUTES.EXPERIMENT_ARTIFACTS.DOWNLOAD_AT_STEP(
                               experiment.id,
-                              objectAtStep.path,
+                              nearestStep,
+                              name,
+                              objectType,
                               objectAtStep.metadata?.content_type
                             )
                           : "";

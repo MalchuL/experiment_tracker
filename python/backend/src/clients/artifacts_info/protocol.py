@@ -27,6 +27,7 @@ class ArtifactsInfoClientProtocol(Protocol):
         experiment_ids: Iterable[UUID] | None = None,
         artifact_types: Iterable[str] | None = None,
         artifact_names: Iterable[str] | None = None,
+        steps: Iterable[int] | None = None,
         start_time: str | None = None,
         end_time: str | None = None,
     ) -> ArtifactsInfoResultDTO:
@@ -37,6 +38,7 @@ class ArtifactsInfoClientProtocol(Protocol):
             experiment_ids: The IDs of the experiments (that under project).
             artifact_types: The types of the artifacts.
             artifact_names: The names of the artifacts.
+            steps: Training step indices to filter by.
             start_time: The start time of the artifacts.
             end_time: The end time of the artifacts.
 
