@@ -289,5 +289,4 @@ class ArtifactsStorageService:
             project_id, experiment_id
         )
         await self._artifacts_repository.commit()
-        # TODO: count the number of deleted artifacts or return "all"
         return self._mapper.delete_experiment_to_response(deleted_count=-1)

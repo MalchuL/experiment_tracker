@@ -34,10 +34,18 @@ class ArtifactInfoEntryDTO(BaseModel):
 
 
 class ExperimentArtifactsInfoDTO(BaseModel):
+    """
+    DTO for a single experiment's artifacts info.
+    Args:
+        experiment_id: The ID of the experiment.
+        artifacts_info: The list of artifacts info.
+    Notes:
+        - The artifacts info is grouped by experiment but not by name.
+    """
+
     experiment_id: UUID
     artifacts_info: list[ArtifactInfoEntryDTO]
 
 
 class ArtifactsInfoResultDTO(BaseModel):
     data: list[ExperimentArtifactsInfoDTO]
-

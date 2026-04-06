@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-import hashlib
 import os
 from typing import Any
 import tempfile
 import zipfile
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from fastapi import UploadFile
 from fastapi_users.models import UserProtocol
@@ -29,6 +28,7 @@ from clients.object_storage import (
 )
 from domain.experiments.repository import ExperimentRepository
 from domain.rbac.wrapper import PermissionChecker
+from lib.logger import logger
 
 from .dto import (
     ExperimentArtifactAtStepDownloadDTO,
@@ -66,18 +66,20 @@ class ExperimentArtifactsService:
 
         label = (name or "").strip()
         if not label:
-            label = os.path.basename(file.filename or "") or "artifact"
+            label = os.path.basename(file.filename or "") or uuid4().hex
         return {"name": label}
 
-    async def _sha256_upload(self, file: UploadFile) -> str:
-        await file.seek(0)
-        data = await file.read()
-        await file.seek(0)
-        return hashlib.sha256(data).hexdigest()
-
-    async def _list_tracked_all(
+    async def _list_all_tracked_experiment_artifacts(
         self, project_id: UUID, experiment_id: UUID
     ) -> list[ExperimentTrackedArtifactItemDTO]:
+        """
+        List all tracked experiment artifacts for an experiment in the project.
+        Args:
+            project_id: The ID of the project.
+            experiment_id: The ID of the experiment.
+        Returns:
+            A list of ExperimentTrackedArtifactItemDTO objects representing the artifacts.
+        """
         out: list[ExperimentTrackedArtifactItemDTO] = []
         offset = 0
         limit = 100
@@ -95,6 +97,14 @@ class ExperimentArtifactsService:
         return out
 
     def _normalize_filepath(self, filepath: str) -> str:
+        """
+        Normalize a filepath to a relative path.
+        Removes any .., :, characters, replaces \ with / and ensures the path is relative.
+        Args:
+            filepath: The filepath to normalize.
+        Returns:
+            The normalized filepath.
+        """
         return self._mapper.normalize_relative_filepath(filepath)
 
     async def _find_tracked_artifact(
@@ -106,6 +116,21 @@ class ExperimentArtifactsService:
         blob_id: UUID | None = None,
         artifact_hash: str | None = None,
     ) -> ExperimentTrackedArtifactInfoDTO | None:
+        """
+        Find a tracked artifact by filepath, blob_id, or artifact_hash (only one of them is required).
+        Args:
+            project_id: The ID of the project.
+            experiment_id: The ID of the experiment.
+            filepath: The filepath of the artifact.
+            blob_id: The blob_id of the artifact.
+            artifact_hash: The artifact_hash of the artifact.
+        Returns:
+            The ExperimentTrackedArtifactInfoDTO object representing the artifact.
+        """
+        if filepath is None and blob_id is None and artifact_hash is None:
+            raise ValueError(
+                "At least one identifier is required: filepath, blob_id, or artifact_hash"
+            )
         try:
             return await self._object_storage.get_experiment_tracked_artifact_info(
                 project_id,
@@ -157,6 +182,17 @@ class ExperimentArtifactsService:
         name: str,
         artifact_type: str | None,
     ) -> ArtifactInfoEntryDTO:
+        """
+        Pick a single logged entry from the result that matches the step, name and artifact_type.
+        Args:
+            result: The result from the artifacts info at step client (usually from scalars service).
+            experiment_id: The ID of the experiment.
+            step: The step of the artifact.
+            name: The name of the artifact.
+            artifact_type: The type of the artifact.
+        Returns:
+            The ArtifactInfoEntryDTO object representing the artifact.
+        """
         entries: list[ArtifactInfoEntryDTO] = []
         for group in result.data:
             if group.experiment_id != experiment_id:
@@ -174,6 +210,10 @@ class ExperimentArtifactsService:
                 detail += f" artifact_type={artifact_type!r}"
             raise ExperimentArtifactNotFoundError(detail)
         if len(unique_paths) > 1:
+            logger.warning(
+                f"Multiple stored blobs match this step and name; pass artifact_type to disambiguate. "
+                f"Experiment: {experiment_id}, Step: {step}, Name: {name}, Artifact Type: {artifact_type}"
+            )
             raise ExperimentArtifactAmbiguousError(
                 "Multiple stored blobs match this step and name; pass artifact_type to disambiguate."
             )
@@ -181,15 +221,25 @@ class ExperimentArtifactsService:
         return next(e for e in entries if e.path == blob_hash)
 
     @staticmethod
-    def _at_step_download_fields(
+    def _get_response_fields_for_download_at_step(
         entry: ArtifactInfoEntryDTO, name: str, step: int
     ) -> tuple[str, str]:
+        """Get the filename and content type from the entry.
+        Args:
+            entry: The entry from the artifacts info at step client.
+            name: The name of the artifact.
+            step: The step of the artifact.
+        Returns:
+            A tuple containing the filename and content type.
+        """
         meta = entry.metadata or {}
         filename = (meta.get("filename") or "").strip() or f"{name}_{step}"
         content_type = (
             meta.get("content_type") or ""
         ).strip() or "application/octet-stream"
         return filename, content_type
+
+    # Tracked artifacts for experiment
 
     async def list_experiment_artifacts(
         self,
@@ -214,33 +264,179 @@ class ExperimentArtifactsService:
             - size: The size of the artifact in bytes.
         """
         project_id = await self._ensure_view_permission(user, experiment_id)
-        items = await self._list_tracked_all(project_id, experiment_id)
+        items = await self._list_all_tracked_experiment_artifacts(
+            project_id, experiment_id
+        )
         if file_paths:
             path_set = {self._mapper.normalize_relative_filepath(p) for p in file_paths}
             items = [i for i in items if i.file_path in path_set]
         return [self._mapper.tracked_item_to_dto(experiment_id, i) for i in items]
 
-    async def get_experiments_artifacts_at_step(
+    async def upsert_experiment_artifact(
         self,
         user: UserProtocol,
-        project_id: UUID,
-        experiment_ids: list[UUID] | None = None,
-        artifact_types: list[str] | None = None,
-        artifact_names: list[str] | None = None,
-        steps: list[int] | None = None,
-        start_time: str | None = None,
-        end_time: str | None = None,
-    ) -> ArtifactsInfoResultDTO:
-        await self._ensure_project_view_permission(user, project_id)
-        return await self._artifacts_info_at_step_client.get_artifacts(
-            project_id=project_id,
-            experiment_ids=experiment_ids,
-            artifact_types=artifact_types,
-            artifact_names=artifact_names,
-            steps=steps,
-            start_time=start_time,
-            end_time=end_time,
+        experiment_id: UUID,
+        name: str | None,
+        filepath: str,
+        file: UploadFile,
+    ) -> ExperimentArtifactDTO:
+        """Upsert an artifact for an experiment.
+        Upserts an artifact for an experiment. If the artifact already exists, it is deleted and a new one is uploaded.
+        The artifact is stored as a tracked artifact in the object storage.
+        Args:
+            user: The user making the request.
+            experiment_id: The ID of the experiment.
+            name: The name of the artifact.
+            filepath: The filepath of the artifact (relative to the experiment root).
+            file: The file to upload.
+        Returns:
+            The ExperimentArtifactDTO object representing the upserted artifact.
+        """
+        project_id = await self._ensure_log_permission(user, experiment_id)
+        tracked_path = self._normalize_filepath(filepath)
+        existing = await self._find_tracked_artifact(
+            project_id, experiment_id, filepath=tracked_path
         )
+        if existing is not None:
+            await self._object_storage.delete_experiment_artifact(
+                project_id, experiment_id, existing.hash
+            )
+        upload_result = await self._object_storage.upload_experiment_tracked(
+            project_id,
+            experiment_id,
+            file,
+            artifact_hash=None,  # Content hash will be computed by object storage
+            file_path=tracked_path,
+            metadata=self._tracked_upload_metadata(name or "", file),
+        )
+        return self._mapper.tracked_upload_to_dto(
+            experiment_id, upload_result, file.filename
+        )
+
+    async def get_experiment_artifact(
+        self,
+        user: UserProtocol,
+        experiment_id: UUID,
+        filepath: str | None = None,
+        blob_id: UUID | None = None,
+        artifact_hash: str | None = None,
+    ) -> ExperimentArtifactDTO:
+        """Get an artifact by filepath, blob_id, or artifact_hash (only one of them is required).
+        Args:
+            user: The user making the request.
+            experiment_id: The ID of the experiment.
+            filepath: The filepath of the artifact (relative to the experiment root).
+            blob_id: The blob_id of the artifact.
+            artifact_hash: The artifact_hash of the artifact.
+        Returns:
+            The ExperimentArtifactDTO object representing the artifact.
+        """
+        if filepath is None and blob_id is None and artifact_hash is None:
+            raise ValueError(
+                "At least one identifier is required: filepath, blob_id, or artifact_hash"
+            )
+        project_id = await self._ensure_view_permission(user, experiment_id)
+        tracked_path = self._normalize_filepath(filepath) if filepath else None
+        item = await self._find_tracked_artifact(
+            project_id,
+            experiment_id,
+            filepath=tracked_path,
+            blob_id=blob_id,
+            artifact_hash=artifact_hash,
+        )
+        if item is None:
+            raise ExperimentArtifactNotFoundError(
+                f"Artifact not found for filepath={filepath}, blob_id={blob_id}, artifact_hash={artifact_hash}"
+            )
+        return self._mapper.tracked_info_to_dto(experiment_id, item)
+
+    async def download_experiment_artifact(
+        self,
+        user: UserProtocol,
+        experiment_id: UUID,
+        filepath: str | None = None,
+        blob_id: UUID | None = None,
+        artifact_hash: str | None = None,
+    ) -> tuple[bytes, str, str]:
+        """
+        Download an artifact by filepath, blob_id, or artifact_hash (only one of them is required).
+        Args:
+            user: The user making the request.
+            experiment_id: The ID of the experiment.
+            filepath: The filepath of the artifact (relative to the experiment root).
+            blob_id: The blob_id of the artifact.
+            artifact_hash: The artifact_hash of the artifact.
+        Returns:
+            A tuple containing the content, MIME type and filename.
+        """
+        if filepath is None and blob_id is None and artifact_hash is None:
+            raise ValueError(
+                "At least one identifier is required: filepath, blob_id, or artifact_hash"
+            )
+        project_id = await self._ensure_view_permission(user, experiment_id)
+        tracked_path = self._normalize_filepath(filepath) if filepath else None
+        item = await self._find_tracked_artifact(
+            project_id,
+            experiment_id,
+            filepath=tracked_path,
+            blob_id=blob_id,
+            artifact_hash=artifact_hash,
+        )
+        if item is None:
+            raise ExperimentArtifactNotFoundError(
+                f"Artifact not found for filepath={filepath}, blob_id={blob_id}, artifact_hash={artifact_hash}"
+            )
+        response = await self._object_storage.download_experiment_artifact(
+            project_id,
+            experiment_id,
+            item.hash,
+            tracked=True,
+        )
+        filename = os.path.basename(item.file_path) or "artifact"
+        return response.content, item.mime_type, filename
+
+    # TODO: Check it (does it work?)
+    async def download_experiment_artifacts_archive(
+        self,
+        user: UserProtocol,
+        experiment_id: UUID,
+        name: str,
+    ) -> tuple[str, str]:
+        project_id = await self._ensure_view_permission(user, experiment_id)
+        safe_name = self._mapper.validate_artifact_name(name)
+        items = [
+            i
+            for i in await self._list_all_tracked_experiment_artifacts(
+                project_id, experiment_id
+            )
+            if (i.metadata or {}).get("name") == safe_name
+        ]
+        if not items:
+            raise ExperimentArtifactNotFoundError(f"No artifacts found for name={name}")
+
+        tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".zip")
+        archive_path = tmp.name
+        tmp.close()
+        try:
+            with zipfile.ZipFile(
+                archive_path, mode="w", compression=zipfile.ZIP_DEFLATED
+            ) as zipf:
+                for item in items:
+                    arcname = item.file_path or os.path.basename(item.file_path)
+                    response = await self._object_storage.download_experiment_artifact(
+                        project_id,
+                        experiment_id,
+                        item.hash,
+                        tracked=True,
+                    )
+                    zipf.writestr(arcname, response.content)
+            return archive_path, f"{name}.zip"
+        except Exception:
+            if os.path.exists(archive_path):
+                os.remove(archive_path)
+            raise
+
+    # Artifacts at steps
 
     async def upload_and_log_experiment_artifact_at_step(
         self,
@@ -253,6 +449,21 @@ class ExperimentArtifactsService:
         metadata: dict[str, str] | None = None,
         tags: list[str] | None = None,
     ) -> ArtifactsInfoLogArtifactResponseDTO:
+        """
+        Upload and log an artifact at a step.
+        Uploads an untracked artifact to the object storage. Info stored inside scalars service.
+        Args:
+            user: The user making the request.
+            experiment_id: The ID of the experiment.
+            file: The file to upload.
+            name: The name of the artifact.
+            artifact_type: The type of the artifact.
+            step: The step of the artifact.
+            metadata: The metadata of the artifact.
+            tags: The tags of the artifact.
+        Returns:
+            The ArtifactsInfoLogArtifactResponseDTO object representing the logged artifact.
+        """
         project_id = await self._ensure_log_permission(user, experiment_id)
 
         upload_result = await self._object_storage.upload_experiment_untracked(
@@ -285,6 +496,41 @@ class ExperimentArtifactsService:
             project_id, experiment_id, payload
         )
 
+    async def get_experiments_artifacts_at_step(
+        self,
+        user: UserProtocol,
+        project_id: UUID,
+        experiment_ids: list[UUID] | None = None,
+        artifact_types: list[str] | None = None,
+        artifact_names: list[str] | None = None,
+        steps: list[int] | None = None,
+        start_time: str | None = None,
+        end_time: str | None = None,
+    ) -> ArtifactsInfoResultDTO:
+        """Get the artifacts info at steps for a project, experiment, artifact type, name, step, start time and end time.
+        Args:
+            user: The user making the request.
+            project_id: The ID of the project.
+            experiment_ids: The IDs of the experiments.
+            artifact_types: The types of the artifacts.
+            artifact_names: The names of the artifacts.
+            steps: The steps of the artifacts.
+            start_time: The start time of the artifacts.
+            end_time: The end time of the artifacts.
+        Returns:
+            The ArtifactsInfoResultDTO object representing the artifacts info.
+        """
+        await self._ensure_project_view_permission(user, project_id)
+        return await self._artifacts_info_at_step_client.get_artifacts(
+            project_id=project_id,
+            experiment_ids=experiment_ids,
+            artifact_types=artifact_types,
+            artifact_names=artifact_names,
+            steps=steps,
+            start_time=start_time,
+            end_time=end_time,
+        )
+
     async def download_experiment_artifact_at_step(
         self,
         user: UserProtocol,
@@ -293,6 +539,16 @@ class ExperimentArtifactsService:
         name: str,
         artifact_type: str | None = None,
     ) -> ExperimentArtifactAtStepDownloadDTO:
+        """Download an artifact at a step.
+        Args:
+            user: The user making the request.
+            experiment_id: The ID of the experiment.
+            step: The step of the artifact.
+            name: The name of the artifact.
+            artifact_type: The type of the artifact.
+        Returns:
+            The ExperimentArtifactAtStepDownloadDTO object representing the downloaded artifact.
+        """
         project_id = await self._ensure_view_permission(user, experiment_id)
         result = await self._artifacts_info_at_step_client.get_artifacts(
             project_id=project_id,
@@ -304,7 +560,9 @@ class ExperimentArtifactsService:
         entry = self._pick_single_logged_entry(
             result, experiment_id, step, name, artifact_type
         )
-        filename, content_type = self._at_step_download_fields(entry, name, step)
+        filename, content_type = self._get_response_fields_for_download_at_step(
+            entry, name, step
+        )
         response = await self._object_storage.download_experiment_artifact(
             project_id,
             experiment_id,
@@ -317,9 +575,18 @@ class ExperimentArtifactsService:
             content_type=content_type,
         )
 
+    # For both tracked and untracked artifacts
     async def delete_experiment_artifact_by_hash(
         self, user: UserProtocol, experiment_id: UUID, hash: str
     ) -> DeleteExperimentArtifactResponseDTO:
+        """Delete an artifact (tracked or untracked) by hash (path inside object storage).
+        Args:
+            user: The user making the request.
+            experiment_id: The ID of the experiment.
+            hash: The hash of the artifact (path inside object storage).
+        Returns:
+            The DeleteExperimentArtifactResponseDTO object representing the deleted artifact.
+        """
         project_id = await self._ensure_log_permission(user, experiment_id)
         return await self._object_storage.delete_experiment_artifact(
             project_id, experiment_id, hash
@@ -328,138 +595,8 @@ class ExperimentArtifactsService:
     async def delete_experiment_all_artifacts(
         self, user: UserProtocol, experiment_id: UUID
     ) -> DeleteExperimentArtifactsResponseDTO:
-        """Delete all untracked artifacts for an experiment."""
+        """Delete all (tracked and untracked) artifacts for an experiment."""
         project_id = await self._ensure_log_permission(user, experiment_id)
         return await self._object_storage.delete_all_experiment_artifacts(
             project_id, experiment_id
         )
-
-    async def upsert_experiment_artifact(
-        self,
-        user: UserProtocol,
-        experiment_id: UUID,
-        name: str | None,
-        filepath: str,
-        file: UploadFile,
-    ) -> ExperimentArtifactDTO:
-        project_id = await self._ensure_log_permission(user, experiment_id)
-        tracked_path = self._normalize_filepath(filepath)
-        existing = await self._find_tracked_artifact(
-            project_id, experiment_id, filepath=tracked_path
-        )
-        if existing is not None:
-            await self._object_storage.delete_experiment_artifact(
-                project_id, experiment_id, existing.hash
-            )
-        upload_result = await self._object_storage.upload_experiment_tracked(
-            project_id,
-            experiment_id,
-            file,
-            artifact_hash=None,  # Content hash will be computed by object storage
-            file_path=tracked_path,
-            metadata=self._tracked_upload_metadata(name or "", file),
-        )
-        return self._mapper.tracked_upload_to_dto(
-            experiment_id, upload_result, file.filename
-        )
-
-    # TODO: Check it
-    async def get_experiment_artifact(
-        self,
-        user: UserProtocol,
-        experiment_id: UUID,
-        filepath: str | None = None,
-        blob_id: UUID | None = None,
-        artifact_hash: str | None = None,
-    ) -> ExperimentArtifactDTO:
-        if filepath is None and blob_id is None and artifact_hash is None:
-            raise ValueError(
-                "At least one identifier is required: filepath, blob_id, or artifact_hash"
-            )
-        project_id = await self._ensure_view_permission(user, experiment_id)
-        tracked_path = self._normalize_filepath(filepath) if filepath else None
-        item = await self._find_tracked_artifact(
-            project_id,
-            experiment_id,
-            filepath=tracked_path,
-            blob_id=blob_id,
-            artifact_hash=artifact_hash,
-        )
-        if item is None:
-            raise ExperimentArtifactNotFoundError(
-                f"Artifact not found for filepath={filepath}, blob_id={blob_id}, artifact_hash={artifact_hash}"
-            )
-        return self._mapper.tracked_info_to_dto(experiment_id, item)
-
-    async def download_experiment_artifact(
-        self,
-        user: UserProtocol,
-        experiment_id: UUID,
-        filepath: str | None = None,
-        blob_id: UUID | None = None,
-        artifact_hash: str | None = None,
-    ) -> tuple[bytes, str, str]:
-        if filepath is None and blob_id is None and artifact_hash is None:
-            raise ValueError(
-                "At least one identifier is required: filepath, blob_id, or artifact_hash"
-            )
-        project_id = await self._ensure_view_permission(user, experiment_id)
-        tracked_path = self._normalize_filepath(filepath) if filepath else None
-        item = await self._find_tracked_artifact(
-            project_id,
-            experiment_id,
-            filepath=tracked_path,
-            blob_id=blob_id,
-            artifact_hash=artifact_hash,
-        )
-        if item is None:
-            raise ExperimentArtifactNotFoundError(
-                f"Artifact not found for filepath={filepath}, blob_id={blob_id}, artifact_hash={artifact_hash}"
-            )
-        response = await self._object_storage.download_experiment_artifact(
-            project_id,
-            experiment_id,
-            item.hash,
-            tracked=True,
-        )
-        filename = os.path.basename(item.file_path) or "artifact"
-        return response.content, item.mime_type, filename
-
-    async def download_experiment_artifacts_archive(
-        self,
-        user: UserProtocol,
-        experiment_id: UUID,
-        name: str,
-    ) -> tuple[str, str]:
-        project_id = await self._ensure_view_permission(user, experiment_id)
-        safe_name = self._mapper.validate_artifact_name(name)
-        items = [
-            i
-            for i in await self._list_tracked_all(project_id, experiment_id)
-            if (i.metadata or {}).get("name") == safe_name
-        ]
-        if not items:
-            raise ExperimentArtifactNotFoundError(f"No artifacts found for name={name}")
-
-        tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".zip")
-        archive_path = tmp.name
-        tmp.close()
-        try:
-            with zipfile.ZipFile(
-                archive_path, mode="w", compression=zipfile.ZIP_DEFLATED
-            ) as zipf:
-                for item in items:
-                    arcname = item.file_path or os.path.basename(item.file_path)
-                    response = await self._object_storage.download_experiment_artifact(
-                        project_id,
-                        experiment_id,
-                        item.hash,
-                        tracked=True,
-                    )
-                    zipf.writestr(arcname, response.content)
-            return archive_path, f"{name}.zip"
-        except Exception:
-            if os.path.exists(archive_path):
-                os.remove(archive_path)
-            raise
-
