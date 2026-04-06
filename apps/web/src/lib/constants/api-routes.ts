@@ -161,14 +161,12 @@ export const API_ROUTES = {
         experimentId: string,
         step: number,
         name: string,
-        artifactType?: string,
-        mediaType?: string
+        artifactType?: string
       ) => {
         const q = new URLSearchParams();
         q.set("step", String(step));
         q.set("name", name);
         if (artifactType) q.set("artifact_type", artifactType);
-        if (mediaType) q.set("media_type", mediaType);
         return `/api/experiment-artifacts/${experimentId}/download-at-step?${q.toString()}`;
       },
       DELETE_AT_STEP: (experimentId: string, hash: string) =>

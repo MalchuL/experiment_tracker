@@ -3,7 +3,12 @@ from __future__ import annotations
 from typing import Iterable, Protocol
 from uuid import UUID
 
-from .dto import ArtifactsInfoResultDTO, LogArtifactRequestDTO, LogArtifactResponseDTO
+from .dto import (
+    ArtifactType,
+    ArtifactsInfoResultDTO,
+    LogArtifactRequestDTO,
+    LogArtifactResponseDTO,
+)
 
 
 class ArtifactsInfoClientProtocol(Protocol):
@@ -25,7 +30,7 @@ class ArtifactsInfoClientProtocol(Protocol):
         self,
         project_id: UUID,
         experiment_ids: Iterable[UUID] | None = None,
-        artifact_types: Iterable[str] | None = None,
+        artifact_types: Iterable[ArtifactType] | None = None,
         artifact_names: Iterable[str] | None = None,
         steps: Iterable[int] | None = None,
         start_time: str | None = None,

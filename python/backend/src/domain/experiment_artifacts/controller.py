@@ -6,6 +6,7 @@ from urllib.parse import quote
 from uuid import UUID
 
 from clients.artifacts_info import (
+    ArtifactType,
     ArtifactsInfoResultDTO,
     LogArtifactResponseDTO as ArtifactsInfoLogArtifactResponseDTO,
 )
@@ -85,7 +86,7 @@ async def list_experiment_artifacts(
 async def get_experiments_artifacts_at_step(
     project_id: UUID,
     experiment_id: list[UUID] | None = Query(default=None),
-    artifact_type: list[str] | None = Query(default=None),
+    artifact_type: list[ArtifactType] | None = Query(default=None),
     artifact_name: list[str] | None = Query(default=None),
     step: list[int] | None = Query(default=None),
     start_time: datetime | None = Query(default=None),
@@ -121,7 +122,7 @@ async def upload_and_log_experiment_artifact_at_step(
     experiment_id: UUID,
     file: UploadFile = File(...),
     name: str = Form(...),
-    artifact_type: str = Form(...),
+    artifact_type: ArtifactType = Form(...),
     step: int = Form(...),
     metadata: str | None = Form(None),
     tags: str | None = Form(None),
@@ -164,8 +165,7 @@ async def download_experiment_artifact_at_step(
     experiment_id: UUID,
     step: int = Query(..., ge=0),
     name: str = Query(..., min_length=1),
-    artifact_type: str | None = Query(default=None),
-    media_type: str | None = Query(default=None),
+    artifact_type: ArtifactType | None = Query(default=None),
     user: User = Depends(get_current_user_dual),
     _: None = Depends(require_api_token_scopes(ProjectActions.VIEW_ARTIFACT)),
     service: ExperimentArtifactsServiceProtocol = Depends(
@@ -184,7 +184,7 @@ async def download_experiment_artifact_at_step(
         disposition = f"attachment; filename*=UTF-8''{quote(payload.filename, safe='')}"
         return Response(
             content=payload.content,
-            media_type=media_type or payload.content_type,
+            media_type=payload.content_type,
             headers={"Content-Disposition": disposition},
         )
     except Exception as exc:  # noqa: BLE001
@@ -300,17 +300,18 @@ async def download_experiment_artifact(
 ):
     """Download one tracked artifact by filepath/blob_id/hash."""
     try:
-        content, mime_type, filename = await service.download_experiment_artifact(
+        payload = await service.download_experiment_artifact(
             user=user,
             experiment_id=experiment_id,
             filepath=filepath,
             blob_id=blob_id,
             artifact_hash=artifact_hash,
         )
+        disposition = f"attachment; filename*=UTF-8''{quote(payload.filename, safe='')}"
         return Response(
-            content=content,
-            media_type=mime_type or "application/octet-stream",
-            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+            content=payload.content,
+            media_type=payload.content_type,
+            headers={"Content-Disposition": disposition},
         )
     except Exception as exc:  # noqa: BLE001
         _raise_http_error(exc)

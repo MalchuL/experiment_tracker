@@ -11,7 +11,6 @@ export async function GET(
   const stepRaw = requestUrl.searchParams.get("step");
   const name = requestUrl.searchParams.get("name");
   const artifactType = requestUrl.searchParams.get("artifact_type");
-  const mediaType = requestUrl.searchParams.get("media_type");
   if (stepRaw === null || name === null || name === "") {
     return new Response("Missing step or name query parameter", { status: 400 });
   }
@@ -27,9 +26,6 @@ export async function GET(
   targetUrl.searchParams.set("name", name);
   if (artifactType) {
     targetUrl.searchParams.set("artifact_type", artifactType);
-  }
-  if (mediaType) {
-    targetUrl.searchParams.set("media_type", mediaType);
   }
 
   const response = await fetch(targetUrl.toString(), {

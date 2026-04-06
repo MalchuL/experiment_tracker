@@ -13,6 +13,7 @@ from api.routes.auth import get_current_user_dual
 from api.routes.service_dependencies import get_experiment_artifacts_service
 from domain.experiment_artifacts.controller import router as experiment_artifacts_router
 from domain.experiment_artifacts.dto import (
+    ExperimentArtifactDownloadDTO,
     ExperimentArtifactDTO,
     ExperimentArtifactsDeleteResponseDTO,
 )
@@ -44,7 +45,11 @@ class FakeArtifactsService:
     async def download_experiment_artifact(
         self, user, experiment_id, filepath=None, blob_id=None, artifact_hash=None
     ):
-        return b"payload", "application/octet-stream", "artifact.bin"
+        return ExperimentArtifactDownloadDTO(
+            content=b"payload",
+            content_type="application/octet-stream",
+            filename="artifact.bin",
+        )
 
     async def download_experiment_artifacts_archive(self, user, experiment_id, name):
         raise ExperimentArtifactNotFoundError("archive not found")

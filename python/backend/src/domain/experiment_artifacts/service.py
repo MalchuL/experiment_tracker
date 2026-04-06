@@ -14,6 +14,7 @@ import httpx
 
 from clients.artifacts_info import (
     ArtifactInfoEntryDTO,
+    ArtifactType,
     ArtifactsInfoClientProtocol,
     ArtifactsInfoResultDTO,
     LogArtifactRequestDTO as ArtifactsInfoLogArtifactRequestDTO,
@@ -31,7 +32,7 @@ from domain.rbac.wrapper import PermissionChecker
 from lib.logger import logger
 
 from .dto import (
-    ExperimentArtifactAtStepDownloadDTO,
+    ExperimentArtifactDownloadDTO,
     ExperimentArtifactDTO,
 )
 from .error import (
@@ -180,7 +181,7 @@ class ExperimentArtifactsService:
         experiment_id: UUID,
         step: int,
         name: str,
-        artifact_type: str | None,
+        artifact_type: ArtifactType | None,
     ) -> ArtifactInfoEntryDTO:
         """
         Pick a single logged entry from the result that matches the step, name and artifact_type.
@@ -357,7 +358,7 @@ class ExperimentArtifactsService:
         filepath: str | None = None,
         blob_id: UUID | None = None,
         artifact_hash: str | None = None,
-    ) -> tuple[bytes, str, str]:
+    ) -> ExperimentArtifactDownloadDTO:
         """
         Download an artifact by filepath, blob_id, or artifact_hash (only one of them is required).
         Args:
@@ -367,7 +368,7 @@ class ExperimentArtifactsService:
             blob_id: The blob_id of the artifact.
             artifact_hash: The artifact_hash of the artifact.
         Returns:
-            A tuple containing the content, MIME type and filename.
+            Bytes and display metadata for the response.
         """
         if filepath is None and blob_id is None and artifact_hash is None:
             raise ValueError(
@@ -393,7 +394,11 @@ class ExperimentArtifactsService:
             tracked=True,
         )
         filename = os.path.basename(item.file_path) or "artifact"
-        return response.content, item.mime_type, filename
+        return ExperimentArtifactDownloadDTO(
+            content=response.content,
+            filename=filename,
+            content_type=item.mime_type,
+        )
 
     # TODO: Check it (does it work?)
     async def download_experiment_artifacts_archive(
@@ -444,7 +449,7 @@ class ExperimentArtifactsService:
         experiment_id: UUID,
         file: UploadFile,
         name: str,
-        artifact_type: str,
+        artifact_type: ArtifactType,
         step: int,
         metadata: dict[str, str] | None = None,
         tags: list[str] | None = None,
@@ -501,7 +506,7 @@ class ExperimentArtifactsService:
         user: UserProtocol,
         project_id: UUID,
         experiment_ids: list[UUID] | None = None,
-        artifact_types: list[str] | None = None,
+        artifact_types: list[ArtifactType] | None = None,
         artifact_names: list[str] | None = None,
         steps: list[int] | None = None,
         start_time: str | None = None,
@@ -537,8 +542,8 @@ class ExperimentArtifactsService:
         experiment_id: UUID,
         step: int,
         name: str,
-        artifact_type: str | None = None,
-    ) -> ExperimentArtifactAtStepDownloadDTO:
+        artifact_type: ArtifactType | None = None,
+    ) -> ExperimentArtifactDownloadDTO:
         """Download an artifact at a step.
         Args:
             user: The user making the request.
@@ -547,7 +552,7 @@ class ExperimentArtifactsService:
             name: The name of the artifact.
             artifact_type: The type of the artifact.
         Returns:
-            The ExperimentArtifactAtStepDownloadDTO object representing the downloaded artifact.
+            The downloaded artifact payload and display metadata.
         """
         project_id = await self._ensure_view_permission(user, experiment_id)
         result = await self._artifacts_info_at_step_client.get_artifacts(
@@ -569,7 +574,7 @@ class ExperimentArtifactsService:
             artifact_hash=entry.path,
             tracked=False,
         )
-        return ExperimentArtifactAtStepDownloadDTO(
+        return ExperimentArtifactDownloadDTO(
             content=response.content,
             filename=filename,
             content_type=content_type,

@@ -8,6 +8,7 @@ from fastapi import UploadFile
 from fastapi_users.models import UserProtocol
 
 from clients.artifacts_info import (
+    ArtifactType,
     ArtifactsInfoResultDTO,
     LogArtifactResponseDTO as ArtifactsInfoLogArtifactResponseDTO,
 )
@@ -17,7 +18,7 @@ from clients.object_storage import (
 )
 
 from .dto import (
-    ExperimentArtifactAtStepDownloadDTO,
+    ExperimentArtifactDownloadDTO,
     ExperimentArtifactDTO,
 )
 from .error import ExperimentArtifactsNotAccessibleError
@@ -37,7 +38,7 @@ class NoOpExperimentArtifactsService:
         user: UserProtocol,
         project_id: UUID,
         experiment_ids: list[UUID] | None = None,
-        artifact_types: list[str] | None = None,
+        artifact_types: list[ArtifactType] | None = None,
         artifact_names: list[str] | None = None,
         steps: list[int] | None = None,
         start_time: str | None = None,
@@ -51,7 +52,7 @@ class NoOpExperimentArtifactsService:
         experiment_id: UUID,
         file: UploadFile,
         name: str,
-        artifact_type: str,
+        artifact_type: ArtifactType,
         step: int,
         metadata: dict[str, str] | None = None,
         tags: list[str] | None = None,
@@ -64,8 +65,8 @@ class NoOpExperimentArtifactsService:
         experiment_id: UUID,
         step: int,
         name: str,
-        artifact_type: str | None = None,
-    ) -> ExperimentArtifactAtStepDownloadDTO:
+        artifact_type: ArtifactType | None = None,
+    ) -> ExperimentArtifactDownloadDTO:
         raise ExperimentArtifactsNotAccessibleError("Experiment artifacts unavailable")
 
     async def delete_experiment_artifact_by_hash(
@@ -105,7 +106,7 @@ class NoOpExperimentArtifactsService:
         filepath: str | None = None,
         blob_id: UUID | None = None,
         artifact_hash: str | None = None,
-    ) -> tuple[bytes, str, str]:
+    ) -> ExperimentArtifactDownloadDTO:
         raise ExperimentArtifactsNotAccessibleError("Experiment artifacts unavailable")
 
     async def download_experiment_artifacts_archive(

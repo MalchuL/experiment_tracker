@@ -116,8 +116,7 @@ export function LoggedObjectsSection({
                               experiment.id,
                               nearestStep,
                               name,
-                              objectType,
-                              objectAtStep.metadata?.content_type
+                              objectType
                             )
                           : "";
                         const currentOverrideIndex = Math.max(

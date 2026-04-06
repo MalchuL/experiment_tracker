@@ -729,14 +729,14 @@ async def test_download_named_tracked_returns_bytes_and_filename() -> None:
             headers=Headers({"content-type": "text/plain"}),
         ),
     )
-    content, mime, fname = await service.download_experiment_artifact(
+    payload = await service.download_experiment_artifact(
         user=user,
         experiment_id=experiment_id,
         filepath="f.txt",
     )
-    assert content == b"hello"
-    assert mime == "text/plain"
-    assert fname == "f.txt"
+    assert payload.content == b"hello"
+    assert payload.content_type == "text/plain"
+    assert payload.filename == "f.txt"
 
 
 @pytest.mark.asyncio

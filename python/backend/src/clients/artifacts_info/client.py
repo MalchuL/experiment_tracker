@@ -8,7 +8,12 @@ from uuid import UUID
 
 import httpx
 
-from .dto import ArtifactsInfoResultDTO, LogArtifactRequestDTO, LogArtifactResponseDTO
+from .dto import (
+    ArtifactType,
+    ArtifactsInfoResultDTO,
+    LogArtifactRequestDTO,
+    LogArtifactResponseDTO,
+)
 
 QueryParamScalar = str | int | float | bool | None
 QueryParamValue = QueryParamScalar | list[QueryParamScalar]
@@ -62,7 +67,7 @@ class ArtifactsInfoClient:
         self,
         project_id: UUID,
         experiment_ids: Iterable[UUID] | None = None,
-        artifact_types: Iterable[str] | None = None,
+        artifact_types: Iterable[ArtifactType] | None = None,
         artifact_names: Iterable[str] | None = None,
         steps: Iterable[int] | None = None,
         start_time: str | None = None,

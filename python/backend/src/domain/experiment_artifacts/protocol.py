@@ -9,6 +9,7 @@ from fastapi import UploadFile
 from fastapi_users.models import UserProtocol
 
 from clients.artifacts_info import (
+    ArtifactType,
     ArtifactsInfoResultDTO,
     LogArtifactResponseDTO as ArtifactsInfoLogArtifactResponseDTO,
 )
@@ -18,7 +19,7 @@ from clients.object_storage import (
 )
 
 from .dto import (
-    ExperimentArtifactAtStepDownloadDTO,
+    ExperimentArtifactDownloadDTO,
     ExperimentArtifactDTO,
 )
 
@@ -36,7 +37,7 @@ class ExperimentArtifactsServiceProtocol(Protocol):
         user: UserProtocol,
         project_id: UUID,
         experiment_ids: list[UUID] | None = None,
-        artifact_types: list[str] | None = None,
+        artifact_types: list[ArtifactType] | None = None,
         artifact_names: list[str] | None = None,
         steps: list[int] | None = None,
         start_time: str | None = None,
@@ -49,7 +50,7 @@ class ExperimentArtifactsServiceProtocol(Protocol):
         experiment_id: UUID,
         file: UploadFile,
         name: str,
-        artifact_type: str,
+        artifact_type: ArtifactType,
         step: int,
         metadata: dict[str, str] | None = None,
         tags: list[str] | None = None,
@@ -61,8 +62,8 @@ class ExperimentArtifactsServiceProtocol(Protocol):
         experiment_id: UUID,
         step: int,
         name: str,
-        artifact_type: str | None = None,
-    ) -> ExperimentArtifactAtStepDownloadDTO: ...
+        artifact_type: ArtifactType | None = None,
+    ) -> ExperimentArtifactDownloadDTO: ...
 
     async def delete_experiment_artifact_by_hash(
         self, user: UserProtocol, experiment_id: UUID, hash: str
@@ -97,7 +98,7 @@ class ExperimentArtifactsServiceProtocol(Protocol):
         filepath: str | None = None,
         blob_id: UUID | None = None,
         artifact_hash: str | None = None,
-    ) -> tuple[bytes, str, str]: ...
+    ) -> ExperimentArtifactDownloadDTO: ...
 
     async def download_experiment_artifacts_archive(
         self,

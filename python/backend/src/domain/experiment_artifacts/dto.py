@@ -10,8 +10,8 @@ from pydantic import BaseModel, Field
 
 
 @dataclass(frozen=True, slots=True)
-class ExperimentArtifactAtStepDownloadDTO:
-    """Payload for a step-logged artifact: raw bytes plus display metadata from scalars log."""
+class ExperimentArtifactDownloadDTO:
+    """Raw bytes plus display metadata for a downloaded experiment artifact (tracked or at-step)."""
 
     content: bytes
     filename: str
