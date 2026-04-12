@@ -9,11 +9,11 @@ from .dto import (
     DeleteProjectResponse,
     UploadProjectArtifactResponse,
 )
-from ...request import ApiRequestSpec
+from ...request import ApiRequestSpec, FileUploadSpec
 
 
 class ProjectArtifactsRequestSpecFactory:
-    BASE_ENDPOINT = "/api/project-artifacts"
+    BASE_ENDPOINT = "/project-artifacts"
 
     def check_project_artifacts(
         self, project_id: str | UUID, hashes: list[str]
@@ -29,7 +29,10 @@ class ProjectArtifactsRequestSpecFactory:
         )
 
     def upload_project_artifact(
-        self, project_id: str | UUID, artifact_hash: str
+        self,
+        project_id: str | UUID,
+        artifact_hash: str,
+        file: FileUploadSpec,
     ) -> ApiRequestSpec[UploadProjectArtifactResponse]:
         if isinstance(project_id, UUID):
             project_id = str(project_id)
@@ -38,19 +41,20 @@ class ProjectArtifactsRequestSpecFactory:
             method="POST",
             endpoint=endpoint,
             query_params={"hash": artifact_hash},
+            files={"file": file},
             response_model=UploadProjectArtifactResponse,
         )
 
     def download_project_artifact(
         self, project_id: str | UUID, artifact_hash: str
-    ) -> ApiRequestSpec[UploadProjectArtifactResponse]:
+    ) -> ApiRequestSpec:
         if isinstance(project_id, UUID):
             project_id = str(project_id)
         endpoint = f"{self.BASE_ENDPOINT}/{project_id}/artifacts/{artifact_hash}"
         return ApiRequestSpec(
             method="GET",
             endpoint=endpoint,
-            response_model=UploadProjectArtifactResponse,
+            response_is_binary=True,
         )
 
     def delete_project_artifact(

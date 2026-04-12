@@ -6,6 +6,7 @@ from dataclasses import dataclass
 import traceback
 from typing import Any, Optional
 
+from .request import FileUploadSpec
 from .utils import log_error_response
 import httpx
 from .utils.logging import disable_httpx_logging
@@ -18,6 +19,8 @@ class RequestItem:
     method: str
     path: str
     json: Optional[dict[str, Any]] = None
+    form_data: Optional[dict[str, Any]] = None
+    files: Optional[dict[str, FileUploadSpec]] = None
     params: Optional[dict[str, Any]] = None
 
 
@@ -77,8 +80,32 @@ class RequestQueue:
                 continue
             try:
                 with disable_httpx_logging():
+                    if item.json is not None and (
+                        item.form_data is not None or item.files is not None
+                    ):
+                        raise ValueError(
+                            "RequestItem cannot contain both json and data/files payloads"
+                        )
+
+                    files_payload: dict[str, tuple[str, bytes, str]] | None = None
+                    if item.files is not None:
+                        # TODO: Test this with actual files.
+                        files_payload = {
+                            key: (
+                                value.file_name,
+                                value.file_content,
+                                value.content_type,
+                            )
+                            for key, value in item.files.items()
+                        }
+
                     response = self._client.request(
-                        item.method, item.path, json=item.json, params=item.params
+                        item.method,
+                        item.path,
+                        json=item.json,
+                        data=item.form_data,
+                        files=files_payload,
+                        params=item.params,
                     )
                 response.raise_for_status()
             except httpx.HTTPStatusError as exc:

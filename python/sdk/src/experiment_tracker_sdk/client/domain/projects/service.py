@@ -3,6 +3,7 @@ from uuid import UUID
 
 from .dto import (
     ProjectCreateRequest,
+    ProjectListResponse,
     ProjectMetricsResponse,
     ProjectResponse,
     ProjectSettingResponse,
@@ -14,20 +15,19 @@ from ...request import ApiRequestSpec
 
 class ProjectRequestSpecFactory:
     ENDPOINTS = {
-        "get_all_projects": "/api/projects",
-        "create_project": "/api/projects",
-        "get_project": lambda project_id: f"/api/projects/{project_id}",
-        "update_project": lambda project_id: f"/api/projects/{project_id}",
-        "delete_project": lambda project_id: f"/api/projects/{project_id}",
+        "get_all_projects": "/projects",
+        "create_project": "/projects",
+        "get_project": lambda project_id: f"/projects/{project_id}",
+        "update_project": lambda project_id: f"/projects/{project_id}",
+        "delete_project": lambda project_id: f"/projects/{project_id}",
     }
 
-    def get_all_projects(self) -> ApiRequestSpec[ProjectResponse]:
+    def get_all_projects(self) -> ApiRequestSpec[ProjectListResponse]:
         endpoint = cast(str, self.ENDPOINTS["get_all_projects"])
         return ApiRequestSpec(
             method="GET",
             endpoint=endpoint,
-            response_model=ProjectResponse,
-            response_is_list=True,
+            response_model=ProjectListResponse,
         )
 
     def get_project(self, project_id: str | UUID) -> ApiRequestSpec[ProjectResponse]:

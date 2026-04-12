@@ -3,6 +3,7 @@ from uuid import UUID
 
 from .dto import (
     ExperimentCreateRequest,
+    ExperimentListResponse,
     ExperimentResponse,
     ExperimentStatus,
     SuccessResponse,
@@ -14,12 +15,12 @@ from ...request import ApiRequestSpec
 
 class ExperimentRequestSpecFactory:
     ENDPOINTS = {
-        "create_experiment": "/api/experiments",
-        "get_recent_experiments": "/api/experiments/recent",
-        "update_experiment": lambda experiment_id: f"/api/experiments/{experiment_id}",
-        "get_experiment": lambda experiment_id: f"/api/experiments/{experiment_id}",
-        "delete_experiment": lambda experiment_id: f"/api/experiments/{experiment_id}",
-        "get_experiments_by_project": lambda project_id: f"/api/projects/{project_id}/experiments",
+        "create_experiment": "/experiments",
+        "get_recent_experiments": "/experiments/recent",
+        "update_experiment": lambda experiment_id: f"/experiments/{experiment_id}",
+        "get_experiment": lambda experiment_id: f"/experiments/{experiment_id}",
+        "delete_experiment": lambda experiment_id: f"/experiments/{experiment_id}",
+        "get_experiments_by_project": lambda project_id: f"/projects/{project_id}/experiments",
     }
 
     def create_experiment(
@@ -121,7 +122,7 @@ class ExperimentRequestSpecFactory:
 
     def get_experiments_by_project(
         self, project_id: str | UUID
-    ) -> ApiRequestSpec[ExperimentResponse]:
+    ) -> ApiRequestSpec[ExperimentListResponse]:
         if isinstance(project_id, UUID):
             project_id = str(project_id)
         endpoint: str = cast(
@@ -130,8 +131,7 @@ class ExperimentRequestSpecFactory:
         return ApiRequestSpec(
             method="GET",
             endpoint=endpoint,
-            response_model=ExperimentResponse,
-            response_is_list=True,
+            response_model=ExperimentListResponse,
         )
 
     def delete_experiment(self, experiment_id: str | UUID) -> ApiRequestSpec[SuccessResponse]:

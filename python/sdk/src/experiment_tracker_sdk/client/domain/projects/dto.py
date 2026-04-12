@@ -1,6 +1,6 @@
 from datetime import datetime
 from enum import Enum
-from pydantic import BaseModel
+from pydantic import BaseModel, RootModel
 
 
 class MetricDirection(str, Enum):
@@ -77,6 +77,10 @@ class ProjectResponse(BaseModel):
     experimentCount: int = 0
     hypothesisCount: int = 0
     team: ProjectTeamResponse | None = None
+
+
+class ProjectListResponse(RootModel[list[ProjectResponse]]):
+    pass
 
 
 class DashboardStatsResponse(BaseModel):

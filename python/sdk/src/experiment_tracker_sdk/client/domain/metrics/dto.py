@@ -1,5 +1,5 @@
 from datetime import datetime
-from pydantic import BaseModel
+from pydantic import BaseModel, RootModel
 
 
 class MetricCreateRequest(BaseModel):
@@ -18,3 +18,7 @@ class MetricResponse(BaseModel):
     step: int
     label: str | None = None
     createdAt: datetime
+
+
+class MetricListResponse(RootModel[list[MetricResponse]]):
+    pass

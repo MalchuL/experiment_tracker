@@ -2,7 +2,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Optional
 from uuid import UUID
-from pydantic import BaseModel
+from pydantic import BaseModel, RootModel
 
 
 class ExperimentStatus(str, Enum):
@@ -51,6 +51,10 @@ class ExperimentResponse(BaseModel):
     createdAt: datetime
     startedAt: Optional[datetime] = None
     completedAt: Optional[datetime] = None
+
+
+class ExperimentListResponse(RootModel[list[ExperimentResponse]]):
+    pass
 
 
 class SuccessResponse(BaseModel):

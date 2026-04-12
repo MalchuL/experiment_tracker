@@ -17,12 +17,12 @@ from ...request import ApiRequestSpec
 
 class TeamRequestSpecFactory:
     ENDPOINTS = {
-        "create_team": "/api/teams",
-        "update_team": "/api/teams",
-        "delete_team": lambda team_id: f"/api/teams/{team_id}",
-        "add_team_member": "/api/teams/members",
-        "update_team_member": "/api/teams/members",
-        "remove_team_member": "/api/teams/members",
+        "create_team": "/teams",
+        "update_team": "/teams",
+        "delete_team": lambda team_id: f"/teams/{team_id}",
+        "add_team_member": "/teams/members",
+        "update_team_member": "/teams/members",
+        "remove_team_member": "/teams/members",
     }
 
     def create_team(

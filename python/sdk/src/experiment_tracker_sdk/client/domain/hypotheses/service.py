@@ -3,6 +3,7 @@ from uuid import UUID
 
 from .dto import (
     HypothesisCreateRequest,
+    HypothesisListResponse,
     HypothesisResponse,
     HypothesisStatus,
     HypothesisUpdateRequest,
@@ -14,11 +15,11 @@ from ...request import ApiRequestSpec
 
 class HypothesisRequestSpecFactory:
     ENDPOINTS = {
-        "create_hypothesis": "/api/hypotheses",
-        "get_hypothesis": lambda hypothesis_id: f"/api/hypotheses/{hypothesis_id}",
-        "update_hypothesis": lambda hypothesis_id: f"/api/hypotheses/{hypothesis_id}",
-        "delete_hypothesis": lambda hypothesis_id: f"/api/hypotheses/{hypothesis_id}",
-        "get_project_hypotheses": lambda project_id: f"/api/projects/{project_id}/hypotheses",
+        "create_hypothesis": "/hypotheses",
+        "get_hypothesis": lambda hypothesis_id: f"/hypotheses/{hypothesis_id}",
+        "update_hypothesis": lambda hypothesis_id: f"/hypotheses/{hypothesis_id}",
+        "delete_hypothesis": lambda hypothesis_id: f"/hypotheses/{hypothesis_id}",
+        "get_project_hypotheses": lambda project_id: f"/projects/{project_id}/hypotheses",
     }
 
     def get_hypothesis(self, hypothesis_id: str | UUID) -> ApiRequestSpec[HypothesisResponse]:
@@ -112,7 +113,7 @@ class HypothesisRequestSpecFactory:
 
     def get_project_hypotheses(
         self, project_id: str | UUID
-    ) -> ApiRequestSpec[HypothesisResponse]:
+    ) -> ApiRequestSpec[HypothesisListResponse]:
         if isinstance(project_id, UUID):
             project_id = str(project_id)
         endpoint = cast(Callable[[Any], str], self.ENDPOINTS["get_project_hypotheses"])(
@@ -121,8 +122,7 @@ class HypothesisRequestSpecFactory:
         return ApiRequestSpec(
             method="GET",
             endpoint=endpoint,
-            response_model=HypothesisResponse,
-            response_is_list=True,
+            response_model=HypothesisListResponse,
         )
 
 

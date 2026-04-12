@@ -1,22 +1,31 @@
 import io
 import mimetypes
 from pathlib import Path
+from typing import cast
 
 from experiment_tracker_sdk.error import ExpTrackerAPIError
 
 
 def materialize_content(
     content: bytes | str | Path | io.BytesIO | io.StringIO,
-    file_name: str | None = None,
-    mime_type: str | None = None,
-) -> tuple[str, bytes, str]:
-    """Convert user input into an upload-ready tuple: (file_name, bytes, content_type).
+    default_file_name: str | None = None,
+    default_mime_type: str | None = None,
+) -> tuple[bytes, str, str]:
+    """Convert user input into an upload-ready tuple: (bytes, file_name, content_type).
+    Args:
+        content (bytes | str | Path | io.BytesIO | io.StringIO): The content to materialize.
+        default_file_name (str | None): The default file name to use if not retrieved from the content.
+        default_mime_type (str | None): The default MIME type to use if not retrieved from the content.
+    Returns:
+        tuple[bytes, str, str]: A tuple containing the bytes, file name, and MIME type.
+    Raises:
+        ExpTrackerAPIError: If the content is not supported or the file name or MIME type is not retrieved from the content.
 
     Purpose of each return item:
-    - file_name:
-        Sent as multipart filename when uploading blob, and stored in metadata for UI/debug.
     - bytes:
         Actual binary payload uploaded to object storage and hashed for deduplication.
+    - file_name:
+        Sent as multipart filename when uploading blob, and stored in metadata for UI/debug.
     - content_type (MIME):
         Used as HTTP Content-Type for the multipart file part.
         Also persisted in metadata, so downstream consumers (frontend/renderers)
@@ -28,52 +37,56 @@ def materialize_content(
     """
     # Raw bytes were provided directly by user code.
     if isinstance(content, bytes):
-        if file_name is None:
+        if default_file_name is None:
             raise ExpTrackerAPIError("file_name is required when content is bytes")
-        if mime_type is None:
+        if default_mime_type is None:
             raise ExpTrackerAPIError("mime_type is required when content is bytes")
-        return file_name, content, mime_type
+        return content, default_file_name, default_mime_type
     # String can be either a filesystem path or plain text payload.
     if isinstance(content, (str, Path)):
         path = Path(content)
         if path.exists() and path.is_file() or isinstance(content, Path):
             file_name = path.name
             content_bytes = path.read_bytes()
-            guessed_type = mimetypes.guess_type(file_name)[0] or mime_type
+            guessed_type = mimetypes.guess_type(file_name)[0] or default_mime_type
             if guessed_type is None:
                 raise ExpTrackerAPIError(
                     "mime_type is required when content is a string"
                 )
             return (
-                file_name,
                 content_bytes,
+                file_name,
                 guessed_type,
             )
         # If the content is a string and not a path, we assume it is a plain text payload.
-        if file_name is None:
+        if default_file_name is None:
             raise ExpTrackerAPIError("file_name is required when content is a string")
-        return file_name, content.encode("utf-8"), mime_type or "text/plain"
+        return (
+            content.encode("utf-8"),
+            default_file_name,
+            default_mime_type or "text/plain",
+        )
     # File-like object with .read() support.
     if hasattr(content, "read") and callable(content.read):
-        raw = content.read()
-        if isinstance(raw, str):
-            raw = raw.encode("utf-8")
-        if isinstance(raw, bytes):
-            if file_name is None:
+        content_bytes = cast(bytes, content.read())
+        if isinstance(content_bytes, str):
+            content_bytes = content_bytes.encode("utf-8")
+        if isinstance(content_bytes, bytes):
+            if default_file_name is None:
                 raise ExpTrackerAPIError(
                     "file_name is required when content is a file-like object"
                 )
-            if mime_type is None:
+            if default_mime_type is None:
                 raise ExpTrackerAPIError(
                     "mime_type is required when content is a file-like object"
                 )
-            return file_name, raw, mime_type
+            return content_bytes, default_file_name, default_mime_type
     raise ExpTrackerAPIError(
         "Unsupported content type. Use bytes, file path, file-like, or string."
     )
 
 
-def data_to_image_bytes(image_input) -> bytes:
+def image_data_to_png_bytes(image_input) -> bytes:
     """Convert PIL image or numpy ndarray to PNG bytes.
 
     ndarray contract:

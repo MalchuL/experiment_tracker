@@ -1,42 +1,44 @@
 from __future__ import annotations
 
+import json
 from datetime import datetime
-from typing import cast
+from typing import Any, cast
 from uuid import UUID
 
 from .dto import (
     ArtifactsAtStepInfoResultResponse,
+    ArtifactType,
     ExperimentArtifactResponse,
     DeleteExperimentArtifactAtStepResponse,
     DeleteExperimentArtifactsAtStepResponse,
     LogArtifactAtStepRequest,
     LogArtifactAtStepResponse,
 )
-from ...request import ApiRequestSpec
+from ...request import ApiRequestSpec, FileUploadSpec
 
 
 class ExperimentArtifactsRequestSpecFactory:
-    ENDPOINTS = {
+    ENDPOINTS: dict[str, Any] = {
         "get_project_artifacts_at_step": lambda project_id: (
-            f"/api/experiment-artifacts/projects/{project_id}/get-at-step"
+            f"/experiment-artifacts/projects/{project_id}/get-at-step"
         ),
         "upload_and_log_experiment_artifact_at_step": lambda experiment_id: (
-            f"/api/experiment-artifacts/{experiment_id}/log-at-step"
+            f"/experiment-artifacts/{experiment_id}/log-at-step"
         ),
         "download_experiment_artifact_at_step": lambda experiment_id: (
-            f"/api/experiment-artifacts/{experiment_id}/download-at-step"
+            f"/experiment-artifacts/{experiment_id}/download-at-step"
         ),
         "delete_experiment_artifact_by_hash": lambda experiment_id: (
-            f"/api/experiment-artifacts/{experiment_id}/at-step"
+            f"/experiment-artifacts/{experiment_id}/at-step"
         ),
         "delete_experiment_all_artifacts": lambda experiment_id: (
-            f"/api/experiment-artifacts/{experiment_id}/all"
+            f"/experiment-artifacts/{experiment_id}/all"
         ),
-        "upsert_named_experiment_artifact": "/api/experiment-artifacts/upsert",
-        "get_named_experiment_artifact": "/api/experiment-artifacts/get",
-        "download_named_experiment_artifact": "/api/experiment-artifacts/download",
-        "download_named_experiment_artifacts_archive": "/api/experiment-artifacts/download/archive",
-        "delete_named_experiment_artifacts": "/api/experiment-artifacts/delete",
+        "upsert_named_experiment_artifact": "/experiment-artifacts/upsert",
+        "get_named_experiment_artifact": "/experiment-artifacts/get",
+        "download_named_experiment_artifact": "/experiment-artifacts/download",
+        "download_named_experiment_artifacts_archive": "/experiment-artifacts/download/archive",
+        "delete_named_experiment_artifacts": "/experiment-artifacts/delete",
     }
 
     def get_project_artifacts_at_step(
@@ -51,7 +53,9 @@ class ExperimentArtifactsRequestSpecFactory:
     ) -> ApiRequestSpec[ArtifactsAtStepInfoResultResponse]:
         if isinstance(project_id, UUID):
             project_id = str(project_id)
-        endpoint = f"/api/experiment-artifacts/projects/{project_id}/get-at-step"
+        endpoint = cast(
+            str, self.ENDPOINTS["get_project_artifacts_at_step"](project_id)
+        )
 
         params: dict[str, object] = {}
         if experiment_ids:
@@ -77,15 +81,33 @@ class ExperimentArtifactsRequestSpecFactory:
     def upload_and_log_experiment_artifact_at_step(
         self,
         experiment_id: str | UUID,
-        request: LogArtifactAtStepRequest,
+        file: FileUploadSpec,
+        name: str,
+        artifact_type: ArtifactType,
+        step: int,
+        metadata: dict[str, str] | None = None,
+        tags: list[str] | None = None,
     ) -> ApiRequestSpec[LogArtifactAtStepResponse]:
         if isinstance(experiment_id, UUID):
             experiment_id = str(experiment_id)
-        endpoint = f"/api/experiment-artifacts/{experiment_id}/log-at-step"
+        endpoint = cast(
+            str,
+            self.ENDPOINTS["upload_and_log_experiment_artifact_at_step"](experiment_id),
+        )
+        form_data: dict[str, str] = {
+            "name": name,
+            "artifact_type": artifact_type,
+            "step": str(step),
+        }
+        if metadata is not None:
+            form_data["metadata"] = json.dumps(metadata)
+        if tags is not None:
+            form_data["tags"] = json.dumps(tags)
         return ApiRequestSpec(
             method="POST",
             endpoint=endpoint,
-            request_payload=request,
+            form_data=form_data,
+            files={"file": file},
             response_model=LogArtifactAtStepResponse,
         )
 
@@ -95,10 +117,12 @@ class ExperimentArtifactsRequestSpecFactory:
         step: int,
         name: str,
         artifact_type: str | None = None,
-    ) -> ApiRequestSpec[LogArtifactAtStepResponse]:
+    ) -> ApiRequestSpec:
         if isinstance(experiment_id, UUID):
             experiment_id = str(experiment_id)
-        endpoint = f"/api/experiment-artifacts/{experiment_id}/download-at-step"
+        endpoint = cast(
+            str, self.ENDPOINTS["download_experiment_artifact_at_step"](experiment_id)
+        )
         params: dict[str, object] = {"step": step, "name": name}
         if artifact_type is not None:
             params["artifact_type"] = artifact_type
@@ -106,7 +130,7 @@ class ExperimentArtifactsRequestSpecFactory:
             method="GET",
             endpoint=endpoint,
             query_params=params,
-            response_model=LogArtifactAtStepResponse,
+            response_is_binary=True,
         )
 
     def delete_experiment_artifact_by_hash(
@@ -114,7 +138,9 @@ class ExperimentArtifactsRequestSpecFactory:
     ) -> ApiRequestSpec[DeleteExperimentArtifactAtStepResponse]:
         if isinstance(experiment_id, UUID):
             experiment_id = str(experiment_id)
-        endpoint = f"/api/experiment-artifacts/{experiment_id}/at-step"
+        endpoint = cast(
+            str, self.ENDPOINTS["delete_experiment_artifact_by_hash"](experiment_id)
+        )
         return ApiRequestSpec(
             method="DELETE",
             endpoint=endpoint,
@@ -127,7 +153,9 @@ class ExperimentArtifactsRequestSpecFactory:
     ) -> ApiRequestSpec[DeleteExperimentArtifactsAtStepResponse]:
         if isinstance(experiment_id, UUID):
             experiment_id = str(experiment_id)
-        endpoint = f"/api/experiment-artifacts/{experiment_id}/all"
+        endpoint = cast(
+            str, self.ENDPOINTS["delete_experiment_all_artifacts"](experiment_id)
+        )
         return ApiRequestSpec(
             method="DELETE",
             endpoint=endpoint,
@@ -162,21 +190,23 @@ class ExperimentArtifactsRequestSpecFactory:
     def upsert_named_experiment_artifact(
         self,
         experiment_id: str | UUID,
-        name: str | None,
         filepath: str,
+        file: FileUploadSpec,
+        name: str | None = None,
     ) -> ApiRequestSpec[ExperimentArtifactResponse]:
         if isinstance(experiment_id, UUID):
             experiment_id = str(experiment_id)
-        payload: dict[str, object] = {
+        form_data: dict[str, str] = {
             "experiment_id": experiment_id,
             "filepath": filepath,
         }
         if name is not None:
-            payload["name"] = name
+            form_data["name"] = name
         return ApiRequestSpec(
             method="POST",
             endpoint=cast(str, self.ENDPOINTS["upsert_named_experiment_artifact"]),
-            request_payload=payload,
+            form_data=form_data,
+            files={"file": file},
             response_model=ExperimentArtifactResponse,
         )
 
@@ -186,7 +216,7 @@ class ExperimentArtifactsRequestSpecFactory:
         filepath: str | None = None,
         blob_id: str | UUID | None = None,
         artifact_hash: str | None = None,
-    ) -> ApiRequestSpec[ExperimentArtifactResponse]:
+    ) -> ApiRequestSpec:
         if isinstance(experiment_id, UUID):
             experiment_id = str(experiment_id)
         if isinstance(blob_id, UUID):
@@ -202,14 +232,14 @@ class ExperimentArtifactsRequestSpecFactory:
             method="GET",
             endpoint=cast(str, self.ENDPOINTS["download_named_experiment_artifact"]),
             query_params=params,
-            response_model=ExperimentArtifactResponse,
+            response_is_binary=True,
         )
 
     def download_named_experiment_artifacts_archive(
         self,
         experiment_id: str | UUID,
         name: str,
-    ) -> ApiRequestSpec[ExperimentArtifactResponse]:
+    ) -> ApiRequestSpec:
         if isinstance(experiment_id, UUID):
             experiment_id = str(experiment_id)
         return ApiRequestSpec(
@@ -218,7 +248,7 @@ class ExperimentArtifactsRequestSpecFactory:
                 str, self.ENDPOINTS["download_named_experiment_artifacts_archive"]
             ),
             query_params={"experiment_id": experiment_id, "name": name},
-            response_model=ExperimentArtifactResponse,
+            response_is_binary=True,
         )
 
     def delete_named_experiment_artifacts(
@@ -270,11 +300,21 @@ class ExperimentArtifactsRequestSpecFactory:
     def upload_and_log_experiment_artifact(
         self,
         experiment_id: str | UUID,
-        request: LogArtifactAtStepRequest,
+        file: FileUploadSpec,
+        name: str,
+        artifact_type: ArtifactType,
+        step: int,
+        metadata: dict[str, str] | None = None,
+        tags: list[str] | None = None,
     ) -> ApiRequestSpec[LogArtifactAtStepResponse]:
         return self.upload_and_log_experiment_artifact_at_step(
             experiment_id=experiment_id,
-            request=request,
+            file=file,
+            name=name,
+            artifact_type=artifact_type,
+            step=step,
+            metadata=metadata,
+            tags=tags,
         )
 
     def delete_experiment_artifact(
@@ -291,7 +331,7 @@ class ExperimentArtifactsRequestSpecFactory:
         step: int,
         name: str,
         artifact_type: str | None = None,
-    ) -> ApiRequestSpec[LogArtifactAtStepResponse]:
+    ) -> ApiRequestSpec:
         return self.download_experiment_artifact_at_step(
             experiment_id=experiment_id,
             step=step,

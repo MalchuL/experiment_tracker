@@ -7,12 +7,20 @@ from pathlib import Path
 from typing import cast
 from uuid import UUID
 
+from experiment_tracker_sdk.client.api_registry import APIRequestsRegistry
 from experiment_tracker_sdk.logger import logger
-from experiment_tracker_sdk.client import API, ExperimentStatus, ExperimentTrackerClient
+from experiment_tracker_sdk.client import (
+    ExperimentStatus,
+    ExperimentTrackerClient,
+)
 from experiment_tracker_sdk.client.domain.experiments.dto import ExperimentResponse
 from experiment_tracker_sdk.client.domain.projects.dto import ProjectResponse
 from experiment_tracker_sdk.config import load_config
 from experiment_tracker_sdk.error import ExpTrackerAPIError, ExpTrackerProgressError
+from experiment_tracker_sdk.utils.content_utils import (
+    image_data_to_png_bytes,
+    materialize_content,
+)
 
 
 class ExpTracker:
@@ -37,7 +45,8 @@ class ExpTracker:
         self,
         experiment_id: str | UUID,
         project_id: str | UUID,
-        api: API,
+        api_requests_registry: APIRequestsRegistry,
+        request_client: ExperimentTrackerClient,
     ):
         """Initialize the ExpTracker instance.
         Args:
@@ -46,17 +55,25 @@ class ExpTracker:
         """
         self.experiment_id = experiment_id
         self.project_id = project_id
-        self._api = api
+        self._api_requests_registry = api_requests_registry
+        self._request_client = request_client
 
         # Used to group scalars by step to reduce API calls (table have separate column per scalar name)
         self._last_logged_step = 0
         self._current_values: dict[str, float] = {}
 
     @staticmethod
-    def _get_api_client() -> API:
+    def _get_api_requests_registry() -> APIRequestsRegistry:
+        return APIRequestsRegistry()
+
+    @staticmethod
+    def _get_request_client() -> ExperimentTrackerClient:
         config = load_config()
-        api = API(ExperimentTrackerClient(config.base_url, config.api_token))
-        return api
+        return ExperimentTrackerClient(
+            config.base_url,
+            config.api_token,
+            api_prefix=config.api_prefix,
+        )
 
     @classmethod
     def init(
@@ -74,9 +91,12 @@ class ExpTracker:
         project = str(project)
         experiment = str(experiment)
 
-        api = cls._get_api_client()
+        api_requests_registry = cls._get_api_requests_registry()
+        request_client = cls._get_request_client()
+
         projects = cast(
-            list[ProjectResponse], api.request(api.projects.get_all_projects())
+            list[ProjectResponse],
+            request_client.request(api_requests_registry.projects.get_all_projects()),
         )
         project_obj = next(
             (p for p in projects if p.name == project or p.id == project), None
@@ -89,7 +109,11 @@ class ExpTracker:
             # Try to find an existing experiment with the given name or ID
             experiments = cast(
                 list[ExperimentResponse],
-                api.request(api.experiments.get_experiments_by_project(project_obj.id)),
+                request_client.request(
+                    api_requests_registry.experiments.get_experiments_by_project(
+                        project_obj.id
+                    )
+                ),
             )
             experiment_obj = next(
                 (e for e in experiments if e.name == experiment or e.id == experiment),
@@ -104,14 +128,17 @@ class ExpTracker:
             logger.info(f"Creating new experiment: {experiment} for project: {project}")
             experiment_obj = cast(
                 ExperimentResponse,
-                api.request(
-                    api.experiments.create_experiment(project_obj.id, experiment)
+                request_client.request(
+                    api_requests_registry.experiments.create_experiment(
+                        project_obj.id, experiment
+                    )
                 ),
             )
         return cls(
             experiment_obj.id,
             project_obj.id,
-            api,
+            api_requests_registry,
+            request_client,
         )
 
     def add_scalar(
@@ -123,7 +150,7 @@ class ExpTracker:
             scalar_value
         ):
             logger.warning(
-                f"Invalid scalar value: {scalar_value} for tag: {tag}, global_step: {global_step}"
+                f"Invalid scalar value: {scalar_value} for tag: {tag}, global_step: {global_step}, not logged"
             )
             return
         if global_step == self._last_logged_step:
@@ -132,8 +159,8 @@ class ExpTracker:
         else:
             # We log the current values and reset the current values
             if self._current_values:
-                self._api.queued_request(
-                    self._api.scalars.log_scalar(
+                self._request_client.queued_request(
+                    self._api_requests_registry.scalars.log_scalar(
                         self.experiment_id, self._current_values, self._last_logged_step
                     )
                 )
@@ -163,11 +190,11 @@ class ExpTracker:
         _ = walltime  # Kept for API parity with add_scalar-like signatures.
         if not math.isfinite(value):
             logger.warning(
-                f"Invalid metric value: {value} for name: {name}, step: {step}"
+                f"Invalid metric value: {value} for name: {name}, step: {step}, not logged"
             )
             return
-        self._api.request(
-            self._api.metrics.create_metric(
+        self._request_client.request(
+            self._api_requests_registry.metrics.create_metric(
                 experiment_id=self.experiment_id,
                 name=name,
                 value=value,
@@ -176,6 +203,7 @@ class ExpTracker:
             )
         )
 
+    # TODO: Refactor
     def add_image(
         self,
         tag: str,
@@ -189,7 +217,7 @@ class ExpTracker:
         - PIL.Image.Image
         - numpy.ndarray in HW or HWC layout
         """
-        image_bytes = self._materialize_image_bytes(img_tensor)
+        image_bytes = image_data_to_png_bytes(img_tensor)
         self._upload_and_log_experiment_artifact_at_step(
             tag=tag,
             object_type="image",
@@ -218,39 +246,50 @@ class ExpTracker:
             default_content_type="text/plain",
         )
 
+    # TODO: Refactor
     def log_final_artifact(
         self,
         tag: str,
         content,
-        filepath: str | None = None,
-        metadata: dict[str, str] | None = None,
-        default_extension: str = "",
+        stored_filepath: str | None = None,
         default_content_type: str = "application/octet-stream",
     ) -> None:
-        """Upload a named final artifact without step-based logging."""
+        """
+        Upload a named final artifact without step-based logging.
+        The logged artifact haven't a step associated with it, used for checkpoints, configs, final exports.
+        Args:
+            tag (str): The name of the artifact (displayed in the ui).
+            content (bytes): The content of the artifact.
+            stored_filepath (str | None): The relative filepath of the artifact in the ui.
+            default_content_type (str): The default content type of the artifact.
+        """
         try:
-            if metadata:
-                logger.info(
-                    "log_final_artifact metadata is currently not persisted by named artifacts API"
-                )
-            file_name, content_bytes, content_type = self._materialize_content(
-                tag=tag,
-                step=None,
+            file_name = tag
+            filepath = stored_filepath or f"final/{file_name}"
+            if (
+                isinstance(content, (str, Path))
+                and Path(content).exists()
+                and Path(content).is_file()
+            ):
+                file_name = Path(content).name
+                filepath = str(Path(content).relative_to(Path.cwd()))
+
+            content_bytes, _, content_type = materialize_content(
                 content=content,
-                default_extension=default_extension,
-                default_content_type=default_content_type,
+                default_file_name=file_name,
+                default_mime_type=default_content_type,
             )
-            final_filepath = filepath or f"final/{file_name}"
-            self._api.upsert_named_experiment_artifact(
+
+            self._api.blobs.upsert_named_experiment_artifact(
                 experiment_id=str(self.experiment_id),
                 name=tag,
-                filepath=final_filepath,
+                filepath=filepath,
                 file_name=file_name,
                 file_content=content_bytes,
                 content_type=content_type,
             )
         except Exception as exc:  # noqa: BLE001
-            logger.warning(f"Failed to log final artifact '{tag}': {exc}")
+            logger.error(f"Failed to log final artifact '{tag}': {exc}")
 
     def add_histogram(
         self,
@@ -334,52 +373,62 @@ class ExpTracker:
         if isinstance(progress, float):
             progress = min(max(progress, 0), 1)
             progress = round(progress * 100)
-        self._api.queued_request(
-            self._api.experiments.update_experiment(
+        self._request_client.queued_request(
+            self._api_requests_registry.experiments.update_experiment(
                 self.experiment_id, progress=progress
             )
         )
 
     def status(self, status: ExperimentStatus):
         """Update the status of the experiment."""
-        self._api.queued_request(
-            self._api.experiments.update_experiment(self.experiment_id, status=status)
+        self._request_client.queued_request(
+            self._api_requests_registry.experiments.update_experiment(
+                self.experiment_id, status=status
+            )
         )
 
     def tags(self, *tags: str):
         """Update the tags of the experiment."""
-        self._api.request(
-            self._api.experiments.update_experiment(self.experiment_id, tags=list(tags))
+        self._request_client.request(
+            self._api_requests_registry.experiments.update_experiment(
+                self.experiment_id, tags=list(tags)
+            )
         )
 
     def color(self, color: str):
         """Update the color of the experiment."""
         if not re.fullmatch(r"^#[0-9a-fA-F]{6}$", color):
             raise ExpTrackerAPIError(f"Invalid color: {color}")
-        self._api.request(
-            self._api.experiments.update_experiment(self.experiment_id, color=color)
+        self._request_client.request(
+            self._api_requests_registry.experiments.update_experiment(
+                self.experiment_id, color=color
+            )
         )
 
     def description(self, description: str):
         """Update the description of the experiment."""
-        self._api.request(
-            self._api.experiments.update_experiment(
+        self._request_client.request(
+            self._api_requests_registry.experiments.update_experiment(
                 self.experiment_id, description=description
             )
         )
 
     def name(self, name: str):
         """Update the name of the experiment."""
-        self._api.request(
-            self._api.experiments.update_experiment(self.experiment_id, name=name)
+        self._request_client.request(
+            self._api_requests_registry.experiments.update_experiment(
+                self.experiment_id, name=name
+            )
         )
 
     def parent_experiment(self, parent_experiment: str | UUID):
         """Update the parent experiment of the experiment."""
         experiments = cast(
             list[ExperimentResponse],
-            self._api.request(
-                self._api.experiments.get_experiments_by_project(self.project_id)
+            self._request_client.request(
+                self._api_requests_registry.experiments.get_experiments_by_project(
+                    self.project_id
+                )
             ),
         )
         # TODO: Must be paginated in the future
@@ -399,8 +448,8 @@ class ExpTracker:
         logger.info(
             f"Using parent experiment: {parent_experiment_obj.id} with name {parent_experiment_obj.name}"
         )
-        self._api.request(
-            self._api.experiments.update_experiment(
+        self._request_client.request(
+            self._api_requests_registry.experiments.update_experiment(
                 self.experiment_id, parent_experiment_id=parent_experiment_obj.id
             )
         )
@@ -408,27 +457,27 @@ class ExpTracker:
     def flush(self):
         """Flush the event file to disk/network."""
         if self._current_values:
-            self._api.queued_request(
-                self._api.scalars.log_scalar(
+            self._request_client.queued_request(
+                self._api_requests_registry.scalars.log_scalar(
                     self.experiment_id, self._current_values, self._last_logged_step
                 )
             )
             self._last_logged_step = 0
             self._current_values = {}
-        self._api.flush()
+        self._request_client.flush()
 
     def close(self):
         """Close the logger and free resources."""
         if self._current_values:
-            self._api.queued_request(
-                self._api.scalars.log_scalar(
+            self._request_client.queued_request(
+                self._api_requests_registry.scalars.log_scalar(
                     self.experiment_id, self._current_values, self._last_logged_step
                 )
             )
             self._last_logged_step = 0
             self._current_values = {}
-        self._api.flush()
-        self._api.close()
+        self._request_client.flush()
+        self._request_client.close()
 
     def _upload_and_log_experiment_artifact_at_step(
         self,
@@ -457,7 +506,7 @@ class ExpTracker:
             }
             if metadata:
                 payload_metadata.update(metadata)
-            self._api.upload_and_log_experiment_artifact_at_step(
+            self._api.blobs.upload_and_log_experiment_artifact_at_step(
                 experiment_id=str(self.experiment_id),
                 file_name=file_name,
                 file_content=content_bytes,
@@ -468,7 +517,7 @@ class ExpTracker:
                 metadata=payload_metadata,
             )
         except Exception as exc:  # noqa: BLE001
-            logger.warning(f"Failed to upload/log object '{tag}': {exc}")
+            logger.error(f"Failed to upload/log object '{tag}': {exc}")
 
     def _upload_project_artifact(
         self,
@@ -478,7 +527,7 @@ class ExpTracker:
         content_type: str,
     ) -> None:
         """Upload artifact into project-level CAS with hash validation."""
-        self._api.upload_project_artifact(
+        self._api.blobs.upload_project_artifact(
             project_id=project_id,
             file_name=file_name,
             file_content=file_content,

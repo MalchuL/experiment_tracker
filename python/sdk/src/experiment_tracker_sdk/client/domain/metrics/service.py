@@ -2,15 +2,15 @@ from typing import Any, Callable, cast
 
 from uuid import UUID
 
-from .dto import MetricCreateRequest, MetricResponse
+from .dto import MetricCreateRequest, MetricListResponse, MetricResponse
 from ...request import ApiRequestSpec
 
 
 class MetricRequestSpecFactory:
     ENDPOINTS = {
-        "create_metric": "/api/metrics",
-        "get_experiment_metrics": lambda experiment_id: f"/api/experiments/{experiment_id}/metrics",
-        "get_project_metrics": lambda project_id: f"/api/projects/{project_id}/metrics",
+        "create_metric": "/metrics",
+        "get_experiment_metrics": lambda experiment_id: f"/experiments/{experiment_id}/metrics",
+        "get_project_metrics": lambda project_id: f"/projects/{project_id}/metrics",
     }
 
     def create_metric(
@@ -38,7 +38,9 @@ class MetricRequestSpecFactory:
             response_model=MetricResponse,
         )
 
-    def get_experiment_metrics(self, experiment_id: str | UUID) -> ApiRequestSpec[MetricResponse]:
+    def get_experiment_metrics(
+        self, experiment_id: str | UUID
+    ) -> ApiRequestSpec[MetricListResponse]:
         if isinstance(experiment_id, UUID):
             experiment_id = str(experiment_id)
         endpoint: str = cast(
@@ -47,11 +49,10 @@ class MetricRequestSpecFactory:
         return ApiRequestSpec(
             method="GET",
             endpoint=endpoint,
-            response_model=MetricResponse,
-            response_is_list=True,
+            response_model=MetricListResponse,
         )
 
-    def get_project_metrics(self, project_id: str | UUID) -> ApiRequestSpec[MetricResponse]:
+    def get_project_metrics(self, project_id: str | UUID) -> ApiRequestSpec[MetricListResponse]:
         if isinstance(project_id, UUID):
             project_id = str(project_id)
         endpoint = cast(Callable[[Any], str], self.ENDPOINTS["get_project_metrics"])(
@@ -60,8 +61,7 @@ class MetricRequestSpecFactory:
         return ApiRequestSpec(
             method="GET",
             endpoint=endpoint,
-            response_model=MetricResponse,
-            response_is_list=True,
+            response_model=MetricListResponse,
         )
 
 

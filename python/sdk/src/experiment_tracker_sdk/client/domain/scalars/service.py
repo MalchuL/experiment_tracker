@@ -16,11 +16,11 @@ from ...request import ApiRequestSpec
 
 class ScalarsRequestSpecFactory:
     ENDPOINTS = {
-        "log_scalar": lambda experiment_id: f"/api/scalars/log/{experiment_id}",
-        "log_scalars_batch": lambda experiment_id: f"/api/scalars/log_batch/{experiment_id}",
-        "get_scalars": lambda experiment_id: f"/api/scalars/get/{experiment_id}",
-        "get_project_scalars": lambda project_id: f"/api/scalars/get/project/{project_id}",
-        "get_last_logged_experiments": lambda project_id: f"/api/scalars/last_logged/{project_id}",
+        "log_scalar": lambda experiment_id: f"/scalars/log/{experiment_id}",
+        "log_scalars_batch": lambda experiment_id: f"/scalars/log_batch/{experiment_id}",
+        "get_scalars": lambda experiment_id: f"/scalars/get/{experiment_id}",
+        "get_project_scalars": lambda project_id: f"/scalars/get/project/{project_id}",
+        "get_last_logged_experiments": lambda project_id: f"/scalars/last_logged/{project_id}",
     }
 
     def log_scalar(

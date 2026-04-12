@@ -1,5 +1,8 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 from experiment_tracker_sdk.client import ExperimentTrackerClient
-from experiment_tracker_sdk.client.request import ApiRequestSpec
 from experiment_tracker_sdk.client.domain import (
     ExperimentArtifactsRequestSpecFactory,
     ExperimentRequestSpecFactory,
@@ -10,20 +13,10 @@ from experiment_tracker_sdk.client.domain import (
     HypothesisRequestSpecFactory,
     TeamRequestSpecFactory,
 )
-from experiment_tracker_sdk.client.domain.experiment_artifacts.dto import (
-    ArtifactType,
-    LogArtifactAtStepRequest,
-)
-from pydantic import BaseModel
-from typing import Any, TypeVar, cast
-from pathlib import Path
-
-ResponseT = TypeVar("ResponseT", bound=BaseModel)
 
 
-class API:
-    def __init__(self, client: ExperimentTrackerClient):
-        self._tracker_client = client
+class APIRequestsRegistry:
+    def __init__(self):
         self._experiment_service = ExperimentRequestSpecFactory()
         self._metric_service = MetricRequestSpecFactory()
         self._project_service = ProjectRequestSpecFactory()
@@ -64,29 +57,3 @@ class API:
     @property
     def experiment_artifacts(self) -> ExperimentArtifactsRequestSpecFactory:
         return self._experiment_artifacts_service
-
-    def request(
-        self, request_spec: ApiRequestSpec[ResponseT]
-    ) -> ResponseT | list[ResponseT] | dict[str, Any]:
-        return self._tracker_client.request(request_spec)
-
-    def queued_request(self, request_spec: ApiRequestSpec[Any]) -> None:
-        self._tracker_client.queued_request(request_spec)
-
-    def flush(self) -> None:
-        """Flush the request queue."""
-        self._tracker_client.flush()
-
-    def close(self) -> None:
-        """Close the request queue and underlying HTTP client."""
-        self._tracker_client.close()
-
-    def check_project_artifacts(
-        self, project_id: str, hashes: list[str]
-    ) -> dict[str, Any]:
-        response = self.request(
-            self.project_artifacts.check_project_artifacts(project_id, hashes)
-        )
-        if isinstance(response, BaseModel):
-            return cast(dict[str, Any], response.model_dump())
-        return cast(dict[str, Any], response)

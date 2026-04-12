@@ -1,6 +1,6 @@
 from datetime import datetime
 from enum import Enum
-from pydantic import BaseModel
+from pydantic import BaseModel, RootModel
 
 
 class HypothesisStatus(str, Enum):
@@ -41,6 +41,10 @@ class HypothesisResponse(BaseModel):
     baseline: str
     createdAt: datetime
     updatedAt: datetime
+
+
+class HypothesisListResponse(RootModel[list[HypothesisResponse]]):
+    pass
 
 
 class SuccessResponse(BaseModel):
