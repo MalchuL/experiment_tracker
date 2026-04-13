@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "experiment-tracker-sdk"
-version = "0.4.1"
+version = "0.4.11"
 description = "Python SDK for Experiment Tracker"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -17,11 +17,21 @@ dependencies = [
 [tool.uv.sources]
 experiment-tracker-shared = { path = "../shared", editable = true }
 
+[tool.pyright]
+include = ["src"]
+exclude = ["tests"]
+extraPaths = ["../shared/src"]
+typeCheckingMode = "basic"
+
 [tool.basedpyright]
 extraPaths = ["../shared/src"]
 
 [project.optional-dependencies]
-dev = ["pytest"]
+dev = [
+  "pytest",
+  "pyright",
+  "ruff",
+]
 
 
 
@@ -30,3 +40,11 @@ experiment-tracker = "experiment_tracker_sdk.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py310"
+exclude = ["tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]

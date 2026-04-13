@@ -14,13 +14,13 @@ class FileUploadSpec:
     """File upload specification.
 
     Args:
-        file_name: Name of the file to upload.
-        file_content: Content of the file to upload.
+        filename: Name of the file to upload.
+        content: Content of the file to upload.
         content_type: MIME type of the file to upload.
     """
 
-    file_name: str
-    file_content: bytes
+    content: bytes
+    filename: str
     content_type: str = "application/octet-stream"
 
 
@@ -39,7 +39,7 @@ class FileDownloadResponse:
     content_type: str = "application/octet-stream"
 
 
-ResponseT = TypeVar("ResponseT", bound=BaseModel)
+ResponseT = TypeVar("ResponseT", bound=BaseModel | FileDownloadResponse)
 
 
 @dataclass(frozen=True)
@@ -61,7 +61,7 @@ class ApiRequestSpec(Generic[ResponseT]):
     request_payload: dict[str, Any] | BaseModel | None = None
     form_data: dict[str, Any] | None = None
     files: dict[str, FileUploadSpec] | None = None
-    response_model: type[ResponseT] | type[FileDownloadResponse] | None = None
+    response_model: type[ResponseT] | None = None
     query_params: dict[str, Any] | None = None
 
     def __post_init__(self) -> None:

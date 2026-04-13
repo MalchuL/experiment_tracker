@@ -8,6 +8,7 @@ from typing import cast
 from uuid import UUID
 
 from experiment_tracker_sdk.client.api_registry import APIRequestsRegistry
+from experiment_tracker_sdk.client.blob_api import BlobRequestsStrategy
 from experiment_tracker_sdk.logger import logger
 from experiment_tracker_sdk.client import (
     ExperimentStatus,
@@ -57,6 +58,10 @@ class ExpTracker:
         self.project_id = project_id
         self._api_requests_registry = api_requests_registry
         self._request_client = request_client
+        self._blob_api = BlobRequestsStrategy(
+            registry=api_requests_registry,
+            request_client=request_client,
+        )
 
         # Used to group scalars by step to reduce API calls (table have separate column per scalar name)
         self._last_logged_step = 0
@@ -218,14 +223,15 @@ class ExpTracker:
         - numpy.ndarray in HW or HWC layout
         """
         image_bytes = image_data_to_png_bytes(img_tensor)
-        self._upload_and_log_experiment_artifact_at_step(
-            tag=tag,
-            object_type="image",
-            content=image_bytes,
-            global_step=global_step,
+        self._blob_api.upload_and_log_experiment_artifact_at_step(
+            experiment_id=str(self.experiment_id),
+            filename=f"{tag}_{global_step}.png",  # Only needed for uploading
+            file_content=image_bytes,
+            content_type="image/png",
+            name=tag,
+            artifact_type="image",
+            step=global_step,
             metadata={"format": "png"},
-            default_extension=".png",
-            default_content_type="image/png",
         )
 
     def add_text(
@@ -236,14 +242,15 @@ class ExpTracker:
         walltime: float = 0,
     ):
         """Upload and log text as a text object."""
-        self._upload_and_log_experiment_artifact_at_step(
-            tag=tag,
-            object_type="text",
-            content=text_string,
-            global_step=global_step,
+        self._blob_api.upload_and_log_experiment_artifact_at_step(
+            experiment_id=str(self.experiment_id),
+            filename=f"{tag}_{global_step}.txt",  # Only needed for uploading
+            file_content=text_string.encode("utf-8"),
+            content_type="text/plain",
+            name=tag,
+            artifact_type="text",
+            step=global_step,
             metadata={"encoding": "utf-8"},
-            default_extension=".txt",
-            default_content_type="text/plain",
         )
 
     # TODO: Refactor
@@ -265,7 +272,7 @@ class ExpTracker:
         """
         try:
             file_name = tag
-            filepath = stored_filepath or f"final/{file_name}"
+            filepath = stored_filepath or f"{file_name}"
             if (
                 isinstance(content, (str, Path))
                 and Path(content).exists()
@@ -280,16 +287,19 @@ class ExpTracker:
                 default_mime_type=default_content_type,
             )
 
-            self._api.blobs.upsert_named_experiment_artifact(
+            self._blob_api.upsert_named_experiment_artifact(
                 experiment_id=str(self.experiment_id),
-                name=tag,
                 filepath=filepath,
                 file_name=file_name,
                 file_content=content_bytes,
                 content_type=content_type,
+                name=tag,
             )
         except Exception as exc:  # noqa: BLE001
-            logger.error(f"Failed to log final artifact '{tag}': {exc}")
+            logger.error(
+                f"Failed to log final artifact '{tag}': {exc}", stack_info=True
+            )
+            raise
 
     def add_histogram(
         self,
@@ -478,58 +488,3 @@ class ExpTracker:
             self._current_values = {}
         self._request_client.flush()
         self._request_client.close()
-
-    def _upload_and_log_experiment_artifact_at_step(
-        self,
-        tag: str,
-        object_type: str,
-        content,
-        global_step: int,
-        metadata: dict[str, str] | None = None,
-        default_extension: str = "",
-        default_content_type: str = "application/octet-stream",
-    ) -> None:
-        try:
-            # 1) Convert user input (bytes/path/file-like/tensor-like) into a binary (bytes) payload.
-            file_name, content_bytes, content_type = self._materialize_content(
-                tag=tag,
-                step=global_step,
-                content=content,
-                default_extension=default_extension,
-                default_content_type=default_content_type,
-            )
-            # 2) Upload according to selected artifact strategy.
-            payload_metadata = {
-                "filename": file_name,
-                "content_type": content_type,
-                "size_bytes": str(len(content_bytes)),
-            }
-            if metadata:
-                payload_metadata.update(metadata)
-            self._api.blobs.upload_and_log_experiment_artifact_at_step(
-                experiment_id=str(self.experiment_id),
-                file_name=file_name,
-                file_content=content_bytes,
-                content_type=content_type,
-                name=tag,
-                artifact_type=object_type,
-                step=global_step,
-                metadata=payload_metadata,
-            )
-        except Exception as exc:  # noqa: BLE001
-            logger.error(f"Failed to upload/log object '{tag}': {exc}")
-
-    def _upload_project_artifact(
-        self,
-        project_id: str,
-        file_name: str,
-        file_content: bytes,
-        content_type: str,
-    ) -> None:
-        """Upload artifact into project-level CAS with hash validation."""
-        self._api.blobs.upload_project_artifact(
-            project_id=project_id,
-            file_name=file_name,
-            file_content=file_content,
-            content_type=content_type,
-        )

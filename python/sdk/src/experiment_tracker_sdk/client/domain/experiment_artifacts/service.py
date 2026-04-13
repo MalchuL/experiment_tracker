@@ -11,10 +11,9 @@ from .dto import (
     ExperimentArtifactResponse,
     DeleteExperimentArtifactAtStepResponse,
     DeleteExperimentArtifactsAtStepResponse,
-    LogArtifactAtStepRequest,
     LogArtifactAtStepResponse,
 )
-from ...request import ApiRequestSpec, FileUploadSpec
+from ...request_types import ApiRequestSpec, FileUploadSpec
 
 
 class ExperimentArtifactsRequestSpecFactory:
@@ -130,7 +129,6 @@ class ExperimentArtifactsRequestSpecFactory:
             method="GET",
             endpoint=endpoint,
             query_params=params,
-            response_is_binary=True,
         )
 
     def delete_experiment_artifact_by_hash(
@@ -232,7 +230,6 @@ class ExperimentArtifactsRequestSpecFactory:
             method="GET",
             endpoint=cast(str, self.ENDPOINTS["download_named_experiment_artifact"]),
             query_params=params,
-            response_is_binary=True,
         )
 
     def download_named_experiment_artifacts_archive(
@@ -248,7 +245,6 @@ class ExperimentArtifactsRequestSpecFactory:
                 str, self.ENDPOINTS["download_named_experiment_artifacts_archive"]
             ),
             query_params={"experiment_id": experiment_id, "name": name},
-            response_is_binary=True,
         )
 
     def delete_named_experiment_artifacts(

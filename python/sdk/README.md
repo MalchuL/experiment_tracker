@@ -42,6 +42,21 @@ From the repo root:
 uv run pytest python/sdk/tests
 ```
 
+## Lint and type-check
+
+Install dev dependencies first:
+
+```
+uv pip install -e ".[dev]"
+```
+
+From the SDK folder:
+
+```
+uv run ruff check src tests
+uv run pyright src tests
+```
+
 ## Configure
 
 Save the base URL and API token for the backend:

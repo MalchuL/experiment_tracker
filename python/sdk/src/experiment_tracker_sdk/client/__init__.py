@@ -1,16 +1,19 @@
 from .client import ExperimentTrackerClient
-from .api import APISchemaFactories
+from .api_registry import APIRequestsRegistry
 from .constants import UNSET, Unset
 from .domain.experiments.dto import ExperimentStatus
-from .request import ApiRequestSpec, FileDownloadResponse, FileUploadSpec, RequestSpec
+from .request_types import (
+    ApiRequestSpec,
+    FileDownloadResponse,
+    FileUploadSpec,
+)
 
 __all__ = [
     "ExperimentTrackerClient",
-    "APISchemaFactories",
+    "APIRequestsRegistry",
     "ApiRequestSpec",
     "FileDownloadResponse",
     "FileUploadSpec",
-    "RequestSpec",
     "UNSET",
     "Unset",
     "ExperimentStatus",

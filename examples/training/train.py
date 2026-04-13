@@ -28,7 +28,7 @@ def _get_api_client(base_url: str, api_token: str) -> httpx.Client:
 
 
 def _list_projects(client: httpx.Client) -> list[dict[str, Any]]:
-    response = client.get("/api/projects")
+    response = client.get("/projects")
     response.raise_for_status()
     return response.json()
 
@@ -45,7 +45,7 @@ def _find_team_id_from_projects(
 
 def _create_team(client: httpx.Client, team_name: str) -> str:
     response = client.post(
-        "/api/teams",
+        "/teams",
         json={"name": team_name, "description": "SDK training example team"},
     )
     response.raise_for_status()
@@ -75,7 +75,7 @@ def _create_project(
     }
     if team_id:
         payload["teamId"] = team_id
-    response = client.post("/api/projects", json=payload)
+    response = client.post("/projects", json=payload)
     response.raise_for_status()
     return response.json()
 
@@ -115,7 +115,9 @@ def _smooth_image(image: np.ndarray, kernel_size: int = 7) -> np.ndarray:
     return np.clip(smoothed, 0, 255).astype(np.uint8)
 
 
-def _build_run_config_yaml(args: argparse.Namespace, steps: int, duration_seconds: int) -> str:
+def _build_run_config_yaml(
+    args: argparse.Namespace, steps: int, duration_seconds: int
+) -> str:
     lines = [
         "run:",
         f"  project_name: {args.project_name}",
@@ -144,7 +146,10 @@ def _capture_installed_packages() -> str:
             if output:
                 return output + "\n"
         except Exception as exc:  # noqa: BLE001
-            logger.warning("packages_capture_command_failed", extra={"command": command, "error": str(exc)})
+            logger.warning(
+                "packages_capture_command_failed",
+                extra={"command": command, "error": str(exc)},
+            )
 
     # Fallback: gather installed distributions directly from runtime metadata.
     try:
@@ -229,15 +234,13 @@ def main() -> None:
         tracker.log_final_artifact(
             "run_config",
             config_yaml,
-            filepath="final/config.yaml",
-            default_extension=".yaml",
+            stored_filepath="final/config.yaml",
             default_content_type="application/x-yaml",
         )
         tracker.log_final_artifact(
             "python_packages",
             _capture_installed_packages(),
-            filepath="final/pip-freeze.txt",
-            default_extension=".txt",
+            stored_filepath="final/pip-freeze.txt",
             default_content_type="text/plain",
         )
         logger.info("final_artifacts_logged", extra={"experiment_id": experiment_id})

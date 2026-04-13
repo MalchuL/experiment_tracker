@@ -4,6 +4,8 @@ from io import BytesIO
 from typing import Any, Iterator, TypeVar, cast
 from pathlib import Path
 
+from experiment_tracker_sdk.client.utils.downloading import dump_binary_content_to_path
+
 from .utils.logging import disable_httpx_logging
 
 from .utils import log_error_response
@@ -13,7 +15,7 @@ from .queue import RequestItem, RequestQueue
 from .request_types import ApiRequestSpec, FileDownloadResponse, FileUploadSpec
 from ..config import compose_base_url, normalize_api_prefix
 from ..logger import logger
-from pydantic import BaseModel
+from pydantic import BaseModel, RootModel
 from .request_types import MethodT
 
 ResponseT = TypeVar("ResponseT", bound=BaseModel)
@@ -82,8 +84,8 @@ def _build_httpx_files_from_request_spec(
     # Mapping key: (file_name, file_content, content_type)
     return {
         key: (
-            value.file_name,
-            value.file_content,
+            value.filename,
+            value.content,
             value.content_type,
         )
         for key, value in files.items()
@@ -237,15 +239,17 @@ class ExperimentTrackerClient:
             )
 
         # Parse the response body into a Pydantic model or list of models.
+        # TODO: Add support for list of any.
         body = response.json()
         if request_spec.response_model is None:
             return body
 
-        return (
-            request_spec.response_model.model_validate(body)
-            if isinstance(request_spec.response_model, BaseModel)
-            else body
-        )
+        if issubclass(request_spec.response_model, RootModel):
+            return request_spec.response_model.model_validate(body).root
+        elif issubclass(request_spec.response_model, BaseModel):
+            return request_spec.response_model.model_validate(body)
+        else:
+            return body
 
     def queued_request(
         self,
@@ -377,23 +381,9 @@ class ExperimentTrackerClient:
             method=method,
             as_stream_download=as_stream_download,
         )
-        destination = Path(output_path)
-        if destination.is_dir():
-            fallback = Path(endpoint.rstrip("/")).name or "download"
-            filename = download.filename or fallback
-            destination = destination / filename
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        if isinstance(download.content, bytes):
-            destination.write_bytes(download.content)
-            return destination
-        if isinstance(download.content, BytesIO):
-            destination.write_bytes(download.content.getvalue())
-            return destination
-
-        # Stream iterator payload to disk without buffering whole file in memory.
-        with destination.open("wb") as f:
-            for chunk in download.content:
-                f.write(chunk)
+        destination = dump_binary_content_to_path(
+            download.content, output_path, download.filename
+        )
         return destination
 
     def flush(self) -> None:

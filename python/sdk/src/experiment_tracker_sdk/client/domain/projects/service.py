@@ -10,7 +10,7 @@ from .dto import (
     ProjectUpdateRequest,
     SuccessResponse,
 )
-from ...request import ApiRequestSpec
+from ...request_types import ApiRequestSpec
 
 
 class ProjectRequestSpecFactory:
