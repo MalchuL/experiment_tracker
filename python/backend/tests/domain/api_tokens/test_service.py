@@ -67,7 +67,7 @@ class TestApiTokenService:
         )
 
         tokens = await api_token_service.list_tokens(test_user.id)
-        names = [token.name for token in tokens]
+        names = [token.name for token in tokens.data]
 
         assert names == ["Second", "First"]
 

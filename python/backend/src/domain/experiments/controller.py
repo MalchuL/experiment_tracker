@@ -1,17 +1,18 @@
-from typing import List
 from uuid import UUID
 
 from api.routes.service_dependencies import get_experiment_service, get_metric_service
-from domain.metrics.dto import MetricDTO
+from domain.metrics.dto import MetricListResponseDTO
 from domain.metrics.service import MetricService
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from api.routes.auth import get_current_user_dual, require_api_token_scopes
+from lib.pagination import MAX_LIST_PAGE_SIZE, ListOptions
 from models import User
 
 from .dto import (
     ExperimentCreateDTO,
     ExperimentDTO,
+    ExperimentListResponseDTO,
     ExperimentReorderDTO,
     ExperimentUpdateDTO,
 )
@@ -30,9 +31,10 @@ def _raise_experiment_http_error(error: Exception) -> None:
     raise HTTPException(status_code=400, detail=str(error))
 
 
-@router.get("/recent", response_model=List[ExperimentDTO])
+@router.get("/recent", response_model=ExperimentListResponseDTO)
 async def get_recent_experiments(
-    limit: int = 10,
+    limit: int = Query(default=10, ge=1, le=MAX_LIST_PAGE_SIZE),
+    offset: int = Query(default=0, ge=0),
     user: User = Depends(get_current_user_dual),
     project_id: UUID = Query(
         ..., alias="projectId", description="The ID of the project"
@@ -41,21 +43,28 @@ async def get_recent_experiments(
     experiment_service: ExperimentService = Depends(get_experiment_service),
 ):
     try:
-        return await experiment_service.get_recent_experiments(user, project_id, limit)
+        return await experiment_service.get_recent_experiments(
+            user,
+            project_id,
+            ListOptions(limit=limit, offset=offset),
+        )
     except Exception as exc:  # noqa: BLE001
         _raise_experiment_http_error(exc)
 
-
-@router.get("/{experiment_id}/metrics", response_model=List[MetricDTO])
+@router.get("/{experiment_id}/metrics", response_model=MetricListResponseDTO)
 async def get_experiment_metrics(
     experiment_id: UUID,
+    limit: int = Query(default=MAX_LIST_PAGE_SIZE, ge=1, le=MAX_LIST_PAGE_SIZE),
+    offset: int = Query(default=0, ge=0),
     user: User = Depends(get_current_user_dual),
     _: None = Depends(require_api_token_scopes(ProjectActions.VIEW_METRIC)),
     metric_service: MetricService = Depends(get_metric_service),
 ):
     try:
         return await metric_service.get_aggregated_metrics_for_experiment(
-            user, experiment_id
+            user,
+            experiment_id,
+            ListOptions(limit=limit, offset=offset),
         )
     except Exception as exc:  # noqa: BLE001
         _raise_experiment_http_error(exc)

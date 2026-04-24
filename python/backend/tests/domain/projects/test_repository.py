@@ -4,6 +4,7 @@ from sqlalchemy.exc import InvalidRequestError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from domain.projects.repository import ProjectRepository
+from lib.pagination import Page
 from models import Project, Team, User
 
 
@@ -88,7 +89,9 @@ class TestProjectRepository:
     async def test_get_projects_by_ids_returns_empty_for_empty_list(
         self, project_repository: ProjectRepository
     ) -> None:
-        assert await project_repository.get_projects_by_ids([]) == []
+        assert await project_repository.get_projects_by_ids([]) == Page(
+            data=[], has_next=False, total=0
+        )
 
     async def test_get_projects_by_ids_returns_requested_projects(
         self,
@@ -103,8 +106,9 @@ class TestProjectRepository:
         projects = await project_repository.get_projects_by_ids(
             [project_1.id, project_2.id], full_load=True
         )
-        project_ids = {project.id for project in projects}
+        project_ids = {project.id for project in projects.data}
         assert project_ids == {project_1.id, project_2.id}
+        assert projects.total == 2
 
     async def test_get_projects_by_team_filters_projects(
         self,

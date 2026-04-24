@@ -1,19 +1,20 @@
 from typing import Any, Dict, List
 from uuid import UUID
 
-from domain.hypotheses.dto import HypothesisDTO
-from domain.experiments.dto import ExperimentDTO
+from domain.hypotheses.dto import HypothesisListResponseDTO
+from domain.experiments.dto import ExperimentListResponseDTO
 from domain.experiments.service import ExperimentService
 from domain.hypotheses.service import HypothesisService
-from domain.metrics.dto import MetricDTO as MetricDTO
+from domain.metrics.dto import MetricListResponseDTO
 from domain.metrics.service import MetricService
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.routes.auth import get_current_user_dual, require_api_token_scopes
 from db.database import get_async_session
+from lib.pagination import MAX_LIST_PAGE_SIZE, ListOptions
 from models import User
 from domain.rbac.permissions import ProjectActions
 from domain.rbac.permissions.team import TeamActions
@@ -21,6 +22,7 @@ from domain.rbac.permissions.team import TeamActions
 from .dto import (
     ProjectCreateDTO,
     ProjectDTO,
+    ProjectListResponseDTO,
     ProjectSettingDTO,
     ProjectSettingValueUpdateDTO,
     ProjectUpdateDTO,
@@ -51,50 +53,67 @@ def _raise_project_http_error(error: Exception) -> None:
     raise HTTPException(status_code=400, detail=str(error))
 
 
-@router.get("", response_model=List[ProjectDTO])
+@router.get("", response_model=ProjectListResponseDTO)
 async def get_all_projects(
+    limit: int = Query(default=MAX_LIST_PAGE_SIZE, ge=1, le=MAX_LIST_PAGE_SIZE),
+    offset: int = Query(default=0, ge=0),
     user: User = Depends(get_current_user_dual),
     _: None = Depends(require_api_token_scopes(ProjectActions.VIEW_PROJECT)),
     project_service: ProjectService = Depends(get_project_service),
 ):
     try:
-        return await project_service.get_accessible_projects(user)
+        return await project_service.get_accessible_projects(
+            user,
+            list_options=ListOptions(limit=limit, offset=offset),
+        )
     except Exception as exc:  # noqa: BLE001
         _raise_project_http_error(exc)
 
-
-@router.get("/{project_id}/experiments", response_model=List[ExperimentDTO])
+@router.get("/{project_id}/experiments", response_model=ExperimentListResponseDTO)
 async def get_project_experiments(
     project_id: UUID,
+    limit: int = Query(default=MAX_LIST_PAGE_SIZE, ge=1, le=MAX_LIST_PAGE_SIZE),
+    offset: int = Query(default=0, ge=0),
     user: User = Depends(get_current_user_dual),
     _: None = Depends(require_api_token_scopes(ProjectActions.VIEW_EXPERIMENT)),
     experiment_service: ExperimentService = Depends(get_experiment_service),
 ):
     try:
-        return await experiment_service.get_experiments_by_project(user, project_id)
+        return await experiment_service.get_experiments_by_project(
+            user,
+            project_id,
+            ListOptions(limit=limit, offset=offset),
+        )
     except Exception as exc:  # noqa: BLE001
         _raise_project_http_error(exc)
 
-
-@router.get("/{project_id}/hypotheses", response_model=List[HypothesisDTO])
+@router.get("/{project_id}/hypotheses", response_model=HypothesisListResponseDTO)
 async def get_project_hypotheses(
     project_id: UUID,
+    limit: int = Query(default=MAX_LIST_PAGE_SIZE, ge=1, le=MAX_LIST_PAGE_SIZE),
+    offset: int = Query(default=0, ge=0),
     user: User = Depends(get_current_user_dual),
     _: None = Depends(require_api_token_scopes(ProjectActions.VIEW_HYPOTHESIS)),
     hypothesis_service: HypothesisService = Depends(get_hypothesis_service),
 ):
     try:
-        return await hypothesis_service.get_hypotheses_by_project(user, project_id)
+        return await hypothesis_service.get_hypotheses_by_project(
+            user,
+            project_id,
+            ListOptions(limit=limit, offset=offset),
+        )
     except Exception as exc:  # noqa: BLE001
         _raise_project_http_error(exc)
 
 
 @router.get(
     "/{project_id}/metrics",
-    response_model=List[MetricDTO],
+    response_model=MetricListResponseDTO,
 )
 async def get_aggregatedproject_metrics(
     project_id: UUID,
+    limit: int = Query(default=MAX_LIST_PAGE_SIZE, ge=1, le=MAX_LIST_PAGE_SIZE),
+    offset: int = Query(default=0, ge=0),
     user: User = Depends(get_current_user_dual),
     _: None = Depends(require_api_token_scopes(ProjectActions.VIEW_METRIC)),
     metric_service: MetricService = Depends(get_metric_service),
@@ -102,7 +121,10 @@ async def get_aggregatedproject_metrics(
 ):
     try:
         return await metric_service.get_aggregated_metrics_for_project(
-            user, project_id, project_service
+            user,
+            project_id,
+            project_service,
+            ListOptions(limit=limit, offset=offset),
         )
     except Exception as exc:  # noqa: BLE001
         _raise_project_http_error(exc)

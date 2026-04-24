@@ -1,12 +1,9 @@
-from domain.projects.repository import ProjectRepository
-from lib.protocols.user_protocol import UserProtocol
+from typing import List
 from lib.db.base_repository import BaseRepository
+from lib.pagination import ListOptions, Page
 from models import Metric
 from sqlalchemy.ext.asyncio import AsyncSession
 from lib.types import UUID_TYPE
-from domain.experiments.repository import ExperimentRepository
-from typing import List
-from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 
@@ -18,19 +15,16 @@ class MetricRepository(BaseRepository[Metric]):
         self,
         experiment_id: UUID_TYPE | list[UUID_TYPE],
         full_load: bool = False,
-    ) -> List[Metric]:
-        conditions = []
+        list_options: ListOptions | None = None,
+    ) -> Page[Metric]:
         if isinstance(experiment_id, (list, tuple)):
-            conditions.append(Metric.experiment_id.in_(experiment_id))
+            scope = Metric.experiment_id.in_(experiment_id)
         else:
-            conditions.append(Metric.experiment_id == experiment_id)
-        if full_load:
-            load = [selectinload(Metric.experiment)]
-        else:
-            load = []
-        metrics = await self.advanced_alchemy_repository.list(
-            *conditions,
+            scope = Metric.experiment_id == experiment_id
+        load = [selectinload(Metric.experiment)] if full_load else []
+        return await self.list(
+            scope,
             order_by=Metric.created_at.desc(),
-            load=load,
+            load=load or None,
+            list_options=list_options,
         )
-        return metrics

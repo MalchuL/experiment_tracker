@@ -4,6 +4,7 @@ from pydantic import BaseModel, Field
 from models import MetricDirection
 
 from lib.dto_config import model_config
+from lib.pagination import PaginatedResponse
 from lib.types import UUID_TYPE
 
 
@@ -26,6 +27,10 @@ class MetricDTO(MetricBase):
     id: UUID_TYPE
     created_at: datetime
 
+    model_config = model_config()
+
+
+class MetricListResponseDTO(PaginatedResponse[MetricDTO]):
     model_config = model_config()
 
 

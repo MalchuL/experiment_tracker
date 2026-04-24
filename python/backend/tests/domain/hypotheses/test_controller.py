@@ -238,6 +238,7 @@ class TestHypothesisControllerAccess:
         )
 
         assert response.status_code == 200
-        data = response.json()
-        assert len(data) == 1
-        assert data[0]["id"] == second.json()["id"]
+        payload = response.json()
+        assert payload["size"] == 1
+        assert payload["hasNext"] is True
+        assert payload["data"][0]["id"] == second.json()["id"]

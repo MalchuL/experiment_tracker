@@ -78,7 +78,7 @@ class TestMetricRepository:
 
         metrics = await metric_repository.get_metrics_by_experiment(experiment_a.id)
 
-        names = {metric.name for metric in metrics}
+        names = {metric.name for metric in metrics.data}
         assert names == {"accuracy"}
 
     async def test_get_metrics_by_experiment_orders_desc(
@@ -98,5 +98,5 @@ class TestMetricRepository:
 
         metrics = await metric_repository.get_metrics_by_experiment(experiment.id)
 
-        names = [metric.name for metric in metrics]
+        names = [metric.name for metric in metrics.data]
         assert names == ["Newer", "Older"]

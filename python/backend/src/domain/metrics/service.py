@@ -3,13 +3,14 @@ from typing import Dict, Iterable, List
 from domain.experiments.repository import ExperimentRepository
 from domain.rbac.wrapper import PermissionChecker
 from lib.db.base_repository import DBNotFoundError
+from lib.pagination import ListOptions, paginate_sequence
 from lib.protocols.user_protocol import UserProtocol
 from lib.types import UUID_TYPE
 from models import MetricAggregation, MetricDirection
 from sqlalchemy.ext.asyncio import AsyncSession
 from domain.projects.service import ProjectService
 
-from .dto import MetricDTO
+from .dto import MetricDTO, MetricListResponseDTO
 from .dto import MetricCreateDTO, MetricUpdateDTO
 from .error import MetricNotAccessibleError, MetricNotFoundError
 from .mapper import MetricMapper
@@ -38,14 +39,19 @@ class MetricService:
                 raise MetricNotAccessibleError(f"Project {project_id} not accessible")
 
     async def get_metrics_by_experiment(
-        self, user: UserProtocol, experiment_id: UUID_TYPE | list[UUID_TYPE]
-    ) -> List[MetricDTO]:
-        metrics = await self.metric_repository.get_metrics_by_experiment(
-            experiment_id, full_load=True
+        self,
+        user: UserProtocol,
+        experiment_id: UUID_TYPE | list[UUID_TYPE],
+        list_options: ListOptions = ListOptions(),
+    ) -> MetricListResponseDTO:
+        metrics_page = await self.metric_repository.get_metrics_by_experiment(
+            experiment_id,
+            full_load=True,
+            list_options=list_options,
         )
         project_ids = {
             metric.experiment.project_id
-            for metric in metrics
+            for metric in metrics_page.data
             if metric.experiment is not None
         }
         if not project_ids and not isinstance(experiment_id, (list, tuple)):
@@ -57,7 +63,9 @@ class MetricService:
                 ) from exc
             project_ids = {experiment.project_id}
         await self._assert_can_view_metrics(user, project_ids)
-        return self.metric_mapper.metric_list_schema_to_dto(metrics)
+        return MetricListResponseDTO.from_page(
+            metrics_page.map(self.metric_mapper.metric_schema_to_dto)
+        )
 
     async def create_metric(
         self, user: UserProtocol, data: MetricCreateDTO
@@ -130,22 +138,35 @@ class MetricService:
 
     # TODO cover with tests
     async def get_aggregated_metrics_for_experiment(
-        self, user: UserProtocol, experiment_id: UUID_TYPE
-    ) -> List[MetricDTO]:
+        self,
+        user: UserProtocol,
+        experiment_id: UUID_TYPE,
+        list_options: ListOptions = ListOptions(),
+    ) -> MetricListResponseDTO:
 
-        metrics = await self.metric_repository.get_metrics_by_experiment(
-            experiment_id, full_load=True
+        metrics_page = await self.metric_repository.get_metrics_by_experiment(
+            experiment_id,
+            full_load=True,
+            list_options=list_options,
         )
-        if not metrics:
-            return []
-        project_id = metrics[0].experiment.project_id
+        if not metrics_page.data:
+            return MetricListResponseDTO(
+                data=[], has_next=False, size=0, total=metrics_page.total
+            )
+        project_id = metrics_page.data[0].experiment.project_id
         if not await self.permission_checker.can_view_metric(user.id, project_id):
             raise MetricNotAccessibleError(f"Project {project_id} not accessible")
-        return metrics
+        return MetricListResponseDTO.from_page(
+            metrics_page.map(self.metric_mapper.metric_schema_to_dto)
+        )
 
     async def get_aggregated_metrics_for_project(
-        self, user: UserProtocol, project_id: UUID_TYPE, project_service: ProjectService
-    ) -> List[MetricDTO]:
+        self,
+        user: UserProtocol,
+        project_id: UUID_TYPE,
+        project_service: ProjectService,
+        list_options: ListOptions = ListOptions(),
+    ) -> MetricListResponseDTO:
 
         if not await self.permission_checker.can_view_metric(user.id, project_id):
             raise MetricNotAccessibleError(f"Project {project_id} not accessible")
@@ -155,9 +176,11 @@ class MetricService:
 
         # Get experiments and metrics
         experiment_repository = ExperimentRepository(self.db)
-        experiments = await experiment_repository.get_experiments_by_project(
-            project_id, full_load=["metrics"]
-        )
+        experiments = (
+            await experiment_repository.get_experiments_by_project(
+                project_id, full_load=["metrics"]
+            )
+        ).data
         metrics = []
         for experiment in experiments:
             for project_metric in project_metrics:
@@ -191,4 +214,5 @@ class MetricService:
                     raise ValueError(f"Invalid aggregation: {aggregation_str}")
 
                 metrics.append(self.metric_mapper.metric_schema_to_dto(metric))
-        return metrics
+        paginated_metrics = paginate_sequence(metrics, list_options)
+        return MetricListResponseDTO.from_page(paginated_metrics)

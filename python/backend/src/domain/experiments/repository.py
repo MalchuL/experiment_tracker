@@ -1,6 +1,6 @@
 from typing import List, Literal, Sequence
-from advanced_alchemy.filters import LimitOffset
-from lib.db.base_repository import BaseRepository, ListOptions
+from lib.db.base_repository import BaseRepository
+from lib.pagination import ListOptions, Page
 from lib.types import UUID_TYPE
 from models import Experiment
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -18,45 +18,41 @@ class ExperimentRepository(BaseRepository[Experiment]):
 
     async def get_user_experiments(
         self, user: UserProtocol, list_options: ListOptions | None = None
-    ) -> List[Experiment]:
-        list_conditions = []
-        if list_options:
-            limit_offset = LimitOffset(
-                offset=list_options.offset, limit=list_options.limit
-            )
-            list_conditions.append(limit_offset)
-
-        result = await self.advanced_alchemy_repository.list(
+    ) -> Page[Experiment]:
+        return await self.list(
             Experiment.started_by == user.id,
-            *list_conditions,
             order_by=Experiment.created_at.desc(),
+            list_options=list_options,
         )
-        return result
 
     async def get_latest_experiments(
-        self, project_id: UUID_TYPE, limit: int = 10
-    ) -> List[Experiment]:
-        experiments = await self.advanced_alchemy_repository.list(
+        self,
+        project_id: UUID_TYPE,
+        list_options: ListOptions = ListOptions(limit=10, offset=0),
+    ) -> Page[Experiment]:
+        return await self.list(
             Experiment.project_id == project_id,
-            LimitOffset(offset=0, limit=limit),
             order_by=Experiment.created_at.desc(),
+            list_options=list_options,
         )
-        return experiments
 
     async def get_experiments_by_project(
-        self, project_id: UUID_TYPE, full_load: LoadOptions = False
-    ) -> List[Experiment]:
+        self,
+        project_id: UUID_TYPE,
+        full_load: LoadOptions = False,
+        list_options: ListOptions | None = None,
+    ) -> Page[Experiment]:
         if isinstance(full_load, Sequence):
             load = [selectinload(getattr(Experiment, option)) for option in full_load]
         elif full_load:
             load = [selectinload(Experiment.project), selectinload(Experiment.metrics)]
         else:
             load = []
-        experiments = await self.advanced_alchemy_repository.list(
+        return await self.list(
             Experiment.project_id == project_id,
             load=load,
+            list_options=list_options,
         )
-        return experiments
 
     async def get_experiments_by_ids(
         self, experiment_ids: List[UUID_TYPE]

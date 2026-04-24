@@ -11,12 +11,14 @@ from domain.rbac.permissions import ProjectActions
 from domain.rbac.service import PermissionService
 from domain.rbac.wrapper import PermissionChecker
 from lib.dto_converter import DtoConverter
+from lib.pagination import ListOptions
 from lib.protocols.user_protocol import UserProtocol
 from lib.types import UUID_TYPE
 from sqlalchemy.ext.asyncio import AsyncSession
 from domain.projects.dto import (
     ProjectCreateDTO,
     ProjectDTO,
+    ProjectListResponseDTO,
     ProjectSettingDTO,
     ProjectSettingType,
     ProjectUpdateDTO,
@@ -294,13 +296,22 @@ class ProjectService:
         self,
         user: UserProtocol,
         actions: list[str] | str | None = ProjectActions.VIEW_PROJECT,
-    ) -> List[ProjectDTO]:
+        list_options: ListOptions = ListOptions(),
+    ) -> ProjectListResponseDTO:
         project_ids = await self.get_accessible_project_ids(user, actions)
         if not project_ids:
-            return []
-        project_models = await self.project_repository.get_projects_by_ids(
-            project_ids, full_load=True
+            return ProjectListResponseDTO(
+                data=[],
+                has_next=False,
+                size=0,
+                total=0,
+            )
+        project_page = await self.project_repository.get_projects_by_ids(
+            project_ids,
+            list_options=list_options,
+            full_load=True,
         )
+        project_models = project_page.data
         experiment_counts = [
             len(project.experiments) if project.experiments else 0
             for project in project_models
@@ -317,7 +328,12 @@ class ProjectService:
                 experiment_counts, hypothesis_counts
             )
         ]
-        return self.project_mapper.project_list_schema_to_dto(project_models, props)
+        return ProjectListResponseDTO(
+            data=self.project_mapper.project_list_schema_to_dto(project_models, props),
+            has_next=project_page.has_next,
+            size=project_page.size,
+            total=project_page.total,
+        )
 
     async def get_project_if_accessible(
         self,

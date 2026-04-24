@@ -45,7 +45,7 @@ from domain.team.teams.service import TeamService
 
 class _NoOpArtifactsInfoClient:
     async def get_artifacts(self, *args, **kwargs) -> ArtifactsInfoResultDTO:
-        return ArtifactsInfoResultDTO(data=[])
+        return ArtifactsInfoResultDTO(data=[], total=0)
 
     async def log_artifact_at_step(self, *args, **kwargs) -> LogArtifactResponseDTO:
         return LogArtifactResponseDTO(status="logged")

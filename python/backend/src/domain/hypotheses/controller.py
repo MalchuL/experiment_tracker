@@ -1,14 +1,19 @@
-from typing import List
 from uuid import UUID
 
 from api.routes.service_dependencies import get_hypothesis_service
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from api.routes.auth import get_current_user_dual, require_api_token_scopes
+from lib.pagination import MAX_LIST_PAGE_SIZE, ListOptions
 from models import User
 from domain.rbac.permissions import ProjectActions
 
-from .dto import HypothesisCreateDTO, HypothesisDTO, HypothesisUpdateDTO
+from .dto import (
+    HypothesisCreateDTO,
+    HypothesisDTO,
+    HypothesisListResponseDTO,
+    HypothesisUpdateDTO,
+)
 from .error import HypothesisNotAccessibleError, HypothesisNotFoundError
 from .service import HypothesisService
 
@@ -23,16 +28,19 @@ def _raise_hypothesis_http_error(error: Exception) -> None:
     raise HTTPException(status_code=400, detail=str(error))
 
 
-@router.get("/recent", response_model=List[HypothesisDTO])
+@router.get("/recent", response_model=HypothesisListResponseDTO)
 async def get_recent_hypotheses(
     projectId: UUID,
-    limit: int = 10,
+    limit: int = Query(default=10, ge=1, le=MAX_LIST_PAGE_SIZE),
+    offset: int = Query(default=0, ge=0),
     user: User = Depends(get_current_user_dual),
     _: None = Depends(require_api_token_scopes(ProjectActions.VIEW_HYPOTHESIS)),
     hypothesis_service: HypothesisService = Depends(get_hypothesis_service),
 ):
     return await hypothesis_service.get_hypotheses_by_project(
-        user, projectId, limit=limit
+        user,
+        projectId,
+        ListOptions(limit=limit, offset=offset),
     )
 
 

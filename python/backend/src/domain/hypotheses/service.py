@@ -5,12 +5,18 @@ from domain.projects.service import ProjectService
 from domain.rbac.permissions import ProjectActions
 from domain.rbac.wrapper import PermissionChecker
 from domain.utils.project_based_service import ProjectBasedService
-from lib.db.base_repository import DBNotFoundError, ListOptions
+from lib.db.base_repository import DBNotFoundError
+from lib.pagination import ListOptions
 from lib.protocols.user_protocol import UserProtocol
 from lib.types import UUID_TYPE
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .dto import HypothesisCreateDTO, HypothesisDTO, HypothesisUpdateDTO
+from .dto import (
+    HypothesisCreateDTO,
+    HypothesisDTO,
+    HypothesisListResponseDTO,
+    HypothesisUpdateDTO,
+)
 from .error import HypothesisNotAccessibleError, HypothesisNotFoundError
 from .mapper import HypothesisMapper
 from .repository import HypothesisRepository
@@ -29,14 +35,22 @@ class HypothesisService:
         self.hypothesis_mapper = HypothesisMapper()
 
     async def get_hypotheses_by_project(
-        self, user: UserProtocol, project_id: UUID_TYPE, limit: int | None = None
-    ) -> List[HypothesisDTO]:
+        self,
+        user: UserProtocol,
+        project_id: UUID_TYPE,
+        list_options: ListOptions = ListOptions(),
+    ) -> HypothesisListResponseDTO:
         if not await self.permission_checker.can_view_hypothesis(user.id, project_id):
             raise ProjectNotAccessibleError(f"Project {project_id} not accessible")
-        hypotheses = await self.hypothesis_repository.get_hypotheses_by_project(
-            project_id, limit
+        hypotheses_page = await self.hypothesis_repository.get_hypotheses_by_project(
+            project_id,
+            list_options=list_options,
         )
-        return self.hypothesis_mapper.hypothesis_list_schema_to_dto(hypotheses)
+        return HypothesisListResponseDTO.from_page(
+            hypotheses_page.map(
+                self.hypothesis_mapper.hypothesis_schema_to_dto
+            )
+        )
 
     async def get_hypothesis_if_accessible(
         self, user: UserProtocol, hypothesis_id: UUID_TYPE

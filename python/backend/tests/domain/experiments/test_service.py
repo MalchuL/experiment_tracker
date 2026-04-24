@@ -10,6 +10,7 @@ from domain.experiments.service import ExperimentService
 from domain.rbac.permissions.project import ProjectActions
 from domain.rbac.service import PermissionService
 from lib.db.error import DBNotFoundError
+from lib.pagination import ListOptions
 from models import Experiment, ExperimentStatus, Project, User
 
 
@@ -93,11 +94,13 @@ class TestExperimentService:
         )
 
         recent = await experiment_service.get_recent_experiments(
-            test_user, project.id, limit=1
+            test_user,
+            project.id,
+            list_options=ListOptions(limit=1, offset=0),
         )
 
-        assert len(recent) == 1
-        assert recent[0].name == "Newer"
+        assert len(recent.data) == 1
+        assert recent.data[0].name == "Newer"
 
     async def test_get_experiment_if_accessible_requires_permission(
         self,

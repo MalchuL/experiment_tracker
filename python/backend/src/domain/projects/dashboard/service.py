@@ -27,12 +27,12 @@ class DashboardService:
     ) -> DashboardStatsDTO:
         if not await self.permission_checker.can_view_project(user.id, project_id):
             raise ProjectNotAccessibleError(f"Project {project_id} not accessible")
-        experiments = await self.experiment_repository.get_experiments_by_project(
-            project_id
-        )
-        hypotheses = await self.hypothesis_repository.get_hypotheses_by_project(
-            project_id
-        )
+        experiments = (
+            await self.experiment_repository.get_experiments_by_project(project_id)
+        ).data
+        hypotheses = (
+            await self.hypothesis_repository.get_hypotheses_by_project(project_id)
+        ).data
         return DashboardStatsDTO(
             totalExperiments=len(experiments),
             runningExperiments=len(

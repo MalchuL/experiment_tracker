@@ -21,7 +21,9 @@ async def test_noop_list_returns_empty() -> None:
         user=SimpleNamespace(id=uuid4()),
         experiment_id=uuid4(),
     )
-    assert out == []
+    assert out.data == []
+    assert out.has_next is False
+    assert out.size == 0
 
 
 @pytest.mark.asyncio

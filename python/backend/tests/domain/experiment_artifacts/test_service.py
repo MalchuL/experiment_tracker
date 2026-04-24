@@ -22,6 +22,7 @@ from clients.artifacts_info import (
 from clients.object_storage import (
     DeleteExperimentArtifactResponseDTO,
     DeleteExperimentArtifactsResponseDTO,
+    ExperimentTrackedArtifactListDTO,
     ExperimentTrackedArtifactInfoDTO,
     ExperimentTrackedArtifactItemDTO,
     ExperimentTrackedUploadResponseDTO,
@@ -53,7 +54,7 @@ class RecordingArtifactsInfoClient(FakeArtifactsInfoClient):
 
     async def get_artifacts(self, **kwargs):
         self.get_artifacts_calls.append(kwargs)
-        return ArtifactsInfoResultDTO(data=[])
+        return ArtifactsInfoResultDTO(data=[], total=0)
 
     async def log_artifact_at_step(
         self, project_id: UUID, experiment_id: UUID, payload: LogArtifactRequestDTO
@@ -104,11 +105,27 @@ class MirroringArtifactsInfoClient(FakeArtifactsInfoClient):
             )
             by_exp.setdefault(eid, []).append(entry)
 
-        data = [
+        grouped_items = [
             ExperimentArtifactsInfoDTO(experiment_id=eid, artifacts_info=items)
             for eid, items in by_exp.items()
         ]
-        return ArtifactsInfoResultDTO(data=data)
+        limit = kwargs.get("limit")
+        offset = kwargs.get("offset") or 0
+        total = len(grouped_items)
+        if limit is None:
+            return ArtifactsInfoResultDTO(
+                data=grouped_items,
+                has_next=False,
+                size=len(grouped_items),
+                total=total,
+            )
+        page = grouped_items[offset : offset + int(limit)]
+        return ArtifactsInfoResultDTO(
+            data=page,
+            has_next=offset + len(page) < total,
+            size=len(page),
+            total=total,
+        )
 
 
 class FakePermissionChecker:
@@ -235,10 +252,13 @@ class FakeObjectStorageClient:
         *,
         limit: int = 100,
         offset: int = 0,
+        file_paths: list[str] | None = None,
     ):
         rows = self.tracked.get((project_id, experiment_id), [])
+        if file_paths:
+            rows = [row for row in rows if row.file_path in set(file_paths)]
         chunk = rows[offset : offset + limit]
-        return [
+        data = [
             ExperimentTrackedArtifactItemDTO(
                 id=r.id,
                 hash=r.hash,
@@ -249,6 +269,12 @@ class FakeObjectStorageClient:
             )
             for r in chunk
         ]
+        return ExperimentTrackedArtifactListDTO(
+            data=data,
+            has_next=offset + len(data) < len(rows),
+            size=len(data),
+            total=len(rows),
+        )
 
     async def get_experiment_tracked_artifact_info(
         self,
@@ -515,9 +541,10 @@ async def test_list_experiment_artifacts_returns_tracked_dtos() -> None:
         user=SimpleNamespace(id=uuid4()),
         experiment_id=experiment_id,
     )
-    assert len(rows) == 1
-    assert rows[0].filepath == "a.pt"
-    assert rows[0].metadata.get("name") == "weights"
+    assert rows.size == 1
+    assert rows.has_next is False
+    assert rows.data[0].filepath == "a.pt"
+    assert rows.data[0].metadata.get("name") == "weights"
 
 
 @pytest.mark.asyncio
@@ -547,8 +574,8 @@ async def test_list_experiment_artifacts_filters_by_file_paths() -> None:
         experiment_id=experiment_id,
         file_paths=["two.bin"],
     )
-    assert len(filtered) == 1
-    assert filtered[0].filepath == "two.bin"
+    assert filtered.size == 1
+    assert filtered.data[0].filepath == "two.bin"
 
 
 @pytest.mark.asyncio
@@ -581,7 +608,8 @@ async def test_list_experiment_artifacts_loads_multiple_pages_from_storage() -> 
         user=SimpleNamespace(id=uuid4()),
         experiment_id=experiment_id,
     )
-    assert len(out) == 101
+    assert out.size == 100
+    assert out.has_next is True
 
 
 @pytest.mark.asyncio
@@ -794,7 +822,7 @@ async def test_delete_experiment_artifact_by_hash_deletes_matching_row() -> None
         file=UploadFile(filename="b.pt", file=io.BytesIO(b"2")),
     )
     listed = await service.list_experiment_artifacts(user=user, experiment_id=experiment_id)
-    target_hash = listed[0].storage_path
+    target_hash = listed.data[0].storage_path
     res = await service.delete_experiment_artifact_by_hash(
         user=user,
         experiment_id=experiment_id,
@@ -804,7 +832,7 @@ async def test_delete_experiment_artifact_by_hash_deletes_matching_row() -> None
     remaining = await service.list_experiment_artifacts(
         user=user, experiment_id=experiment_id
     )
-    assert len(remaining) == 1
+    assert remaining.size == 1
 
 
 @pytest.mark.asyncio

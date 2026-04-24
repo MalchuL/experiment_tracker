@@ -5,6 +5,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 
 from lib.dto_config import model_config
+from lib.pagination import PaginatedResponse
 
 
 class ApiTokenCreateDTO(BaseModel):
@@ -35,6 +36,10 @@ class ApiTokenListItemDTO(BaseModel):
     revoked: bool
     last_used_at: Optional[datetime] = None
 
+    model_config = model_config()
+
+
+class ApiTokenListResponseDTO(PaginatedResponse[ApiTokenListItemDTO]):
     model_config = model_config()
 
 

@@ -75,7 +75,7 @@ class TestApiTokenRepository:
         )
 
         tokens = await api_token_repository.list_by_user(test_user.id)
-        names = [token.name for token in tokens]
+        names = [token.name for token in tokens.data]
 
         assert names == ["Newer", "Older"]
 

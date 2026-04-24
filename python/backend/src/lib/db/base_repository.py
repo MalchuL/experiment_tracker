@@ -1,15 +1,12 @@
-from typing import List, TypeVar, Generic, Optional, Type
+from typing import Any, Generic, Protocol, Type, TypeVar
 from uuid import UUID
+
 from advanced_alchemy.exceptions import NotFoundError
 from advanced_alchemy.filters import LimitOffset
-from models import Base
-from pydantic import BaseModel
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import insert, select, update, delete
-from typing import Protocol
-from sqlalchemy.exc import NoResultFound
-from lib.db.error import DBNotFoundError
 from advanced_alchemy.repository import SQLAlchemyAsyncRepository
+from lib.db.error import DBNotFoundError
+from lib.pagination import ListOptions, Page
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
 class HasId(Protocol):
@@ -20,11 +17,6 @@ class HasId(Protocol):
 
 T = TypeVar("T", bound=HasId)
 R = TypeVar("R", bound=HasId)
-
-
-class ListOptions(BaseModel):
-    limit: int = 100
-    offset: int = 0
 
 
 class BaseRepository(Generic[T]):
@@ -90,10 +82,50 @@ class BaseRepository(Generic[T]):
     async def upsert(self, obj: T) -> T:
         return await self.advanced_alchemy_repository.upsert(obj, auto_refresh=True)
 
-    async def list(self, options: ListOptions = ListOptions()) -> List[T]:
-        return await self.advanced_alchemy_repository.list(
-            LimitOffset(offset=options.offset, limit=options.limit)
+    async def list(
+        self,
+        *filters: Any,
+        order_by: Any | None = None,
+        load: Any | None = None,
+        list_options: ListOptions | None = None,
+    ) -> Page[T]:
+        """Query rows with optional ordering, eager loads, and pagination.
+
+        Pass ``list_options`` to append ``LimitOffset`` and return ``Page`` with
+        ``total`` and ``has_next``. Omit it to run a plain ``list`` (no count
+        query) and set ``total`` to the number of rows returned.
+        """
+        conditions = list(filters)
+        if list_options is not None:
+            limit_offset = self._to_limit_offset(list_options, extra=0)
+            assert limit_offset is not None
+            conditions.append(limit_offset)
+            items, total = await self.advanced_alchemy_repository.list_and_count(
+                *conditions,
+                order_by=order_by,
+                load=load,
+            )
+            data = list(items)
+            return Page(
+                data=data,
+                has_next=list_options.offset + len(data) < total,
+                total=total,
+            )
+
+        rows = await self.advanced_alchemy_repository.list(
+            *conditions,
+            order_by=order_by,
+            load=load,
         )
+        data = list(rows)
+        return Page(data=data, has_next=False, total=len(data))
+
+    def _to_limit_offset(
+        self, options: ListOptions | None, *, extra: int = 0
+    ) -> LimitOffset | None:
+        if options is None:
+            return None
+        return LimitOffset(offset=options.offset, limit=options.limit + extra)
 
     async def delete(self, id: str | UUID) -> None:
         try:

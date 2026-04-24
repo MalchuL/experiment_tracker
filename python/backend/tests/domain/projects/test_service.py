@@ -196,9 +196,9 @@ class TestProjectService:
             actions=[ProjectActions.VIEW_PROJECT, TeamActions.VIEW_PROJECTS],
         )
 
-        project_ids = {project.id for project in projects}
+        project_ids = {project.id for project in projects.data}
         assert project_ids == {team_project.id, standalone_project.id}
-        for project in projects:
+        for project in projects.data:
             assert project.experiment_count == 0
             assert project.hypothesis_count == 0
 
@@ -383,7 +383,7 @@ class TestProjectService:
             test_user_2, actions=ProjectActions.VIEW_PROJECT
         )
 
-        project_ids = {project.id for project in projects}
+        project_ids = {project.id for project in projects.data}
         assert team_project.id in project_ids
 
     async def test_create_project_sets_team_owner_as_project_owner(

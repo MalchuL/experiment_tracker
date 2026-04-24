@@ -1,15 +1,16 @@
-from typing import List
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from api.routes.auth import current_active_user
+from lib.pagination import MAX_LIST_PAGE_SIZE, ListOptions
 from models import User
 
 from .dto import (
     ApiTokenCreateDTO,
     ApiTokenCreateResponseDTO,
     ApiTokenListItemDTO,
+    ApiTokenListResponseDTO,
     ApiTokenUpdateDTO,
 )
 from api.routes.service_dependencies import get_api_token_service
@@ -43,12 +44,17 @@ async def create_api_token(
         _raise_api_token_http_error(exc)
 
 
-@router.get("", response_model=List[ApiTokenListItemDTO])
+@router.get("", response_model=ApiTokenListResponseDTO)
 async def list_api_tokens(
+    limit: int = Query(default=MAX_LIST_PAGE_SIZE, ge=1, le=MAX_LIST_PAGE_SIZE),
+    offset: int = Query(default=0, ge=0),
     user: User = Depends(current_active_user),
     api_token_service: ApiTokenService = Depends(get_api_token_service),
 ):
-    return await api_token_service.list_tokens(user.id)
+    return await api_token_service.list_tokens(
+        user.id,
+        ListOptions(limit=limit, offset=offset),
+    )
 
 
 @router.patch("/{token_id}", response_model=ApiTokenListItemDTO)

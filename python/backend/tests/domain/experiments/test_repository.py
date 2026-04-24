@@ -64,6 +64,6 @@ class TestExperimentRepository:
         await _create_experiment(db_session, project, name="E2")
 
         experiments = await experiment_repository.get_experiments_by_project(project.id)
-        names = {experiment.name for experiment in experiments}
+        names = {experiment.name for experiment in experiments.data}
 
         assert names == {"E1", "E2"}

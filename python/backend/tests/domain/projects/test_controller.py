@@ -201,13 +201,19 @@ class TestProjectControllerRead:
         response = client2.get("/api/v1/projects")
 
         assert response.status_code == 200
-        project_ids = {item["id"] for item in response.json()}
+        payload = response.json()
+        assert payload["size"] == 1
+        assert payload["hasNext"] is False
+        project_ids = {item["id"] for item in payload["data"]}
         assert project_ids == {team_project["id"]}
 
         client1 = auth_client(test_user)
         response_owner = client1.get("/api/v1/projects")
         assert response_owner.status_code == 200
-        owner_ids = {item["id"] for item in response_owner.json()}
+        owner_payload = response_owner.json()
+        assert owner_payload["size"] == 2
+        assert owner_payload["hasNext"] is False
+        owner_ids = {item["id"] for item in owner_payload["data"]}
         assert owner_ids == {team_project["id"], standalone_project["id"]}
 
 

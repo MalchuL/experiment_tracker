@@ -113,7 +113,7 @@ class TestMetricService:
             test_user, experiment.id
         )
 
-        names = [metric.name for metric in metrics]
+        names = [metric.name for metric in metrics.data]
         assert names == ["Newer", "Older"]
 
     async def test_get_metrics_by_experiment_missing_experiment_raises(
@@ -329,9 +329,9 @@ class TestMetricService:
             test_user, project.id, project_service
         )
 
-        assert len(result) == 3
-        assert {metric.experiment_id for metric in result} == {experiment.id}
-        metrics_by_name = {metric.name: metric for metric in result}
+        assert len(result.data) == 3
+        assert {metric.experiment_id for metric in result.data} == {experiment.id}
+        metrics_by_name = {metric.name: metric for metric in result.data}
         assert set(metrics_by_name.keys()) == {"accuracy", "loss", "score"}
         assert metrics_by_name["accuracy"].id == metric_accuracy_latest.id
         assert metrics_by_name["accuracy"].value == metric_accuracy_latest.value

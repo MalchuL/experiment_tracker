@@ -1,7 +1,7 @@
 from typing import List
 
 from .error import ExperimentNotAccessibleError
-from lib.db.base_repository import ListOptions
+from lib.pagination import ListOptions
 from lib.protocols.user_protocol import UserProtocol
 from lib.types import UUID_TYPE
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,6 +9,7 @@ from .repository import ExperimentRepository
 from .dto import (
     ExperimentCreateDTO,
     ExperimentDTO,
+    ExperimentListResponseDTO,
     ExperimentUpdateDTO,
 )
 from .mapper import ExperimentMapper
@@ -28,16 +29,23 @@ class ExperimentService:
         self.experiment_mapper = ExperimentMapper()
 
     async def get_recent_experiments(
-        self, user: UserProtocol, project_id: UUID_TYPE, limit: int = 10
-    ) -> List[ExperimentDTO]:
+        self,
+        user: UserProtocol,
+        project_id: UUID_TYPE,
+        list_options: ListOptions = ListOptions(limit=10, offset=0),
+    ) -> ExperimentListResponseDTO:
         if not await self.permission_checker.can_view_experiment(user.id, project_id):
             raise ExperimentNotAccessibleError(
                 f"You are not allowed to view experiments in project {project_id}"
             )
-        experiments = await self.experiment_repository.get_latest_experiments(
-            project_id, limit
+        experiments_page = await self.experiment_repository.get_latest_experiments(
+            project_id, list_options
         )
-        return self.experiment_mapper.experiment_list_schema_to_dto(experiments)
+        return ExperimentListResponseDTO.from_page(
+            experiments_page.map(
+                self.experiment_mapper.experiment_schema_to_dto
+            )
+        )
 
     async def get_experiment_if_accessible(
         self, user: UserProtocol, experiment_id: UUID_TYPE
@@ -114,9 +122,9 @@ class ExperimentService:
             raise ExperimentNotAccessibleError(
                 f"You are not allowed to edit experiments in project {project_id}"
             )
-        experiments = await self.experiment_repository.get_experiments_by_project(
-            project_id
-        )
+        experiments = (
+            await self.experiment_repository.get_experiments_by_project(project_id)
+        ).data
         for i, experiment_id in enumerate(data):
             experiment = next(
                 (e for e in experiments if str(e.id) == str(experiment_id)), None
@@ -136,13 +144,21 @@ class ExperimentService:
         return True
 
     async def get_experiments_by_project(
-        self, user: UserProtocol, project_id: UUID_TYPE
-    ) -> List[ExperimentDTO]:
+        self,
+        user: UserProtocol,
+        project_id: UUID_TYPE,
+        list_options: ListOptions = ListOptions(),
+    ) -> ExperimentListResponseDTO:
         if not await self.permission_checker.can_view_experiment(user.id, project_id):
             raise ExperimentNotAccessibleError(
                 f"You are not allowed to view experiments in project {project_id}"
             )
-        experiments = await self.experiment_repository.get_experiments_by_project(
-            project_id
+        experiments_page = await self.experiment_repository.get_experiments_by_project(
+            project_id,
+            list_options=list_options,
         )
-        return self.experiment_mapper.experiment_list_schema_to_dto(experiments)
+        return ExperimentListResponseDTO.from_page(
+            experiments_page.map(
+                self.experiment_mapper.experiment_schema_to_dto
+            )
+        )

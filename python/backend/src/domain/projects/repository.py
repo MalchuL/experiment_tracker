@@ -1,5 +1,6 @@
 from typing import List
 from lib.db.base_repository import BaseRepository
+from lib.pagination import ListOptions, Page
 from lib.types import UUID_TYPE
 from models import Project
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -28,12 +29,17 @@ class ProjectRepository(BaseRepository):
         )
 
     async def get_projects_by_ids(
-        self, project_ids: List[UUID_TYPE], full_load: bool = True
-    ) -> List[Project]:
+        self,
+        project_ids: List[UUID_TYPE],
+        full_load: bool = True,
+        list_options: ListOptions | None = None,
+    ) -> Page[Project]:
         if not project_ids:
-            return []
-        return await self.advanced_alchemy_repository.list(
-            Project.id.in_(project_ids), load=self._load_options(full_load)
+            return Page(data=[], has_next=False, total=0)
+        return await self.list(
+            Project.id.in_(project_ids),
+            load=self._load_options(full_load),
+            list_options=list_options,
         )
 
     async def get_projects_by_team(self, team_id: UUID_TYPE) -> List[Project]:

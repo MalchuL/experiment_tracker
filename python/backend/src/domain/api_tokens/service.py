@@ -12,7 +12,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from models import ApiToken, User, utc_now
 
-from .dto import ApiTokenCreateResponseDTO, ApiTokenListItemDTO
+from lib.pagination import ListOptions
+
+from .dto import (
+    ApiTokenCreateResponseDTO,
+    ApiTokenListItemDTO,
+    ApiTokenListResponseDTO,
+)
 from .repository import ApiTokenRepository
 from .error import (
     ApiTokenExpiredError,
@@ -108,9 +114,13 @@ class ApiTokenService:
         await self.db.commit()
         return self.mapper.token_schema_to_create_response_dto(token, raw_token)
 
-    async def list_tokens(self, user_id: UUID) -> list[ApiTokenListItemDTO]:
-        tokens = await self.api_token_repository.list_by_user(user_id)
-        return self.mapper.token_schema_list_to_list_item_dto(tokens)
+    async def list_tokens(
+        self, user_id: UUID, list_options: ListOptions = ListOptions()
+    ) -> ApiTokenListResponseDTO:
+        tokens_page = await self.api_token_repository.list_by_user(user_id, list_options)
+        return ApiTokenListResponseDTO.from_page(
+            tokens_page.map(self.mapper.token_schema_to_list_item_dto)
+        )
 
     async def update_token(
         self,

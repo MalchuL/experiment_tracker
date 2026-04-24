@@ -7,6 +7,7 @@ from typing import List, Optional, Dict, Any
 from models import ExperimentStatus
 
 from lib.dto_config import model_config
+from lib.pagination import PaginatedResponse
 
 
 class ExperimentBaseDTO(BaseModel):
@@ -58,6 +59,10 @@ class ExperimentDTO(ExperimentBaseDTO):
     started_at: Optional[datetime]
     completed_at: Optional[datetime]
 
+    model_config = model_config()
+
+
+class ExperimentListResponseDTO(PaginatedResponse[ExperimentDTO]):
     model_config = model_config()
 
 

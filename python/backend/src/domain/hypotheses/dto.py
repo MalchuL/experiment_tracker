@@ -5,6 +5,7 @@ from typing import Optional, List
 from models import HypothesisStatus
 
 from lib.dto_config import model_config
+from lib.pagination import PaginatedResponse
 
 
 class HypothesisBaseDTO(BaseModel):
@@ -41,4 +42,8 @@ class HypothesisDTO(HypothesisBaseDTO):
     created_at: datetime
     updated_at: datetime
 
+    model_config = model_config()
+
+
+class HypothesisListResponseDTO(PaginatedResponse[HypothesisDTO]):
     model_config = model_config()

@@ -7,6 +7,7 @@ from datetime import datetime
 from models import MetricDirection, MetricAggregation
 
 from lib.dto_config import model_config
+from lib.pagination import PaginatedResponse
 
 
 class ProjectOwnerDTO(BaseModel):
@@ -73,6 +74,10 @@ class ProjectDTO(ProjectBaseDTO):
     hypothesis_count: int = 0
     team: Optional[ProjectTeamDTO] = None
 
+    model_config = model_config()
+
+
+class ProjectListResponseDTO(PaginatedResponse[ProjectDTO]):
     model_config = model_config()
 
 

@@ -66,7 +66,7 @@ class TestHypothesisRepository:
         await _create_hypothesis(db_session, other_project, title="Other")
 
         hypotheses = await hypothesis_repository.get_hypotheses_by_project(project.id)
-        titles = {hypothesis.title for hypothesis in hypotheses}
+        titles = {hypothesis.title for hypothesis in hypotheses.data}
 
         assert titles == {"H1", "H2"}
 
@@ -94,6 +94,6 @@ class TestHypothesisRepository:
         hypotheses = await hypothesis_repository.get_hypotheses_by_project(
             [project_a.id, project_b.id]
         )
-        titles = [hypothesis.title for hypothesis in hypotheses]
+        titles = [hypothesis.title for hypothesis in hypotheses.data]
 
         assert titles == ["Newer", "Older"]

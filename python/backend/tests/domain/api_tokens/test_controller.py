@@ -60,10 +60,12 @@ async def test_create_and_list_tokens(
 
     list_response = client.get("/users/me/api-tokens")
     assert list_response.status_code == 200
-    tokens = list_response.json()
-    assert len(tokens) == 1
-    assert tokens[0]["name"] == "Test token"
-    assert "token" not in tokens[0]
+    payload = list_response.json()
+    assert payload["size"] == 1
+    assert payload["hasNext"] is False
+    token = payload["data"][0]
+    assert token["name"] == "Test token"
+    assert "token" not in token
 
 
 @pytest.mark.asyncio
@@ -114,7 +116,10 @@ async def test_list_tokens_returns_list_item_dto_fields(
 
     list_response = client.get("/users/me/api-tokens")
     assert list_response.status_code == 200
-    token = list_response.json()[0]
+    payload = list_response.json()
+    assert payload["size"] == 1
+    assert payload["hasNext"] is False
+    token = payload["data"][0]
     assert token["name"] == "List token"
     assert token["description"] == "list token"
     assert token["scopes"] == [ProjectActions.VIEW_PROJECT]

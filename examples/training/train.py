@@ -30,7 +30,8 @@ def _get_api_client(base_url: str, api_token: str) -> httpx.Client:
 def _list_projects(client: httpx.Client) -> list[dict[str, Any]]:
     response = client.get("/projects")
     response.raise_for_status()
-    return response.json()
+    payload = response.json()
+    return payload["data"]
 
 
 def _find_team_id_from_projects(

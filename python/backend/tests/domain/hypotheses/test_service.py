@@ -90,7 +90,7 @@ class TestHypothesisService:
             test_user, project.id
         )
 
-        titles = {hypothesis.title for hypothesis in hypotheses}
+        titles = {hypothesis.title for hypothesis in hypotheses.data}
         assert titles == {"H1", "H2"}
 
     async def test_get_hypothesis_if_accessible_requires_permission(
