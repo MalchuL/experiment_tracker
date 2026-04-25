@@ -12,6 +12,7 @@ from clients.scalars import (
     LogScalarsBatchRequestDTO,
     LogScalarRequestDTO,
     LogScalarResponseDTO,
+    ScalarsSampling,
 )
 from domain.rbac.permissions import ProjectActions
 from lib.pagination import MAX_LIST_PAGE_SIZE, ListOptions
@@ -79,6 +80,8 @@ async def get_scalars(
     limit: int = Query(default=MAX_LIST_PAGE_SIZE, ge=1, le=MAX_LIST_PAGE_SIZE),
     offset: int = Query(default=0, ge=0),
     max_points: int | None = Query(default=None, ge=1),
+    sampling: ScalarsSampling = Query(default=ScalarsSampling.UNIFORM),
+    columns_per_query: int = Query(default=1, ge=1, le=32),
     return_tags: bool = Query(default=False),
     start_time: datetime | None = Query(default=None),
     end_time: datetime | None = Query(default=None),
@@ -92,6 +95,8 @@ async def get_scalars(
             experiment_id,
             list_options=ListOptions(limit=limit, offset=offset),
             max_points=max_points,
+            sampling=sampling,
+            columns_per_query=columns_per_query,
             return_tags=return_tags,
             start_time=start_time,
             end_time=end_time,
@@ -108,6 +113,8 @@ async def get_project_scalars(
     limit: int = Query(default=MAX_LIST_PAGE_SIZE, ge=1, le=MAX_LIST_PAGE_SIZE),
     offset: int = Query(default=0, ge=0),
     max_points: int | None = Query(default=None, ge=1),
+    sampling: ScalarsSampling = Query(default=ScalarsSampling.UNIFORM),
+    columns_per_query: int = Query(default=1, ge=1, le=32),
     return_tags: bool = Query(default=False),
     start_time: datetime | None = Query(default=None),
     end_time: datetime | None = Query(default=None),
@@ -122,6 +129,8 @@ async def get_project_scalars(
             experiment_ids=experiment_id,
             list_options=ListOptions(limit=limit, offset=offset),
             max_points=max_points,
+            sampling=sampling,
+            columns_per_query=columns_per_query,
             return_tags=return_tags,
             start_time=start_time,
             end_time=end_time,

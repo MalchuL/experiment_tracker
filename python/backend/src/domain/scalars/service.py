@@ -16,6 +16,7 @@ from clients.scalars import (
     LogScalarRequestDTO,
     ScalarsClientProtocol,
     ScalarsQueryDTO,
+    ScalarsSampling,
 )
 from lib.pagination import ListOptions
 from .error import ScalarsNotAccessibleError
@@ -43,6 +44,8 @@ class ScalarsServiceProtocol(Protocol):
         experiment_ids: Sequence[UUID] | None = None,
         list_options: ListOptions = ListOptions(),
         max_points: int | None = None,
+        sampling: ScalarsSampling = ScalarsSampling.UNIFORM,
+        columns_per_query: int = 1,
         return_tags: bool = False,
         start_time: datetime | None = None,
         end_time: datetime | None = None,
@@ -54,6 +57,8 @@ class ScalarsServiceProtocol(Protocol):
         experiment_id: UUID,
         list_options: ListOptions = ListOptions(),
         max_points: int | None = None,
+        sampling: ScalarsSampling = ScalarsSampling.UNIFORM,
+        columns_per_query: int = 1,
         return_tags: bool = False,
         start_time: datetime | None = None,
         end_time: datetime | None = None,
@@ -121,6 +126,8 @@ class ScalarsService:
         experiment_ids: Sequence[UUID] | None = None,
         list_options: ListOptions = ListOptions(),
         max_points: int | None = None,
+        sampling: ScalarsSampling = ScalarsSampling.UNIFORM,
+        columns_per_query: int = 1,
         return_tags: bool = False,
         start_time: datetime | None = None,
         end_time: datetime | None = None,
@@ -160,6 +167,8 @@ class ScalarsService:
                 limit=list_options.limit,
                 offset=list_options.offset,
                 max_points=max_points,
+                sampling=sampling,
+                columns_per_query=columns_per_query,
                 return_tags=return_tags,
                 start_time=start_time,
                 end_time=end_time,
@@ -173,6 +182,8 @@ class ScalarsService:
         experiment_id: UUID,
         list_options: ListOptions = ListOptions(),
         max_points: int | None = None,
+        sampling: ScalarsSampling = ScalarsSampling.UNIFORM,
+        columns_per_query: int = 1,
         return_tags: bool = False,
         start_time: datetime | None = None,
         end_time: datetime | None = None,
@@ -185,6 +196,8 @@ class ScalarsService:
             experiment_ids=[experiment_id],
             list_options=list_options,
             max_points=max_points,
+            sampling=sampling,
+            columns_per_query=columns_per_query,
             return_tags=return_tags,
             start_time=start_time,
             end_time=end_time,
@@ -234,11 +247,13 @@ class NoOpScalarsService:
         experiment_ids: Sequence[UUID] | None = None,
         list_options: ListOptions = ListOptions(),
         max_points: int | None = None,
+        sampling: ScalarsSampling = ScalarsSampling.UNIFORM,
+        columns_per_query: int = 1,
         return_tags: bool = False,
         start_time: datetime | None = None,
         end_time: datetime | None = None,
     ) -> dict[str, Any]:
-        return {"data": [], "has_next": False, "size": 0}
+        return {"data": [], "has_next": False, "size": 0, "total": 0}
 
     async def get_scalars_for_experiment(
         self,
@@ -246,11 +261,13 @@ class NoOpScalarsService:
         experiment_id: UUID,
         list_options: ListOptions = ListOptions(),
         max_points: int | None = None,
+        sampling: ScalarsSampling = ScalarsSampling.UNIFORM,
+        columns_per_query: int = 1,
         return_tags: bool = False,
         start_time: datetime | None = None,
         end_time: datetime | None = None,
     ) -> dict[str, Any]:
-        return {"data": [], "has_next": False, "size": 0}
+        return {"data": [], "has_next": False, "size": 0, "total": 0}
 
     async def get_last_logged_experiments(
         self,

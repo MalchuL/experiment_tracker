@@ -1,7 +1,14 @@
+from enum import Enum
 from typing import Dict, List, Optional
 from uuid import UUID
 
 from pydantic import BaseModel
+
+
+class ScalarsSampling(str, Enum):
+    """How scalar rows are subsampled per experiment (see scalars service / ClickHouse query)."""
+
+    UNIFORM = "uniform"
 
 
 class StepTagsDTO(BaseModel):

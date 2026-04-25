@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import cast
+from typing import Literal, cast
 from uuid import UUID
 
 from .dto import (
@@ -12,6 +12,8 @@ from .dto import (
     ScalarsPointsResponse,
 )
 from ...request_types import ApiRequestSpec
+
+ScalarsSampling = Literal["uniform"]
 
 
 class ScalarsRequestSpecFactory:
@@ -61,6 +63,8 @@ class ScalarsRequestSpecFactory:
         limit: int | None = None,
         offset: int | None = None,
         max_points: int | None = None,
+        sampling: ScalarsSampling = "uniform",
+        columns_per_query: int = 1,
         return_tags: bool = False,
         start_time: datetime | None = None,
         end_time: datetime | None = None,
@@ -68,7 +72,11 @@ class ScalarsRequestSpecFactory:
         if isinstance(experiment_id, UUID):
             experiment_id = str(experiment_id)
         endpoint = cast(str, self.ENDPOINTS["get_scalars"](experiment_id))
-        params: dict[str, object] = {"return_tags": return_tags}
+        params: dict[str, object] = {
+            "return_tags": return_tags,
+            "sampling": sampling,
+            "columns_per_query": columns_per_query,
+        }
         if limit is not None:
             params["limit"] = limit
         if offset is not None:
@@ -93,6 +101,8 @@ class ScalarsRequestSpecFactory:
         limit: int | None = None,
         offset: int | None = None,
         max_points: int | None = None,
+        sampling: ScalarsSampling = "uniform",
+        columns_per_query: int = 1,
         return_tags: bool = False,
         start_time: datetime | None = None,
         end_time: datetime | None = None,
@@ -100,7 +110,11 @@ class ScalarsRequestSpecFactory:
         if isinstance(project_id, UUID):
             project_id = str(project_id)
         endpoint = cast(str, self.ENDPOINTS["get_project_scalars"](project_id))
-        params: dict[str, object] = {"return_tags": return_tags}
+        params: dict[str, object] = {
+            "return_tags": return_tags,
+            "sampling": sampling,
+            "columns_per_query": columns_per_query,
+        }
         if limit is not None:
             params["limit"] = limit
         if offset is not None:

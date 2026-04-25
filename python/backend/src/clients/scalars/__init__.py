@@ -9,6 +9,7 @@ from .dto import (
     LogScalarRequestDTO,
     LogScalarResponseDTO,
     ScalarsQueryDTO,
+    ScalarsSampling,
 )
 from .protocol import ScalarsClientProtocol
 
@@ -24,6 +25,7 @@ __all__ = [
     "NoOpScalarsServiceClient",
     "ScalarsClientProtocol",
     "ScalarsQueryDTO",
+    "ScalarsSampling",
     "ScalarsServiceClient",
 ]
 

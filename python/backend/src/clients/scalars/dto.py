@@ -1,11 +1,18 @@
 from __future__ import annotations
 
 from datetime import datetime
+from enum import Enum
 from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 from lib.pagination import PaginatedResponse
+
+
+class ScalarsSampling(str, Enum):
+    """Must stay aligned with scalars_service ``ScalarsSampling`` query values."""
+
+    UNIFORM = "uniform"
 
 
 class CreateProjectTableRequestDTO(BaseModel):
@@ -73,12 +80,18 @@ class ScalarsQueryDTO(BaseModel):
     limit: int | None = None
     offset: int | None = None
     max_points: int | None = None
+    sampling: ScalarsSampling = ScalarsSampling.UNIFORM
+    columns_per_query: int = 1
     return_tags: bool = False
     start_time: datetime | None = None
     end_time: datetime | None = None
 
     def as_query_params(self) -> dict[str, Any]:
-        params: dict[str, Any] = {"return_tags": self.return_tags}
+        params: dict[str, Any] = {
+            "return_tags": self.return_tags,
+            "sampling": self.sampling.value,
+            "columns_per_query": self.columns_per_query,
+        }
         if self.experiment_ids:
             params["experiment_id"] = [str(experiment_id) for experiment_id in self.experiment_ids]
         if self.limit is not None:

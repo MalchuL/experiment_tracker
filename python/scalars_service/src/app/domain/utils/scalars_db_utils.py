@@ -383,28 +383,13 @@ class ClickHouseScalarsDBUtils:
         """
         return f"DESCRIBE TABLE {table_name}"
 
-    def build_select_statement(
+    def _scalar_table_where_clauses(
         self,
-        table_name: str,
-        scalar_columns: Sequence[str] | None = None,
         experiment_ids: Sequence[UUID] | None = None,
         start_time: datetime | None = None,
         end_time: datetime | None = None,
-    ) -> str:
-        """Build the SELECT statement for the scalars table.
-
-        Args:
-            table_name (str): The table name.
-            scalar_columns (Sequence[str] | None): The scalar columns.
-            experiment_ids (Sequence[UUID] | None): The experiment IDs.
-            start_time (datetime | None): The start time.
-            end_time (datetime | None): The end time.
-
-        Returns:
-            str: The SELECT statement.
-        """
-        columns = BASE_COLUMNS_STR + list(scalar_columns or [])
-        select = f"SELECT {', '.join(columns)} FROM {table_name}"
+        extra: Sequence[str] | None = None,
+    ) -> list[str]:
         where_clauses: list[str] = []
         if experiment_ids:
             uuids = ", ".join(
@@ -423,14 +408,128 @@ class ClickHouseScalarsDBUtils:
                 f"{ProjectTableColumns.TIMESTAMP.value} <= "
                 f"toDateTime64('{self._format_datetime_literal(end_time)}', 3)"
             )
-        if where_clauses:
-            select += f" WHERE {' AND '.join(where_clauses)}"
-        # TODO maybe remove ORDER BY and let the client sort the results?
-        select += (
-            f" ORDER BY {ProjectTableColumns.EXPERIMENT_ID.value}, "
-            f"{ProjectTableColumns.STEP.value}"
+        if extra:
+            where_clauses.extend(extra)
+        return where_clauses
+
+    def _scalar_where_sql(self, where_clauses: Sequence[str]) -> str:
+        if not where_clauses:
+            return ""
+        return f" WHERE {' AND '.join(where_clauses)}"
+
+    def validate_scalar_storage_column_name(self, column_name: str) -> str:
+        """Ensure ``column_name`` is safe to embed in SQL (internal scalar column)."""
+        if not re.match(r"^[A-Za-z_][A-Za-z0-9_]{0,63}$", column_name):
+            raise ValueError("Invalid scalar column name")
+        return column_name
+
+    def build_select_statement(
+        self,
+        table_name: str,
+        scalar_columns: Sequence[str] | None = None,
+        experiment_ids: Sequence[UUID] | None = None,
+        start_time: datetime | None = None,
+        end_time: datetime | None = None,
+    ) -> str:
+        """Build a wide SELECT for the scalars table (no per-column sampling).
+
+        Per-metric uniform sampling is done via ``build_select_uniform_sampled_column``.
+        """
+        where_clauses = self._scalar_table_where_clauses(
+            experiment_ids, start_time, end_time
         )
-        return select
+        where_sql = self._scalar_where_sql(where_clauses)
+        exp_col = ProjectTableColumns.EXPERIMENT_ID.value
+        step_col = ProjectTableColumns.STEP.value
+        order_by = f" ORDER BY {exp_col}, {step_col}"
+        columns = BASE_COLUMNS_STR + list(scalar_columns or [])
+        return f"SELECT {', '.join(columns)} FROM {table_name}{where_sql}{order_by}"
+
+    def build_count_distinct_experiments_statement(
+        self,
+        table_name: str,
+        start_time: datetime | None = None,
+        end_time: datetime | None = None,
+    ) -> str:
+        """Count distinct experiments in the scalars table (optional time bounds)."""
+        where_clauses = self._scalar_table_where_clauses(
+            None, start_time, end_time
+        )
+        where_sql = self._scalar_where_sql(where_clauses)
+        exp_col = ProjectTableColumns.EXPERIMENT_ID.value
+        return (
+            f"SELECT uniqExact({exp_col}) FROM {table_name}{where_sql}"
+        )
+
+    def build_select_experiment_id_page_statement(
+        self,
+        table_name: str,
+        start_time: datetime | None = None,
+        end_time: datetime | None = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> str:
+        """Distinct experiment IDs ordered, with LIMIT/OFFSET for pagination."""
+        where_clauses = self._scalar_table_where_clauses(
+            None, start_time, end_time
+        )
+        where_sql = self._scalar_where_sql(where_clauses)
+        exp_col = ProjectTableColumns.EXPERIMENT_ID.value
+        lim = int(limit)
+        off = int(offset)
+        if lim < 1 or off < 0:
+            raise ValueError("limit must be >= 1 and offset >= 0")
+        return (
+            f"SELECT {exp_col} FROM {table_name}{where_sql} "
+            f"GROUP BY {exp_col} ORDER BY {exp_col} LIMIT {lim} OFFSET {off}"
+        )
+
+    def build_select_uniform_sampled_column(
+        self,
+        table_name: str,
+        column_name: str,
+        experiment_ids: Sequence[UUID],
+        start_time: datetime | None = None,
+        end_time: datetime | None = None,
+        max_points: int = 1000,
+    ) -> str:
+        """Uniform sample up to ``max_points`` **non-null** rows per experiment for one column.
+
+        ``row_number`` / ``count`` are over rows where this column is not null, per experiment.
+        """
+        col = self.validate_scalar_storage_column_name(column_name)
+        mp = int(max_points)
+        if mp < 1:
+            raise ValueError("max_points must be >= 1")
+        if not experiment_ids:
+            raise ValueError("experiment_ids must be non-empty")
+
+        where_clauses = self._scalar_table_where_clauses(
+            experiment_ids, start_time, end_time, extra=(f"{col} IS NOT NULL",)
+        )
+        where_sql = self._scalar_where_sql(where_clauses)
+        exp_col = ProjectTableColumns.EXPERIMENT_ID.value
+        step_col = ProjectTableColumns.STEP.value
+        ts_col = ProjectTableColumns.TIMESTAMP.value
+        tags_col = ProjectTableColumns.TAGS.value
+        base_cols = f"{ts_col}, {exp_col}, {step_col}, {tags_col}, {col}"
+        uniform_filter = (
+            f"(_u_cnt <= {mp}) OR arrayExists("
+            f"j -> _u_rn = 1 + intDiv(toInt64(j) * toInt64(_u_cnt - 1), "
+            f"greatest(toInt64({mp}) - 1, toInt64(1))), "
+            f"range(toUInt32({mp})))"
+        )
+        inner = (
+            f"SELECT {base_cols}, "
+            f"row_number() OVER (PARTITION BY {exp_col} ORDER BY {step_col}) AS _u_rn, "
+            f"count(*) OVER (PARTITION BY {exp_col}) AS _u_cnt "
+            f"FROM {table_name}{where_sql}"
+        )
+        order_by = f" ORDER BY {exp_col}, {step_col}"
+        return (
+            f"SELECT * EXCEPT(_u_rn, _u_cnt) FROM ({inner}) AS _u_sub "
+            f"WHERE {uniform_filter}{order_by}"
+        )
 
     def build_select_mapping_statement(self, project_id: UUID) -> str:
         """Select mapping for scalar name to internal column name for a given project ID.

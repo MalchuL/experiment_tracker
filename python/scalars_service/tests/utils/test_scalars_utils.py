@@ -64,6 +64,22 @@ def test_select_statement():
     )
 
 
+def test_select_uniform_sampled_column_non_null_and_windows():
+    exp1 = UUID("11111111-1111-1111-1111-111111111111")
+    sql = SCALARS_DB_UTILS.build_select_uniform_sampled_column(
+        "scalars_123",
+        "loss",
+        [exp1],
+        max_points=50,
+    )
+    assert "loss IS NOT NULL" in sql
+    assert "SELECT * EXCEPT(_u_rn, _u_cnt) FROM (" in sql
+    assert "row_number() OVER (PARTITION BY __experiment_id__ ORDER BY __step__)" in sql
+    assert "count(*) OVER (PARTITION BY __experiment_id__)" in sql
+    assert "arrayExists(" in sql
+    assert "range(toUInt32(50))" in sql
+
+
 def test_alter_table_add_columns_statement():
     result = (
         "ALTER TABLE scalars_123 "

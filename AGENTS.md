@@ -33,7 +33,7 @@ flowchart LR
 |------|------|
 | `apps/web/` | Next.js app (pnpm). UI, `src/app/api/*` BFF proxies to backend. |
 | `python/backend/src/` | FastAPI app: `api/` routes, `domain/*` bounded contexts, `clients/*` HTTP clients, `db/`, `lib/`. |
-| `python/scalars_service/src/` | FastAPI scalars/artifacts_info service. |
+| `python/scalars_service/src/` | FastAPI scalars/artifacts_info service. `GET /scalars/get/...` paginates **experiments** first, then loads each metric column with ClickHouse `IS NOT NULL` + per-(experiment, column) uniform `max_points` sampling (`columns_per_query` controls parallel column queries; default 1). |
 | `python/object_storage/src/` | FastAPI storage service (buckets, experiment/project artifacts). |
 | `python/sdk/src/experiment_tracker_sdk/` | Public Python SDK for the tracker API. |
 | `python/shared/` | Shared package (`experiment-tracker-shared`). |
