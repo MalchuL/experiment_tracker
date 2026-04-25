@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
 import { ListSkeleton } from "@/components/shared/loading-skeleton";
@@ -25,8 +25,12 @@ export default function Experiments() {
     experiments,
     isLoading: experimentsLoading,
     isFetching: experimentsFetching,
+    isFetchingNextPage: experimentsFetchingNextPage,
+    hasNextPage,
+    fetchNextPage,
     refetch: refetchExperiments,
   } = useExperiments(projectId, {
+    paginationMode: "scroll",
     refetchInterval: REFRESH_EXPERIMENTS_LIST_INTERVAL,
   });
   const {
@@ -38,6 +42,7 @@ export default function Experiments() {
     refetchInterval: REFRESH_EXPERIMENTS_LIST_INTERVAL,
   });
   const { reorderExperiments } = useReorderExperiments(projectId);
+  const loadMoreRef = useRef<HTMLDivElement | null>(null);
 
   // Filter metrics by displayMetrics setting
   const filteredMetrics = !project?.metrics
@@ -58,6 +63,30 @@ export default function Experiments() {
   const handleRefresh = () => {
     void Promise.all([refetchExperiments(), refetchMetrics()]);
   };
+
+  useEffect(() => {
+    const node = loadMoreRef.current;
+    if (!node || !hasNextPage) {
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const [entry] = entries;
+        if (entry?.isIntersecting && hasNextPage && !experimentsFetchingNextPage) {
+          void fetchNextPage();
+        }
+      },
+      {
+        root: null,
+        rootMargin: "200px 0px",
+        threshold: 0,
+      }
+    );
+
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [experimentsFetchingNextPage, fetchNextPage, hasNextPage, sortedExperiments.length]);
 
   if (!projectId) {
     return (
@@ -128,13 +157,23 @@ export default function Experiments() {
           }
         />
       ) : (
-        <ExperimentsTable
-          experiments={sortedExperiments}
-          projectMetrics={filteredMetrics}
-          aggregatedMetrics={aggregatedMetricsByExperiment}
-          onExperimentClick={setSelectedExperimentId}
-          onReorder={reorderExperiments}
-        />
+        <>
+          <ExperimentsTable
+            experiments={sortedExperiments}
+            projectMetrics={filteredMetrics}
+            aggregatedMetrics={aggregatedMetricsByExperiment}
+            onExperimentClick={setSelectedExperimentId}
+            onReorder={reorderExperiments}
+          />
+          <div ref={loadMoreRef} className="h-4" aria-hidden="true" />
+          {(experimentsFetchingNextPage || hasNextPage) && (
+            <p className="text-sm text-muted-foreground">
+              {experimentsFetchingNextPage
+                ? "Loading more experiments..."
+                : "Scroll down to load more experiments."}
+            </p>
+          )}
+        </>
       )}
 
       {selectedExperimentId && (

@@ -1,5 +1,8 @@
 import { serviceClients } from "@/lib/api/clients/axios-client";
+import { appendPaginationParams } from "@/lib/api/pagination";
 import { API_ROUTES } from "@/lib/constants/api-routes";
+import { DEFAULT_PAGE_SIZE } from "@/lib/constants/pagination";
+import type { PaginatedResponse, PaginationParams } from "@/lib/types/pagination";
 import type { NamedArtifactPreview, NamedExperimentArtifact } from "./types";
 
 type NamedExperimentArtifactWire = {
@@ -38,20 +41,32 @@ function normalizeArtifact(
 export const experimentArtifactsService = {
   listByExperiment: async (
     experimentId: string,
-    names?: string[]
-  ): Promise<NamedExperimentArtifact[]> => {
-    const params = new URLSearchParams();
+    names?: string[],
+    pagination?: PaginationParams,
+  ): Promise<PaginatedResponse<NamedExperimentArtifact>> => {
+    const searchParams = new URLSearchParams();
     if (names?.length) {
       for (const name of names) {
-        params.append("name", name);
+        searchParams.append("name", name);
       }
     }
-    const query = params.toString();
-    const path = query
-      ? `${API_ROUTES.EXPERIMENT_ARTIFACTS.LIST_BY_EXPERIMENT(experimentId)}?${query}`
-      : API_ROUTES.EXPERIMENT_ARTIFACTS.LIST_BY_EXPERIMENT(experimentId);
-    const response = await serviceClients.api.get<NamedExperimentArtifactWire[]>(path);
-    return response.data.map(normalizeArtifact);
+    const query = searchParams.toString();
+    const path = appendPaginationParams(
+      query
+        ? `${API_ROUTES.EXPERIMENT_ARTIFACTS.LIST_BY_EXPERIMENT(experimentId)}?${query}`
+        : API_ROUTES.EXPERIMENT_ARTIFACTS.LIST_BY_EXPERIMENT(experimentId),
+      {
+        limit: pagination?.limit ?? DEFAULT_PAGE_SIZE,
+        offset: pagination?.offset,
+      },
+    );
+    const response = await serviceClients.api.get<
+      PaginatedResponse<NamedExperimentArtifactWire>
+    >(path);
+    return {
+      ...response.data,
+      data: response.data.data.map(normalizeArtifact),
+    };
   },
   previewNamedArtifact: async (
     experimentId: string,

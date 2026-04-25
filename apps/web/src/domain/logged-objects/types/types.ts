@@ -1,3 +1,5 @@
+import type { PaginatedResponse } from "@/lib/types/pagination";
+
 export type LoggedObjectType =
   | "image"
   | "video"
@@ -20,6 +22,5 @@ export interface ExperimentArtifactsInfo {
   artifacts_info: LoggedArtifactEntry[];
 }
 
-export interface ArtifactsInfoResult {
-  data: ExperimentArtifactsInfo[];
-}
+export interface ArtifactsInfoResult
+  extends PaginatedResponse<ExperimentArtifactsInfo> {}

@@ -40,8 +40,8 @@ def test_request_queue_flush_sends_multipart_request() -> None:
             form_data={"name": "loss"},
             files={
                 "file": FileUploadSpec(
-                    file_name="loss.txt",
-                    file_content=b"0.123",
+                    filename="loss.txt",
+                    content=b"0.123",
                     content_type="text/plain",
                 )
             },

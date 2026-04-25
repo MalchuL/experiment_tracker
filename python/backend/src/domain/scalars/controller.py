@@ -14,6 +14,7 @@ from clients.scalars import (
     LogScalarResponseDTO,
 )
 from domain.rbac.permissions import ProjectActions
+from lib.pagination import MAX_LIST_PAGE_SIZE, ListOptions
 from models import User
 
 from .error import ScalarsNotAccessibleError
@@ -75,6 +76,8 @@ async def log_scalars_batch(
 @router.get("/get/{experiment_id}", response_model=GetScalarsResponseDTO)
 async def get_scalars(
     experiment_id: UUID,
+    limit: int = Query(default=MAX_LIST_PAGE_SIZE, ge=1, le=MAX_LIST_PAGE_SIZE),
+    offset: int = Query(default=0, ge=0),
     max_points: int | None = Query(default=None, ge=1),
     return_tags: bool = Query(default=False),
     start_time: datetime | None = Query(default=None),
@@ -87,6 +90,7 @@ async def get_scalars(
         result = await scalars_service.get_scalars_for_experiment(
             user,
             experiment_id,
+            list_options=ListOptions(limit=limit, offset=offset),
             max_points=max_points,
             return_tags=return_tags,
             start_time=start_time,
@@ -101,6 +105,8 @@ async def get_scalars(
 async def get_project_scalars(
     project_id: UUID,
     experiment_id: list[UUID] | None = Query(default=None),
+    limit: int = Query(default=MAX_LIST_PAGE_SIZE, ge=1, le=MAX_LIST_PAGE_SIZE),
+    offset: int = Query(default=0, ge=0),
     max_points: int | None = Query(default=None, ge=1),
     return_tags: bool = Query(default=False),
     start_time: datetime | None = Query(default=None),
@@ -114,6 +120,7 @@ async def get_project_scalars(
             user=user,
             project_id=project_id,
             experiment_ids=experiment_id,
+            list_options=ListOptions(limit=limit, offset=offset),
             max_points=max_points,
             return_tags=return_tags,
             start_time=start_time,
@@ -131,6 +138,8 @@ async def get_project_scalars(
 async def get_last_logged_experiments(
     project_id: UUID,
     payload: LastLoggedExperimentsRequestDTO,
+    limit: int = Query(default=MAX_LIST_PAGE_SIZE, ge=1, le=MAX_LIST_PAGE_SIZE),
+    offset: int = Query(default=0, ge=0),
     user: User = Depends(get_current_user_dual),
     _: None = Depends(require_api_token_scopes(ProjectActions.VIEW_METRIC)),
     scalars_service: ScalarsServiceProtocol = Depends(get_scalars_service),
@@ -140,6 +149,7 @@ async def get_last_logged_experiments(
             user=user,
             project_id=project_id,
             experiment_ids=payload.experiment_ids,
+            list_options=ListOptions(limit=limit, offset=offset),
         )
         return LastLoggedExperimentsResponseDTO.model_validate(result)
     except Exception as exc:  # noqa: BLE001

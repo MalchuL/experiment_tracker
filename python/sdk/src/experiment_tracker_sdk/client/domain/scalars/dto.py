@@ -1,6 +1,8 @@
 from datetime import datetime
 from pydantic import BaseModel
 
+from ...pagination import PaginatedResponse
+
 
 class StepTagsResponse(BaseModel):
     step: int
@@ -19,8 +21,8 @@ class ExperimentScalarsPointsResponse(BaseModel):
     tags: list[StepTagsResponse] | None = None
 
 
-class ScalarsPointsResponse(BaseModel):
-    data: list[ExperimentScalarsPointsResponse]
+class ScalarsPointsResponse(PaginatedResponse[ExperimentScalarsPointsResponse]):
+    pass
 
 
 class LogScalarRequest(BaseModel):
@@ -52,5 +54,5 @@ class LastLoggedExperimentResponse(BaseModel):
     last_modified: datetime
 
 
-class LastLoggedExperimentsResponse(BaseModel):
-    data: list[LastLoggedExperimentResponse]
+class LastLoggedExperimentsResponse(PaginatedResponse[LastLoggedExperimentResponse]):
+    pass

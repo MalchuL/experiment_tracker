@@ -9,6 +9,7 @@ from .dto import (
     ArtifactsAtStepInfoResultResponse,
     ArtifactType,
     ExperimentArtifactResponse,
+    ExperimentArtifactListResponse,
     DeleteExperimentArtifactAtStepResponse,
     DeleteExperimentArtifactsAtStepResponse,
     LogArtifactAtStepResponse,
@@ -33,6 +34,9 @@ class ExperimentArtifactsRequestSpecFactory:
         "delete_experiment_all_artifacts": lambda experiment_id: (
             f"/experiment-artifacts/{experiment_id}/all"
         ),
+        "list_named_experiment_artifacts": lambda experiment_id: (
+            f"/experiment-artifacts/experiments/{experiment_id}"
+        ),
         "upsert_named_experiment_artifact": "/experiment-artifacts/upsert",
         "get_named_experiment_artifact": "/experiment-artifacts/get",
         "download_named_experiment_artifact": "/experiment-artifacts/download",
@@ -47,6 +51,8 @@ class ExperimentArtifactsRequestSpecFactory:
         artifact_types: list[str] | None = None,
         artifact_names: list[str] | None = None,
         steps: list[int] | None = None,
+        limit: int | None = None,
+        offset: int | None = None,
         start_time: datetime | None = None,
         end_time: datetime | None = None,
     ) -> ApiRequestSpec[ArtifactsAtStepInfoResultResponse]:
@@ -65,6 +71,10 @@ class ExperimentArtifactsRequestSpecFactory:
             params["artifact_name"] = artifact_names
         if steps:
             params["step"] = steps
+        if limit is not None:
+            params["limit"] = limit
+        if offset is not None:
+            params["offset"] = offset
         if start_time is not None:
             params["start_time"] = start_time.isoformat()
         if end_time is not None:
@@ -158,6 +168,32 @@ class ExperimentArtifactsRequestSpecFactory:
             method="DELETE",
             endpoint=endpoint,
             response_model=DeleteExperimentArtifactsAtStepResponse,
+        )
+
+    def list_named_experiment_artifacts(
+        self,
+        experiment_id: str | UUID,
+        file_paths: list[str] | None = None,
+        limit: int | None = None,
+        offset: int | None = None,
+    ) -> ApiRequestSpec[ExperimentArtifactListResponse]:
+        if isinstance(experiment_id, UUID):
+            experiment_id = str(experiment_id)
+        endpoint = cast(
+            str, self.ENDPOINTS["list_named_experiment_artifacts"](experiment_id)
+        )
+        params: dict[str, object] = {}
+        if file_paths:
+            params["file_paths"] = file_paths
+        if limit is not None:
+            params["limit"] = limit
+        if offset is not None:
+            params["offset"] = offset
+        return ApiRequestSpec(
+            method="GET",
+            endpoint=endpoint,
+            query_params=params or None,
+            response_model=ExperimentArtifactListResponse,
         )
 
     def get_named_experiment_artifact(
@@ -280,6 +316,8 @@ class ExperimentArtifactsRequestSpecFactory:
         artifact_types: list[str] | None = None,
         artifact_names: list[str] | None = None,
         steps: list[int] | None = None,
+        limit: int | None = None,
+        offset: int | None = None,
         start_time: datetime | None = None,
         end_time: datetime | None = None,
     ) -> ApiRequestSpec[ArtifactsAtStepInfoResultResponse]:
@@ -289,6 +327,8 @@ class ExperimentArtifactsRequestSpecFactory:
             artifact_types=artifact_types,
             artifact_names=artifact_names,
             steps=steps,
+            limit=limit,
+            offset=offset,
             start_time=start_time,
             end_time=end_time,
         )

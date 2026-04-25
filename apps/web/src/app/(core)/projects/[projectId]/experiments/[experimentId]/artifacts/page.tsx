@@ -66,7 +66,12 @@ export default function ExperimentArtifactsPage() {
     });
   }, [experimentId]);
 
-  const { artifacts, isLoading, isFetching } = useExperimentFinalArtifacts(experimentId);
+  const {
+    artifacts,
+    isLoading,
+    isFetching,
+    isFetchingNextPage,
+  } = useExperimentFinalArtifacts(experimentId);
   const filteredArtifacts = useMemo(() => {
     if (!nameFilter.trim()) {
       return artifacts;
@@ -191,8 +196,10 @@ export default function ExperimentArtifactsPage() {
             </div>
           )}
 
-          {isFetching && !isLoading && (
-            <p className="text-xs text-muted-foreground">Refreshing artifacts...</p>
+          {(isFetching || isFetchingNextPage) && !isLoading && (
+            <p className="text-xs text-muted-foreground">
+              {isFetchingNextPage ? "Loading more artifacts..." : "Refreshing artifacts..."}
+            </p>
           )}
         </TabsContent>
 

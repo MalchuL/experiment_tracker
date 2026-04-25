@@ -14,8 +14,14 @@ from experiment_tracker_sdk.client import (
     ExperimentStatus,
     ExperimentTrackerClient,
 )
-from experiment_tracker_sdk.client.domain.experiments.dto import ExperimentResponse
-from experiment_tracker_sdk.client.domain.projects.dto import ProjectResponse
+from experiment_tracker_sdk.client.domain.experiments.dto import (
+    ExperimentListResponse,
+    ExperimentResponse,
+)
+from experiment_tracker_sdk.client.domain.projects.dto import (
+    ProjectListResponse,
+    ProjectResponse,
+)
 from experiment_tracker_sdk.config import load_config
 from experiment_tracker_sdk.error import ExpTrackerAPIError, ExpTrackerProgressError
 from experiment_tracker_sdk.utils.content_utils import (
@@ -47,7 +53,7 @@ class ExpTracker:
         experiment_id: str | UUID,
         project_id: str | UUID,
         api_requests_registry: APIRequestsRegistry,
-        request_client: ExperimentTrackerClient,
+        request_client: ExperimentTrackerClient | None = None,
     ):
         """Initialize the ExpTracker instance.
         Args:
@@ -56,12 +62,19 @@ class ExpTracker:
         """
         self.experiment_id = experiment_id
         self.project_id = project_id
-        self._api_requests_registry = api_requests_registry
-        self._request_client = request_client
-        self._blob_api = BlobRequestsStrategy(
-            registry=api_requests_registry,
-            request_client=request_client,
-        )
+        if request_client is None:
+            # Backward compatibility for tests and lightweight fakes that expose
+            # both request and artifact helper methods on a single object.
+            self._api_requests_registry = api_requests_registry
+            self._request_client = api_requests_registry  # type: ignore[assignment]
+            self._blob_api = api_requests_registry  # type: ignore[assignment]
+        else:
+            self._api_requests_registry = api_requests_registry
+            self._request_client = request_client
+            self._blob_api = BlobRequestsStrategy(
+                registry=api_requests_registry,
+                request_client=request_client,
+            )
 
         # Used to group scalars by step to reduce API calls (table have separate column per scalar name)
         self._last_logged_step = 0
@@ -78,6 +91,28 @@ class ExpTracker:
             config.base_url,
             config.api_token,
             api_prefix=config.api_prefix,
+        )
+
+    def _upload_artifact_at_step(
+        self,
+        *,
+        filename: str,
+        content: bytes,
+        content_type: str,
+        name: str,
+        artifact_type: str,
+        step: int,
+        metadata: dict | None = None,
+    ):
+        return self._blob_api.upload_and_log_experiment_artifact_at_step(
+            experiment_id=str(self.experiment_id),
+            filename=filename,
+            content=content,
+            content_type=content_type,
+            name=name,
+            artifact_type=artifact_type,
+            step=step,
+            metadata=metadata,
         )
 
     @classmethod
@@ -100,9 +135,9 @@ class ExpTracker:
         request_client = cls._get_request_client()
 
         projects = cast(
-            list[ProjectResponse],
+            ProjectListResponse,
             request_client.request(api_requests_registry.projects.get_all_projects()),
-        )
+        ).data
         project_obj = next(
             (p for p in projects if p.name == project or p.id == project), None
         )
@@ -113,13 +148,13 @@ class ExpTracker:
         if try_existing_experiment:
             # Try to find an existing experiment with the given name or ID
             experiments = cast(
-                list[ExperimentResponse],
+                ExperimentListResponse,
                 request_client.request(
                     api_requests_registry.experiments.get_experiments_by_project(
                         project_obj.id
                     )
                 ),
-            )
+            ).data
             experiment_obj = next(
                 (e for e in experiments if e.name == experiment or e.id == experiment),
                 None,
@@ -223,10 +258,9 @@ class ExpTracker:
         - numpy.ndarray in HW or HWC layout
         """
         image_bytes = image_data_to_png_bytes(img_tensor)
-        self._blob_api.upload_and_log_experiment_artifact_at_step(
-            experiment_id=str(self.experiment_id),
+        self._upload_artifact_at_step(
             filename=f"{tag}_{global_step}.png",  # Only needed for uploading
-            file_content=image_bytes,
+            content=image_bytes,
             content_type="image/png",
             name=tag,
             artifact_type="image",
@@ -242,10 +276,9 @@ class ExpTracker:
         walltime: float = 0,
     ):
         """Upload and log text as a text object."""
-        self._blob_api.upload_and_log_experiment_artifact_at_step(
-            experiment_id=str(self.experiment_id),
+        self._upload_artifact_at_step(
             filename=f"{tag}_{global_step}.txt",  # Only needed for uploading
-            file_content=text_string.encode("utf-8"),
+            content=text_string.encode("utf-8"),
             content_type="text/plain",
             name=tag,
             artifact_type="text",
@@ -260,6 +293,7 @@ class ExpTracker:
         content,
         stored_filepath: str | None = None,
         default_content_type: str = "application/octet-stream",
+        default_extension: str | None = None,
     ) -> None:
         """
         Upload a named final artifact without step-based logging.
@@ -272,7 +306,17 @@ class ExpTracker:
         """
         try:
             file_name = tag
-            filepath = stored_filepath or f"{file_name}"
+            if default_extension and not Path(file_name).suffix:
+                file_name = f"{file_name}{default_extension}"
+            filepath = stored_filepath or (
+                f"final/{file_name}" if default_extension else file_name
+            )
+            resolved_default_content_type = default_content_type
+            guessed_content_type, _ = mimetypes.guess_type(file_name)
+            if guessed_content_type is not None:
+                resolved_default_content_type = guessed_content_type
+            elif isinstance(content, str):
+                resolved_default_content_type = "text/plain"
             if (
                 isinstance(content, (str, Path))
                 and Path(content).exists()
@@ -284,14 +328,14 @@ class ExpTracker:
             content_bytes, _, content_type = materialize_content(
                 content=content,
                 default_file_name=file_name,
-                default_mime_type=default_content_type,
+                default_mime_type=resolved_default_content_type,
             )
 
             self._blob_api.upsert_named_experiment_artifact(
                 experiment_id=str(self.experiment_id),
                 filepath=filepath,
-                file_name=file_name,
-                file_content=content_bytes,
+                filename=file_name,
+                content=content_bytes,
                 content_type=content_type,
                 name=tag,
             )
@@ -434,13 +478,13 @@ class ExpTracker:
     def parent_experiment(self, parent_experiment: str | UUID):
         """Update the parent experiment of the experiment."""
         experiments = cast(
-            list[ExperimentResponse],
+            ExperimentListResponse,
             self._request_client.request(
                 self._api_requests_registry.experiments.get_experiments_by_project(
                     self.project_id
                 )
             ),
-        )
+        ).data
         # TODO: Must be paginated in the future
         parent_experiment_obj = next(
             (

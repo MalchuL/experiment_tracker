@@ -5,20 +5,31 @@ import type {
   ProjectSetting,
   UpdateProject,
 } from "../types";
-import type { Experiment } from '@/domain/experiments/types';
-import type { Hypothesis } from '@/domain/hypothesis/types';
+import type { Experiment } from "@/domain/experiments/types";
+import type { Hypothesis } from "@/domain/hypothesis/types";
 import { serviceClients } from "@/lib/api/clients/axios-client";
+import { appendPaginationParams } from "@/lib/api/pagination";
 import { API_ROUTES } from "@/lib/constants/api-routes";
 import { Metric } from "@/domain/metrics/types";
+import type { PaginatedResponse, PaginationParams } from "@/lib/types/pagination";
 
 
 export interface ProjectsService {
-  getAll: () => Promise<Project[]>;
+  getAll: (params?: PaginationParams) => Promise<PaginatedResponse<Project>>;
   getById: (id: string) => Promise<Project>;
-  getExperiments: (id: string) => Promise<Experiment[]>;
-  getHypotheses: (id: string) => Promise<Hypothesis[]>;
+  getExperiments: (
+    id: string,
+    params?: PaginationParams,
+  ) => Promise<PaginatedResponse<Experiment>>;
+  getHypotheses: (
+    id: string,
+    params?: PaginationParams,
+  ) => Promise<PaginatedResponse<Hypothesis>>;
   reorderExperiments: (id: string, experimentIds: string[]) => Promise<Experiment[]>;
-  getMetrics: (id: string) => Promise<Metric[]>;
+  getMetrics: (
+    id: string,
+    params?: PaginationParams,
+  ) => Promise<PaginatedResponse<Metric>>;
   create: (project: InsertProject) => Promise<Project>;
   update: (id: string, updates: UpdateProject) => Promise<Project>;
   delete: (id: string) => Promise<void>;
@@ -31,21 +42,33 @@ export interface ProjectsService {
 }
 
 export const projectsService: ProjectsService = {
-  getAll: async () => {
-    const response = await serviceClients.api.get<Project[]>(API_ROUTES.PROJECTS.LIST);
+  getAll: async (params) => {
+    const response = await serviceClients.api.get<PaginatedResponse<Project>>(
+      appendPaginationParams(API_ROUTES.PROJECTS.LIST, params),
+    );
     return response.data;
   },
   getById: async (id: string): Promise<Project> => {
     const response = await serviceClients.api.get<Project>(API_ROUTES.PROJECTS.BY_ID.GET(id));
     return response.data;
   },
-  getExperiments: async (id: string): Promise<Experiment[]> => {
-    const response = await serviceClients.api.get<Experiment[]>(API_ROUTES.PROJECTS.BY_ID.EXPERIMENTS(id));
+  getExperiments: async (
+    id: string,
+    params?: PaginationParams,
+  ): Promise<PaginatedResponse<Experiment>> => {
+    const response = await serviceClients.api.get<PaginatedResponse<Experiment>>(
+      appendPaginationParams(API_ROUTES.PROJECTS.BY_ID.EXPERIMENTS(id), params),
+    );
     return response.data;
   },
 
-  getHypotheses: async (id: string): Promise<Hypothesis[]> => {
-    const response = await serviceClients.api.get<Hypothesis[]>(API_ROUTES.PROJECTS.BY_ID.HYPOTHESES(id));
+  getHypotheses: async (
+    id: string,
+    params?: PaginationParams,
+  ): Promise<PaginatedResponse<Hypothesis>> => {
+    const response = await serviceClients.api.get<PaginatedResponse<Hypothesis>>(
+      appendPaginationParams(API_ROUTES.PROJECTS.BY_ID.HYPOTHESES(id), params),
+    );
     return response.data;
   },
 
@@ -68,8 +91,13 @@ export const projectsService: ProjectsService = {
     return response.data;
   },
 
-  getMetrics: async (id: string): Promise<Metric[]> => {
-    const response = await serviceClients.api.get<Metric[]>(API_ROUTES.PROJECTS.BY_ID.METRICS(id));
+  getMetrics: async (
+    id: string,
+    params?: PaginationParams,
+  ): Promise<PaginatedResponse<Metric>> => {
+    const response = await serviceClients.api.get<PaginatedResponse<Metric>>(
+      appendPaginationParams(API_ROUTES.PROJECTS.BY_ID.METRICS(id), params),
+    );
     return response.data;
   },
 

@@ -36,7 +36,11 @@ class LastLoggedService:
         await self.client.command(statement)
 
     async def get_last_logged_experiments(
-        self, project_id: UUID, experiment_ids: list[UUID] | None = None
+        self,
+        project_id: UUID,
+        experiment_ids: list[UUID] | None = None,
+        limit: int = 100,
+        offset: int = 0,
     ) -> LastLoggedExperimentsResultDTO:
         """Get last logged experiments for a project.
 
@@ -50,7 +54,12 @@ class LastLoggedService:
         """
         table_name = SCALARS_DB_UTILS.safe_last_logged_table_name(project_id)
         if not await self._table_exists(table_name):
-            return LastLoggedExperimentsResultDTO(data=[])
+            return LastLoggedExperimentsResultDTO(
+                data=[],
+                has_next=False,
+                size=0,
+                total=0,
+            )
         query = SCALARS_DB_UTILS.build_select_last_logged_statement(
             table_name,
             experiment_ids=experiment_ids,
@@ -63,7 +72,14 @@ class LastLoggedService:
             )
             for row in result.result_rows
         ]
-        return LastLoggedExperimentsResultDTO(data=data)
+        total = len(data)
+        page = data[offset : offset + limit]
+        return LastLoggedExperimentsResultDTO(
+            data=page,
+            has_next=offset + len(page) < total,
+            size=len(page),
+            total=total,
+        )
 
     async def _ensure_table(self, project_id: UUID) -> None:
         """Ensure the last_logged table exists. Create it if it does not."""

@@ -10,13 +10,17 @@ export interface RecentExperimentsHookResult {
 }
 
 export function useRecentExperiments(projectId?: string, limit?: number | undefined, offset?: number | undefined): RecentExperimentsHookResult {
-    const { data: experiments, isLoading } = useQuery<Experiment[]>({
+    const { data, isLoading } = useQuery({
         queryKey: [QUERY_KEYS.EXPERIMENTS.RECENT(projectId!, limit, offset)],
-        queryFn: () => experimentsService.getRecent(projectId!, limit, offset),
+        queryFn: () =>
+            experimentsService.getRecent(projectId!, {
+                limit,
+                offset,
+            }),
         enabled: Boolean(projectId)
     });
     const experimentsCached = useMemo(() => {
-        return experiments || [];
-    }, [experiments]);
+        return data?.data || [];
+    }, [data]);
     return { experiments: experimentsCached, recentExperimentsIsLoading: isLoading };
 }

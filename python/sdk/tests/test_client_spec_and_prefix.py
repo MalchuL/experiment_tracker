@@ -29,8 +29,8 @@ def test_api_request_spec_accepts_files_without_json() -> None:
         form_data={"name": "artifact"},
         files={
             "file": FileUploadSpec(
-                file_name="artifact.bin",
-                file_content=b"abc",
+                filename="artifact.bin",
+                content=b"abc",
             )
         },
     )
@@ -57,7 +57,7 @@ def test_endpoint_factories_are_prefixless() -> None:
 
     assert experiment_factory.create_experiment("project-id", "run").endpoint == "/experiments"
     assert metrics_factory.create_metric("exp-id", "acc", 0.5).endpoint == "/metrics"
-    dummy_file = FileUploadSpec(file_name="data.bin", file_content=b"x")
+    dummy_file = FileUploadSpec(filename="data.bin", content=b"x")
     assert (
         project_artifacts_factory.upload_project_artifact(
             "project-id", "abc123", dummy_file

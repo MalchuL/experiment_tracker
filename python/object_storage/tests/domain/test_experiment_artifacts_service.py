@@ -111,10 +111,15 @@ class FakeArtifactsRepository:
         return experiment_blob
 
     async def list_experiment_blobs(
-        self, project_id, experiment_id, limit=100, offset=0
-    ) -> list[ExperimentBlob]:
-        _ = (project_id, experiment_id, limit, offset)
-        return self.list_result
+        self, project_id, experiment_id, limit=100, offset=0, file_paths=None
+    ) -> tuple[list[ExperimentBlob], int]:
+        _ = (project_id, experiment_id)
+        rows = self.list_result
+        if file_paths:
+            rows = [row for row in rows if row.file_path in set(file_paths)]
+        total = len(rows)
+        page = rows[offset : offset + limit]
+        return page, total
 
     async def get_experiment_blob(
         self,
@@ -312,10 +317,11 @@ async def test_list_artifacts_includes_metadata_in_response() -> None:
 
     out = await service.list_artifacts(project_id, experiment_id)
 
-    assert len(out) == 1
-    assert out[0].metadata == meta
-    assert out[0].hash == "f" * 64
-    assert out[0].file_path == "group/file.bin"
+    assert out.size == 1
+    assert out.has_next is False
+    assert out.data[0].metadata == meta
+    assert out.data[0].hash == "f" * 64
+    assert out.data[0].file_path == "group/file.bin"
 
 
 @pytest.mark.asyncio

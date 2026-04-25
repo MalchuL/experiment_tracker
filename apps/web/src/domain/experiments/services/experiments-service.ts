@@ -1,11 +1,19 @@
 import { serviceClients } from "@/lib/api/clients/axios-client";
+import { appendPaginationParams } from "@/lib/api/pagination";
 import { API_ROUTES } from "@/lib/constants/api-routes";
 import { Experiment } from "../types";
 import { InsertExperiment } from "@/shared/schema";
+import type { PaginatedResponse, PaginationParams } from "@/lib/types/pagination";
 
 export interface ExperimentsService {
-    getRecent: (projectId: string, limit?: number | undefined, offset?: number | undefined) => Promise<Experiment[]>;
-    getByProject: (projectId: string) => Promise<Experiment[]>;
+    getRecent: (
+        projectId: string,
+        params?: PaginationParams
+    ) => Promise<PaginatedResponse<Experiment>>;
+    getByProject: (
+        projectId: string,
+        params?: PaginationParams
+    ) => Promise<PaginatedResponse<Experiment>>;
     create: (data: InsertExperiment) => Promise<Experiment>;
     reorder: (projectId: string, experimentIds: string[]) => Promise<Experiment[]>;
     get: (experimentId: string) => Promise<Experiment>;
@@ -14,12 +22,16 @@ export interface ExperimentsService {
 }
 
 export const experimentsService: ExperimentsService = {
-    getRecent: async (projectId: string, limit?: number | undefined, offset?: number | undefined) => {
-        const response = await serviceClients.api.get<Experiment[]>(API_ROUTES.EXPERIMENTS.RECENT(projectId, limit, offset));
+    getRecent: async (projectId: string, params?: PaginationParams) => {
+        const response = await serviceClients.api.get<PaginatedResponse<Experiment>>(
+            appendPaginationParams(API_ROUTES.EXPERIMENTS.RECENT(projectId), params)
+        );
         return response.data;
     },
-    getByProject: async (projectId: string) => {
-        const response = await serviceClients.api.get<Experiment[]>(API_ROUTES.PROJECTS.BY_ID.EXPERIMENTS(projectId));
+    getByProject: async (projectId: string, params?: PaginationParams) => {
+        const response = await serviceClients.api.get<PaginatedResponse<Experiment>>(
+            appendPaginationParams(API_ROUTES.PROJECTS.BY_ID.EXPERIMENTS(projectId), params)
+        );
         return response.data;
     },
     create: async (data: InsertExperiment) => {

@@ -5,6 +5,7 @@ from datetime import datetime
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
+from lib.pagination import PaginatedResponse
 
 
 class CheckProjectArtifactsResponseDTO(BaseModel):
@@ -60,6 +61,10 @@ class ExperimentTrackedArtifactItemDTO(BaseModel):
     mime_type: str
     size: int
     metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class ExperimentTrackedArtifactListDTO(PaginatedResponse[ExperimentTrackedArtifactItemDTO]):
+    pass
 
 
 class ExperimentTrackedUploadResponseDTO(BaseModel):

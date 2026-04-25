@@ -2,7 +2,9 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Optional
 from uuid import UUID
-from pydantic import BaseModel, RootModel
+from pydantic import BaseModel
+
+from ...pagination import PaginatedResponse
 
 
 class ExperimentStatus(str, Enum):
@@ -53,7 +55,7 @@ class ExperimentResponse(BaseModel):
     completedAt: Optional[datetime] = None
 
 
-class ExperimentListResponse(RootModel[list[ExperimentResponse]]):
+class ExperimentListResponse(PaginatedResponse[ExperimentResponse]):
     pass
 
 

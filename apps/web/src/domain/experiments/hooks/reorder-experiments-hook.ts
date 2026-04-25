@@ -1,8 +1,9 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { InfiniteData, QueryKey, useMutation, useQueryClient } from "@tanstack/react-query";
 import { experimentsService } from "../services";
 import { Experiment } from "../types";
 import { QUERY_KEYS } from "@/lib/constants/query-keys";
 import { useToast } from "@/lib/hooks/use-toast";
+import type { PaginatedResponse } from "@/lib/types/pagination";
 
 export interface UseReorderExperimentsOptions {
     onSuccess?: () => void;
@@ -12,6 +13,42 @@ export interface UseReorderExperimentsOptions {
 export interface UseReorderExperimentsResult {
     reorderExperiments: (experimentIds: string[], options?: UseReorderExperimentsOptions) => Promise<Experiment[]>;
     isPending: boolean;
+}
+
+function reorderExperimentPages(
+    current: InfiniteData<PaginatedResponse<Experiment>> | undefined,
+    experimentIds: string[]
+): InfiniteData<PaginatedResponse<Experiment>> | undefined {
+    if (!current) {
+        return current;
+    }
+
+    const experiments = current.pages.flatMap((page) => page.data);
+    const reorderedExperiments = experimentIds
+        .map((id, index) => {
+            const experiment = experiments.find((candidate) => candidate.id === id);
+            return experiment ? { ...experiment, order: index } : null;
+        })
+        .filter((experiment): experiment is Experiment => experiment !== null);
+
+    let cursor = 0;
+
+    return {
+        ...current,
+        pages: current.pages.map((page) => {
+            const nextPageData = reorderedExperiments.slice(
+                cursor,
+                cursor + page.data.length
+            );
+            cursor += page.data.length;
+
+            return {
+                ...page,
+                data: nextPageData,
+                size: nextPageData.length,
+            };
+        }),
+    };
 }
 
 export function useReorderExperiments(projectId?: string): UseReorderExperimentsResult {
@@ -24,36 +61,40 @@ export function useReorderExperiments(projectId?: string): UseReorderExperiments
             return experimentsService.reorder(projectId, experimentIds);
         },
         onMutate: async (experimentIds: string[]) => {
-            if (!projectId) return { previousExperiments: undefined };
+            if (!projectId) {
+                return {
+                    previousExperiments: [] as Array<
+                        [
+                            QueryKey,
+                            InfiniteData<PaginatedResponse<Experiment>> | undefined
+                        ]
+                    >,
+                };
+            }
 
             await queryClient.cancelQueries({
                 queryKey: [QUERY_KEYS.EXPERIMENTS.BY_PROJECT(projectId)],
             });
 
-            const previousExperiments = queryClient.getQueryData<Experiment[]>(
-                [QUERY_KEYS.EXPERIMENTS.BY_PROJECT(projectId)]
-            );
+            const previousExperiments = queryClient.getQueriesData<
+                InfiniteData<PaginatedResponse<Experiment>>
+            >({
+                queryKey: [QUERY_KEYS.EXPERIMENTS.BY_PROJECT(projectId)],
+            });
 
-            queryClient.setQueryData<Experiment[]>(
-                [QUERY_KEYS.EXPERIMENTS.BY_PROJECT(projectId)],
-                (old) => {
-                    if (!old) return old;
-                    return experimentIds.map((id, index) => {
-                        const exp = old.find((e) => e.id === id);
-                        return exp ? { ...exp, order: index } : null;
-                    }).filter(Boolean) as Experiment[];
-                }
-            );
+            previousExperiments.forEach(([queryKey, data]) => {
+                queryClient.setQueryData(
+                    queryKey,
+                    reorderExperimentPages(data, experimentIds)
+                );
+            });
 
             return { previousExperiments };
         },
         onError: (_err, _experimentIds, context) => {
-            if (context?.previousExperiments && projectId) {
-                queryClient.setQueryData(
-                    [QUERY_KEYS.EXPERIMENTS.BY_PROJECT(projectId)],
-                    context.previousExperiments
-                );
-            }
+            context?.previousExperiments?.forEach(([queryKey, data]) => {
+                queryClient.setQueryData(queryKey, data);
+            });
             toast({
                 title: "Error",
                 description: "Failed to reorder experiments.",

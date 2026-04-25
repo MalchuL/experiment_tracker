@@ -24,6 +24,9 @@ class ExperimentArtifactsInfoResultDTO(BaseModel):
 
 class ArtifactsInfoResultDTO(BaseModel):
     data: List[ExperimentArtifactsInfoResultDTO]
+    has_next: bool = False
+    size: int = 0
+    total: int = 0
 
 
 class LogArtifactInfoRequestDTO(BaseModel):

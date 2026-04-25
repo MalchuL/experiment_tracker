@@ -1,6 +1,8 @@
 from datetime import datetime
 from enum import Enum
-from pydantic import BaseModel, RootModel
+from pydantic import BaseModel
+
+from ...pagination import PaginatedResponse
 
 
 class HypothesisStatus(str, Enum):
@@ -43,7 +45,7 @@ class HypothesisResponse(BaseModel):
     updatedAt: datetime
 
 
-class HypothesisListResponse(RootModel[list[HypothesisResponse]]):
+class HypothesisListResponse(PaginatedResponse[HypothesisResponse]):
     pass
 
 

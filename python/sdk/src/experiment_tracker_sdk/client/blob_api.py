@@ -59,14 +59,14 @@ class BlobRequestsStrategy:
     def upload_project_artifact(
         self,
         project_id: str,
-        file_name: str,
-        file_content: bytes,
+        filename: str,
+        content: bytes,
         content_type: str,
     ) -> BlobUploadResult:
         """Upload into project CAS if the content hash is not already stored."""
         from experiment_tracker_shared import compute_sha256_hexdigest  # type: ignore
 
-        artifact_hash = compute_sha256_hexdigest(file_content)
+        artifact_hash = compute_sha256_hexdigest(content)
         check_result = self.check_project_artifacts(project_id, [artifact_hash])
         missing = set(check_result.missing)
         if artifact_hash not in missing:
@@ -75,8 +75,8 @@ class BlobRequestsStrategy:
             )
 
         file_spec = FileUploadSpec(
-            filename=file_name,
-            content=file_content,
+            filename=filename,
+            content=content,
             content_type=content_type,
         )
         spec = self.registry.project_artifacts.upload_project_artifact(
@@ -128,7 +128,7 @@ class BlobRequestsStrategy:
         self,
         experiment_id: str,
         filename: str,
-        file_content: bytes,
+        content: bytes,
         content_type: str,
         name: str,
         artifact_type: ArtifactType,
@@ -143,7 +143,7 @@ class BlobRequestsStrategy:
         """
         file_spec = FileUploadSpec(
             filename=filename,
-            content=file_content,
+            content=content,
             content_type=content_type,
         )
         spec = self.registry.experiment_artifacts.upload_and_log_experiment_artifact_at_step(
@@ -195,15 +195,15 @@ class BlobRequestsStrategy:
         self,
         experiment_id: str,
         filepath: str,
-        file_name: str,
-        file_content: bytes,
+        filename: str,
+        content: bytes,
         content_type: str,
         name: str | None = None,
     ) -> dict[str, Any]:
         """Upsert a named tracked artifact for an experiment (no step)."""
         file_spec = FileUploadSpec(
-            filename=file_name,
-            content=file_content,
+            filename=filename,
+            content=content,
             content_type=content_type,
         )
         spec = self.registry.experiment_artifacts.upsert_named_experiment_artifact(

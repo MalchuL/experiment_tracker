@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
 import pytest
@@ -10,10 +11,20 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from object_storage.db import get_async_session
-from object_storage.db.models import Base
+from object_storage.db.models import Base, ExperimentBlob
 from object_storage.domain.experiment_artifacts_storage.controller import router
 from object_storage.storage import get_storage
 from object_storage.storage.s3_client import get_s3_storage
+
+
+def _maxish_file_path(index: int) -> str:
+    """1024-char path (``ExperimentBlob.file_path`` max), unique per ``index``."""
+
+    prefix = f"experiments/run_{index:05d}/checkpoints/"
+    suffix = ".pt"
+    pad_len = 1024 - len(prefix) - len(suffix)
+    assert pad_len > 0
+    return f"{prefix}{'p' * pad_len}{suffix}"
 
 
 @pytest.fixture
@@ -135,9 +146,10 @@ async def test_experiment_controller_tracked_upload_list_download_delete(
     )
     assert listed.status_code == 200
     artifacts = listed.json()
-    assert len(artifacts) == 1
-    assert artifacts[0]["hash"] == artifact_hash
-    assert artifacts[0]["file_path"] == artifact_path
+    assert artifacts["size"] == 1
+    assert artifacts["has_next"] is False
+    assert artifacts["data"][0]["hash"] == artifact_hash
+    assert artifacts["data"][0]["file_path"] == artifact_path
 
     tracked_download = await http_client.get(
         f"/api/experiment-artifacts/projects/{project_id}/experiments/{experiment_id}/artifacts/{artifact_hash}",
@@ -190,9 +202,9 @@ async def test_experiment_controller_tracked_no_hash_list_and_download_use_same_
     )
     assert listed.status_code == 200
     artifacts = listed.json()
-    assert len(artifacts) == 1
-    assert artifacts[0]["hash"] == h
-    assert artifacts[0]["file_path"] == artifact_path
+    assert artifacts["size"] == 1
+    assert artifacts["data"][0]["hash"] == h
+    assert artifacts["data"][0]["file_path"] == artifact_path
 
     tracked_download = await http_client.get(
         f"/api/experiment-artifacts/projects/{project_id}/experiments/{experiment_id}/artifacts/{h}",
@@ -240,8 +252,96 @@ async def test_experiment_controller_tracked_upload_metadata_query_roundtrip(
     )
     assert listed.status_code == 200
     artifacts = listed.json()
-    assert len(artifacts) == 1
-    assert artifacts[0]["metadata"] == meta
+    assert artifacts["size"] == 1
+    assert artifacts["data"][0]["metadata"] == meta
+
+
+@pytest.mark.asyncio
+async def test_experiment_controller_tracked_list_applies_limit_offset(http_client) -> None:
+    project_id = uuid4()
+    experiment_id = uuid4()
+    first_hash = "1" * 64
+    second_hash = "2" * 64
+
+    await http_client.post(
+        f"/api/experiment-artifacts/projects/{project_id}/experiments/{experiment_id}/upload-tracked",
+        params={"artifact_hash": first_hash, "file_path": "a.bin"},
+        files={"file": ("a.bin", b"a", "application/octet-stream")},
+    )
+    await http_client.post(
+        f"/api/experiment-artifacts/projects/{project_id}/experiments/{experiment_id}/upload-tracked",
+        params={"artifact_hash": second_hash, "file_path": "b.bin"},
+        files={"file": ("b.bin", b"b", "application/octet-stream")},
+    )
+
+    page0 = await http_client.get(
+        f"/api/experiment-artifacts/projects/{project_id}/experiments/{experiment_id}/artifacts",
+        params={"limit": 1, "offset": 0},
+    )
+    page1 = await http_client.get(
+        f"/api/experiment-artifacts/projects/{project_id}/experiments/{experiment_id}/artifacts",
+        params={"limit": 1, "offset": 1},
+    )
+    assert page0.status_code == 200
+    assert page1.status_code == 200
+    h0 = page0.json()["data"][0]["hash"]
+    h1 = page1.json()["data"][0]["hash"]
+    assert h0 != h1
+    assert {h0, h1} == {first_hash, second_hash}
+    assert page0.json()["total"] == 2
+    assert page1.json()["total"] == 2
+
+
+@pytest.mark.asyncio
+async def test_experiment_controller_list_many_max_length_file_paths_via_query(
+    http_client,
+    db_session_factory,
+) -> None:
+    """httpx + Starlette/FastAPI must parse a long query string of ``file_path`` values."""
+
+    project_id = uuid4()
+    experiment_id = uuid4()
+    n_rows = 20
+    base_time = datetime.now(UTC).replace(tzinfo=None, microsecond=0)
+    stored_paths: list[str] = []
+
+    async with db_session_factory() as session:
+        for i in range(n_rows):
+            path = _maxish_file_path(i)
+            assert len(path) == 1024
+            stored_paths.append(path)
+            session.add(
+                ExperimentBlob(
+                    project_id=project_id,
+                    experiment_id=experiment_id,
+                    artifact_hash=f"{i:064d}",
+                    file_path=path,
+                    mime_type="application/octet-stream",
+                    size=128 + i,
+                    created_at=base_time + timedelta(milliseconds=i),
+                    updated_at=base_time + timedelta(milliseconds=i),
+                )
+            )
+        await session.commit()
+
+    bogus_paths = [_maxish_file_path(90_000 + j) for j in range(6)]
+    params: list[tuple[str, str | int]] = [
+        ("file_path", p) for p in stored_paths + bogus_paths
+    ]
+    params.extend([("limit", 100), ("offset", 0)])
+
+    url = (
+        f"/api/experiment-artifacts/projects/{project_id}/experiments/"
+        f"{experiment_id}/artifacts"
+    )
+    listed = await http_client.get(url, params=params)
+    assert listed.status_code == 200, listed.text
+    assert len(str(listed.url)) > 20_000
+
+    body = listed.json()
+    assert body["total"] == n_rows
+    assert body["size"] == n_rows
+    assert {row["file_path"] for row in body["data"]} == set(stored_paths)
 
 
 @pytest.mark.asyncio

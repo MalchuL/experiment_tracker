@@ -1,7 +1,8 @@
 from datetime import datetime
 from enum import Enum
-from pydantic import BaseModel, RootModel
+from pydantic import BaseModel
 
+from ...pagination import PaginatedResponse
 
 class MetricDirection(str, Enum):
     MINIMIZE = "minimize"
@@ -79,7 +80,7 @@ class ProjectResponse(BaseModel):
     team: ProjectTeamResponse | None = None
 
 
-class ProjectListResponse(RootModel[list[ProjectResponse]]):
+class ProjectListResponse(PaginatedResponse[ProjectResponse]):
     pass
 
 

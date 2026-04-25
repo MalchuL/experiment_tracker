@@ -2,6 +2,7 @@ import { serviceClients } from "@/lib/api/clients/axios-client";
 import { Hypothesis } from "../types";
 import { API_ROUTES } from "@/lib/constants/api-routes";
 import { InsertHypothesis } from "../types/dto";
+import type { PaginatedResponse } from "@/lib/types/pagination";
 
 
 export interface HypothesisService {
@@ -13,12 +14,16 @@ export interface HypothesisService {
 
 export const hypothesisService: HypothesisService = {
     getRecent: async (projectId: string, limit?: number | undefined, offset?: number | undefined): Promise<Hypothesis[]> => {
-        const response = await serviceClients.api.get<Hypothesis[]>(API_ROUTES.HYPOTHESES.RECENT(projectId, limit, offset));
-        return response.data;
+        const response = await serviceClients.api.get<PaginatedResponse<Hypothesis>>(
+            API_ROUTES.HYPOTHESES.RECENT(projectId, limit, offset)
+        );
+        return response.data.data;
     },
     getByProject: async (projectId: string): Promise<Hypothesis[]> => {
-        const response = await serviceClients.api.get<Hypothesis[]>(API_ROUTES.PROJECTS.BY_ID.HYPOTHESES(projectId));
-        return response.data;
+        const response = await serviceClients.api.get<PaginatedResponse<Hypothesis>>(
+            API_ROUTES.PROJECTS.BY_ID.HYPOTHESES(projectId)
+        );
+        return response.data.data;
     },
     createHypothesis: async (data: InsertHypothesis): Promise<Hypothesis> => {
         const response = await serviceClients.api.post<Hypothesis>(API_ROUTES.HYPOTHESES.CREATE, data);

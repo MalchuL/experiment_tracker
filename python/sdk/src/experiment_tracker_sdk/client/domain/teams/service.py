@@ -12,7 +12,7 @@ from .dto import (
     TeamResponse,
     TeamUpdateRequest,
 )
-from ...request import ApiRequestSpec
+from ...request_types import ApiRequestSpec
 
 
 class TeamRequestSpecFactory:

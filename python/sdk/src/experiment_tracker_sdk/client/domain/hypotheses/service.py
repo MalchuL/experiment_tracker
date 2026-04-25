@@ -10,12 +10,13 @@ from .dto import (
     SuccessResponse,
 )
 from ...constants import UNSET, Unset
-from ...request import ApiRequestSpec
+from ...request_types import ApiRequestSpec
 
 
 class HypothesisRequestSpecFactory:
     ENDPOINTS = {
         "create_hypothesis": "/hypotheses",
+        "get_recent_hypotheses": "/hypotheses/recent",
         "get_hypothesis": lambda hypothesis_id: f"/hypotheses/{hypothesis_id}",
         "update_hypothesis": lambda hypothesis_id: f"/hypotheses/{hypothesis_id}",
         "delete_hypothesis": lambda hypothesis_id: f"/hypotheses/{hypothesis_id}",
@@ -112,17 +113,47 @@ class HypothesisRequestSpecFactory:
         )
 
     def get_project_hypotheses(
-        self, project_id: str | UUID
+        self,
+        project_id: str | UUID,
+        limit: int | None = None,
+        offset: int | None = None,
     ) -> ApiRequestSpec[HypothesisListResponse]:
         if isinstance(project_id, UUID):
             project_id = str(project_id)
         endpoint = cast(Callable[[Any], str], self.ENDPOINTS["get_project_hypotheses"])(
             project_id
         )
+        query_params: dict[str, int] = {}
+        if limit is not None:
+            query_params["limit"] = limit
+        if offset is not None:
+            query_params["offset"] = offset
         return ApiRequestSpec(
             method="GET",
             endpoint=endpoint,
             response_model=HypothesisListResponse,
+            query_params=query_params or None,
+        )
+
+    def get_recent_hypotheses(
+        self,
+        project_id: str | UUID,
+        limit: int | None = None,
+        offset: int | None = None,
+    ) -> ApiRequestSpec[HypothesisListResponse]:
+        if isinstance(project_id, UUID):
+            project_id = str(project_id)
+        endpoint = cast(str, self.ENDPOINTS["get_recent_hypotheses"])
+        query_params: dict[str, str | int] = {"projectId": project_id}
+        if limit is not None:
+            query_params["limit"] = limit
+        if offset is not None:
+            query_params["offset"] = offset
+        return ApiRequestSpec(
+            method="GET",
+            endpoint=endpoint,
+            response_model=HypothesisListResponse,
+            query_params=query_params,
         )
 
 

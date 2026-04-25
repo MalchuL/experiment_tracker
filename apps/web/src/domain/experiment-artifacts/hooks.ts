@@ -1,23 +1,55 @@
 import { useMemo } from "react";
-import { useQueries, useQuery } from "@tanstack/react-query";
+import { useEffect } from "react";
+import { useInfiniteQuery, useQueries } from "@tanstack/react-query";
 import { QUERY_KEYS } from "@/lib/constants/query-keys";
+import { DEFAULT_PAGE_SIZE } from "@/lib/constants/pagination";
 import { experimentArtifactsService } from "./service";
 import type { NamedArtifactPreview, NamedExperimentArtifact } from "./types";
 
 export function useExperimentFinalArtifacts(experimentId?: string, names?: string[]) {
   const stableNames = useMemo(() => [...(names ?? [])].sort(), [names]);
-  const { data, isLoading, isFetching, refetch } = useQuery<NamedExperimentArtifact[]>({
-    queryKey: experimentId
-      ? [QUERY_KEYS.ARTIFACTS.NAMED_BY_EXPERIMENT(experimentId), { names: stableNames }]
-      : [],
-    queryFn: () => experimentArtifactsService.listByExperiment(experimentId!, stableNames),
-    enabled: !!experimentId,
-  });
-
-  return {
-    artifacts: data ?? [],
+  const {
+    data,
     isLoading,
     isFetching,
+    isFetchingNextPage,
+    hasNextPage,
+    fetchNextPage,
+    refetch,
+  } = useInfiniteQuery({
+    queryKey: experimentId
+      ? [QUERY_KEYS.ARTIFACTS.NAMED_BY_EXPERIMENT(experimentId), { names: stableNames, limit: DEFAULT_PAGE_SIZE }]
+      : [],
+    queryFn: ({ pageParam }) =>
+      experimentArtifactsService.listByExperiment(experimentId!, stableNames, {
+        limit: DEFAULT_PAGE_SIZE,
+        offset: pageParam,
+      }),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, allPages) => {
+      if (!lastPage.hasNext) {
+        return undefined;
+      }
+      return allPages.reduce((total, page) => total + page.data.length, 0);
+    },
+    enabled: !!experimentId,
+  });
+  useEffect(() => {
+    if (hasNextPage && !isFetchingNextPage) {
+      void fetchNextPage();
+    }
+  }, [data?.pages.length, fetchNextPage, hasNextPage, isFetchingNextPage]);
+
+  const artifacts = useMemo(
+    () => data?.pages.flatMap((page) => page.data) ?? [],
+    [data]
+  );
+
+  return {
+    artifacts,
+    isLoading,
+    isFetching,
+    isFetchingNextPage,
     refetch,
   };
 }
@@ -31,7 +63,26 @@ export function useCompareFinalArtifacts(experimentIds: string[]) {
   const queryResults = useQueries({
     queries: stableExperimentIds.map((experimentId) => ({
       queryKey: [QUERY_KEYS.ARTIFACTS.NAMED_BY_EXPERIMENT(experimentId)],
-      queryFn: () => experimentArtifactsService.listByExperiment(experimentId),
+      queryFn: async () => {
+        const artifacts: NamedExperimentArtifact[] = [];
+        let offset = 0;
+
+        while (true) {
+          const page = await experimentArtifactsService.listByExperiment(
+            experimentId,
+            undefined,
+            {
+              limit: DEFAULT_PAGE_SIZE,
+              offset,
+            }
+          );
+          artifacts.push(...page.data);
+          if (!page.hasNext) {
+            return artifacts;
+          }
+          offset += page.data.length;
+        }
+      },
       enabled: !!experimentId,
     })),
   });

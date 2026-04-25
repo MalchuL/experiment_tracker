@@ -16,10 +16,12 @@ from clients.object_storage import (
     DeleteExperimentArtifactResponseDTO,
     DeleteExperimentArtifactsResponseDTO,
 )
+from lib.pagination import ListOptions
 
 from .dto import (
     ExperimentArtifactDownloadDTO,
     ExperimentArtifactDTO,
+    ExperimentArtifactListResponseDTO,
 )
 from .error import ExperimentArtifactsNotAccessibleError
 
@@ -29,9 +31,15 @@ class NoOpExperimentArtifactsService:
         self,
         user: UserProtocol,
         experiment_id: UUID,
+        list_options: ListOptions = ListOptions(),
         file_paths: list[str] | None = None,
-    ) -> list[ExperimentArtifactDTO]:
-        return []
+    ) -> ExperimentArtifactListResponseDTO:
+        return ExperimentArtifactListResponseDTO(
+            data=[],
+            has_next=False,
+            size=0,
+            total=0,
+        )
 
     async def get_experiments_artifacts_at_step(
         self,
@@ -41,10 +49,11 @@ class NoOpExperimentArtifactsService:
         artifact_types: list[ArtifactType] | None = None,
         artifact_names: list[str] | None = None,
         steps: list[int] | None = None,
+        list_options: ListOptions = ListOptions(),
         start_time: str | None = None,
         end_time: str | None = None,
     ) -> ArtifactsInfoResultDTO:
-        return ArtifactsInfoResultDTO(data=[])
+        return ArtifactsInfoResultDTO(data=[], has_next=False, size=0, total=0)
 
     async def upload_and_log_experiment_artifact_at_step(
         self,

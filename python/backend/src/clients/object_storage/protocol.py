@@ -12,6 +12,7 @@ from .dto import (
     DeleteExperimentArtifactsResponseDTO,
     DeleteProjectArtifactResponseDTO,
     DeleteProjectResponseDTO,
+    ExperimentTrackedArtifactListDTO,
     ExperimentTrackedArtifactItemDTO,
     ExperimentTrackedArtifactInfoDTO,
     ExperimentTrackedUploadResponseDTO,
@@ -135,7 +136,8 @@ class ObjectStorageClientProtocol(Protocol):
         *,
         limit: int = 100,
         offset: int = 0,
-    ) -> list[ExperimentTrackedArtifactItemDTO]: ...
+        file_paths: list[str] | None = None,
+    ) -> ExperimentTrackedArtifactListDTO: ...
 
     async def get_experiment_tracked_artifact_info(
         self,

@@ -82,6 +82,31 @@ async def test_get_scalars_returns_logged_data(clickhouse_url: str, http_client:
 
 
 @pytest.mark.asyncio
+async def test_get_scalars_applies_limit_offset_to_grouped_results(
+    clickhouse_url: str, http_client: AsyncClient
+) -> None:
+    project_id = uuid4()
+    experiment_a = uuid4()
+    experiment_b = uuid4()
+    await http_client.post("/api/projects", json={"project_id": str(project_id)})
+    await http_client.post(
+        f"/api/scalars/log/{project_id}/{experiment_a}",
+        json={"scalars": {"loss": 0.5}, "step": 1, "tags": None},
+    )
+    await http_client.post(
+        f"/api/scalars/log/{project_id}/{experiment_b}",
+        json={"scalars": {"loss": 0.4}, "step": 1, "tags": None},
+    )
+
+    resp = await http_client.get(f"/api/scalars/get/{project_id}?limit=1&offset=1")
+    assert resp.status_code == 200
+    payload = resp.json()
+    assert payload["size"] == 1
+    assert payload["has_next"] is False
+    assert len(payload["data"]) == 1
+
+
+@pytest.mark.asyncio
 async def test_get_last_logged_experiments_empty(clickhouse_url: str, http_client: AsyncClient, project_with_tables: tuple) -> None:
     project_id, _ = project_with_tables
     resp = await http_client.post(
@@ -108,3 +133,30 @@ async def test_get_last_logged_experiments_after_log(clickhouse_url: str, http_c
     assert len(data) == 1
     assert data[0]["experiment_id"] == str(experiment_id)
     assert "last_modified" in data[0]
+
+
+@pytest.mark.asyncio
+async def test_get_last_logged_experiments_applies_limit_offset(
+    clickhouse_url: str, http_client: AsyncClient
+) -> None:
+    project_id = uuid4()
+    experiment_a = uuid4()
+    experiment_b = uuid4()
+    await http_client.post("/api/projects", json={"project_id": str(project_id)})
+    await http_client.post(
+        f"/api/scalars/log/{project_id}/{experiment_a}",
+        json={"scalars": {"loss": 0.5}, "step": 1, "tags": None},
+    )
+    await http_client.post(
+        f"/api/scalars/log/{project_id}/{experiment_b}",
+        json={"scalars": {"loss": 0.4}, "step": 1, "tags": None},
+    )
+
+    resp = await http_client.post(
+        f"/api/last_logged/{project_id}?limit=1&offset=0",
+        json={"experiment_ids": None},
+    )
+    assert resp.status_code == 200
+    payload = resp.json()
+    assert payload["size"] == 1
+    assert payload["has_next"] is True

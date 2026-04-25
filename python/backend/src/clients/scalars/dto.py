@@ -5,6 +5,7 @@ from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
+from lib.pagination import PaginatedResponse
 
 
 class CreateProjectTableRequestDTO(BaseModel):
@@ -49,8 +50,8 @@ class ExperimentScalarsDTO(BaseModel):
     tags: list[StepTagsDTO] | None = None
 
 
-class GetScalarsResponseDTO(BaseModel):
-    data: list[ExperimentScalarsDTO]
+class GetScalarsResponseDTO(PaginatedResponse[ExperimentScalarsDTO]):
+    pass
 
 
 class LastLoggedExperimentsRequestDTO(BaseModel):
@@ -62,13 +63,15 @@ class LastLoggedExperimentDTO(BaseModel):
     last_modified: datetime
 
 
-class LastLoggedExperimentsResponseDTO(BaseModel):
-    data: list[LastLoggedExperimentDTO]
+class LastLoggedExperimentsResponseDTO(PaginatedResponse[LastLoggedExperimentDTO]):
+    pass
 
 
 class ScalarsQueryDTO(BaseModel):
     project_id: UUID
     experiment_ids: list[UUID] | None = None
+    limit: int | None = None
+    offset: int | None = None
     max_points: int | None = None
     return_tags: bool = False
     start_time: datetime | None = None
@@ -78,6 +81,10 @@ class ScalarsQueryDTO(BaseModel):
         params: dict[str, Any] = {"return_tags": self.return_tags}
         if self.experiment_ids:
             params["experiment_id"] = [str(experiment_id) for experiment_id in self.experiment_ids]
+        if self.limit is not None:
+            params["limit"] = self.limit
+        if self.offset is not None:
+            params["offset"] = self.offset
         if self.max_points is not None:
             params["max_points"] = self.max_points
         if self.start_time is not None:

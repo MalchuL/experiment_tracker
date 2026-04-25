@@ -22,10 +22,12 @@ from starlette.responses import Response, StreamingResponse
 from api.routes.auth import get_current_user_dual, require_api_token_scopes
 from api.routes.service_dependencies import get_experiment_artifacts_service
 from domain.rbac.permissions import ProjectActions
+from lib.pagination import MAX_LIST_PAGE_SIZE, ListOptions
 from models import User
 
 from .dto import (
     ExperimentArtifactDTO,
+    ExperimentArtifactListResponseDTO,
 )
 from .error import (
     ExperimentArtifactsNotAccessibleError,
@@ -57,9 +59,14 @@ def _raise_http_error(error: Exception) -> None:
     raise HTTPException(status_code=400, detail=str(error))
 
 
-@router.get("/experiments/{experiment_id}", response_model=list[ExperimentArtifactDTO])
+@router.get(
+    "/experiments/{experiment_id}",
+    response_model=ExperimentArtifactListResponseDTO,
+)
 async def list_experiment_artifacts(
     experiment_id: UUID,
+    limit: int = Query(default=MAX_LIST_PAGE_SIZE, ge=1, le=MAX_LIST_PAGE_SIZE),
+    offset: int = Query(default=0, ge=0),
     file_paths: list[str] | None = Query(
         default=None,
         description="Filter by exact stored file_path (repeat param for multiple values).",
@@ -69,12 +76,13 @@ async def list_experiment_artifacts(
     service: ExperimentArtifactsServiceProtocol = Depends(
         get_experiment_artifacts_service
     ),
-) -> list[ExperimentArtifactDTO]:
+) -> ExperimentArtifactListResponseDTO:
     """List tracked artifacts for one experiment."""
     try:
         return await service.list_experiment_artifacts(
             user=user,
             experiment_id=experiment_id,
+            list_options=ListOptions(limit=limit, offset=offset),
             file_paths=file_paths,
         )
     except Exception as exc:  # noqa: BLE001
@@ -89,6 +97,8 @@ async def get_experiments_artifacts_at_step(
     artifact_type: list[ArtifactType] | None = Query(default=None),
     artifact_name: list[str] | None = Query(default=None),
     step: list[int] | None = Query(default=None),
+    limit: int = Query(default=MAX_LIST_PAGE_SIZE, ge=1, le=MAX_LIST_PAGE_SIZE),
+    offset: int = Query(default=0, ge=0),
     start_time: datetime | None = Query(default=None),
     end_time: datetime | None = Query(default=None),
     user: User = Depends(get_current_user_dual),
@@ -106,6 +116,7 @@ async def get_experiments_artifacts_at_step(
             artifact_types=artifact_type,
             artifact_names=artifact_name,
             steps=step,
+            list_options=ListOptions(limit=limit, offset=offset),
             start_time=start_time.isoformat() if start_time else None,
             end_time=end_time.isoformat() if end_time else None,
         )

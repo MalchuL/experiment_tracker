@@ -1,5 +1,7 @@
 from datetime import datetime
-from pydantic import BaseModel, RootModel
+from pydantic import BaseModel
+
+from ...pagination import PaginatedResponse
 
 
 class MetricCreateRequest(BaseModel):
@@ -20,5 +22,5 @@ class MetricResponse(BaseModel):
     createdAt: datetime
 
 
-class MetricListResponse(RootModel[list[MetricResponse]]):
+class MetricListResponse(PaginatedResponse[MetricResponse]):
     pass

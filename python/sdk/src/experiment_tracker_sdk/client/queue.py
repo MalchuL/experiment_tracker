@@ -6,7 +6,7 @@ from dataclasses import dataclass
 import traceback
 from typing import Any, Optional
 
-from .request import FileUploadSpec
+from .request_types import FileUploadSpec
 from .utils import log_error_response
 import httpx
 from .utils.logging import disable_httpx_logging
@@ -92,8 +92,8 @@ class RequestQueue:
                         # TODO: Test this with actual files.
                         files_payload = {
                             key: (
-                                value.file_name,
-                                value.file_content,
+                                value.filename,
+                                value.content,
                                 value.content_type,
                             )
                             for key, value in item.files.items()

@@ -21,6 +21,7 @@ from .dto import (
     ArtifactStreamResponseDTO,
     DeleteArtifactResponseDTO,
     DeleteExperimentArtifactsResponseDTO,
+    TrackedArtifactsListResponseDTO,
     TrackedArtifactInfoResponseDTO,
     TrackedUploadArtifactResponseDTO,
     UntrackedUploadArtifactResponseDTO,
@@ -192,16 +193,32 @@ class ArtifactsStorageService:
         return self._mapper.experiment_model_to_tracked_response(model_blob)
 
     async def list_artifacts(
-        self, project_id: UUID, experiment_id: UUID, limit: int = 100, offset: int = 0
-    ) -> list[TrackedUploadArtifactResponseDTO]:
-        """List all artifacts for an experiment."""
+        self,
+        project_id: UUID,
+        experiment_id: UUID,
+        limit: int = 100,
+        offset: int = 0,
+        file_paths: list[str] | None = None,
+    ) -> TrackedArtifactsListResponseDTO:
+        """List tracked artifacts for an experiment with pagination metadata."""
 
-        blobs = await self._artifacts_repository.list_experiment_blobs(
-            project_id, experiment_id, limit, offset
+        blobs, total = await self._artifacts_repository.list_experiment_blobs(
+            project_id,
+            experiment_id,
+            limit,
+            offset,
+            file_paths=file_paths,
         )
-        return [
-            self._mapper.experiment_model_to_tracked_response(blob) for blob in blobs
+        data = [
+            self._mapper.experiment_model_to_tracked_response(blob)
+            for blob in blobs
         ]
+        return TrackedArtifactsListResponseDTO(
+            data=data,
+            has_next=offset + len(data) < total,
+            size=len(data),
+            total=total,
+        )
 
     async def get_artifact_stream(
         self,

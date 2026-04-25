@@ -15,6 +15,7 @@ from .dto import (
     DeleteExperimentArtifactsResponseDTO,
     DeleteProjectArtifactResponseDTO,
     DeleteProjectResponseDTO,
+    ExperimentTrackedArtifactListDTO,
     ExperimentTrackedArtifactItemDTO,
     ExperimentTrackedArtifactInfoDTO,
     ExperimentTrackedUploadResponseDTO,
@@ -338,23 +339,22 @@ class ObjectStorageClient:
         *,
         limit: int = 100,
         offset: int = 0,
-    ) -> list[ExperimentTrackedArtifactItemDTO]:
+        file_paths: list[str] | None = None,
+    ) -> ExperimentTrackedArtifactListDTO:
         path = self.ENDPOINTS["list_experiment_tracked"](project_id, experiment_id)
         url = f"{self.base_url}{path}"
+        params: dict[str, Any] = {"limit": limit, "offset": offset}
+        if file_paths:
+            params["file_path"] = file_paths
         async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.request(
                 "GET",
                 url,
-                params={"limit": limit, "offset": offset},
+                params=params,
             )
             response.raise_for_status()
             payload = response.json()
-        if not isinstance(payload, list):
-            msg = "Expected list of tracked artifacts from object storage"
-            raise TypeError(msg)
-        return [
-            ExperimentTrackedArtifactItemDTO.model_validate(item) for item in payload
-        ]
+        return ExperimentTrackedArtifactListDTO.model_validate(payload)
 
     async def get_experiment_tracked_artifact_info(
         self,

@@ -9,8 +9,8 @@ class _FakeAPI:
     def upload_and_log_experiment_artifact_at_step(
         self,
         experiment_id: str,
-        file_name: str,
-        file_content: bytes,
+        filename: str,
+        content: bytes,
         content_type: str,
         name: str,
         artifact_type: str,
@@ -19,21 +19,21 @@ class _FakeAPI:
         tags: list | None = None,
     ):
         self.uploaded.append(
-            (file_name, file_content, content_type, name, metadata or {})
+            (filename, content, content_type, name, metadata or {})
         )
         return {"status": "logged"}
 
     def upsert_named_experiment_artifact(
         self,
         experiment_id: str,
-        name: str,
         filepath: str,
-        file_name: str,
-        file_content: bytes,
+        filename: str,
+        content: bytes,
         content_type: str,
+        name: str | None = None,
     ):
         self.final_uploaded.append(
-            (name, filepath, file_name, file_content, content_type)
+            (name, filepath, filename, content, content_type)
         )
         return {"status": "upserted"}
 
@@ -45,9 +45,9 @@ def test_add_text_uploads_and_queues_object() -> None:
     tracker.add_text("summary", "hello world", global_step=7)
 
     assert len(api.uploaded) == 1
-    file_name, file_content, content_type, name, metadata = api.uploaded[0]
-    assert file_name.startswith("summary_7")
-    assert file_content == b"hello world"
+    filename, content, content_type, name, metadata = api.uploaded[0]
+    assert filename.startswith("summary_7")
+    assert content == b"hello world"
     assert content_type == "text/plain"
     assert name == "summary"
 
@@ -59,9 +59,9 @@ def test_log_final_artifact_uploads_without_step_suffix() -> None:
     tracker.log_final_artifact("config", "learning_rate: 0.01", default_extension=".yaml")
 
     assert len(api.final_uploaded) == 1
-    name, filepath, file_name, file_content, content_type = api.final_uploaded[0]
+    name, filepath, filename, content, content_type = api.final_uploaded[0]
     assert name == "config"
     assert filepath == "final/config.yaml"
-    assert file_name == "config.yaml"
-    assert file_content == b"learning_rate: 0.01"
+    assert filename == "config.yaml"
+    assert content == b"learning_rate: 0.01"
     assert content_type == "text/plain"

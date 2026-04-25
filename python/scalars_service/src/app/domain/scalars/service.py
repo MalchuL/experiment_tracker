@@ -181,6 +181,8 @@ class ScalarsService:
         self,
         project_id: UUID,
         experiment_id: UUID | list[UUID] | tuple[UUID, ...] | None = None,
+        limit: int = 100,
+        offset: int = 0,
         max_points: int | None = None,
         return_tags: bool = False,
         start_time: datetime | None = None,
@@ -245,7 +247,7 @@ class ScalarsService:
                         excluded_experiment_ids.append(exp_id)
                         result.append(cached_result)
                 if len(result) == len(experiment_ids):
-                    return ScalarsPointsResultDTO(data=result)
+                    return self._paginate_grouped_results(result, limit, offset)
                 experiment_ids = [
                     exp_id
                     for exp_id in experiment_ids
@@ -255,7 +257,9 @@ class ScalarsService:
         # If not in cache, get from database
         table_name = SCALARS_DB_UTILS.safe_scalars_table_name(project_id)
         if not await self._table_exists(table_name):
-            return ScalarsPointsResultDTO(data=result)
+            return ScalarsPointsResultDTO(
+                data=result, has_next=False, size=0, total=0
+            )
 
         scalar_columns = await self._get_scalar_columns(table_name)
         mapping = await self._get_or_create_scalar_mapping(project_id)
@@ -287,7 +291,7 @@ class ScalarsService:
             )
             result.append(result_item)
 
-        response = ScalarsPointsResultDTO(data=result)
+        response = self._paginate_grouped_results(result, limit, offset)
 
         # Cache results
         if self.cache is not None:
@@ -316,6 +320,21 @@ class ScalarsService:
                 )
                 await self.cache.set(cache_key, response)
         return response
+
+    def _paginate_grouped_results(
+        self,
+        results: list[ExperimentsScalarsPointsResultDTO],
+        limit: int,
+        offset: int,
+    ) -> ScalarsPointsResultDTO:
+        total = len(results)
+        page = results[offset : offset + limit]
+        return ScalarsPointsResultDTO(
+            data=page,
+            has_next=offset + len(page) < total,
+            size=len(page),
+            total=total,
+        )
 
     def _split_scalars_by_experiment_id(
         self,

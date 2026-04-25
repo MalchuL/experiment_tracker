@@ -10,7 +10,7 @@ from .dto import (
     ExperimentUpdateRequest,
 )
 from ...constants import UNSET, Unset
-from ...request import ApiRequestSpec
+from ...request_types import ApiRequestSpec
 
 
 class ExperimentRequestSpecFactory:
@@ -121,17 +121,47 @@ class ExperimentRequestSpecFactory:
         )
 
     def get_experiments_by_project(
-        self, project_id: str | UUID
+        self,
+        project_id: str | UUID,
+        limit: int | None = None,
+        offset: int | None = None,
     ) -> ApiRequestSpec[ExperimentListResponse]:
         if isinstance(project_id, UUID):
             project_id = str(project_id)
         endpoint: str = cast(
             Callable[[Any], str], self.ENDPOINTS["get_experiments_by_project"]
         )(project_id)
+        query_params: dict[str, int] = {}
+        if limit is not None:
+            query_params["limit"] = limit
+        if offset is not None:
+            query_params["offset"] = offset
         return ApiRequestSpec(
             method="GET",
             endpoint=endpoint,
             response_model=ExperimentListResponse,
+            query_params=query_params or None,
+        )
+
+    def get_recent_experiments(
+        self,
+        project_id: str | UUID,
+        limit: int | None = None,
+        offset: int | None = None,
+    ) -> ApiRequestSpec[ExperimentListResponse]:
+        if isinstance(project_id, UUID):
+            project_id = str(project_id)
+        endpoint: str = cast(str, self.ENDPOINTS["get_recent_experiments"])
+        query_params: dict[str, str | int] = {"projectId": project_id}
+        if limit is not None:
+            query_params["limit"] = limit
+        if offset is not None:
+            query_params["offset"] = offset
+        return ApiRequestSpec(
+            method="GET",
+            endpoint=endpoint,
+            response_model=ExperimentListResponse,
+            query_params=query_params,
         )
 
     def delete_experiment(self, experiment_id: str | UUID) -> ApiRequestSpec[SuccessResponse]:

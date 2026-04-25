@@ -23,6 +23,9 @@ class ExperimentsScalarsPointsResultDTO(BaseModel):
 
 class ScalarsPointsResultDTO(BaseModel):
     data: List[ExperimentsScalarsPointsResultDTO]
+    has_next: bool = False
+    size: int = 0
+    total: int = 0
 
 
 class LogScalarRequestDTO(BaseModel):

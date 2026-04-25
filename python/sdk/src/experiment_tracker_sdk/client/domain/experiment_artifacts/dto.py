@@ -5,6 +5,7 @@ from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
+from ...pagination import PaginatedResponse
 
 ArtifactType = Literal["image", "video", "audio", "text", "point_cloud_3d"]
 
@@ -24,8 +25,10 @@ class ExperimentArtifactsAtStepInfoResponse(BaseModel):
     artifactsInfo: list[ArtifactInfoAtStepEntryResponse]
 
 
-class ArtifactsAtStepInfoResultResponse(BaseModel):
-    data: list[ExperimentArtifactsAtStepInfoResponse]
+class ArtifactsAtStepInfoResultResponse(
+    PaginatedResponse[ExperimentArtifactsAtStepInfoResponse]
+):
+    pass
 
 
 class LogArtifactAtStepRequest(BaseModel):
@@ -63,3 +66,7 @@ class ExperimentArtifactResponse(BaseModel):
     storagePath: str
     createdAt: datetime
     updatedAt: datetime
+
+
+class ExperimentArtifactListResponse(PaginatedResponse[ExperimentArtifactResponse]):
+    pass

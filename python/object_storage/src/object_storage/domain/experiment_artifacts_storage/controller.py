@@ -13,6 +13,7 @@ from object_storage.api.service_dependencies import get_experiment_artifacts_ser
 from .dto import (
     DeleteArtifactResponseDTO,
     DeleteExperimentArtifactsResponseDTO,
+    TrackedArtifactsListResponseDTO,
     TrackedArtifactInfoResponseDTO,
     TrackedUploadArtifactResponseDTO,
     UntrackedUploadArtifactResponseDTO,
@@ -124,14 +125,18 @@ async def upload_artifact_tracked(
     )
 
 
-@router.get("/projects/{project_id}/experiments/{experiment_id}/artifacts")
+@router.get(
+    "/projects/{project_id}/experiments/{experiment_id}/artifacts",
+    response_model=TrackedArtifactsListResponseDTO,
+)
 async def list_tracked_artifacts(
     project_id: UUID,
     experiment_id: UUID,
     limit: int = Query(default=100, ge=1),
     offset: int = Query(default=0, ge=0),
+    file_path: list[str] | None = Query(default=None),
     service: ArtifactsStorageService = Depends(get_experiment_artifacts_service),
-) -> list[TrackedUploadArtifactResponseDTO]:
+) -> TrackedArtifactsListResponseDTO:
     """List tracked artifacts for one experiment.
 
     Args:
@@ -144,7 +149,13 @@ async def list_tracked_artifacts(
         The response contains the list of tracked artifacts.
     """
 
-    return await service.list_artifacts(project_id, experiment_id, limit, offset)
+    return await service.list_artifacts(
+        project_id,
+        experiment_id,
+        limit,
+        offset,
+        file_paths=file_path,
+    )
 
 
 @router.get(

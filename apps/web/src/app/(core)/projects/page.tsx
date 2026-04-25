@@ -19,7 +19,15 @@ export default function Projects() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const { toast } = useToast();
 
-  const { projects, isLoading, createProject, deleteProject, creationIsPending, error } = useProjects();
+  const {
+    projects,
+    isLoading,
+    isFetchingNextPage,
+    createProject,
+    deleteProject,
+    creationIsPending,
+    error,
+  } = useProjects();
 
   const form = useForm<InsertProject>({
     resolver: zodResolver(insertProjectSchema as any),
@@ -47,7 +55,7 @@ export default function Projects() {
         });
       },
     });
-  }, [createProject]);
+  }, [createProject, form, toast]);
  
   // Delete project mutation
   const deleteMutation = useCallback((id: string) => {
@@ -66,7 +74,7 @@ export default function Projects() {
         });
       },
     });
-  }, [deleteProject]);
+  }, [deleteProject, toast]);
 
   const onSubmit = (data: InsertProject) => {
     createMutation(data);
@@ -119,15 +127,22 @@ export default function Projects() {
           }
         />
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {projects.map((project) => (
-            <ProjectCard
-              key={project.id}
-              project={project}
-              onDelete={deleteMutation}
-            />
-          ))}
-        </div>
+        <>
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {projects.map((project) => (
+              <ProjectCard
+                key={project.id}
+                project={project}
+                onDelete={deleteMutation}
+              />
+            ))}
+          </div>
+          {isFetchingNextPage && (
+            <p className="text-sm text-muted-foreground">
+              Loading more projects...
+            </p>
+          )}
+        </>
       )}
     </div>
   );

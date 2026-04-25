@@ -71,17 +71,17 @@ def _parse_content_disposition_filename(header: str | None) -> str | None:
 def _build_httpx_files_from_request_spec(
     files: dict[str, FileUploadSpec] | None,
 ) -> dict[str, tuple[str, bytes, str]] | None:
-    """Build a mapping of file names to tuples of (file_name, file_content, content_type) from a request spec.
+    """Build a mapping of file names to tuples of (filename, content, content_type) from a request spec.
 
     Args:
         files: Mapping of file names to FileUploadSpec objects.
 
     Returns:
-        Mapping of file names to tuples of (file_name, file_content, content_type).
+        Mapping of file names to tuples of (filename, content, content_type).
     """
     if files is None:
         return None
-    # Mapping key: (file_name, file_content, content_type)
+    # Mapping key: (filename, content, content_type)
     return {
         key: (
             value.filename,
@@ -287,8 +287,8 @@ class ExperimentTrackerClient:
         self,
         endpoint: str,
         params: dict[str, Any],
-        file_name: str,
-        file_content: bytes,
+        filename: str,
+        content: bytes,
         content_type: str = "application/octet-stream",
         form_data: dict[str, Any] | None = None,
         method: MethodT = "POST",
@@ -298,8 +298,8 @@ class ExperimentTrackerClient:
         Args:
             endpoint: The endpoint to upload the file to.
             params: The parameters to pass to the URI path of the endpoint.
-            file_name: The name of the file to upload.
-            file_content: The content of the file to upload.
+            filename: The name of the file to upload.
+            content: The content of the file to upload.
             content_type: The content type of the file to upload (request still will use multipart/form-data for file upload).
             form_data: The form data to pass to the endpoint (backend will parse as Form data this params (not JSON)).
             method: The method to use to upload the file.
@@ -312,8 +312,8 @@ class ExperimentTrackerClient:
                 params=params,
                 files={
                     "file": (
-                        file_name,
-                        file_content,
+                        filename,
+                        content,
                         content_type,
                     )
                 },

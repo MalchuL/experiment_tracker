@@ -6,6 +6,7 @@ from typing import Any
 from uuid import UUID
 
 from lib.dto_config import model_config
+from lib.pagination import PaginatedResponse
 from pydantic import BaseModel, Field
 
 
@@ -30,6 +31,10 @@ class ExperimentArtifactDTO(BaseModel):
     created_at: datetime
     updated_at: datetime
 
+    model_config = model_config()
+
+
+class ExperimentArtifactListResponseDTO(PaginatedResponse[ExperimentArtifactDTO]):
     model_config = model_config()
 
 

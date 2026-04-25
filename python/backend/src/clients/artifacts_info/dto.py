@@ -5,6 +5,7 @@ from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field
+from lib.pagination import PaginatedResponse
 
 ArtifactType = Literal["image", "video", "audio", "text", "point_cloud_3d"]
 
@@ -47,5 +48,5 @@ class ExperimentArtifactsInfoDTO(BaseModel):
     artifacts_info: list[ArtifactInfoEntryDTO]
 
 
-class ArtifactsInfoResultDTO(BaseModel):
-    data: list[ExperimentArtifactsInfoDTO]
+class ArtifactsInfoResultDTO(PaginatedResponse[ExperimentArtifactsInfoDTO]):
+    pass

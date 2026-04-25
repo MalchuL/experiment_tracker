@@ -22,12 +22,22 @@ class ProjectRequestSpecFactory:
         "delete_project": lambda project_id: f"/projects/{project_id}",
     }
 
-    def get_all_projects(self) -> ApiRequestSpec[ProjectListResponse]:
+    def get_all_projects(
+        self,
+        limit: int | None = None,
+        offset: int | None = None,
+    ) -> ApiRequestSpec[ProjectListResponse]:
         endpoint = cast(str, self.ENDPOINTS["get_all_projects"])
+        query_params: dict[str, int] = {}
+        if limit is not None:
+            query_params["limit"] = limit
+        if offset is not None:
+            query_params["offset"] = offset
         return ApiRequestSpec(
             method="GET",
             endpoint=endpoint,
             response_model=ProjectListResponse,
+            query_params=query_params or None,
         )
 
     def get_project(self, project_id: str | UUID) -> ApiRequestSpec[ProjectResponse]:

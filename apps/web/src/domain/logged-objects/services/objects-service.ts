@@ -1,5 +1,8 @@
 import { serviceClients } from "@/lib/api/clients/axios-client";
+import { appendPaginationParams } from "@/lib/api/pagination";
 import { API_ROUTES } from "@/lib/constants/api-routes";
+import { DEFAULT_PAGE_SIZE } from "@/lib/constants/pagination";
+import type { PaginationParams } from "@/lib/types/pagination";
 import type { ArtifactsInfoResult } from "../types";
 
 export interface GetProjectObjectsParams {
@@ -12,7 +15,7 @@ export interface GetProjectObjectsParams {
 
 function buildArtifactsQuery(
   basePath: string,
-  params?: GetProjectObjectsParams
+  params?: GetProjectObjectsParams & PaginationParams
 ): string {
   const searchParams = new URLSearchParams();
   if (params?.experimentIds?.length) {
@@ -37,13 +40,16 @@ function buildArtifactsQuery(
     searchParams.set("end_time", params.endTime);
   }
   const query = searchParams.toString();
-  return `${basePath}?${query}`;
+  return appendPaginationParams(query ? `${basePath}?${query}` : basePath, {
+    limit: params?.limit ?? DEFAULT_PAGE_SIZE,
+    offset: params?.offset,
+  });
 }
 
 export const loggedObjectsService = {
   getByProject: async (
     projectId: string,
-    params?: GetProjectObjectsParams
+    params?: GetProjectObjectsParams & PaginationParams
   ): Promise<ArtifactsInfoResult> => {
     const path = buildArtifactsQuery(
       API_ROUTES.EXPERIMENT_ARTIFACTS.BY_PROJECT.GET_AT_STEP(projectId),

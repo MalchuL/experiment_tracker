@@ -17,10 +17,12 @@ from clients.object_storage import (
     DeleteExperimentArtifactResponseDTO,
     DeleteExperimentArtifactsResponseDTO,
 )
+from lib.pagination import ListOptions
 
 from .dto import (
     ExperimentArtifactDownloadDTO,
     ExperimentArtifactDTO,
+    ExperimentArtifactListResponseDTO,
 )
 
 
@@ -29,8 +31,9 @@ class ExperimentArtifactsServiceProtocol(Protocol):
         self,
         user: UserProtocol,
         experiment_id: UUID,
+        list_options: ListOptions = ListOptions(),
         file_paths: list[str] | None = None,
-    ) -> list[ExperimentArtifactDTO]: ...
+    ) -> ExperimentArtifactListResponseDTO: ...
 
     async def get_experiments_artifacts_at_step(
         self,
@@ -40,6 +43,7 @@ class ExperimentArtifactsServiceProtocol(Protocol):
         artifact_types: list[ArtifactType] | None = None,
         artifact_names: list[str] | None = None,
         steps: list[int] | None = None,
+        list_options: ListOptions = ListOptions(),
         start_time: str | None = None,
         end_time: str | None = None,
     ) -> ArtifactsInfoResultDTO: ...

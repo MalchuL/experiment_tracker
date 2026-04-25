@@ -70,6 +70,8 @@ class ArtifactsInfoClient:
         artifact_types: Iterable[ArtifactType] | None = None,
         artifact_names: Iterable[str] | None = None,
         steps: Iterable[int] | None = None,
+        limit: int | None = None,
+        offset: int | None = None,
         start_time: str | None = None,
         end_time: str | None = None,
     ) -> ArtifactsInfoResultDTO:
@@ -96,6 +98,10 @@ class ArtifactsInfoClient:
             params["artifact_name"] = list(artifact_names)
         if steps:
             params["step"] = list(steps)
+        if limit is not None:
+            params["limit"] = limit
+        if offset is not None:
+            params["offset"] = offset
         if start_time:
             params["start_time"] = start_time
         if end_time:

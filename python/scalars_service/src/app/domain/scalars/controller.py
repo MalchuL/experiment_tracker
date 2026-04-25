@@ -45,6 +45,8 @@ class Sampling(Enum):
 async def get_scalars(
     project_id: UUID,
     experiment_id: list[UUID] | None = Query(default=None),
+    limit: int = Query(default=100, ge=1),
+    offset: int = Query(default=0, ge=0),
     sampling: Sampling = Query(default=Sampling.RESERVOIR),
     max_points: int | None = Query(default=None, ge=1),
     return_tags: bool = Query(default=False),
@@ -55,7 +57,9 @@ async def get_scalars(
     return await service.get_scalars(
         project_id,
         experiment_id,
-        max_points,
+        limit=limit,
+        offset=offset,
+        max_points=max_points,
         return_tags=return_tags,
         start_time=start_time,
         end_time=end_time,

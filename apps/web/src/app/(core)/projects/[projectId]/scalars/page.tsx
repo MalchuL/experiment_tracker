@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { InfiniteData, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
 import { AlertCircle, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -30,6 +30,7 @@ import {
 import type { SyncMode } from "@/domain/scalars/types";
 import type { InsertExperiment } from "@/shared/schema";
 import { QUERY_KEYS } from "@/lib/constants/query-keys";
+import { DEFAULT_PAGE_SIZE } from "@/lib/constants/pagination";
 
 export default function Scalars() {
   const { project, isLoading: projectLoading } = useCurrentProject();
@@ -61,6 +62,7 @@ export default function Scalars() {
     experiments = [],
     isLoading: experimentsLoading,
     isFetching: experimentsFetching,
+    isFetchingNextPage: experimentsFetchingNextPage,
     refetch: refetchExperiments,
   } = useExperiments(projectId);
 
@@ -74,6 +76,7 @@ export default function Scalars() {
     scalars,
     isLoading: scalarsLoading,
     isFetching: scalarsFetching,
+    isFetchingNextPage: scalarsFetchingNextPage,
     refetch: refetchScalars,
   } = useProjectScalars({
     projectId,
@@ -83,6 +86,7 @@ export default function Scalars() {
     artifacts: projectArtifactsAtStep,
     isLoading: objectsLoading,
     isFetching: objectsFetching,
+    isFetchingNextPage: objectsFetchingNextPage,
     refetch: refetchObjects,
   } = useProjectObjects({
     projectId,
@@ -158,8 +162,14 @@ export default function Scalars() {
           await refetchScalars();
           await refetchObjects();
           if (hadAllSelected && projectId) {
+            const refreshedExperimentsData = queryClient.getQueryData<
+              InfiniteData<{ data: Experiment[] }>
+            >([
+              QUERY_KEYS.EXPERIMENTS.BY_PROJECT(projectId),
+              { limit: DEFAULT_PAGE_SIZE, mode: "auto" },
+            ]);
             const refreshedExperiments =
-              queryClient.getQueryData<Experiment[]>([QUERY_KEYS.EXPERIMENTS.BY_PROJECT(projectId)]) ?? [];
+              refreshedExperimentsData?.pages.flatMap((page) => page.data) ?? [];
             const allIds = new Set(refreshedExperiments.map((experiment) => experiment.id));
             setSelectedExperimentIds(allIds);
           }
@@ -259,6 +269,13 @@ export default function Scalars() {
             description={`Scalars visualization for "${project?.name}" - ${visibleExperiments.length} experiments visible`}
             actions={pageActions}
           />
+          {(experimentsFetchingNextPage ||
+            scalarsFetchingNextPage ||
+            objectsFetchingNextPage) && (
+            <p className="mt-2 text-sm text-muted-foreground">
+              Loading additional experiments, scalars, and logged objects...
+            </p>
+          )}
         </div>
 
         <ScalarsMetricsGrid

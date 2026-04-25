@@ -11,7 +11,7 @@ from .dto import (
     LogScalarsResponse,
     ScalarsPointsResponse,
 )
-from ...request import ApiRequestSpec
+from ...request_types import ApiRequestSpec
 
 
 class ScalarsRequestSpecFactory:
@@ -58,6 +58,8 @@ class ScalarsRequestSpecFactory:
     def get_scalars(
         self,
         experiment_id: str | UUID,
+        limit: int | None = None,
+        offset: int | None = None,
         max_points: int | None = None,
         return_tags: bool = False,
         start_time: datetime | None = None,
@@ -67,6 +69,10 @@ class ScalarsRequestSpecFactory:
             experiment_id = str(experiment_id)
         endpoint = cast(str, self.ENDPOINTS["get_scalars"](experiment_id))
         params: dict[str, object] = {"return_tags": return_tags}
+        if limit is not None:
+            params["limit"] = limit
+        if offset is not None:
+            params["offset"] = offset
         if max_points is not None:
             params["max_points"] = max_points
         if start_time is not None:
@@ -84,6 +90,8 @@ class ScalarsRequestSpecFactory:
         self,
         project_id: str | UUID,
         experiment_ids: list[str] | None = None,
+        limit: int | None = None,
+        offset: int | None = None,
         max_points: int | None = None,
         return_tags: bool = False,
         start_time: datetime | None = None,
@@ -93,6 +101,10 @@ class ScalarsRequestSpecFactory:
             project_id = str(project_id)
         endpoint = cast(str, self.ENDPOINTS["get_project_scalars"](project_id))
         params: dict[str, object] = {"return_tags": return_tags}
+        if limit is not None:
+            params["limit"] = limit
+        if offset is not None:
+            params["offset"] = offset
         if experiment_ids:
             params["experiment_id"] = experiment_ids
         if max_points is not None:
@@ -109,17 +121,27 @@ class ScalarsRequestSpecFactory:
         )
 
     def get_last_logged_experiments(
-        self, project_id: str | UUID, experiment_ids: list[str] | None = None
+        self,
+        project_id: str | UUID,
+        experiment_ids: list[str] | None = None,
+        limit: int | None = None,
+        offset: int | None = None,
     ) -> ApiRequestSpec[LastLoggedExperimentsResponse]:
         if isinstance(project_id, UUID):
             project_id = str(project_id)
         endpoint = cast(str, self.ENDPOINTS["get_last_logged_experiments"](project_id))
         payload = LastLoggedExperimentsRequest(experiment_ids=experiment_ids)
+        query_params: dict[str, int] = {}
+        if limit is not None:
+            query_params["limit"] = limit
+        if offset is not None:
+            query_params["offset"] = offset
         return ApiRequestSpec(
             method="POST",
             endpoint=endpoint,
             request_payload=payload,
             response_model=LastLoggedExperimentsResponse,
+            query_params=query_params or None,
         )
 
 

@@ -30,10 +30,12 @@ from clients.object_storage import (
 from domain.experiments.repository import ExperimentRepository
 from domain.rbac.wrapper import PermissionChecker
 from lib.logger import logger
+from lib.pagination import ListOptions
 
 from .dto import (
     ExperimentArtifactDownloadDTO,
     ExperimentArtifactDTO,
+    ExperimentArtifactListResponseDTO,
 )
 from .error import (
     ExperimentArtifactsNotAccessibleError,
@@ -91,10 +93,10 @@ class ExperimentArtifactsService:
                 limit=limit,
                 offset=offset,
             )
-            out.extend(batch)
-            if len(batch) < limit:
+            out.extend(batch.data)
+            if not batch.has_next:
                 break
-            offset += limit
+            offset += batch.size
         return out
 
     def _normalize_filepath(self, filepath: str) -> str:
@@ -246,8 +248,9 @@ class ExperimentArtifactsService:
         self,
         user: UserProtocol,
         experiment_id: UUID,
+        list_options: ListOptions = ListOptions(),
         file_paths: list[str] | None = None,
-    ) -> list[ExperimentArtifactDTO]:
+    ) -> ExperimentArtifactListResponseDTO:
         """
         List all tracked artifacts for an experiment.
 
@@ -265,13 +268,22 @@ class ExperimentArtifactsService:
             - size: The size of the artifact in bytes.
         """
         project_id = await self._ensure_view_permission(user, experiment_id)
-        items = await self._list_all_tracked_experiment_artifacts(
-            project_id, experiment_id
+        upstream_page = await self._object_storage.list_experiment_tracked_artifacts(
+            project_id,
+            experiment_id,
+            limit=list_options.limit,
+            offset=list_options.offset,
+            file_paths=file_paths,
         )
-        if file_paths:
-            path_set = {self._mapper.normalize_relative_filepath(p) for p in file_paths}
-            items = [i for i in items if i.file_path in path_set]
-        return [self._mapper.tracked_item_to_dto(experiment_id, i) for i in items]
+        return ExperimentArtifactListResponseDTO(
+            data=[
+                self._mapper.tracked_item_to_dto(experiment_id, item)
+                for item in upstream_page.data
+            ],
+            has_next=upstream_page.has_next,
+            size=upstream_page.size,
+            total=upstream_page.total,
+        )
 
     async def upsert_experiment_artifact(
         self,
@@ -509,6 +521,7 @@ class ExperimentArtifactsService:
         artifact_types: list[ArtifactType] | None = None,
         artifact_names: list[str] | None = None,
         steps: list[int] | None = None,
+        list_options: ListOptions = ListOptions(),
         start_time: str | None = None,
         end_time: str | None = None,
     ) -> ArtifactsInfoResultDTO:
@@ -526,15 +539,18 @@ class ExperimentArtifactsService:
             The ArtifactsInfoResultDTO object representing the artifacts info.
         """
         await self._ensure_project_view_permission(user, project_id)
-        return await self._artifacts_info_at_step_client.get_artifacts(
+        result = await self._artifacts_info_at_step_client.get_artifacts(
             project_id=project_id,
             experiment_ids=experiment_ids,
             artifact_types=artifact_types,
             artifact_names=artifact_names,
             steps=steps,
+            limit=list_options.limit,
+            offset=list_options.offset,
             start_time=start_time,
             end_time=end_time,
         )
+        return result
 
     async def download_experiment_artifact_at_step(
         self,

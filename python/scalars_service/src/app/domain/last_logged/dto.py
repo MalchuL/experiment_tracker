@@ -15,3 +15,6 @@ class LastLoggedExperimentDTO(BaseModel):
 
 class LastLoggedExperimentsResultDTO(BaseModel):
     data: list[LastLoggedExperimentDTO]
+    has_next: bool = False
+    size: int = 0
+    total: int = 0

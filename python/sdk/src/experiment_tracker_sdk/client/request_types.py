@@ -14,8 +14,8 @@ class FileUploadSpec:
     """File upload specification.
 
     Args:
-        filename: Name of the file to upload.
-        content: Content of the file to upload.
+        content: Raw bytes of the file to upload.
+        filename: Filename sent with the multipart part.
         content_type: MIME type of the file to upload.
     """
 
@@ -61,7 +61,7 @@ class ApiRequestSpec(Generic[ResponseT]):
     request_payload: dict[str, Any] | BaseModel | None = None
     form_data: dict[str, Any] | None = None
     files: dict[str, FileUploadSpec] | None = None
-    response_model: type[ResponseT] | None = None
+    response_model: type[ResponseT] | type[FileDownloadResponse] | None = None
     query_params: dict[str, Any] | None = None
 
     def __post_init__(self) -> None:

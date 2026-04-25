@@ -26,6 +26,15 @@ class TrackedUploadArtifactResponseDTO(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
+class TrackedArtifactsListResponseDTO(BaseModel):
+    """Paginated tracked artifact list for one experiment."""
+
+    data: list[TrackedUploadArtifactResponseDTO]
+    has_next: bool
+    size: int
+    total: int = 0
+
+
 class TrackedArtifactInfoResponseDTO(BaseModel):
     """Tracked artifact metadata stored in DB."""
 

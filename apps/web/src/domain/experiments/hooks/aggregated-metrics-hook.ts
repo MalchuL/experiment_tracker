@@ -1,7 +1,8 @@
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery } from "@tanstack/react-query";
 import { projectsService } from "@/domain/projects/services";
 import { Metric } from "@/domain/metrics/types";
-import { useMemo } from "react";
+import { DEFAULT_PAGE_SIZE } from "@/lib/constants/pagination";
+import { useEffect, useMemo } from "react";
 
 export interface UseAggregatedMetricsResult {
     aggregatedMetricsByExperiment: Record<string, Metric[]>;
@@ -19,14 +20,42 @@ export function useAggregatedMetrics(
     projectId?: string,
     options?: UseAggregatedMetricsQueryOptions
 ): UseAggregatedMetricsResult {
-    const { data: aggregatedMetrics, isLoading, isFetching, refetch } = useQuery<Metric[]>({
-        queryKey: projectId ? [`projects/${projectId}/metrics`] : [],
-        queryFn: () => projectsService.getMetrics(projectId!),
+    const {
+        data,
+        isLoading,
+        isFetching,
+        isFetchingNextPage,
+        hasNextPage,
+        fetchNextPage,
+        refetch,
+    } = useInfiniteQuery({
+        queryKey: projectId ? [`projects/${projectId}/metrics`, { limit: DEFAULT_PAGE_SIZE }] : [],
+        queryFn: ({ pageParam }) =>
+            projectsService.getMetrics(projectId!, {
+                limit: DEFAULT_PAGE_SIZE,
+                offset: pageParam,
+            }),
+        initialPageParam: 0,
+        getNextPageParam: (lastPage, allPages) => {
+            if (!lastPage.hasNext) {
+                return undefined;
+            }
+            return allPages.reduce((total, page) => total + page.data.length, 0);
+        },
         enabled: !!projectId,
         refetchInterval: options?.refetchInterval,
     });
+    useEffect(() => {
+        if (hasNextPage && !isFetchingNextPage) {
+            void fetchNextPage();
+        }
+    }, [data?.pages.length, fetchNextPage, hasNextPage, isFetchingNextPage]);
+
+    const aggregatedMetrics = useMemo(
+        () => data?.pages.flatMap((page) => page.data) ?? [],
+        [data]
+    );
     const aggregatedMetricsByExperiment = useMemo(() => {
-        if (!aggregatedMetrics) return {};
         return aggregatedMetrics.reduce((acc: Record<string, Metric[]>, metric) => {
             if (!acc[metric.experimentId]) {
                 acc[metric.experimentId] = [];
@@ -37,7 +66,7 @@ export function useAggregatedMetrics(
     }, [aggregatedMetrics]);
 
     const aggregatedMetricsPlain = useMemo(() => {
-        return aggregatedMetrics || [];
+        return aggregatedMetrics;
     }, [aggregatedMetrics]);
 
     return {

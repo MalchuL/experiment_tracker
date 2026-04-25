@@ -9,12 +9,15 @@ from domain.rbac.wrapper import PermissionChecker
 from fastapi_users.models import UserProtocol
 
 from clients.scalars import (
+    GetScalarsResponseDTO,
+    LastLoggedExperimentsResponseDTO,
     LastLoggedExperimentsRequestDTO,
     LogScalarsBatchRequestDTO,
     LogScalarRequestDTO,
     ScalarsClientProtocol,
     ScalarsQueryDTO,
 )
+from lib.pagination import ListOptions
 from .error import ScalarsNotAccessibleError
 
 
@@ -38,6 +41,7 @@ class ScalarsServiceProtocol(Protocol):
         user: UserProtocol,
         project_id: UUID,
         experiment_ids: Sequence[UUID] | None = None,
+        list_options: ListOptions = ListOptions(),
         max_points: int | None = None,
         return_tags: bool = False,
         start_time: datetime | None = None,
@@ -48,6 +52,7 @@ class ScalarsServiceProtocol(Protocol):
         self,
         user: UserProtocol,
         experiment_id: UUID,
+        list_options: ListOptions = ListOptions(),
         max_points: int | None = None,
         return_tags: bool = False,
         start_time: datetime | None = None,
@@ -59,6 +64,7 @@ class ScalarsServiceProtocol(Protocol):
         user: UserProtocol,
         project_id: UUID,
         experiment_ids: Sequence[UUID] | None = None,
+        list_options: ListOptions = ListOptions(),
     ) -> dict[str, Any]: ...
 
 
@@ -113,6 +119,7 @@ class ScalarsService:
         user: UserProtocol,
         project_id: UUID,
         experiment_ids: Sequence[UUID] | None = None,
+        list_options: ListOptions = ListOptions(),
         max_points: int | None = None,
         return_tags: bool = False,
         start_time: datetime | None = None,
@@ -150,6 +157,8 @@ class ScalarsService:
             ScalarsQueryDTO(
                 project_id=project_id,
                 experiment_ids=list(experiment_ids) if experiment_ids else None,
+                limit=list_options.limit,
+                offset=list_options.offset,
                 max_points=max_points,
                 return_tags=return_tags,
                 start_time=start_time,
@@ -162,6 +171,7 @@ class ScalarsService:
         self,
         user: UserProtocol,
         experiment_id: UUID,
+        list_options: ListOptions = ListOptions(),
         max_points: int | None = None,
         return_tags: bool = False,
         start_time: datetime | None = None,
@@ -173,6 +183,7 @@ class ScalarsService:
             user=user,
             project_id=project_id,
             experiment_ids=[experiment_id],
+            list_options=list_options,
             max_points=max_points,
             return_tags=return_tags,
             start_time=start_time,
@@ -184,6 +195,7 @@ class ScalarsService:
         user: UserProtocol,
         project_id: UUID,
         experiment_ids: Sequence[UUID] | None = None,
+        list_options: ListOptions = ListOptions(),
     ) -> dict[str, Any]:
         if not await self.permission_checker.can_view_scalar(user.id, project_id):
             raise ScalarsNotAccessibleError(
@@ -192,7 +204,12 @@ class ScalarsService:
         payload = LastLoggedExperimentsRequestDTO(
             experiment_ids=list(experiment_ids) if experiment_ids else None
         )
-        result = await self.client.get_last_logged_experiments(project_id, payload)
+        result = await self.client.get_last_logged_experiments(
+            project_id,
+            payload,
+            limit=list_options.limit,
+            offset=list_options.offset,
+        )
         return result.model_dump(mode="json")
 
 
@@ -215,28 +232,31 @@ class NoOpScalarsService:
         user: UserProtocol,
         project_id: UUID,
         experiment_ids: Sequence[UUID] | None = None,
+        list_options: ListOptions = ListOptions(),
         max_points: int | None = None,
         return_tags: bool = False,
         start_time: datetime | None = None,
         end_time: datetime | None = None,
     ) -> dict[str, Any]:
-        return {"data": []}
+        return {"data": [], "has_next": False, "size": 0}
 
     async def get_scalars_for_experiment(
         self,
         user: UserProtocol,
         experiment_id: UUID,
+        list_options: ListOptions = ListOptions(),
         max_points: int | None = None,
         return_tags: bool = False,
         start_time: datetime | None = None,
         end_time: datetime | None = None,
     ) -> dict[str, Any]:
-        return {"data": []}
+        return {"data": [], "has_next": False, "size": 0}
 
     async def get_last_logged_experiments(
         self,
         user: UserProtocol,
         project_id: UUID,
         experiment_ids: Sequence[UUID] | None = None,
+        list_options: ListOptions = ListOptions(),
     ) -> dict[str, Any]:
-        return {"data": []}
+        return {"data": [], "has_next": False, "size": 0}

@@ -123,12 +123,14 @@ class ArtifactsInfoService:
         artifact_types: list[str] | None = None,
         artifact_names: list[str] | None = None,
         steps: list[int] | None = None,
+        limit: int = 100,
+        offset: int = 0,
         start_time: datetime | None = None,
         end_time: datetime | None = None,
     ) -> ArtifactsInfoResultDTO:
         table_name = SCALARS_DB_UTILS.safe_artifacts_info_table_name(project_id)
         if not await self._table_exists(table_name):
-            return ArtifactsInfoResultDTO(data=[])
+            return ArtifactsInfoResultDTO(data=[], has_next=False, size=0, total=0)
         experiment_ids: list[UUID] | None = None
         if experiment_id is not None:
             if isinstance(experiment_id, UUID):
@@ -149,13 +151,19 @@ class ArtifactsInfoService:
         grouped = self._group_artifacts_info_by_experiment(
             result.column_names, result.result_rows
         )
+        grouped_items = [
+            ExperimentArtifactsInfoResultDTO(
+                experiment_id=exp_id, artifacts_info=artifacts_info
+            )
+            for exp_id, artifacts_info in grouped.items()
+        ]
+        total = len(grouped_items)
+        page = grouped_items[offset : offset + limit]
         return ArtifactsInfoResultDTO(
-            data=[
-                ExperimentArtifactsInfoResultDTO(
-                    experiment_id=exp_id, artifacts_info=artifacts_info
-                )
-                for exp_id, artifacts_info in grouped.items()
-            ]
+            data=page,
+            has_next=offset + len(page) < total,
+            size=len(page),
+            total=total,
         )
 
     def _group_artifacts_info_by_experiment(

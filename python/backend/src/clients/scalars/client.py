@@ -74,12 +74,25 @@ class ScalarsServiceClient:
         return GetScalarsResponseDTO.model_validate(response)
 
     async def get_last_logged_experiments(
-        self, project_id: UUID, payload: LastLoggedExperimentsRequestDTO
+        self,
+        project_id: UUID,
+        payload: LastLoggedExperimentsRequestDTO,
+        *,
+        limit: int | None = None,
+        offset: int | None = None,
     ) -> LastLoggedExperimentsResponseDTO:
+        params: dict[str, Any] | None = None
+        if limit is not None or offset is not None:
+            params = {}
+            if limit is not None:
+                params["limit"] = limit
+            if offset is not None:
+                params["offset"] = offset
         response = await self._request(
             "POST",
             self.ENDPOINTS["get_last_logged_experiments"](project_id),
             json_payload=payload.model_dump(mode="json"),
+            params=params,
             use_msgpack=False,
         )
         return LastLoggedExperimentsResponseDTO.model_validate(response)
@@ -135,10 +148,17 @@ class NoOpScalarsServiceClient(ScalarsServiceClient):
         return LogScalarResponseDTO(status="logged")
 
     async def get_scalars(self, query: ScalarsQueryDTO) -> GetScalarsResponseDTO:
-        return GetScalarsResponseDTO(data=[])
+        _ = query
+        return GetScalarsResponseDTO(data=[], has_next=False, size=0)
 
     async def get_last_logged_experiments(
-        self, project_id: UUID, payload: LastLoggedExperimentsRequestDTO
+        self,
+        project_id: UUID,
+        payload: LastLoggedExperimentsRequestDTO,
+        *,
+        limit: int | None = None,
+        offset: int | None = None,
     ) -> LastLoggedExperimentsResponseDTO:
-        return LastLoggedExperimentsResponseDTO(data=[])
+        _ = (project_id, payload, limit, offset)
+        return LastLoggedExperimentsResponseDTO(data=[], has_next=False, size=0)
 

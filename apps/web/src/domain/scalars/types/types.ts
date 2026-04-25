@@ -1,3 +1,5 @@
+import type { PaginatedResponse } from "@/lib/types/pagination";
+
 export interface ScalarSeries {
   x: number[];
   y: number[];
@@ -15,9 +17,8 @@ export interface ExperimentScalarsPoints {
   tags?: StepTags[] | null;
 }
 
-export interface ScalarsPointsResult {
-  data: ExperimentScalarsPoints[];
-}
+export interface ScalarsPointsResult
+  extends PaginatedResponse<ExperimentScalarsPoints> {}
 
 export interface LastLoggedExperimentsRequest {
   experiment_ids: string[] | null;
@@ -28,9 +29,8 @@ export interface LastLoggedExperiment {
   last_modified: string;
 }
 
-export interface LastLoggedExperimentsResult {
-  data: LastLoggedExperiment[];
-}
+export interface LastLoggedExperimentsResult
+  extends PaginatedResponse<LastLoggedExperiment> {}
 
 export interface ScalarSavedView {
   id: string;

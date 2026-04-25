@@ -48,6 +48,8 @@ async def get_artifact_info(
     artifact_type: list[str] | None = Query(default=None),
     artifact_name: list[str] | None = Query(default=None),
     step: list[int] | None = Query(default=None),
+    limit: int = Query(default=100, ge=1),
+    offset: int = Query(default=0, ge=0),
     start_time: datetime | None = Query(default=None),
     end_time: datetime | None = Query(default=None),
     service: ArtifactsInfoService = Depends(get_artifacts_info_service),
@@ -58,6 +60,8 @@ async def get_artifact_info(
         artifact_types=artifact_type,
         artifact_names=artifact_name,
         steps=step,
+        limit=limit,
+        offset=offset,
         start_time=start_time,
         end_time=end_time,
     )
