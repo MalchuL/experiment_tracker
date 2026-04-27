@@ -390,6 +390,7 @@ class ClickHouseScalarsDBUtils:
         end_time: datetime | None = None,
         extra: Sequence[str] | None = None,
     ) -> list[str]:
+        """Build AND fragments for the scalars fact table (experiments + optional time + extras)."""
         where_clauses: list[str] = []
         if experiment_ids:
             uuids = ", ".join(
@@ -413,9 +414,20 @@ class ClickHouseScalarsDBUtils:
         return where_clauses
 
     def _scalar_where_sql(self, where_clauses: Sequence[str]) -> str:
+        """Turn ``where_clauses`` into a single `` WHERE ...`` suffix, or empty if none."""
         if not where_clauses:
             return ""
         return f" WHERE {' AND '.join(where_clauses)}"
+
+    def _clickhouse_uniform_sample_predicate(self, max_points: int) -> str:
+        """SQL predicate: keep row if partition size <= cap or row index is in the uniform grid."""
+        mp = int(max_points)
+        return (
+            f"(_u_cnt <= {mp}) OR arrayExists("
+            f"j -> _u_rn = 1 + intDiv(toInt64(j) * toInt64(_u_cnt - 1), "
+            f"greatest(toInt64({mp}) - 1, toInt64(1))), "
+            f"range(toUInt32({mp})))"
+        )
 
     def validate_scalar_storage_column_name(self, column_name: str) -> str:
         """Ensure ``column_name`` is safe to embed in SQL (internal scalar column)."""
@@ -513,12 +525,8 @@ class ClickHouseScalarsDBUtils:
         ts_col = ProjectTableColumns.TIMESTAMP.value
         tags_col = ProjectTableColumns.TAGS.value
         base_cols = f"{ts_col}, {exp_col}, {step_col}, {tags_col}, {col}"
-        uniform_filter = (
-            f"(_u_cnt <= {mp}) OR arrayExists("
-            f"j -> _u_rn = 1 + intDiv(toInt64(j) * toInt64(_u_cnt - 1), "
-            f"greatest(toInt64({mp}) - 1, toInt64(1))), "
-            f"range(toUInt32({mp})))"
-        )
+        # Inner: rank non-null rows per experiment by step; outer: uniform subsample to max_points.
+        uniform_filter = self._clickhouse_uniform_sample_predicate(mp)
         inner = (
             f"SELECT {base_cols}, "
             f"row_number() OVER (PARTITION BY {exp_col} ORDER BY {step_col}) AS _u_rn, "

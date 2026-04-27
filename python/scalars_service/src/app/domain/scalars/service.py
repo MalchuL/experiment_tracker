@@ -126,28 +126,34 @@ class ScalarsService:
         Returns:
             LogScalarResponseDTO: The response containing the status and warnings.
         """
-        table_name = SCALARS_DB_UTILS.safe_scalars_table_name(project_id)
-        await self._ensure_scalars_table(project_id)
+        table_name = SCALARS_DB_UTILS.safe_scalars_table_name(project_id=project_id)
+        await self._ensure_scalars_table(project_id=project_id)
         # We must invalidate cache because we are logging a scalar for a given experiment.
         if self.cache is not None:
-            await self._invalidate_cache(project_id, experiment_id)
+            await self._invalidate_cache(
+                project_id=project_id, experiment_id=experiment_id
+            )
         # Filter out conflicting scalars and return warnings if any.
-        filtered_scalars, warnings = self._filter_conflicting_scalars(request.scalars)
+        filtered_scalars, warnings = self._filter_conflicting_scalars(
+            scalars=request.scalars
+        )
         if not filtered_scalars:
             return LogScalarResponseDTO(status="logged", warnings=warnings or None)
 
         # Get or create scalar mapping (because them stored per step and single column per scalar).
         # Table columns can't be random strings, so we need to map them to internal names.
 
-        mapping = await self._get_or_create_scalar_mapping(project_id)
+        mapping = await self._get_or_create_scalar_mapping(project_id=project_id)
         mapped_columns, mapping_updated = self._resolve_scalar_columns(
-            mapping, filtered_scalars.keys()
+            mapping=mapping, scalar_names=filtered_scalars.keys()
         )
         if mapping_updated:
-            await self._save_scalar_mapping(project_id, mapping)
+            await self._save_scalar_mapping(project_id=project_id, mapping=mapping)
             # Ensure that the table and columns exist. If not, create them. If columns are missing, add them.
         # Because clickhouse doesn't support transactions, we need to ensure that the table and columns exist before logging the scalar.
-        await self._ensure_scalars_columns(table_name, list(mapped_columns.values()))
+        await self._ensure_scalars_columns(
+            table_name=table_name, scalar_columns=list(mapped_columns.values())
+        )
 
         columns = SCALARS_DB_UTILS.get_base_columns() + list(mapped_columns.values())
         logged_at = _get_now_datetime()
@@ -157,18 +163,26 @@ class ScalarsService:
             request.step,
             request.tags or [],
         ] + [filtered_scalars[name] for name in mapped_columns.keys()]
-        await self.client.insert(table_name, [row], column_names=columns)
+        await self.client.insert(
+            table=table_name, data=[row], column_names=columns
+        )
         if self.last_logged_service:
-            await self.last_logged_service.touch(project_id, experiment_id, logged_at)
+            await self.last_logged_service.touch(
+                project_id=project_id,
+                experiment_id=experiment_id,
+                last_modified=logged_at,
+            )
         return LogScalarResponseDTO(status="logged", warnings=warnings or None)
 
     async def log_scalars(
         self, project_id: UUID, experiment_id: UUID, request: LogScalarsRequestDTO
     ):
-        table_name = SCALARS_DB_UTILS.safe_scalars_table_name(project_id)
-        await self._ensure_scalars_table(project_id)
+        table_name = SCALARS_DB_UTILS.safe_scalars_table_name(project_id=project_id)
+        await self._ensure_scalars_table(project_id=project_id)
         if self.cache is not None:
-            await self._invalidate_cache(project_id, experiment_id)
+            await self._invalidate_cache(
+                project_id=project_id, experiment_id=experiment_id
+            )
         if not request.scalars:
             return LogScalarsResponseDTO(status="logged")
 
@@ -176,7 +190,7 @@ class ScalarsService:
         filtered_items: list[LogScalarRequestDTO] = []
         for item in request.scalars:
             filtered_scalars, item_warnings = self._filter_conflicting_scalars(
-                item.scalars
+                scalars=item.scalars
             )
             warnings.extend(item_warnings)
             if not filtered_scalars:
@@ -193,14 +207,16 @@ class ScalarsService:
             return LogScalarsResponseDTO(status="logged", warnings=warnings or None)
 
         all_scalar_names = {name for item in filtered_items for name in item.scalars}
-        mapping = await self._get_or_create_scalar_mapping(project_id)
+        mapping = await self._get_or_create_scalar_mapping(project_id=project_id)
         mapped_columns, mapping_updated = self._resolve_scalar_columns(
-            mapping, all_scalar_names
+            mapping=mapping, scalar_names=all_scalar_names
         )
         if mapping_updated:
-            await self._save_scalar_mapping(project_id, mapping)
+            await self._save_scalar_mapping(project_id=project_id, mapping=mapping)
         # Because clickhouse doesn't support transactions, we need to ensure that the table and columns exist before logging the scalar.
-        await self._ensure_scalars_columns(table_name, list(mapped_columns.values()))
+        await self._ensure_scalars_columns(
+            table_name=table_name, scalar_columns=list(mapped_columns.values())
+        )
 
         columns = SCALARS_DB_UTILS.get_base_columns() + list(mapped_columns.values())
         rows = []
@@ -215,12 +231,279 @@ class ScalarsService:
             ] + [item.scalars.get(name, None) for name in mapped_columns.keys()]
             rows.append(row)
         if rows:
-            await self.client.insert(table_name, rows, column_names=columns)
+            await self.client.insert(
+                table=table_name, data=rows, column_names=columns
+            )
             if self.last_logged_service:
                 await self.last_logged_service.touch(
-                    project_id, experiment_id, last_modified
+                    project_id=project_id,
+                    experiment_id=experiment_id,
+                    last_modified=last_modified,
                 )
         return LogScalarsResponseDTO(status="logged", warnings=warnings or None)
+
+    # --- get_scalars helpers (keep orchestration readable) ---
+
+    @staticmethod
+    def _normalize_experiment_id_filter(
+        experiment_id: UUID | list[UUID] | tuple[UUID, ...] | None,
+    ) -> tuple[list[UUID] | None, bool]:
+        """
+        Split API input into an explicit id list vs "all experiments in project".
+
+        Args:
+            experiment_id: Experiment UUID or list of UUIDs, or ``None`` for project-wide listing.
+
+        Returns:
+            A tuple containing:
+            - A list of experiment UUIDs, or ``None`` for project-wide listing.
+            - A boolean indicating whether the listing is project-wide (every experiment in the project).
+        """
+        if experiment_id is None:
+            return None, True
+        if isinstance(experiment_id, UUID):
+            return [experiment_id], False
+        return list(experiment_id), False
+
+    @staticmethod
+    def _explicit_experiment_page_slice(
+        requested_ids: list[UUID], limit: int, offset: int
+    ) -> tuple[int, list[UUID]]:
+        """Apply limit/offset to the caller-supplied experiment id list."""
+        total = len(requested_ids)
+        return total, requested_ids[offset : offset + limit]
+
+    async def _clickhouse_distinct_experiment_page(
+        self,
+        table_name: str,
+        start_time: datetime | None,
+        end_time: datetime | None,
+        limit: int,
+        offset: int,
+    ) -> tuple[int, list[UUID]]:
+        """Count distinct experiments, then return one page of ids (sorted, stable order)."""
+        count_sql = SCALARS_DB_UTILS.build_count_distinct_experiments_statement(
+            table_name=table_name, start_time=start_time, end_time=end_time
+        )
+        count_res = await self.client.query(count_sql)
+        total = int(count_res.result_rows[0][0])
+        page_sql = SCALARS_DB_UTILS.build_select_experiment_id_page_statement(
+            table_name=table_name,
+            start_time=start_time,
+            end_time=end_time,
+            limit=limit,
+            offset=offset,
+        )
+        page_res = await self.client.query(page_sql)
+        page_ids = [cast(UUID, row[0]) for row in page_res.result_rows]
+        return total, page_ids
+
+    async def _get_scalars_try_cache(
+        self,
+        browse_all: bool,
+        project_id: UUID,
+        page_ids: list[UUID],
+        total_experiments: int,
+        max_points: int,
+        return_tags: bool,
+        start_time: datetime | None,
+        end_time: datetime | None,
+        sampling: ScalarsSampling,
+        columns_per_query: int,
+        limit: int,
+        offset: int,
+    ) -> tuple[
+        ScalarsPointsResultDTO | None, dict[UUID, ExperimentsScalarsPointsResultDTO]
+    ]:
+        """Return a fully cached response, or partial per-experiment hits for the current page."""
+        if self.cache is None:
+            return None, {}
+
+        if browse_all:
+            key = _build_scalars_cache_key(
+                project_id=project_id,
+                experiment_id=None,
+                max_points=max_points,
+                return_tags=return_tags,
+                start_time=start_time,
+                end_time=end_time,
+                sampling=sampling,
+                columns_per_query=columns_per_query,
+                limit=limit,
+                offset=offset,
+            )
+            hit = await self.cache.get(key=key)
+            return (hit, {}) if hit is not None else (None, {})
+
+        cached_by_exp: dict[UUID, ExperimentsScalarsPointsResultDTO] = {}
+        for exp_id in page_ids:
+            ck = _build_scalars_cache_key(
+                project_id=project_id,
+                experiment_id=exp_id,
+                max_points=max_points,
+                return_tags=return_tags,
+                start_time=start_time,
+                end_time=end_time,
+                sampling=sampling,
+                columns_per_query=columns_per_query,
+                limit=-1,
+                offset=-1,
+            )
+            row = await self.cache.get(key=ck)
+            if row is not None:
+                cached_by_exp[exp_id] = row
+
+        if len(cached_by_exp) != len(page_ids):
+            return None, cached_by_exp
+
+        ordered = [cached_by_exp[eid] for eid in page_ids]
+        return (
+            ScalarsPointsResultDTO(
+                data=ordered,
+                has_next=offset + len(page_ids) < total_experiments,
+                size=len(ordered),
+                total=total_experiments,
+            ),
+            {},
+        )
+
+    async def _load_sampled_columns_for_experiments(
+        self,
+        table_name: str,
+        experiment_ids: list[UUID],
+        project_id: UUID,
+        scalar_columns: list[str],
+        start_time: datetime | None,
+        end_time: datetime | None,
+        max_points: int,
+        columns_per_query: int,
+        return_tags: bool,
+    ) -> tuple[
+        defaultdict[UUID, dict[str, ScalarSeriesDTO]],
+        dict[tuple[UUID, int], StepTagsDTO],
+    ]:
+        """Run per-column ClickHouse queries (batched) and merge into in-memory structures."""
+        mapping = await self._get_or_create_scalar_mapping(project_id)
+        column_to_scalar_name = {column: scalar for scalar, column in mapping.items()}
+
+        result_scalars: defaultdict[UUID, dict[str, ScalarSeriesDTO]] = defaultdict(
+            dict
+        )
+        tag_by_exp_step: dict[tuple[UUID, int], StepTagsDTO] = {}
+
+        for i in range(0, len(scalar_columns), columns_per_query):
+            batch = scalar_columns[i : i + columns_per_query]
+            chunks = await asyncio.gather(
+                *[
+                    self._fetch_uniform_sampled_column(
+                        table_name=table_name,
+                        internal_col=col,
+                        experiment_ids=experiment_ids,
+                        start_time=start_time,
+                        end_time=end_time,
+                        max_points=max_points,
+                    )
+                    for col in batch
+                ]
+            )
+            for internal_col, col_names, rows in chunks:
+                public_name = column_to_scalar_name.get(internal_col, internal_col)
+                self._merge_uniform_column_rows(
+                    column_names=col_names,
+                    rows=rows,
+                    internal_col=internal_col,
+                    public_name=public_name,
+                    result_scalars=result_scalars,
+                    tag_by_exp_step=tag_by_exp_step,
+                    return_tags=return_tags,
+                )
+        return result_scalars, tag_by_exp_step
+
+    @staticmethod
+    def _assemble_get_scalars_page(
+        page_ids: list[UUID],
+        cached_by_exp: dict[UUID, ExperimentsScalarsPointsResultDTO],
+        result_scalars: defaultdict[UUID, dict[str, ScalarSeriesDTO]],
+        tag_by_exp_step: dict[tuple[UUID, int], StepTagsDTO],
+        return_tags: bool,
+    ) -> list[ExperimentsScalarsPointsResultDTO]:
+        """Build one DTO per experiment on the page (cache hit or freshly merged series)."""
+        merged: list[ExperimentsScalarsPointsResultDTO] = []
+        for eid in page_ids:
+            if eid in cached_by_exp:
+                merged.append(cached_by_exp[eid])
+                continue
+            scalars = result_scalars.get(eid, {})
+            tags_list: list[StepTagsDTO] | None = None
+            if return_tags:
+                tags_list = sorted(
+                    (
+                        dto
+                        for (exp_s, _s), dto in tag_by_exp_step.items()
+                        if exp_s == eid
+                    ),
+                    key=lambda d: d.step,
+                )
+                if not tags_list:
+                    tags_list = None
+            merged.append(
+                ExperimentsScalarsPointsResultDTO(
+                    experiment_id=eid,
+                    scalars=scalars,
+                    tags=tags_list,
+                )
+            )
+        return merged
+
+    async def _store_get_scalars_cache(
+        self,
+        browse_all: bool,
+        project_id: UUID,
+        merged: list[ExperimentsScalarsPointsResultDTO],
+        response: ScalarsPointsResultDTO,
+        skip_experiment_ids: frozenset[UUID],
+        max_points: int,
+        return_tags: bool,
+        start_time: datetime | None,
+        end_time: datetime | None,
+        sampling: ScalarsSampling,
+        columns_per_query: int,
+        limit: int,
+        offset: int,
+    ) -> None:
+        """Persist per-experiment payloads and optionally the full project page response."""
+        if self.cache is None:
+            return
+        for item in merged:
+            if item.experiment_id in skip_experiment_ids:
+                continue
+            ck = _build_scalars_cache_key(
+                project_id=project_id,
+                experiment_id=item.experiment_id,
+                max_points=max_points,
+                return_tags=return_tags,
+                start_time=start_time,
+                end_time=end_time,
+                sampling=sampling,
+                columns_per_query=columns_per_query,
+                limit=-1,
+                offset=-1,
+            )
+            await self.cache.set(key=ck, value=item)
+        if browse_all:
+            ck = _build_scalars_cache_key(
+                project_id=project_id,
+                experiment_id=None,
+                max_points=max_points,
+                return_tags=return_tags,
+                start_time=start_time,
+                end_time=end_time,
+                sampling=sampling,
+                columns_per_query=columns_per_query,
+                limit=limit,
+                offset=offset,
+            )
+            await self.cache.set(key=ck, value=response)
 
     async def get_scalars(
         self,
@@ -261,70 +544,37 @@ class ScalarsService:
         if start_time is not None and end_time is not None and start_time > end_time:
             raise ValueError("start_time must be less than or equal to end_time")
 
-        requested_ids: list[UUID] | None = None
-        if experiment_id is not None:
-            if isinstance(experiment_id, UUID):
-                requested_ids = [experiment_id]
-            else:
-                requested_ids = list(experiment_id)
+        requested_ids, browse_all = self._normalize_experiment_id_filter(experiment_id)
 
-        browse_all = requested_ids is None
-
+        # Step A — experiment pagination (explicit list is sliced here; project-wide uses CH below).
         total_experiments = 0
         page_ids: list[UUID] = []
         if not browse_all:
             assert requested_ids is not None
-            total_experiments = len(requested_ids)
-            page_ids = requested_ids[offset : offset + limit]
+            total_experiments, page_ids = self._explicit_experiment_page_slice(
+                requested_ids=requested_ids, limit=limit, offset=offset
+            )
 
-        result: list[ExperimentsScalarsPointsResultDTO] = []
-        excluded_experiment_ids: list[UUID] = []
+        # Step B — cache: whole project page, or every experiment on an explicit page.
+        cached_full, cached_by_exp = await self._get_scalars_try_cache(
+            browse_all=browse_all,
+            project_id=project_id,
+            page_ids=page_ids,
+            total_experiments=total_experiments,
+            max_points=max_points,
+            return_tags=return_tags,
+            start_time=start_time,
+            end_time=end_time,
+            sampling=sampling,
+            columns_per_query=columns_per_query,
+            limit=limit,
+            offset=offset,
+        )
+        if cached_full is not None:
+            return cached_full
 
-        if self.cache is not None:
-            if browse_all:
-                cache_key = _build_scalars_cache_key(
-                    project_id,
-                    None,
-                    max_points,
-                    return_tags,
-                    start_time,
-                    end_time,
-                    sampling,
-                    columns_per_query,
-                    limit,
-                    offset,
-                )
-                cached = await self.cache.get(cache_key)
-                if cached is not None:
-                    return cached
-            else:
-                for exp_id in page_ids:
-                    ck = _build_scalars_cache_key(
-                        project_id,
-                        exp_id,
-                        max_points,
-                        return_tags,
-                        start_time,
-                        end_time,
-                        sampling,
-                        columns_per_query,
-                        -1,
-                        -1,
-                    )
-                    hit = await self.cache.get(ck)
-                    if hit is not None:
-                        excluded_experiment_ids.append(exp_id)
-                        result.append(hit)
-                if len(excluded_experiment_ids) == len(page_ids):
-                    return ScalarsPointsResultDTO(
-                        data=result,
-                        has_next=offset + len(page_ids) < total_experiments,
-                        size=len(result),
-                        total=total_experiments,
-                    )
-
-        table_name = SCALARS_DB_UTILS.safe_scalars_table_name(project_id)
-        if not await self._table_exists(table_name):
+        table_name = SCALARS_DB_UTILS.safe_scalars_table_name(project_id=project_id)
+        if not await self._table_exists(table_name=table_name):
             if not browse_all:
                 return ScalarsPointsResultDTO(
                     data=[],
@@ -334,90 +584,48 @@ class ScalarsService:
                 )
             return ScalarsPointsResultDTO(data=[], has_next=False, size=0, total=0)
 
+        # Step C — project-wide: total count + page of experiment UUIDs from ClickHouse.
         if browse_all:
-            count_sql = SCALARS_DB_UTILS.build_count_distinct_experiments_statement(
-                table_name, start_time=start_time, end_time=end_time
+            total_experiments, page_ids = (
+                await self._clickhouse_distinct_experiment_page(
+                    table_name=table_name,
+                    start_time=start_time,
+                    end_time=end_time,
+                    limit=limit,
+                    offset=offset,
+                )
             )
-            count_res = await self.client.query(count_sql)
-            total_experiments = int(count_res.result_rows[0][0])
-            # Get experiment IDs for pagination.
-            page_sql = SCALARS_DB_UTILS.build_select_experiment_id_page_statement(
-                table_name,
-                start_time=start_time,
-                end_time=end_time,
-                limit=limit,
-                offset=offset,
-            )
-            page_res = await self.client.query(page_sql)
-            page_ids = [cast(UUID, row[0]) for row in page_res.result_rows]
-        # else: page_ids / total_experiments already set for explicit filter
 
-        ids_to_fetch = [eid for eid in page_ids if eid not in excluded_experiment_ids]
+        # Step D — load CH only for experiments on this page that were not cache hits.
+        ids_to_fetch = [eid for eid in page_ids if eid not in cached_by_exp]
 
-        scalar_columns = await self._get_scalar_columns(table_name)
-        mapping = await self._get_or_create_scalar_mapping(project_id)
-        column_to_scalar_name = {column: scalar for scalar, column in mapping.items()}
-
+        scalar_columns = await self._get_scalar_columns(table_name=table_name)
         result_scalars: defaultdict[UUID, dict[str, ScalarSeriesDTO]] = defaultdict(
             dict
         )
         tag_by_exp_step: dict[tuple[UUID, int], StepTagsDTO] = {}
-
-        if ids_to_fetch:
-            for i in range(0, len(scalar_columns), columns_per_query):
-                batch = scalar_columns[i : i + columns_per_query]
-                chunks = await asyncio.gather(
-                    *[
-                        self._fetch_uniform_sampled_column(
-                            table_name,
-                            col,
-                            ids_to_fetch,
-                            start_time,
-                            end_time,
-                            max_points,
-                        )
-                        for col in batch
-                    ]
-                )
-                for internal_col, col_names, rows in chunks:
-                    public_name = column_to_scalar_name.get(internal_col, internal_col)
-                    self._merge_uniform_column_rows(
-                        col_names,
-                        rows,
-                        internal_col,
-                        public_name,
-                        result_scalars,
-                        tag_by_exp_step,
-                        return_tags,
-                    )
-
-        merged: list[ExperimentsScalarsPointsResultDTO] = []
-        for eid in page_ids:
-            cached = next((r for r in result if r.experiment_id == eid), None)
-            if cached is not None:
-                merged.append(cached)
-                continue
-            scalars = result_scalars.get(eid, {})
-            tags_list: list[StepTagsDTO] | None = None
-            if return_tags:
-                tags_list = sorted(
-                    (
-                        dto
-                        for (exp_s, _s), dto in tag_by_exp_step.items()
-                        if exp_s == eid
-                    ),
-                    key=lambda d: d.step,
-                )
-                if not tags_list:
-                    tags_list = None
-            merged.append(
-                ExperimentsScalarsPointsResultDTO(
-                    experiment_id=eid,
-                    scalars=scalars,
-                    tags=tags_list,
+        if ids_to_fetch and scalar_columns:
+            result_scalars, tag_by_exp_step = (
+                await self._load_sampled_columns_for_experiments(
+                    table_name=table_name,
+                    experiment_ids=ids_to_fetch,
+                    project_id=project_id,
+                    scalar_columns=scalar_columns,
+                    start_time=start_time,
+                    end_time=end_time,
+                    max_points=max_points,
+                    columns_per_query=columns_per_query,
+                    return_tags=return_tags,
                 )
             )
 
+        merged = self._assemble_get_scalars_page(
+            page_ids=page_ids,
+            cached_by_exp=cached_by_exp,
+            result_scalars=result_scalars,
+            tag_by_exp_step=tag_by_exp_step,
+            return_tags=return_tags,
+        )
         response = ScalarsPointsResultDTO(
             data=merged,
             has_next=offset + len(page_ids) < total_experiments,
@@ -425,37 +633,21 @@ class ScalarsService:
             total=total_experiments,
         )
 
-        if self.cache is not None:
-            for item in merged:
-                if item.experiment_id in excluded_experiment_ids:
-                    continue
-                ck = _build_scalars_cache_key(
-                    project_id,
-                    item.experiment_id,
-                    max_points,
-                    return_tags,
-                    start_time,
-                    end_time,
-                    sampling,
-                    columns_per_query,
-                    -1,
-                    -1,
-                )
-                await self.cache.set(ck, item)
-            if browse_all:
-                ck = _build_scalars_cache_key(
-                    project_id,
-                    None,
-                    max_points,
-                    return_tags,
-                    start_time,
-                    end_time,
-                    sampling,
-                    columns_per_query,
-                    limit,
-                    offset,
-                )
-                await self.cache.set(ck, response)
+        await self._store_get_scalars_cache(
+            browse_all=browse_all,
+            project_id=project_id,
+            merged=merged,
+            response=response,
+            skip_experiment_ids=frozenset(cached_by_exp),
+            max_points=max_points,
+            return_tags=return_tags,
+            start_time=start_time,
+            end_time=end_time,
+            sampling=sampling,
+            columns_per_query=columns_per_query,
+            limit=limit,
+            offset=offset,
+        )
         return response
 
     async def _fetch_uniform_sampled_column(
@@ -487,9 +679,9 @@ class ScalarsService:
             ``_merge_uniform_column_rows``.
         """
         sql = SCALARS_DB_UTILS.build_select_uniform_sampled_column(
-            table_name,
-            internal_col,
-            experiment_ids,
+            table_name=table_name,
+            column_name=internal_col,
+            experiment_ids=experiment_ids,
             start_time=start_time,
             end_time=end_time,
             max_points=max_points,
@@ -564,9 +756,11 @@ class ScalarsService:
 
     async def _ensure_scalars_table(self, project_id: UUID) -> None:
         """Ensure the scalars table exists. Create it with base columns only if it does not."""
-        table_name = SCALARS_DB_UTILS.safe_scalars_table_name(project_id)
-        if not await self._table_exists(table_name):
-            ddl = SCALARS_DB_UTILS.build_create_scalars_table_statement(table_name)
+        table_name = SCALARS_DB_UTILS.safe_scalars_table_name(project_id=project_id)
+        if not await self._table_exists(table_name=table_name):
+            ddl = SCALARS_DB_UTILS.build_create_scalars_table_statement(
+                table_name=table_name
+            )
             await self.client.command(ddl)
 
     async def _table_exists(self, table_name: str) -> bool:
@@ -579,17 +773,21 @@ class ScalarsService:
             bool: True if the table exists, False otherwise.
         """
         # Query returns count of rows > 0 if table exists.
-        query = SCALARS_DB_UTILS.build_table_existence_statement(table_name)
+        query = SCALARS_DB_UTILS.build_table_existence_statement(
+            table_name=table_name
+        )
         result = await self.client.query(query)
         return bool(result.result_rows[0][0])
 
     async def _get_table_columns(self, table_name: str) -> list[str]:
-        query = SCALARS_DB_UTILS.build_describe_table_statement(table_name)
+        query = SCALARS_DB_UTILS.build_describe_table_statement(
+            table_name=table_name
+        )
         result = await self.client.query(query)
         return [row[0] for row in result.result_rows]
 
     async def _get_scalar_columns(self, table_name: str) -> list[str]:
-        columns = await self._get_table_columns(table_name)
+        columns = await self._get_table_columns(table_name=table_name)
         base_columns = set(SCALARS_DB_UTILS.get_base_columns())
         return [col for col in columns if col not in base_columns]
 
@@ -605,11 +803,11 @@ class ScalarsService:
         Returns:
             None: The function does not return anything.
         """
-        existing_columns = set(await self._get_table_columns(table_name))
+        existing_columns = set(await self._get_table_columns(table_name=table_name))
         missing = [col for col in scalar_columns if col not in existing_columns]
         if missing:
             ddl = SCALARS_DB_UTILS.build_alter_table_add_columns_statement(
-                table_name, missing
+                table_name=table_name, scalar_columns=missing
             )
             await self.client.command(ddl)
 
@@ -652,7 +850,9 @@ class ScalarsService:
             None if mapping is not found or is empty.
         """
         # Build statement to select the mapping for a given project ID.
-        query = SCALARS_DB_UTILS.build_select_mapping_statement(project_id)
+        query = SCALARS_DB_UTILS.build_select_mapping_statement(
+            project_id=project_id
+        )
         result = await self.client.query(query)
         # If no mapping is found, return None.
         if not result.result_rows:
@@ -680,8 +880,8 @@ class ScalarsService:
         """
         payload = {str(k): str(v) for k, v in mapping.items()}
         await self.client.insert(
-            SCALARS_DB_UTILS.get_mapping_table_name(),
-            [[project_id, payload, _get_now_datetime()]],
+            table=SCALARS_DB_UTILS.get_mapping_table_name(),
+            data=[[project_id, payload, _get_now_datetime()]],
             column_names=["project_id", "mapping", "updated_at"],
         )
 
@@ -698,7 +898,7 @@ class ScalarsService:
         Returns:
             dict[str, str]: The scalar mapping. Keys are scalar names, values are internal column names.
         """
-        mapping = await self._load_scalar_mapping(project_id)
+        mapping = await self._load_scalar_mapping(project_id=project_id)
         if mapping is None:
             mapping = {}
         return mapping
@@ -722,7 +922,9 @@ class ScalarsService:
             if name in mapping:
                 resolved[name] = mapping[name]
                 continue
-            mapping[name] = self._generate_scalar_column_name(existing_columns)
+            mapping[name] = self._generate_scalar_column_name(
+                existing_columns=existing_columns
+            )
             existing_columns.add(mapping[name])
             resolved[name] = mapping[name]
             updated = True
@@ -753,29 +955,29 @@ class ScalarsService:
             return
         # Invalidate cache for the experiment
         cache_key_pattern = _build_scalars_cache_key(
-            project_id,
-            experiment_id,
-            "*",
-            "*",
-            "*",
-            "*",
-            "*",
-            "*",
-            "*",
-            "*",
+            project_id=project_id,
+            experiment_id=experiment_id,
+            max_points="*",
+            return_tags="*",
+            start_time="*",
+            end_time="*",
+            sampling="*",
+            columns_per_query="*",
+            limit="*",
+            offset="*",
         )
-        await self.cache.invalidate(cache_key_pattern)
+        await self.cache.invalidate(pattern=cache_key_pattern)
         # Invalidate cache for all scalars (no experiment id)
         cache_key_pattern = _build_scalars_cache_key(
-            project_id,
-            None,
-            "*",
-            "*",
-            "*",
-            "*",
-            "*",
-            "*",
-            "*",
-            "*",
+            project_id=project_id,
+            experiment_id=None,
+            max_points="*",
+            return_tags="*",
+            start_time="*",
+            end_time="*",
+            sampling="*",
+            columns_per_query="*",
+            limit="*",
+            offset="*",
         )
-        await self.cache.invalidate(cache_key_pattern)
+        await self.cache.invalidate(pattern=cache_key_pattern)
