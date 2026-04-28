@@ -7,8 +7,8 @@ import { AlertCircle, Eye, Pencil, Plus, Settings, Trash2, X } from "lucide-reac
 import { useCurrentProject } from "@/domain/projects/hooks";
 import { useProject } from "@/domain/projects/hooks/project-hook";
 import { BasicInfoForm, DisplayMetricsForm, MetricsManagement } from "@/domain/projects/components";
-import { BasicInfoFormData, SettingsFormData } from "@/domain/projects/schemas";
-import { ProjectMetric, ProjectSettingType } from "@/domain/projects/types";
+import { BasicInfoFormData } from "@/domain/projects/schemas";
+import { ProjectDisplayMetric, ProjectMetric, ProjectSettingType } from "@/domain/projects/types";
 import { displayMetricKeyEquals, displayMetricsForApiSave } from "@/lib/metrics/format-metric-label";
 import { useToast } from "@/lib/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
@@ -122,13 +122,13 @@ export default function ProjectSettings() {
   );
 
   const handleSettingsSubmit = useCallback(
-    async (data: SettingsFormData) => {
+    async (displayMetrics: ProjectDisplayMetric[]) => {
       if (!projectId || !project) return;
       try {
         await updateProject({
           metrics: {
             ...project.metrics,
-            displayMetrics: displayMetricsForApiSave(project.metrics.trackedMetrics, data.displayMetrics),
+            displayMetrics: displayMetricsForApiSave(project.metrics.trackedMetrics, displayMetrics),
           },
         });
         handleUpdateSuccess();

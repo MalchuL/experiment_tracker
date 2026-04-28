@@ -1,11 +1,8 @@
 "use client";
 
-import { useMemo } from "react";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Form } from "@/components/ui/form";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,11 +11,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuItem,
 } from "@/components/ui/dropdown-menu";
-import { settingsSchema, type SettingsFormData } from "../../schemas/settings";
-import { type Project } from "../../types";
+import { type Project, type ProjectDisplayMetric } from "../../types";
 import { Eye, ChevronDown, Check, TrendingUp, TrendingDown } from "lucide-react";
 import {
-  expandEmptyDisplayMetricsForForm,
   formatMetricLabel,
   isExplicitlyInDisplayList,
   removeFromDisplayList,
@@ -28,27 +23,21 @@ import {
 
 interface DisplayMetricsFormProps {
   project: Project;
-  onSubmit: (data: SettingsFormData) => void;
+  onSubmit: (displayMetrics: ProjectDisplayMetric[]) => void;
   isPending: boolean;
 }
 
 export function DisplayMetricsForm({ project, onSubmit, isPending }: DisplayMetricsFormProps) {
-  const expandedDisplayMetrics = useMemo(
-    () => expandEmptyDisplayMetricsForForm(project.metrics),
+  const persistedDisplayMetrics = useMemo(
+    () => project.metrics.displayMetrics,
     [project.metrics]
   );
 
-  const form = useForm<SettingsFormData>({
-    resolver: zodResolver(settingsSchema),
-    defaultValues: {
-      namingPattern: "{num}_from_{parent}_{change}",
-      displayMetrics: expandedDisplayMetrics,
-    },
-    values: {
-      namingPattern: "{num}_from_{parent}_{change}",
-      displayMetrics: expandedDisplayMetrics,
-    },
-  });
+  const [displayMetrics, setDisplayMetrics] = useState<ProjectDisplayMetric[]>(persistedDisplayMetrics);
+
+  useEffect(() => {
+    setDisplayMetrics(persistedDisplayMetrics);
+  }, [persistedDisplayMetrics]);
 
   if (project.metrics.trackedMetrics.length === 0) {
     return (
@@ -59,100 +48,98 @@ export function DisplayMetricsForm({ project, onSubmit, isPending }: DisplayMetr
   }
 
   return (
-    <Form {...form}>
-      <form className="space-y-4">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" className="w-full justify-between" data-testid="dropdown-display-metrics">
-              <span className="flex items-center gap-2">
-                <Eye className="h-4 w-4" />
-                {form.watch("displayMetrics").length === 0
-                  ? `0 of ${project.metrics.trackedMetrics.length} metrics selected`
-                  : form.watch("displayMetrics").length === project.metrics.trackedMetrics.length
+    <div className="space-y-4">
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="outline" className="w-full justify-between" data-testid="dropdown-display-metrics">
+            <span className="flex items-center gap-2">
+              <Eye className="h-4 w-4" />
+              {displayMetrics.length === 0
+                ? `0 of ${project.metrics.trackedMetrics.length} metrics selected`
+                : displayMetrics.length === project.metrics.trackedMetrics.length
                   ? "All metrics selected"
-                  : `${form.watch("displayMetrics").length} of ${project.metrics.trackedMetrics.length} metrics selected`}
-              </span>
-              <ChevronDown className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent className="w-64">
-            <DropdownMenuItem
-              onClick={() => {
-                form.setValue("displayMetrics", project.metrics.trackedMetrics.map(trackedToDisplayKey));
-              }}
-              data-testid="menu-select-all-metrics"
-            >
-              <Check className="h-4 w-4 mr-2" />
-              Select All
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onClick={() => {
-                form.setValue("displayMetrics", []);
-              }}
-              data-testid="menu-clear-all-metrics"
-            >
-              Clear All
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            {project.metrics.trackedMetrics.map((metric) => {
-              const checked = isExplicitlyInDisplayList(
-                { name: metric.name, label: metric.label },
-                form.watch("displayMetrics")
-              );
-              return (
-                <DropdownMenuCheckboxItem
-                  key={projectMetricKeyString(metric)}
-                  checked={checked}
-                  onCheckedChange={(next) => {
-                    const current = form.getValues("displayMetrics");
-                    if (next) {
-                      const key = trackedToDisplayKey(metric);
-                      if (!isExplicitlyInDisplayList({ name: metric.name, label: metric.label }, current)) {
-                        form.setValue("displayMetrics", [...current, key]);
-                      }
-                    } else {
-                      form.setValue("displayMetrics", removeFromDisplayList(current, metric));
+                  : `${displayMetrics.length} of ${project.metrics.trackedMetrics.length} metrics selected`}
+            </span>
+            <ChevronDown className="h-4 w-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent className="w-64">
+          <DropdownMenuItem
+            onClick={() => {
+              setDisplayMetrics(project.metrics.trackedMetrics.map(trackedToDisplayKey));
+            }}
+            data-testid="menu-select-all-metrics"
+          >
+            <Check className="h-4 w-4 mr-2" />
+            Select All
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onClick={() => {
+              setDisplayMetrics([]);
+            }}
+            data-testid="menu-clear-all-metrics"
+          >
+            Clear All
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          {project.metrics.trackedMetrics.map((metric) => {
+            const checked = isExplicitlyInDisplayList(
+              { name: metric.name, label: metric.label },
+              displayMetrics
+            );
+            return (
+              <DropdownMenuCheckboxItem
+                key={projectMetricKeyString(metric)}
+                checked={checked}
+                onCheckedChange={(next) => {
+                  if (next) {
+                    const key = trackedToDisplayKey(metric);
+                    if (!isExplicitlyInDisplayList({ name: metric.name, label: metric.label }, displayMetrics)) {
+                      setDisplayMetrics((prev) => [...prev, key]);
                     }
-                  }}
-                  data-testid={`menu-metric-${projectMetricKeyString(metric).replace(/[^a-zA-Z0-9-_]/g, "-")}`}
-                >
-                  <span className="flex items-center gap-2">
-                    {formatMetricLabel(metric.name, metric.label ?? null)}
-                    {metric.direction === "maximize" ? (
-                      <TrendingUp className="h-3 w-3 text-green-500" />
-                    ) : (
-                      <TrendingDown className="h-3 w-3 text-red-500" />
-                    )}
-                  </span>
-                </DropdownMenuCheckboxItem>
-              );
-            })}
-          </DropdownMenuContent>
-        </DropdownMenu>
+                  } else {
+                    setDisplayMetrics((prev) => removeFromDisplayList(prev, metric));
+                  }
+                }}
+                data-testid={`menu-metric-${projectMetricKeyString(metric).replace(/[^a-zA-Z0-9-_]/g, "-")}`}
+              >
+                <span className="flex items-center gap-2">
+                  {formatMetricLabel(metric.name, metric.label ?? null)}
+                  {metric.direction === "maximize" ? (
+                    <TrendingUp className="h-3 w-3 text-green-500" />
+                  ) : (
+                    <TrendingDown className="h-3 w-3 text-red-500" />
+                  )}
+                </span>
+              </DropdownMenuCheckboxItem>
+            );
+          })}
+        </DropdownMenuContent>
+      </DropdownMenu>
 
-        {form.watch("displayMetrics").length > 0 && (
-          <div className="flex flex-wrap gap-1">
-            {form.watch("displayMetrics").map((entry) => {
-              const label =
-                typeof entry === "string" ? entry : formatMetricLabel(entry.name, entry.label ?? null);
-              return (
-                <Badge key={typeof entry === "string" ? entry : projectMetricKeyString(entry)} variant="secondary" className="text-xs">
-                  {label}
-                </Badge>
-              );
-            })}
-          </div>
-        )}
+      {displayMetrics.length > 0 && (
+        <div className="flex flex-wrap gap-1">
+          {displayMetrics.map((entry) => {
+            const label =
+              typeof entry === "string" ? entry : formatMetricLabel(entry.name, entry.label ?? null);
+            return (
+              <Badge key={typeof entry === "string" ? entry : projectMetricKeyString(entry)} variant="secondary" className="text-xs">
+                {label}
+              </Badge>
+            );
+          })}
+        </div>
+      )}
 
-        <Button
-          onClick={form.handleSubmit(onSubmit)}
-          disabled={isPending}
-          className="w-full"
-          data-testid="button-save-display-metrics"
-        >
-          Save Display Settings
-        </Button>
-      </form>
-    </Form>
+      <Button
+        type="button"
+        onClick={() => onSubmit(displayMetrics)}
+        disabled={isPending}
+        className="w-full"
+        data-testid="button-save-display-metrics"
+      >
+        Save Display Settings
+      </Button>
+    </div>
   );
 }

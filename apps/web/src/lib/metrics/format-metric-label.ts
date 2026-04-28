@@ -1,4 +1,4 @@
-import type { ProjectDisplayMetric, ProjectMetric, ProjectMetrics } from "@/domain/projects/types";
+import type { ProjectDisplayMetric, ProjectMetric } from "@/domain/projects/types";
 
 /**
  * Renders a metric for UI: unlabeled → name only; with label → `name:label`.
@@ -70,16 +70,6 @@ export function trackedToDisplayKey(m: ProjectMetric): ProjectDisplayMetric {
     return m.name;
   }
   return { name: m.name, label: m.label };
-}
-
-/** Expand API “empty display” into explicit keys for the settings form (checkbox state). */
-export function expandEmptyDisplayMetricsForForm(metrics: ProjectMetrics): ProjectDisplayMetric[] {
-  const { displayMetrics, trackedMetrics } = metrics;
-  if (trackedMetrics.length === 0) return displayMetrics;
-  if (displayMetrics.length === 0) {
-    return trackedMetrics.map(trackedToDisplayKey);
-  }
-  return displayMetrics;
 }
 
 /** Normalize form values before PATCH: empty = none; “all selected” stored as explicit full list. */

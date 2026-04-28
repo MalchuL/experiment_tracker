@@ -112,7 +112,7 @@ function ExperimentNode({ data }: { data: ExperimentNodeData }) {
 
         {data.metrics.length > 0 && (
           <div className="space-y-0.5 mt-2 border-t pt-1">
-            {data.metrics.slice(0, 3).map((metric) => (
+            {data.metrics.map((metric) => (
               <div
                 key={projectMetricKeyString({ name: metric.name, label: metric.label })}
                 className="flex items-center justify-between text-xs"
