@@ -69,3 +69,15 @@ class TestMetricUpsertDTO:
         data["extra"] = "nope"
         with pytest.raises(ValidationError):
             converter.dict_with_json_case_to_dto(data)
+
+    def test_metric_upsert_empty_label_string_becomes_none(self):
+        """API may send label: '' for unlabeled; store/query as NULL like None."""
+        data = {
+            "experimentId": "223e4567-e89b-12d3-a456-426614174000",
+            "name": "loss",
+            "value": 1.23,
+            "label": "",
+        }
+        converter = DtoConverter[MetricUpsertDTO](MetricUpsertDTO)
+        dto = converter.dict_with_json_case_to_dto(data)
+        assert dto.label is None

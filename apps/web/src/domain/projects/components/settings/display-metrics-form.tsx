@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/components/ui/button";
@@ -17,8 +18,9 @@ import { settingsSchema, type SettingsFormData } from "../../schemas/settings";
 import { type Project } from "../../types";
 import { Eye, ChevronDown, Check, TrendingUp, TrendingDown } from "lucide-react";
 import {
+  expandEmptyDisplayMetricsForForm,
   formatMetricLabel,
-  isTrackedInDisplayList,
+  isExplicitlyInDisplayList,
   removeFromDisplayList,
   projectMetricKeyString,
   trackedToDisplayKey,
@@ -31,15 +33,20 @@ interface DisplayMetricsFormProps {
 }
 
 export function DisplayMetricsForm({ project, onSubmit, isPending }: DisplayMetricsFormProps) {
+  const expandedDisplayMetrics = useMemo(
+    () => expandEmptyDisplayMetricsForForm(project.metrics),
+    [project.metrics]
+  );
+
   const form = useForm<SettingsFormData>({
     resolver: zodResolver(settingsSchema),
     defaultValues: {
       namingPattern: "{num}_from_{parent}_{change}",
-      displayMetrics: project?.metrics?.displayMetrics || [],
+      displayMetrics: expandedDisplayMetrics,
     },
     values: {
       namingPattern: "{num}_from_{parent}_{change}",
-      displayMetrics: project?.metrics?.displayMetrics || [],
+      displayMetrics: expandedDisplayMetrics,
     },
   });
 
@@ -60,7 +67,7 @@ export function DisplayMetricsForm({ project, onSubmit, isPending }: DisplayMetr
               <span className="flex items-center gap-2">
                 <Eye className="h-4 w-4" />
                 {form.watch("displayMetrics").length === 0
-                  ? "Select metrics to display…"
+                  ? `0 of ${project.metrics.trackedMetrics.length} metrics selected`
                   : form.watch("displayMetrics").length === project.metrics.trackedMetrics.length
                   ? "All metrics selected"
                   : `${form.watch("displayMetrics").length} of ${project.metrics.trackedMetrics.length} metrics selected`}
@@ -88,7 +95,7 @@ export function DisplayMetricsForm({ project, onSubmit, isPending }: DisplayMetr
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             {project.metrics.trackedMetrics.map((metric) => {
-              const checked = isTrackedInDisplayList(
+              const checked = isExplicitlyInDisplayList(
                 { name: metric.name, label: metric.label },
                 form.watch("displayMetrics")
               );
@@ -100,7 +107,7 @@ export function DisplayMetricsForm({ project, onSubmit, isPending }: DisplayMetr
                     const current = form.getValues("displayMetrics");
                     if (next) {
                       const key = trackedToDisplayKey(metric);
-                      if (!isTrackedInDisplayList({ name: metric.name, label: metric.label }, current)) {
+                      if (!isExplicitlyInDisplayList({ name: metric.name, label: metric.label }, current)) {
                         form.setValue("displayMetrics", [...current, key]);
                       }
                     } else {

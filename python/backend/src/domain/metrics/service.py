@@ -39,6 +39,13 @@ class MetricService:
         self.permission_checker = permission_checker
         self.metric_mapper = MetricMapper()
 
+    @staticmethod
+    def _normalize_upsert_dto_label(data: MetricUpsertDTO) -> MetricUpsertDTO:
+        """Treat empty label like None (validators skipped by model_construct / internal callers)."""
+        if data.label != "":
+            return data
+        return data.model_copy(update={"label": None})
+
     async def _assert_can_view_metrics(
         self, user: UserProtocol, project_ids: Iterable[UUID_TYPE]
     ) -> None:
@@ -76,6 +83,7 @@ class MetricService:
         )
 
     async def upsert_metric(self, user: UserProtocol, data: MetricUpsertDTO) -> MetricDTO:
+        data = self._normalize_upsert_dto_label(data)
         try:
             experiment = await self.experiment_repository.get_by_id(data.experiment_id)
         except DBNotFoundError as exc:

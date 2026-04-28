@@ -35,11 +35,11 @@ export function NamingPatternForm({ project, onSubmit, isPending }: NamingPatter
     resolver: zodResolver(settingsSchema),
     defaultValues: {
       namingPattern: namingPatternValue,
-      displayMetrics: project?.metrics?.displayMetrics || [],
+      displayMetrics: project?.metrics?.displayMetrics ?? [],
     },
     values: {
       namingPattern: namingPatternValue,
-      displayMetrics: project?.metrics?.displayMetrics || [],
+      displayMetrics: project?.metrics?.displayMetrics ?? [],
     },
   });
 

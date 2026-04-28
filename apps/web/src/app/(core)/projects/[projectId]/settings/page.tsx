@@ -9,7 +9,7 @@ import { useProject } from "@/domain/projects/hooks/project-hook";
 import { BasicInfoForm, DisplayMetricsForm, MetricsManagement } from "@/domain/projects/components";
 import { BasicInfoFormData, SettingsFormData } from "@/domain/projects/schemas";
 import { ProjectMetric, ProjectSettingType } from "@/domain/projects/types";
-import { displayMetricKeyEquals } from "@/lib/metrics/format-metric-label";
+import { displayMetricKeyEquals, displayMetricsForApiSave } from "@/lib/metrics/format-metric-label";
 import { useToast } from "@/lib/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { QUERY_KEYS } from "@/lib/constants/query-keys";
@@ -128,7 +128,7 @@ export default function ProjectSettings() {
         await updateProject({
           metrics: {
             ...project.metrics,
-            displayMetrics: data.displayMetrics,
+            displayMetrics: displayMetricsForApiSave(project.metrics.trackedMetrics, data.displayMetrics),
           },
         });
         handleUpdateSuccess();

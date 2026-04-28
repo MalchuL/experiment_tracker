@@ -1,4 +1,4 @@
-import type { ProjectDisplayMetric, ProjectMetric } from "@/domain/projects/types";
+import type { ProjectDisplayMetric, ProjectMetric, ProjectMetrics } from "@/domain/projects/types";
 
 /**
  * Renders a metric for UI: unlabeled → name only; with label → `name:label`.
@@ -27,11 +27,14 @@ export function normalizeDisplayMetric(
   return { name: d.name, label: d.label ?? null };
 }
 
-export function isTrackedInDisplayList(
+/**
+ * Whether `tracked` appears in `display` (membership only).
+ * Use this for settings UI; empty `display` means no metric is selected.
+ */
+export function isExplicitlyInDisplayList(
   tracked: { name: string; label?: string | null },
   display: (string | { name: string; label?: string | null })[]
 ): boolean {
-  if (display.length === 0) return true;
   return display.some((d) => {
     if (typeof d === "string") {
       return d === tracked.name;
@@ -48,18 +51,17 @@ export function projectMetricKeyString(m: { name: string; label?: string | null 
   return `${m.name}::${m.label ?? ""}`;
 }
 
-/** Tracked columns shown on Experiments / Kanban / DAG from project settings. */
+/** Tracked columns shown on Experiments / Kanban / DAG. Empty `display` ⇒ none. */
 export function getDisplayedTrackedMetrics(
   tracked: ProjectMetric[],
   display: ProjectDisplayMetric[]
 ): ProjectMetric[] {
   if (display.length === 0) {
-    return tracked;
+    return [];
   }
-  return tracked.filter((m) => isTrackedInDisplayList(
-    { name: m.name, label: m.label },
-    display
-  ));
+  return tracked.filter((m) =>
+    isExplicitlyInDisplayList({ name: m.name, label: m.label }, display)
+  );
 }
 
 /** How a tracked row is stored in `displayMetrics` (legacy string = name only). */
@@ -68,6 +70,32 @@ export function trackedToDisplayKey(m: ProjectMetric): ProjectDisplayMetric {
     return m.name;
   }
   return { name: m.name, label: m.label };
+}
+
+/** Expand API “empty display” into explicit keys for the settings form (checkbox state). */
+export function expandEmptyDisplayMetricsForForm(metrics: ProjectMetrics): ProjectDisplayMetric[] {
+  const { displayMetrics, trackedMetrics } = metrics;
+  if (trackedMetrics.length === 0) return displayMetrics;
+  if (displayMetrics.length === 0) {
+    return trackedMetrics.map(trackedToDisplayKey);
+  }
+  return displayMetrics;
+}
+
+/** Normalize form values before PATCH: empty = none; “all selected” stored as explicit full list. */
+export function displayMetricsForApiSave(
+  tracked: ProjectMetric[],
+  formDisplay: ProjectDisplayMetric[]
+): ProjectDisplayMetric[] {
+  if (formDisplay.length === 0) return [];
+  if (
+    tracked.length > 0 &&
+    formDisplay.length === tracked.length &&
+    tracked.every((m) => isExplicitlyInDisplayList({ name: m.name, label: m.label }, formDisplay))
+  ) {
+    return tracked.map(trackedToDisplayKey);
+  }
+  return formDisplay;
 }
 
 export function removeFromDisplayList(

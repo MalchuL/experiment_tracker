@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,11 +12,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
 import { Project, ProjectMetric } from "../../types";
 import { Plus, Trash2, TrendingUp, TrendingDown } from "lucide-react";
 import { useToast } from "@/lib/hooks/use-toast";
@@ -48,13 +43,15 @@ export function MetricsManagement({
   const [newMetricName, setNewMetricName] = useState("");
   const [newMetricLabel, setNewMetricLabel] = useState("");
   const [newMetricDirection, setNewMetricDirection] = useState<"maximize" | "minimize">("maximize");
-  const [metricPopoverOpen, setMetricPopoverOpen] = useState(false);
+  const [metricSuggestionsOpen, setMetricSuggestionsOpen] = useState(false);
+  const metricNameComboRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
+
+  const openMetricSuggestions = () => setMetricSuggestionsOpen(true);
 
   const { data: uniqueDimensions } = useQuery({
     queryKey: [QUERY_KEYS.METRICS.UNIQUE_DIMENSIONS(projectId)],
     queryFn: () => projectsService.getUniqueMetricDimensions(projectId),
-    enabled: metricPopoverOpen,
     staleTime: 5 * 60 * 1000,
   });
 
@@ -86,8 +83,28 @@ export function MetricsManagement({
     onAddMetric(newMetric);
     setNewMetricName("");
     setNewMetricLabel("");
-    setMetricPopoverOpen(false);
+    setMetricSuggestionsOpen(false);
   };
+
+  useEffect(() => {
+    if (!metricSuggestionsOpen) return;
+    const onPointerDown = (e: PointerEvent) => {
+      const root = metricNameComboRef.current;
+      if (!root) return;
+      const t = e.target;
+      if (t instanceof Node && root.contains(t)) return;
+      setMetricSuggestionsOpen(false);
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMetricSuggestionsOpen(false);
+    };
+    document.addEventListener("pointerdown", onPointerDown, true);
+    document.addEventListener("keydown", onKeyDown, true);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown, true);
+      document.removeEventListener("keydown", onKeyDown, true);
+    };
+  }, [metricSuggestionsOpen]);
 
   const searchLower = `${newMetricName} ${newMetricLabel}`.toLowerCase();
   const dimensionItems = uniqueDimensions?.items ?? [];
@@ -102,64 +119,62 @@ export function MetricsManagement({
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap gap-2 items-start">
-        <Popover open={metricPopoverOpen} onOpenChange={setMetricPopoverOpen}>
-          <PopoverTrigger asChild>
-            <div className="flex-1 min-w-[200px] relative">
-              <Input
-                placeholder="Metric name (e.g. loss)"
-                value={newMetricName}
-                onChange={(e) => {
-                  setNewMetricName(e.target.value);
-                  if (e.target.value.length > 0) {
-                    setMetricPopoverOpen(true);
-                  }
-                }}
-                onFocus={() => {
-                  setMetricPopoverOpen(true);
-                }}
-                className="w-full"
-                data-testid="input-new-metric"
-              />
+        <div ref={metricNameComboRef} className="relative flex-1 min-w-[200px]">
+          <Input
+            placeholder="Metric name (e.g. loss)"
+            value={newMetricName}
+            aria-expanded={metricSuggestionsOpen}
+            aria-haspopup="listbox"
+            autoComplete="off"
+            onChange={(e) => {
+              setNewMetricName(e.target.value);
+              openMetricSuggestions();
+            }}
+            onClick={openMetricSuggestions}
+            onFocus={openMetricSuggestions}
+            className="w-full"
+            data-testid="input-new-metric"
+          />
+          {metricSuggestionsOpen ? (
+            <div
+              className="absolute left-0 right-0 top-full z-50 mt-1 min-w-[min(100vw-2rem,320px)] overflow-hidden rounded-md border border-border bg-popover p-0 text-popover-foreground shadow-md"
+              role="listbox"
+            >
+              <div className="max-h-64 overflow-y-auto p-2 text-sm">
+                {suggested.length > 0 ? (
+                  <div className="space-y-0.5">
+                    <p className="px-2 py-1 text-xs font-medium text-muted-foreground">Observed in project</p>
+                    {suggested.slice(0, 20).map((dim) => (
+                      <button
+                        key={`${dim.name}::${dim.label ?? ""}`}
+                        type="button"
+                        role="option"
+                        className="w-full rounded-sm px-2 py-1.5 text-left hover:bg-accent"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => {
+                          setNewMetricName(dim.name);
+                          setNewMetricLabel(dim.label ?? "");
+                          setMetricSuggestionsOpen(false);
+                        }}
+                      >
+                        {formatMetricLabel(dim.name, dim.label)}
+                      </button>
+                    ))}
+                  </div>
+                ) : newMetricName.trim() ? (
+                  <p className="p-2 text-muted-foreground">
+                    No matches. Press Add to track &quot;
+                    {formatMetricLabel(newMetricName.trim(), newMetricLabel.trim() || null)}&quot;.
+                  </p>
+                ) : (
+                  <p className="p-2 text-muted-foreground">
+                    Type a metric name (and optional label), or open this list after logging metrics.
+                  </p>
+                )}
+              </div>
             </div>
-          </PopoverTrigger>
-          <PopoverContent
-            className="p-0 w-[min(100vw-2rem,320px)]"
-            align="start"
-            onOpenAutoFocus={(e) => e.preventDefault()}
-          >
-            <div className="max-h-64 overflow-y-auto p-2 text-sm">
-              {suggested.length > 0 ? (
-                <div className="space-y-0.5" role="list">
-                  <p className="px-2 py-1 text-xs font-medium text-muted-foreground">Observed in project</p>
-                  {suggested.slice(0, 20).map((dim) => (
-                    <button
-                      key={`${dim.name}::${dim.label ?? ""}`}
-                      type="button"
-                      role="listitem"
-                      className="w-full text-left rounded-sm px-2 py-1.5 hover:bg-accent"
-                      onClick={() => {
-                        setNewMetricName(dim.name);
-                        setNewMetricLabel(dim.label ?? "");
-                        setMetricPopoverOpen(false);
-                      }}
-                    >
-                      {formatMetricLabel(dim.name, dim.label)}
-                    </button>
-                  ))}
-                </div>
-              ) : newMetricName.trim() ? (
-                <p className="p-2 text-muted-foreground">
-                  No matches. Press Add to track &quot;
-                  {formatMetricLabel(newMetricName.trim(), newMetricLabel.trim() || null)}&quot;.
-                </p>
-              ) : (
-                <p className="p-2 text-muted-foreground">
-                  Type a metric name (and optional label), or open this list after logging metrics.
-                </p>
-              )}
-            </div>
-          </PopoverContent>
-        </Popover>
+          ) : null}
+        </div>
         <Input
           className="w-[140px]"
           placeholder="Label (opt.)"

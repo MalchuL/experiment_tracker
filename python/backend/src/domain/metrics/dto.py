@@ -1,6 +1,5 @@
 from datetime import datetime
-from pydantic import BaseModel, Field
-from models import MetricDirection
+from pydantic import BaseModel, Field, field_validator
 
 from lib.dto_config import model_config
 from lib.pagination import PaginatedResponse
@@ -13,6 +12,14 @@ class MetricBase(BaseModel):
     value: float
     label: str | None = None
     model_config = model_config()
+
+    @field_validator("label", mode="before")
+    @classmethod
+    def empty_string_label_is_none(cls, v: object) -> str | None:
+        """Match DB semantics: unlabeled metrics use NULL, not empty string."""
+        if v == "":
+            return None
+        return v  # type: ignore[return-value]
 
 
 class MetricUpsertDTO(MetricBase):

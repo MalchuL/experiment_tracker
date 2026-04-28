@@ -169,6 +169,33 @@ class TestMetricService:
         assert created.value == 1.23
         assert created.label == "val"
 
+    async def test_upsert_metric_empty_label_construct_stored_as_unlabeled(
+        self,
+        metric_service: MetricService,
+        db_session: AsyncSession,
+        test_user: User,
+    ) -> None:
+        """model_construct skips DTO validators; service must still coerce '' → None."""
+        project = await _create_project(db_session, test_user)
+        experiment = await _create_experiment(db_session, project, "Experiment")
+        permission_service = PermissionService(db_session, auto_commit=True)
+        await permission_service.add_permission(
+            user_id=test_user.id,
+            action=ProjectActions.CREATE_METRIC,
+            allowed=True,
+            project_id=project.id,
+        )
+        dto = MetricUpsertDTO.model_construct(
+            experiment_id=experiment.id,
+            name="loss",
+            value=1.23,
+            label="",
+        )
+
+        created = await metric_service.upsert_metric(test_user, dto)
+
+        assert created.label is None
+
     async def test_upsert_metric_update_branch_requires_edit(
         self,
         metric_service: MetricService,

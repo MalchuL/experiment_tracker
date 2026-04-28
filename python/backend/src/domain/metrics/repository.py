@@ -31,8 +31,8 @@ class MetricRepository(BaseRepository[Metric]):
         )
 
     def _label_clause(self, label: str | None):
-        """Match metrics.label: None means SQL NULL; otherwise exact string."""
-        if label is None:
+        """Match metrics.label: None or '' means SQL NULL; otherwise exact string."""
+        if label is None or label == "":
             return Metric.label.is_(None)
         return Metric.label == label
 

@@ -43,7 +43,6 @@ import {
   displayMetricKeyEquals,
   formatMetricLabel,
   getDisplayedTrackedMetrics,
-  normalizeDisplayMetric,
   projectMetricKeyString,
 } from "@/lib/metrics/format-metric-label";
 
@@ -216,15 +215,16 @@ export default function DAGView() {
       columns.get(depth)!.push(exp.id);
     });
 
-    const displayList = project?.metrics?.displayMetrics || [];
     const projectMetrics = project?.metrics?.trackedMetrics || [];
-    const dimensionsToDisplay =
-      displayList.length > 0
-        ? displayList.map(normalizeDisplayMetric)
-        : projectMetrics.slice(0, 2).map((m) => ({
-            name: m.name,
-            label: m.label ?? null,
-          }));
+    const dimensionsToDisplay = !project?.metrics
+      ? []
+      : getDisplayedTrackedMetrics(
+          project.metrics.trackedMetrics,
+          project.metrics.displayMetrics
+        ).map((m) => ({
+          name: m.name,
+          label: m.label ?? null,
+        }));
 
     const nodes: Node<ExperimentNodeData>[] = experiments.map((exp) => {
       const depth = depths.get(exp.id) || 0;
