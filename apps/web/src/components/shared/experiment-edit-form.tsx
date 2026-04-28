@@ -28,16 +28,25 @@ const experimentEditSchema = z.object({
 
 type ExperimentEditFormData = z.infer<typeof experimentEditSchema>;
 
+export type ExperimentEditSavePayload = ExperimentEditFormData & {
+  parentExperimentId?: string | null;
+};
+
 interface ExperimentEditFormProps {
   experiment: Experiment;
-  onSave: (data: ExperimentEditFormData) => void;
+  onSave: (data: ExperimentEditSavePayload) => void;
   isSaving?: boolean;
+  /** When set together with `savedParentExperimentId`, parent is included in Save and can show the button when only parent differs. */
+  draftParentExperimentId?: string | null;
+  savedParentExperimentId?: string | null;
 }
 
 export function ExperimentEditForm({
   experiment,
   onSave,
   isSaving = false,
+  draftParentExperimentId,
+  savedParentExperimentId,
 }: ExperimentEditFormProps) {
   const form = useForm<ExperimentEditFormData>({
     resolver: zodResolver(experimentEditSchema as any),
@@ -58,10 +67,26 @@ export function ExperimentEditForm({
   }, [experiment.id, experiment.name, experiment.description, experiment.color, form]);
 
   const onSubmit = (data: ExperimentEditFormData) => {
-    onSave(data);
+    const includeParent =
+      draftParentExperimentId !== undefined &&
+      savedParentExperimentId !== undefined;
+    if (includeParent) {
+      onSave({
+        ...data,
+        parentExperimentId: draftParentExperimentId ?? null,
+      });
+    } else {
+      onSave(data);
+    }
   };
 
-  const hasChanges = form.formState.isDirty;
+  const isParentDirty =
+    draftParentExperimentId !== undefined &&
+    savedParentExperimentId !== undefined
+      ? (draftParentExperimentId ?? null) !== (savedParentExperimentId ?? null)
+      : false;
+
+  const hasChanges = form.formState.isDirty || isParentDirty;
 
   return (
     <Form {...form}>

@@ -221,7 +221,7 @@ export function MetricsManagement({
                 {metric.direction === "maximize" ? (
                   <TrendingUp className="h-4 w-4 flex-shrink-0 text-green-500" />
                 ) : (
-                  <TrendingDown className="h-4 w-4 flex-shrink-0 text-red-500" />
+                  <TrendingDown className="h-4 w-4 flex-shrink-0 text-green-500" />
                 )}
               </div>
               <div className="flex items-center gap-2">

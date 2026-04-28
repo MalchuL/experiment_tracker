@@ -108,7 +108,7 @@ export function DisplayMetricsForm({ project, onSubmit, isPending }: DisplayMetr
                   {metric.direction === "maximize" ? (
                     <TrendingUp className="h-3 w-3 text-green-500" />
                   ) : (
-                    <TrendingDown className="h-3 w-3 text-red-500" />
+                    <TrendingDown className="h-3 w-3 text-green-500" />
                   )}
                 </span>
               </DropdownMenuCheckboxItem>

@@ -18,6 +18,8 @@ export interface UseExperimentsResult {
 export interface UseExperimentsQueryOptions {
     refetchInterval?: number | false;
     paginationMode?: "auto" | "scroll";
+    /** When false, the query does not run (e.g. open a menu first). Default true. */
+    enabled?: boolean;
 }
 
 export function useExperiments(
@@ -49,7 +51,7 @@ export function useExperiments(
             }
             return allPages.reduce((total, page) => total + page.data.length, 0);
         },
-        enabled: !!projectId,
+        enabled: !!projectId && (options?.enabled ?? true),
         staleTime: 30000, // 30 seconds
         refetchInterval: options?.refetchInterval,
     });

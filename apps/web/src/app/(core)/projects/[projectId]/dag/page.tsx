@@ -45,6 +45,7 @@ import {
   getDisplayedTrackedMetrics,
   projectMetricKeyString,
 } from "@/lib/metrics/format-metric-label";
+import { cn } from "@/lib/utils";
 
 interface MetricComparison {
   name: string;
@@ -64,6 +65,46 @@ interface ExperimentNodeData {
   progress: number;
   metrics: MetricComparison[];
   [key: string]: unknown;
+}
+
+function formatMetricDiff(value: number, parentValue: number): string {
+  const delta = value - parentValue;
+  if (Math.abs(delta) < 1e-10) return "0";
+  const sign = delta > 0 ? "+" : "";
+  return `${sign}${delta.toFixed(3)}`;
+}
+
+function outcomeColorClass(isBetter: boolean | null): string {
+  return isBetter === true
+    ? "text-green-500"
+    : isBetter === false
+      ? "text-red-500"
+      : "text-muted-foreground";
+}
+
+/** Arrow = numerical change vs parent; color = better (green) vs worse (red). */
+function DagMetricDeltaSuffix({ metric }: { metric: MetricComparison }) {
+  if (metric.value === null || metric.parentValue === null) return null;
+  const d = metric.value - metric.parentValue;
+  const tie = Math.abs(d) < 1e-10;
+  const ArrowIcon = tie ? null : d > 0 ? TrendingUp : TrendingDown;
+  const oc = outcomeColorClass(metric.isBetter);
+
+  return (
+    <>
+      {ArrowIcon ? (
+        <ArrowIcon className={cn("w-3 h-3 shrink-0", oc)} />
+      ) : null}
+      <span
+        className={cn(
+          "font-mono text-[10px] tabular-nums leading-none",
+          oc
+        )}
+      >
+        {formatMetricDiff(metric.value, metric.parentValue)}
+      </span>
+    </>
+  );
 }
 
 function ExperimentNode({ data }: { data: ExperimentNodeData }) {
@@ -120,14 +161,11 @@ function ExperimentNode({ data }: { data: ExperimentNodeData }) {
                 <span className="text-muted-foreground truncate">
                   {formatMetricLabel(metric.name, metric.label)}
                 </span>
-                <div className="flex items-center gap-1">
-                  <span className="font-mono">{formatValue(metric.value)}</span>
-                  {metric.isBetter !== null &&
-                    (metric.isBetter ? (
-                      <TrendingUp className="w-3 h-3 text-green-500" />
-                    ) : (
-                      <TrendingDown className="w-3 h-3 text-red-500" />
-                    ))}
+                <div className="flex items-center gap-1 flex-shrink-0">
+                  <span className="font-mono tabular-nums">
+                    {formatValue(metric.value)}
+                  </span>
+                  <DagMetricDeltaSuffix metric={metric} />
                 </div>
               </div>
             ))}
@@ -251,7 +289,9 @@ export default function DAGView() {
 
         let isBetter: boolean | null = null;
         if (value !== null && parentValue !== null) {
-          if (direction === "maximize") {
+          if (Object.is(value, parentValue) || Math.abs(value - parentValue) < 1e-10) {
+            isBetter = null;
+          } else if (direction === "maximize") {
             isBetter = value > parentValue;
           } else {
             isBetter = value < parentValue;
