@@ -1,6 +1,6 @@
 from enum import Enum
 from uuid import UUID
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from typing import Optional, List, Any
 from datetime import datetime
@@ -29,15 +29,36 @@ class ProjectMetricDTO(BaseModel):
     name: str
     direction: MetricDirection
     aggregation: MetricAggregation
+    label: str | None = None
+
+    model_config = model_config()
+
+
+class ProjectMetricKeyDTO(BaseModel):
+    name: str
+    label: str | None = None
 
     model_config = model_config()
 
 
 class ProjectMetricsDTO(BaseModel):
     tracked_metrics: List[ProjectMetricDTO] = []
-    display_metrics: List[str] = []
+    display_metrics: List[ProjectMetricKeyDTO] = []
 
     model_config = model_config()
+
+    @field_validator("display_metrics", mode="before")
+    @classmethod
+    def _coerce_display_metrics_legacy(cls, v: object) -> object:
+        if not isinstance(v, list):
+            return v
+        out: list[object] = []
+        for item in v:
+            if isinstance(item, str):
+                out.append({"name": item, "label": None})
+            else:
+                out.append(item)
+        return out
 
 
 class ProjectSettingType(str, Enum):

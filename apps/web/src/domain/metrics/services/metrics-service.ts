@@ -6,26 +6,31 @@ import type { PaginatedResponse } from "@/lib/types/pagination";
 import { Metric } from "../types";
 
 export interface MetricsService {
-    getByExperiment: (experimentId: string) => Promise<Metric[]>;
+  getByExperiment: (experimentId: string) => Promise<Metric[]>;
+  delete: (metricId: string) => Promise<void>;
 }
 
 export const metricsService = {
-    getByExperiment: async (experimentId: string) => {
-        const metrics: Metric[] = [];
-        let offset = 0;
+  delete: async (metricId: string): Promise<void> => {
+    await serviceClients.api.delete(API_ROUTES.METRICS.DELETE(metricId));
+  },
 
-        while (true) {
-            const response = await serviceClients.api.get<PaginatedResponse<Metric>>(
-                appendPaginationParams(API_ROUTES.EXPERIMENTS.BY_ID.METRICS(experimentId), {
-                    limit: DEFAULT_PAGE_SIZE,
-                    offset,
-                })
-            );
-            metrics.push(...response.data.data);
-            if (!response.data.hasNext) {
-                return metrics;
-            }
-            offset += response.data.data.length;
-        }
-    },
+  getByExperiment: async (experimentId: string) => {
+    const metrics: Metric[] = [];
+    let offset = 0;
+
+    while (true) {
+      const response = await serviceClients.api.get<PaginatedResponse<Metric>>(
+        appendPaginationParams(API_ROUTES.EXPERIMENTS.BY_ID.METRICS(experimentId), {
+          limit: DEFAULT_PAGE_SIZE,
+          offset,
+        })
+      );
+      metrics.push(...response.data.data);
+      if (!response.data.hasNext) {
+        return metrics;
+      }
+      offset += response.data.data.length;
+    }
+  },
 };

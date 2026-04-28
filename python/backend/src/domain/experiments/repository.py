@@ -3,6 +3,7 @@ from lib.db.base_repository import BaseRepository
 from lib.pagination import ListOptions, Page
 from lib.types import UUID_TYPE
 from models import Experiment
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from lib.protocols.user_protocol import UserProtocol
@@ -61,3 +62,15 @@ class ExperimentRepository(BaseRepository[Experiment]):
             Experiment.id.in_(experiment_ids),
         )
         return experiments
+
+    async def list_ordered_experiment_ids_for_project(
+        self, project_id: UUID_TYPE
+    ) -> List[UUID_TYPE]:
+        """Stable UI order: manual order, then created_at descending."""
+        stmt = (
+            select(Experiment.id)
+            .where(Experiment.project_id == project_id)
+            .order_by(Experiment.order.asc(), Experiment.created_at.desc())
+        )
+        res = await self.db.execute(stmt)
+        return [r[0] for r in res.all()]

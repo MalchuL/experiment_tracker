@@ -9,6 +9,7 @@ import { Experiment } from "../types";
 import { ProjectMetric } from "@/domain/projects/types";
 import { format } from "date-fns";
 import { Metric } from "@/domain/metrics/types";
+import { displayMetricKeyEquals, projectMetricKeyString } from "@/lib/metrics/format-metric-label";
 
 interface ExperimentTableRowProps {
     experiment: Experiment;
@@ -86,8 +87,15 @@ export function ExperimentTableRow({
                 {parentName || "-"}
             </TableCell>
             {projectMetrics?.map((metric) => (
-                <TableCell key={metric.name} className="text-right font-mono text-sm">
-                    {formatMetricValue(expMetrics?.find((m) => m.name === metric.name)?.value)}
+                <TableCell key={projectMetricKeyString(metric)} className="text-right font-mono text-sm">
+                    {formatMetricValue(
+                        expMetrics?.find((m) =>
+                            displayMetricKeyEquals(
+                                { name: m.name, label: m.label },
+                                { name: metric.name, label: metric.label ?? null }
+                            )
+                        )?.value
+                    )}
                 </TableCell>
             ))}
             <TableCell className="text-muted-foreground text-sm">

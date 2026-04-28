@@ -28,7 +28,7 @@ from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship, DeclarativeBase, Mapped, mapped_column
 from fastapi_users.db import SQLAlchemyBaseUserTableUUID
 from advanced_alchemy.base import UUIDBase as AdvancedUUIDBase
-from sqlalchemy import Index
+from sqlalchemy import Index, text
 
 
 class Base(DeclarativeBase):
@@ -294,6 +294,27 @@ class Hypothesis(UUIDBase):
 
 class Metric(UUIDBase):
     __tablename__ = "metrics"
+    __table_args__ = (
+        # Nullable `label` needs partial unique indexes: one row per (experiment, name) when
+        # unlabeled, and one per (experiment, name, label) when labeled.
+        Index(
+            "uq_metrics_experiment_name_label",
+            "experiment_id",
+            "name",
+            "label",
+            unique=True,
+            postgresql_where=text("label IS NOT NULL"),
+            sqlite_where=text("label IS NOT NULL"),
+        ),
+        Index(
+            "uq_metrics_experiment_name_unlabeled",
+            "experiment_id",
+            "name",
+            unique=True,
+            postgresql_where=text("label IS NULL"),
+            sqlite_where=text("label IS NULL"),
+        ),
+    )
 
     experiment_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
@@ -302,7 +323,6 @@ class Metric(UUIDBase):
     )
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     value: Mapped[float] = mapped_column(Float, nullable=False)
-    step: Mapped[int] = mapped_column(Integer, default=0)
     label: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
 

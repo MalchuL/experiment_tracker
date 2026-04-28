@@ -9,6 +9,7 @@ import { useProject } from "@/domain/projects/hooks/project-hook";
 import { BasicInfoForm, DisplayMetricsForm, MetricsManagement } from "@/domain/projects/components";
 import { BasicInfoFormData, SettingsFormData } from "@/domain/projects/schemas";
 import { ProjectMetric, ProjectSettingType } from "@/domain/projects/types";
+import { displayMetricKeyEquals } from "@/lib/metrics/format-metric-label";
 import { useToast } from "@/lib/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { QUERY_KEYS } from "@/lib/constants/query-keys";
@@ -160,17 +161,24 @@ export default function ProjectSettings() {
   );
 
   const handleRemoveMetric = useCallback(
-    (metricName: string) => {
+    (metric: ProjectMetric) => {
       if (!project) return;
+      const target = { name: metric.name, label: metric.label ?? null };
       updateProject(
         {
           metrics: {
             trackedMetrics: project.metrics.trackedMetrics.filter(
-              (m) => m.name !== metricName
+              (m) => !displayMetricKeyEquals({ name: m.name, label: m.label }, target)
             ),
-            displayMetrics: project.metrics.displayMetrics.filter(
-              (m) => m !== metricName
-            ),
+            displayMetrics: project.metrics.displayMetrics.filter((d) => {
+              if (typeof d === "string") {
+                if (metric.label != null && metric.label !== "") {
+                  return true;
+                }
+                return d !== metric.name;
+              }
+              return !displayMetricKeyEquals({ name: d.name, label: d.label }, target);
+            }),
           },
         },
         {
@@ -183,14 +191,16 @@ export default function ProjectSettings() {
   );
 
   const handleUpdateMetricDirection = useCallback(
-    (metricName: string, direction: "maximize" | "minimize") => {
+    (metric: ProjectMetric, direction: "maximize" | "minimize") => {
       if (!project) return;
       updateProject(
         {
           metrics: {
             ...project.metrics,
             trackedMetrics: project.metrics.trackedMetrics.map((m) =>
-              m.name === metricName ? { ...m, direction } : m
+              displayMetricKeyEquals({ name: m.name, label: m.label }, { name: metric.name, label: metric.label })
+                ? { ...m, direction }
+                : m
             ),
           },
         },
@@ -279,6 +289,7 @@ export default function ProjectSettings() {
           <CardContent>
             <MetricsManagement
               project={project}
+              projectId={projectId}
               onAddMetric={handleAddMetric}
               onRemoveMetric={handleRemoveMetric}
               onUpdateMetricDirection={handleUpdateMetricDirection}

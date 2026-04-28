@@ -14,6 +14,7 @@ import { ExperimentStatusType } from "@/domain/experiments/types";
 import { useToast } from "@/lib/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { REFRESH_EXPERIMENTS_LIST_INTERVAL } from "@/lib/constants/rates";
+import { getDisplayedTrackedMetrics } from "@/lib/metrics/format-metric-label";
 
 export default function Kanban() {
   const { project, isLoading: projectLoading } = useCurrentProject();
@@ -38,14 +39,12 @@ export default function Kanban() {
   });
   const { updateStatus } = useUpdateExperimentStatus(projectId);
   const { toast } = useToast();
-  // Filter metrics by displayMetrics setting
   const filteredMetrics = !project?.metrics
     ? []
-    : project.metrics.displayMetrics.length === 0
-      ? project.metrics.trackedMetrics
-      : project.metrics.trackedMetrics.filter((m) =>
-          project.metrics.displayMetrics.includes(m.name)
-        );
+    : getDisplayedTrackedMetrics(
+        project.metrics.trackedMetrics,
+        project.metrics.displayMetrics
+      );
 
   const handleStatusUpdate = useCallback(
     (experimentId: string, status: ExperimentStatusType) => {

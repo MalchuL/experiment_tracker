@@ -39,9 +39,17 @@ import {
 import { Button } from "@/components/ui/button";
 import { REFRESH_EXPERIMENTS_LIST_INTERVAL } from "@/lib/constants/rates";
 import { Metric } from "@/domain/metrics/types";
+import {
+  displayMetricKeyEquals,
+  formatMetricLabel,
+  getDisplayedTrackedMetrics,
+  normalizeDisplayMetric,
+  projectMetricKeyString,
+} from "@/lib/metrics/format-metric-label";
 
 interface MetricComparison {
   name: string;
+  label: string | null;
   value: number | null;
   parentValue: number | null;
   direction: "maximize" | "minimize";
@@ -107,11 +115,11 @@ function ExperimentNode({ data }: { data: ExperimentNodeData }) {
           <div className="space-y-0.5 mt-2 border-t pt-1">
             {data.metrics.slice(0, 3).map((metric) => (
               <div
-                key={metric.name}
+                key={projectMetricKeyString({ name: metric.name, label: metric.label })}
                 className="flex items-center justify-between text-xs"
               >
                 <span className="text-muted-foreground truncate">
-                  {metric.name}
+                  {formatMetricLabel(metric.name, metric.label)}
                 </span>
                 <div className="flex items-center gap-1">
                   <span className="font-mono">{formatValue(metric.value)}</span>
@@ -165,15 +173,16 @@ export default function DAGView() {
     refetchInterval: REFRESH_EXPERIMENTS_LIST_INTERVAL,
   });
 
-  // Filter metrics by displayMetrics setting
-  const filteredMetrics = useMemo(() => {
-    if (!project?.metrics) return [];
-    const displayMetrics = project.metrics.displayMetrics || [];
-    if (displayMetrics.length === 0) return project.metrics.trackedMetrics;
-    return project.metrics.trackedMetrics.filter((m) =>
-      displayMetrics.includes(m.name)
-    );
-  }, [project?.metrics]);
+  const filteredMetrics = useMemo(
+    () =>
+      !project?.metrics
+        ? []
+        : getDisplayedTrackedMetrics(
+            project.metrics.trackedMetrics,
+            project.metrics.displayMetrics
+          ),
+    [project?.metrics]
+  );
 
   const { initialNodes, initialEdges } = useMemo(() => {
     if (!experiments.length) return { initialNodes: [], initialEdges: [] };
@@ -207,8 +216,15 @@ export default function DAGView() {
       columns.get(depth)!.push(exp.id);
     });
 
-    const displayMetrics = project?.metrics?.displayMetrics || [];
+    const displayList = project?.metrics?.displayMetrics || [];
     const projectMetrics = project?.metrics?.trackedMetrics || [];
+    const dimensionsToDisplay =
+      displayList.length > 0
+        ? displayList.map(normalizeDisplayMetric)
+        : projectMetrics.slice(0, 2).map((m) => ({
+            name: m.name,
+            label: m.label ?? null,
+          }));
 
     const nodes: Node<ExperimentNodeData>[] = experiments.map((exp) => {
       const depth = depths.get(exp.id) || 0;
@@ -221,36 +237,36 @@ export default function DAGView() {
         ? aggregatedMetricsByExperiment?.[exp.parentExperimentId] || []
         : [];
 
-      const metricsToDisplay =
-        displayMetrics.length > 0
-          ? displayMetrics
-          : projectMetrics.slice(0, 2).map((m) => m.name);
+      const metrics: MetricComparison[] = dimensionsToDisplay.map((dim) => {
+        const pm = projectMetrics.find((m) =>
+          displayMetricKeyEquals({ name: m.name, label: m.label ?? null }, dim)
+        );
+        const value =
+          expMetrics?.find((m) => displayMetricKeyEquals({ name: m.name, label: m.label }, dim))
+            ?.value ?? null;
+        const parentValue =
+          parentMetrics?.find((m) => displayMetricKeyEquals({ name: m.name, label: m.label }, dim))
+            ?.value ?? null;
+        const direction = pm?.direction || "maximize";
 
-      const metrics: MetricComparison[] = metricsToDisplay.map(
-        (metricName) => {
-          const pm = projectMetrics.find((m) => m.name === metricName);
-          const value = expMetrics?.find((m) => m.name === metricName)?.value ?? null;
-          const parentValue = parentMetrics?.find((m) => m.name === metricName)?.value ?? null;
-          const direction = pm?.direction || "maximize";
-
-          let isBetter: boolean | null = null;
-          if (value !== null && parentValue !== null) {
-            if (direction === "maximize") {
-              isBetter = value > parentValue;
-            } else {
-              isBetter = value < parentValue;
-            }
+        let isBetter: boolean | null = null;
+        if (value !== null && parentValue !== null) {
+          if (direction === "maximize") {
+            isBetter = value > parentValue;
+          } else {
+            isBetter = value < parentValue;
           }
-
-          return {
-            name: metricName,
-            value,
-            parentValue,
-            direction,
-            isBetter,
-          };
         }
-      );
+
+        return {
+          name: dim.name,
+          label: dim.label,
+          value,
+          parentValue,
+          direction,
+          isBetter,
+        };
+      });
 
       return {
         id: exp.id,

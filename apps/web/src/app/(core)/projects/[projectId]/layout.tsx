@@ -18,12 +18,15 @@ export default function ProjectLayout({
   };
 
   const { projectId } = useParams<{ projectId: string }>();
-  // Dirty hack to get the container class name for the DAG page
+  // Route-specific shell: DAG and metrics are full-bleed in the inset (no `container` centering or p-6).
   const pathname = usePathname();
   const isDagPage = pathname?.endsWith("/dag");
+  const isMetricsPage = pathname?.endsWith("/metrics");
   const containerClassName = isDagPage
     ? "w-full max-w-none p-0 h-full flex flex-col"
-    : "container max-w-screen-2xl mx-auto p-6";
+    : isMetricsPage
+      ? "w-full max-w-none p-0 h-full min-h-0"
+      : "container max-w-screen-2xl mx-auto p-6";
 
   return (
     <SidebarProvider style={sidebarStyle as React.CSSProperties}>

@@ -82,6 +82,12 @@ export const API_ROUTES = {
           `/api/projects/${projectId}/hypotheses/${hypothesisId}`,
         METRICS: (projectId: string) =>
           `/api/projects/${projectId}/metrics`,
+        METRIC_LABELS: (projectId: string) =>
+          `/api/projects/${projectId}/metric-labels`,
+        METRICS_UNIQUE_DIMENSIONS: (projectId: string) =>
+          `/api/projects/${projectId}/metrics/unique-dimensions`,
+        METRICS_BY_LABEL: (projectId: string) =>
+          `/api/projects/${projectId}/metrics/by-label`,
         SETTINGS: (projectId: string) =>
           `/api/projects/${projectId}/settings`,
         SETTINGS_MAP: (projectId: string) =>
@@ -136,6 +142,7 @@ export const API_ROUTES = {
   
     METRICS: {
       CREATE: "/api/metrics",
+      DELETE: (metricId: string) => `/api/metrics/${metricId}`,
     },
 
     SCALARS: {

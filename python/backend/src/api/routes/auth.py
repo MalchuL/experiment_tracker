@@ -135,6 +135,22 @@ def require_api_token_scopes(required: str | list[str]):
     return _dependency
 
 
+def require_api_token_scopes_any(required: list[str]):
+    """For API key auth: require at least one of the listed scopes (JWT is unaffected)."""
+
+    async def _dependency(request: Request) -> None:
+        scopes = getattr(request.state, "api_token_scopes", None)
+        if scopes is None:
+            return
+        if not any(s in scopes for s in required):
+            raise HTTPException(
+                status_code=403,
+                detail=f"API token must include at least one of: {', '.join(required)}",
+            )
+
+    return _dependency
+
+
 router = APIRouter()
 
 router.include_router(

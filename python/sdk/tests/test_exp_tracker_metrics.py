@@ -3,17 +3,16 @@ from experiment_tracker_sdk.exp_tracker import ExpTracker
 
 class _FakeMetricsService:
     def __init__(self):
-        self.calls: list[tuple[str, str, float, int, str | None]] = []
+        self.calls: list[tuple[str, str, float, str | None]] = []
 
-    def create_metric(
+    def upsert_metric(
         self,
         experiment_id: str,
         name: str,
         value: float,
-        step: int = 0,
         label: str | None = None,
     ):
-        self.calls.append((experiment_id, name, value, step, label))
+        self.calls.append((experiment_id, name, value, label))
         return {"kind": "metric_request"}
 
 
@@ -35,8 +34,8 @@ def test_add_metric_is_sync_and_uses_label() -> None:
     api = _FakeAPI()
     tracker = ExpTracker("exp-id", "proj-id", api)  # type: ignore[arg-type]
 
-    tracker.add_metric(name="accuracy", value=0.97, step=12, label="dataset/train")
+    tracker.add_metric(name="accuracy", value=0.97, label="dataset/train")
 
-    assert api.metrics.calls == [("exp-id", "accuracy", 0.97, 12, "dataset/train")]
+    assert api.metrics.calls == [("exp-id", "accuracy", 0.97, "dataset/train")]
     assert len(api.request_calls) == 1
     assert api.queued_calls == []

@@ -56,7 +56,7 @@ def test_endpoint_factories_are_prefixless() -> None:
     project_artifacts_factory = ProjectArtifactsRequestSpecFactory()
 
     assert experiment_factory.create_experiment("project-id", "run").endpoint == "/experiments"
-    assert metrics_factory.create_metric("exp-id", "acc", 0.5).endpoint == "/metrics"
+    assert metrics_factory.upsert_metric("exp-id", "acc", 0.5).endpoint == "/metrics"
     dummy_file = FileUploadSpec(filename="data.bin", content=b"x")
     assert (
         project_artifacts_factory.upload_project_artifact(

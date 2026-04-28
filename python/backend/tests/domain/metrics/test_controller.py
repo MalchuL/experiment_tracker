@@ -108,8 +108,8 @@ def _create_experiment(client: TestClient, project_id: str) -> dict:
     return response.json()
 
 
-class TestMetricControllerCreate:
-    async def test_create_metric_as_member(
+class TestMetricControllerUpsert:
+    async def test_upsert_metric_as_member(
         self, auth_client, test_user: User, test_user_2: User
     ):
         owner_client = auth_client(test_user)
@@ -125,14 +125,39 @@ class TestMetricControllerCreate:
                 "experimentId": experiment["id"],
                 "name": "accuracy",
                 "value": 0.91,
-                "step": 1,
             },
         )
 
         assert response.status_code == 200
         assert response.json()["experimentId"] == experiment["id"]
 
-    async def test_create_metric_denied_for_viewer(
+    async def test_upsert_metric_member_second_post_updates_value(
+        self, auth_client, test_user: User, test_user_2: User
+    ):
+        owner_client = auth_client(test_user)
+        team_id = _create_team(owner_client)
+        _add_team_member(owner_client, team_id, str(test_user_2.id), role="member")
+        project = _create_project(owner_client, team_id)
+        experiment = _create_experiment(owner_client, project["id"])
+        body = {
+            "experimentId": experiment["id"],
+            "name": "accuracy",
+            "value": 0.5,
+            "label": "train",
+        }
+        member_client = auth_client(test_user_2)
+        r1 = member_client.post("/api/v1/metrics", json=body)
+        assert r1.status_code == 200
+        mid = r1.json()["id"]
+        r2 = member_client.post(
+            "/api/v1/metrics",
+            json={**body, "value": 0.9},
+        )
+        assert r2.status_code == 200
+        assert r2.json()["id"] == mid
+        assert r2.json()["value"] == 0.9
+
+    async def test_upsert_metric_denied_for_viewer(
         self, auth_client, test_user: User, test_user_2: User
     ):
         owner_client = auth_client(test_user)
@@ -148,13 +173,12 @@ class TestMetricControllerCreate:
                 "experimentId": experiment["id"],
                 "name": "loss",
                 "value": 0.2,
-                "step": 1,
             },
         )
 
         assert response.status_code == 403
 
-    async def test_create_metric_missing_experiment(
+    async def test_upsert_metric_missing_experiment(
         self, auth_client, test_user: User
     ):
         owner_client = auth_client(test_user)
@@ -164,7 +188,6 @@ class TestMetricControllerCreate:
                 "experimentId": "2c274ad7-9e6a-4dc2-8c75-9d7a1d2b6b55",
                 "name": "missing",
                 "value": 1.0,
-                "step": 0,
             },
         )
 

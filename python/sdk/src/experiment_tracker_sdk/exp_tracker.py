@@ -222,23 +222,21 @@ class ExpTracker:
         self,
         name: str,
         value: float,
-        step: int = 0,
         label: str | None = None,
         walltime: float = 0,
     ):
-        """Create a metric row immediately (sync mode, no queue)."""
+        """Create or update a metric row for this (name, label) (sync mode, no queue)."""
         _ = walltime  # Kept for API parity with add_scalar-like signatures.
         if not math.isfinite(value):
             logger.warning(
-                f"Invalid metric value: {value} for name: {name}, step: {step}, not logged"
+                f"Invalid metric value: {value} for name: {name}, not logged"
             )
             return
         self._request_client.request(
-            self._api_requests_registry.metrics.create_metric(
+            self._api_requests_registry.metrics.upsert_metric(
                 experiment_id=self.experiment_id,
                 name=name,
                 value=value,
-                step=step,
                 label=label,
             )
         )

@@ -10,7 +10,12 @@ import type { Hypothesis } from "@/domain/hypothesis/types";
 import { serviceClients } from "@/lib/api/clients/axios-client";
 import { appendPaginationParams } from "@/lib/api/pagination";
 import { API_ROUTES } from "@/lib/constants/api-routes";
-import { Metric } from "@/domain/metrics/types";
+import type {
+  Metric,
+  MetricLabelsResponse,
+  MetricsByLabelSnapshot,
+  UniqueMetricDimensionsResponse,
+} from "@/domain/metrics/types";
 import type { PaginatedResponse, PaginationParams } from "@/lib/types/pagination";
 
 
@@ -30,6 +35,17 @@ export interface ProjectsService {
     id: string,
     params?: PaginationParams,
   ) => Promise<PaginatedResponse<Metric>>;
+  getMetricLabels: (id: string) => Promise<MetricLabelsResponse>;
+  getUniqueMetricDimensions: (id: string) => Promise<UniqueMetricDimensionsResponse>;
+  getMetricsByLabelSnapshot: (
+    id: string,
+    args: {
+      label: string;
+      includeExperimentsWithoutMetrics: boolean;
+      limit?: number;
+      offset?: number;
+    }
+  ) => Promise<MetricsByLabelSnapshot>;
   create: (project: InsertProject) => Promise<Project>;
   update: (id: string, updates: UpdateProject) => Promise<Project>;
   delete: (id: string) => Promise<void>;
@@ -97,6 +113,42 @@ export const projectsService: ProjectsService = {
   ): Promise<PaginatedResponse<Metric>> => {
     const response = await serviceClients.api.get<PaginatedResponse<Metric>>(
       appendPaginationParams(API_ROUTES.PROJECTS.BY_ID.METRICS(id), params),
+    );
+    return response.data;
+  },
+
+  getMetricLabels: async (id: string): Promise<MetricLabelsResponse> => {
+    const response = await serviceClients.api.get<MetricLabelsResponse>(
+      API_ROUTES.PROJECTS.BY_ID.METRIC_LABELS(id),
+    );
+    return response.data;
+  },
+
+  getUniqueMetricDimensions: async (id: string): Promise<UniqueMetricDimensionsResponse> => {
+    const response = await serviceClients.api.get<UniqueMetricDimensionsResponse>(
+      API_ROUTES.PROJECTS.BY_ID.METRICS_UNIQUE_DIMENSIONS(id),
+    );
+    return response.data;
+  },
+
+  getMetricsByLabelSnapshot: async (
+    id: string,
+    args: {
+      label: string;
+      includeExperimentsWithoutMetrics: boolean;
+      limit?: number;
+      offset?: number;
+    },
+  ): Promise<MetricsByLabelSnapshot> => {
+    const params: Record<string, string | number | boolean> = {
+      label: args.label,
+      include_experiments_without_metrics: args.includeExperimentsWithoutMetrics,
+    };
+    if (args.limit != null) params.limit = args.limit;
+    if (args.offset != null) params.offset = args.offset;
+    const response = await serviceClients.api.get<MetricsByLabelSnapshot>(
+      API_ROUTES.PROJECTS.BY_ID.METRICS_BY_LABEL(id),
+      { params },
     );
     return response.data;
   },

@@ -21,7 +21,8 @@ import {
   Settings,
   Home,
   BarChart3,
-  LayoutDashboard
+  LayoutDashboard,
+  LineChart,
 } from "lucide-react";
 import { FRONTEND_ROUTES } from "@/lib/constants/frontend-routes";
 import { useCurrentProject } from '@/domain/projects/hooks/project-provider';
@@ -38,6 +39,11 @@ const getProjectItems = (projectId: string) => [
     title: "Experiments",
     url: FRONTEND_ROUTES.PROJECT_PAGES.EXPERIMENTS(projectId),
     icon: FlaskConical,
+  },
+  {
+    title: "Metrics",
+    url: FRONTEND_ROUTES.PROJECT_PAGES.METRICS(projectId),
+    icon: LineChart,
   },
   {
     title: "Hypotheses",
@@ -96,7 +102,7 @@ export function AppSidebar() {
                 ResearchTrack
               </span>
               <span className="text-xs text-muted-foreground truncate">
-                {!isLoading ? project.name : "Loading..."}
+                {!isLoading ? (project?.name ?? "—") : "Loading..."}
               </span>
             </div>
             <Home className="w-4 h-4 text-muted-foreground flex-shrink-0" />
@@ -104,7 +110,7 @@ export function AppSidebar() {
         </Link>
       </SidebarHeader>
       <SidebarContent>
-        {!isLoading && (
+        {!isLoading && project && (
           <SidebarGroup>
             <SidebarGroupLabel>{project.name}</SidebarGroupLabel>
             <SidebarGroupContent>

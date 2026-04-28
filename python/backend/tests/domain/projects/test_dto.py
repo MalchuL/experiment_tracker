@@ -9,6 +9,7 @@ from domain.projects.dto import (
     ProjectCreateDTO,
     ProjectDTO,
     ProjectMetricDTO,
+    ProjectMetricKeyDTO,
     ProjectSettingDTO,
     ProjectUpdateDTO,
 )
@@ -57,7 +58,9 @@ class TestProjectDTO:
         dto = converter.dict_with_json_case_to_dto(self.INPUT_DATA)
         assert dto.name == self.INPUT_DATA["name"]
         assert dto.metrics.tracked_metrics[0].name == "test_metric"
-        assert dto.metrics.display_metrics == ["test_metric"]
+        assert dto.metrics.display_metrics == [
+            ProjectMetricKeyDTO(name="test_metric", label=None)
+        ]
         assert dto.settings[0].name == "namingPattern"
         assert dto.settings[0].type == "string"
         assert dto.created_at == datetime.fromisoformat(self.INPUT_DATA["createdAt"])
@@ -68,7 +71,9 @@ class TestProjectDTO:
         dto = converter.dict_with_json_case_to_dto(self.INPUT_DATA)
         dumped_data = converter.dto_to_json_dict_with_json_case(dto)
         assert dumped_data["metrics"]["trackedMetrics"][0]["name"] == "test_metric"
-        assert dumped_data["metrics"]["displayMetrics"] == ["test_metric"]
+        assert dumped_data["metrics"]["displayMetrics"] == [
+            {"name": "test_metric", "label": None}
+        ]
         assert dumped_data["settings"][0]["name"] == "namingPattern"
 
 
@@ -146,7 +151,9 @@ class TestProjectUpdateDTO:
         dto = converter.dict_with_json_case_to_dto(self.INPUT_DATA)
         dumped_data = converter.dto_to_partial_dict_with_dto_case(dto)
         assert dumped_data["metrics"]["tracked_metrics"][0]["name"] == "test_metric"
-        assert dumped_data["metrics"]["display_metrics"] == ["test_metric"]
+        assert dumped_data["metrics"]["display_metrics"] == [
+            {"name": "test_metric", "label": None}
+        ]
         assert dumped_data["settings"][0]["type"] == "json"
 
 

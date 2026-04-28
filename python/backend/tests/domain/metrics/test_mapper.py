@@ -2,7 +2,7 @@ from datetime import datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from domain.metrics.dto import MetricCreateDTO, MetricUpdateDTO
+from domain.metrics.dto import MetricUpsertDTO
 from domain.metrics.mapper import MetricMapper
 from models import Metric as MetricModel
 from models import Project, User, Experiment
@@ -50,7 +50,7 @@ async def _create_metric(
         experiment_id=experiment.id,
         name=name,
         value=0.9,
-        step=1,
+        label=None,
         created_at=created_at,
     )
     db_session.add(metric)
@@ -76,7 +76,7 @@ class TestMetricMapper:
         assert dto.experiment_id == metric.experiment_id
         assert dto.name == "accuracy"
         assert dto.value == 0.9
-        assert dto.step == 1
+        assert dto.label is None
         assert dto.created_at == datetime(2024, 1, 1)
 
     async def test_metric_list_schema_to_dto(
@@ -93,32 +93,18 @@ class TestMetricMapper:
         assert dtos[0].id == metric.id
         assert dtos[0].name == "accuracy"
 
-    def test_metric_create_dto_to_schema(self):
+    def test_metric_upsert_dto_to_schema(self):
         mapper = MetricMapper()
-        dto = MetricCreateDTO(
+        dto = MetricUpsertDTO(
             experiment_id="223e4567-e89b-12d3-a456-426614174000",
             name="loss",
             value=1.23,
-            step=0,
+            label="a",
         )
 
-        metric = mapper.metric_create_dto_to_schema(dto)
+        metric = mapper.metric_upsert_dto_to_schema(dto)
 
         assert str(metric.experiment_id) == str(dto.experiment_id)
         assert metric.name == "loss"
         assert metric.value == 1.23
-        assert metric.step == 0
-
-    def test_metric_update_dto_to_update_dict(self):
-        mapper = MetricMapper()
-        dto = MetricUpdateDTO(
-            name="updated",
-            value=0.8,
-            step=2,
-        )
-
-        updates = mapper.metric_update_dto_to_update_dict(dto)
-
-        assert updates["name"] == "updated"
-        assert updates["value"] == 0.8
-        assert updates["step"] == 2
+        assert metric.label == "a"

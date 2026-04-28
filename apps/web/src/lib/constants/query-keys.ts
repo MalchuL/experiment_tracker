@@ -18,6 +18,11 @@ export const QUERY_KEYS = {
     METRICS: {
         GET: (experimentId: string) => `experiments/${experimentId}/metrics`,
         BY_PROJECT: (projectId: string) => `projects/${projectId}/metrics`,
+        LABELS: (projectId: string) => `projects/${projectId}/metric-labels`,
+        UNIQUE_DIMENSIONS: (projectId: string) =>
+            `projects/${projectId}/metrics/unique-dimensions`,
+        BY_LABEL_SNAPSHOT: (projectId: string, label: string, includeAll: boolean) =>
+            `projects/${projectId}/metrics/by-label:${label}:inc:${includeAll ? "1" : "0"}`,
     },
     SCALARS: {
         BY_PROJECT: (projectId: string) => `projects/${projectId}/scalars`,

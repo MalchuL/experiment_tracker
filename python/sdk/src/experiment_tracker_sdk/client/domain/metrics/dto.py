@@ -4,11 +4,10 @@ from pydantic import BaseModel
 from ...pagination import PaginatedResponse
 
 
-class MetricCreateRequest(BaseModel):
+class MetricUpsertRequest(BaseModel):
     experimentId: str
     name: str
     value: float
-    step: int = 0
     label: str | None = None
 
 
@@ -17,10 +16,38 @@ class MetricResponse(BaseModel):
     experimentId: str
     name: str
     value: float
-    step: int
     label: str | None = None
     createdAt: datetime
 
 
 class MetricListResponse(PaginatedResponse[MetricResponse]):
     pass
+
+
+class MetricLabelsResponse(BaseModel):
+    labels: list[str] = []
+    hasUnlabeled: bool = False
+
+
+class UniqueMetricDimensionItem(BaseModel):
+    name: str
+    label: str | None = None
+
+
+class UniqueMetricDimensionsResponse(BaseModel):
+    items: list[UniqueMetricDimensionItem] = []
+
+
+class MetricsByLabelRowResponse(BaseModel):
+    experimentId: str
+    experimentName: str
+    createdAt: datetime
+    color: str
+    values: list[float | None]
+
+
+class MetricsByLabelSnapshotResponse(BaseModel):
+    metricNames: list[str] = []
+    rows: list[MetricsByLabelRowResponse] = []
+    hasNext: bool = False
+    total: int = 0

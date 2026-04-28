@@ -297,7 +297,6 @@ def main() -> None:
             tracker.add_metric(
                 name=metric_name,
                 value=metric_value,
-                step=steps,
                 label="final",
             )
         tracker.flush()

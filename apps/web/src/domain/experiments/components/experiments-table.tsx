@@ -26,6 +26,7 @@ import { ProjectMetric } from "@/domain/projects/types";
 import { ExperimentTableRow } from "./experiment-table-row";
 import { arrayMove } from "@dnd-kit/sortable";
 import { Metric } from "@/domain/metrics/types";
+import { displayMetricKeyEquals, formatMetricLabel, projectMetricKeyString } from "@/lib/metrics/format-metric-label";
 
 interface ExperimentsTableProps {
     experiments: Experiment[];
@@ -61,7 +62,6 @@ export function ExperimentsTable({
         onReorder(newOrder.map((e) => e.id));
     };
 
-    // Filter metrics by displayMetrics setting (this should come from project settings)
     const filteredMetrics = projectMetrics || [];
 
     return (
@@ -79,9 +79,9 @@ export function ExperimentsTable({
                             <TableHead>Status</TableHead>
                             <TableHead>Parent</TableHead>
                             {filteredMetrics.map((metric) => (
-                                <TableHead key={metric.name} className="text-right">
+                                <TableHead key={projectMetricKeyString(metric)} className="text-right">
                                     <div className="flex items-center justify-end gap-1">
-                                        {metric.name}
+                                        {formatMetricLabel(metric.name, metric.label ?? null)}
                                         {metric.direction === "minimize" ? (
                                             <TrendingDown className="w-3 h-3" />
                                         ) : (

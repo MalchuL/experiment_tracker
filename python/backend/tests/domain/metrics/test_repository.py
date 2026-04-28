@@ -50,7 +50,7 @@ async def _create_metric(
         experiment_id=experiment.id,
         name=name,
         value=0.9,
-        step=0,
+        label=None,
         created_at=created_at,
     )
     db_session.add(metric)

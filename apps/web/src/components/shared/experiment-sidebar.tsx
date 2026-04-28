@@ -3,7 +3,6 @@ import { StatusBadge } from "@/components/shared/status-badge";
 import { ExperimentEditForm } from "@/components/shared/experiment-edit-form";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { RightSidebarShell } from "@/components/shared/right-sidebar-shell";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -17,6 +16,7 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/lib/hooks/use-toast";
+import { useMemo } from "react";
 import { useExperiment } from "@/domain/experiments/hooks/experiment-hook";
 import {
   GitBranch,
@@ -32,6 +32,7 @@ import { useExperimentMetrics } from "@/domain/metrics/hooks";
 import { useProject } from "@/domain/projects/hooks/project-hook";
 import { REFRESH_EXPERIMENT_SIDEBAR_INTERVAL } from "@/lib/constants/rates";
 import { FRONTEND_ROUTES } from "@/lib/constants/frontend-routes";
+import { displayMetricKeyEquals, formatMetricLabel, projectMetricKeyString } from "@/lib/metrics/format-metric-label";
 
 interface ExperimentSidebarProps {
   experimentId: string | null;
@@ -59,6 +60,28 @@ export function ExperimentSidebar({
 
   const { metrics, isLoading: metricsLoading } = useExperimentMetrics(experimentId || "");
   const { project } = useProject(experiment?.projectId);
+
+  const loggedMetricsByLabel = useMemo(() => {
+    if (!metrics?.length) {
+      return [] as { label: string | null; items: Metric[] }[];
+    }
+    const map = new Map<string, Metric[]>();
+    for (const m of metrics) {
+      const k = m.label ?? "";
+      if (!map.has(k)) map.set(k, []);
+      map.get(k)!.push(m);
+    }
+    const entries = [...map.entries()];
+    entries.sort((a, b) => {
+      if (a[0] === "" && b[0] !== "") return 1;
+      if (b[0] === "" && a[0] !== "") return -1;
+      return a[0].localeCompare(b[0]);
+    });
+    for (const [, items] of entries) {
+      items.sort((a, b) => a.name.localeCompare(b.name));
+    }
+    return entries.map(([k, items]) => ({ label: k === "" ? null : k, items }));
+  }, [metrics]);
 
   const { experiment: parentExperiment } = useExperiment(experiment?.parentExperimentId || "");
 
@@ -235,11 +258,16 @@ export function ExperimentSidebar({
 
             {experiment.status === "running" && (
               <div>
-                <div className="flex items-center justify-between text-sm mb-1">
-                  <span className="text-muted-foreground">Progress</span>
+                <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
+                  <span>Progress</span>
                   <span>{experiment.progress}%</span>
                 </div>
-                <Progress value={experiment.progress} className="h-2" />
+                <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-blue-500 rounded-full transition-all"
+                    style={{ width: `${experiment.progress}%` }}
+                  />
+                </div>
               </div>
             )}
 
@@ -288,15 +316,20 @@ export function ExperimentSidebar({
                     <CardContent className="px-3 pb-3 pt-0">
                       <div className="space-y-2">
                         {projectMetrics.map((pm) => {
-                          const value = aggregatedMetrics?.find((m) => m.name === pm.name)?.value;
+                          const value = aggregatedMetrics?.find((m) =>
+                            displayMetricKeyEquals(
+                              { name: m.name, label: m.label },
+                              { name: pm.name, label: pm.label ?? null }
+                            )
+                          )?.value;
                           return (
                             <div
-                              key={pm.name}
+                              key={projectMetricKeyString(pm)}
                               className="flex items-center justify-between text-sm"
-                              data-testid={`metric-${pm.name}`}
+                              data-testid={`metric-${projectMetricKeyString(pm)}`}
                             >
                               <div className="flex items-center gap-2">
-                                <span>{pm.name}</span>
+                                <span>{formatMetricLabel(pm.name, pm.label ?? null)}</span>
                                 {pm.direction === "minimize" ? (
                                   <TrendingDown className="w-3 h-3 text-muted-foreground" />
                                 ) : (
@@ -330,22 +363,30 @@ export function ExperimentSidebar({
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="px-3 pb-3 pt-0">
-                      <div className="space-y-2">
-                        {metrics.map((metric) => (
-                          <div
-                            key={metric.id}
-                            className="flex items-center justify-between text-sm"
-                            data-testid={`logged-metric-${metric.id}`}
-                          >
-                            <div className="flex items-center gap-2">
-                              <span>{metric.name}</span>
-                              <Badge variant="outline" className="text-xs">
-                                step {metric.step}
-                              </Badge>
-                            </div>
-                            <span className="font-mono">
-                              {metric.value.toFixed(4)}
-                            </span>
+                      <div className="space-y-3">
+                        {loggedMetricsByLabel.map((group) => (
+                          <div key={group.label ?? "unlabeled"} className="space-y-1.5">
+                            {group.label != null ? (
+                              <p className="text-[10px] font-medium text-muted-foreground">
+                                {group.label}
+                              </p>
+                            ) : (
+                              <p className="text-[10px] font-medium text-muted-foreground">
+                                Unlabeled
+                              </p>
+                            )}
+                            {group.items.map((metric) => (
+                              <div
+                                key={metric.id}
+                                className="flex items-center justify-between text-sm pl-0"
+                                data-testid={`logged-metric-${metric.id}`}
+                              >
+                                <span className="truncate pr-2">{metric.name}</span>
+                                <span className="font-mono flex-shrink-0">
+                                  {metric.value.toFixed(4)}
+                                </span>
+                              </div>
+                            ))}
                           </div>
                         ))}
                       </div>

@@ -1,9 +1,9 @@
-from .dto import MetricCreateRequest, MetricResponse
+from .dto import MetricResponse, MetricUpsertRequest
 from .service import MetricRequestSpecFactory, MetricService
 
 __all__ = [
-    "MetricCreateRequest",
     "MetricResponse",
+    "MetricUpsertRequest",
     "MetricRequestSpecFactory",
     "MetricService",
 ]

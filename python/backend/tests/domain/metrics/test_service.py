@@ -4,7 +4,7 @@ from uuid import uuid4
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from domain.metrics.dto import MetricCreateDTO, MetricUpdateDTO
+from domain.metrics.dto import MetricUpsertDTO
 from domain.metrics.error import MetricNotAccessibleError, MetricNotFoundError
 from domain.metrics.service import MetricService
 from domain.projects.service import ProjectService
@@ -54,14 +54,14 @@ async def _create_metric(
     experiment: Experiment,
     name: str,
     value: float = 0.9,
-    step: int = 1,
+    label: str | None = None,
     created_at: datetime | None = None,
 ) -> MetricModel:
     metric = MetricModel(
         experiment_id=experiment.id,
         name=name,
         value=value,
-        step=step,
+        label=label,
         created_at=created_at,
     )
     db_session.add(metric)
@@ -122,7 +122,7 @@ class TestMetricService:
         with pytest.raises(MetricNotFoundError):
             await metric_service.get_metrics_by_experiment(test_user, uuid4())
 
-    async def test_create_metric_permission_denied(
+    async def test_upsert_metric_create_branch_permission_denied(
         self,
         metric_service: MetricService,
         db_session: AsyncSession,
@@ -130,17 +130,16 @@ class TestMetricService:
     ) -> None:
         project = await _create_project(db_session, test_user)
         experiment = await _create_experiment(db_session, project, "Experiment")
-        dto = MetricCreateDTO(
+        dto = MetricUpsertDTO(
             experiment_id=experiment.id,
             name="loss",
             value=1.23,
-            step=0,
         )
 
         with pytest.raises(MetricNotAccessibleError):
-            await metric_service.create_metric(test_user, dto)
+            await metric_service.upsert_metric(test_user, dto)
 
-    async def test_create_metric_sets_fields(
+    async def test_upsert_metric_creates_new_row(
         self,
         metric_service: MetricService,
         db_session: AsyncSession,
@@ -155,22 +154,22 @@ class TestMetricService:
             allowed=True,
             project_id=project.id,
         )
-        dto = MetricCreateDTO(
+        dto = MetricUpsertDTO(
             experiment_id=experiment.id,
             name="loss",
             value=1.23,
-            step=2,
+            label="val",
         )
 
-        created = await metric_service.create_metric(test_user, dto)
+        created = await metric_service.upsert_metric(test_user, dto)
 
         assert created.id is not None
         assert created.experiment_id == experiment.id
         assert created.name == "loss"
         assert created.value == 1.23
-        assert created.step == 2
+        assert created.label == "val"
 
-    async def test_update_metric_permission_denied(
+    async def test_upsert_metric_update_branch_requires_edit(
         self,
         metric_service: MetricService,
         db_session: AsyncSession,
@@ -178,13 +177,25 @@ class TestMetricService:
     ) -> None:
         project = await _create_project(db_session, test_user)
         experiment = await _create_experiment(db_session, project, "Experiment")
-        metric = await _create_metric(db_session, experiment, "accuracy")
-        dto = MetricUpdateDTO(value=0.5)
+        await _create_metric(db_session, experiment, "accuracy", label="train")
+        permission_service = PermissionService(db_session, auto_commit=True)
+        await permission_service.add_permission(
+            user_id=test_user.id,
+            action=ProjectActions.CREATE_METRIC,
+            allowed=True,
+            project_id=project.id,
+        )
+        dto = MetricUpsertDTO(
+            experiment_id=experiment.id,
+            name="accuracy",
+            value=0.5,
+            label="train",
+        )
 
         with pytest.raises(MetricNotAccessibleError):
-            await metric_service.update_metric(test_user, metric.id, dto)
+            await metric_service.upsert_metric(test_user, dto)
 
-    async def test_update_metric_updates_fields(
+    async def test_upsert_metric_updates_value_when_key_exists(
         self,
         metric_service: MetricService,
         db_session: AsyncSession,
@@ -192,7 +203,9 @@ class TestMetricService:
     ) -> None:
         project = await _create_project(db_session, test_user)
         experiment = await _create_experiment(db_session, project, "Experiment")
-        metric = await _create_metric(db_session, experiment, "accuracy")
+        metric = await _create_metric(
+            db_session, experiment, "accuracy", value=0.1, label="tuned"
+        )
         permission_service = PermissionService(db_session, auto_commit=True)
         await permission_service.add_permission(
             user_id=test_user.id,
@@ -200,19 +213,19 @@ class TestMetricService:
             allowed=True,
             project_id=project.id,
         )
-        dto = MetricUpdateDTO(value=0.5, step=4)
+        dto = MetricUpsertDTO(
+            experiment_id=experiment.id,
+            name="accuracy",
+            value=0.5,
+            label="tuned",
+        )
 
-        updated = await metric_service.update_metric(test_user, metric.id, dto)
+        updated = await metric_service.upsert_metric(test_user, dto)
 
+        assert updated.id == metric.id
         assert updated.value == 0.5
-        assert updated.step == 4
-
-    async def test_update_metric_missing_raises(
-        self, metric_service: MetricService, test_user: User
-    ) -> None:
-        dto = MetricUpdateDTO(value=0.4)
-        with pytest.raises(MetricNotFoundError):
-            await metric_service.update_metric(test_user, uuid4(), dto)
+        assert updated.name == "accuracy"
+        assert updated.label == "tuned"
 
     async def test_delete_metric_permission_denied(
         self,
@@ -292,23 +305,26 @@ class TestMetricService:
         project = await _create_project(db_session, test_user, metrics=project_metrics)
         project_service = ProjectService(db_session)
         experiment = await _create_experiment(db_session, project, "Experiment")
-        metric_accuracy_last = await _create_metric(
-            db_session, experiment, "accuracy", value=0.5, step=1
+        metric_accuracy = await _create_metric(
+            db_session,
+            experiment,
+            "accuracy",
+            value=0.6,
+            created_at=datetime(2024, 1, 2, 0, 0, 0),
         )
-        metric_accuracy_latest = await _create_metric(
-            db_session, experiment, "accuracy", value=0.6, step=2
+        metric_loss = await _create_metric(
+            db_session,
+            experiment,
+            "loss",
+            value=0.2,
+            created_at=datetime(2024, 1, 2, 0, 0, 0),
         )
-        metric_loss_worse = await _create_metric(
-            db_session, experiment, "loss", value=0.3, step=1
-        )
-        metric_loss_best = await _create_metric(
-            db_session, experiment, "loss", value=0.2, step=2
-        )
-        metric_score_worse = await _create_metric(
-            db_session, experiment, "score", value=0.4, step=1
-        )
-        metric_score_best = await _create_metric(
-            db_session, experiment, "score", value=0.9, step=2
+        metric_score = await _create_metric(
+            db_session,
+            experiment,
+            "score",
+            value=0.9,
+            created_at=datetime(2024, 1, 2, 0, 0, 0),
         )
 
         permission_service = PermissionService(db_session, auto_commit=True)
@@ -333,13 +349,12 @@ class TestMetricService:
         assert {metric.experiment_id for metric in result.data} == {experiment.id}
         metrics_by_name = {metric.name: metric for metric in result.data}
         assert set(metrics_by_name.keys()) == {"accuracy", "loss", "score"}
-        assert metrics_by_name["accuracy"].id == metric_accuracy_latest.id
-        assert metrics_by_name["accuracy"].value == metric_accuracy_latest.value
-        assert metrics_by_name["loss"].id == metric_loss_best.id
-        assert metrics_by_name["score"].id == metric_score_best.id
-        assert metrics_by_name["loss"].id != metric_loss_worse.id
-        assert metrics_by_name["accuracy"].id != metric_accuracy_last.id
-        assert metrics_by_name["score"].id != metric_score_worse.id
+        assert metrics_by_name["accuracy"].id == metric_accuracy.id
+        assert metrics_by_name["accuracy"].value == 0.6
+        assert metrics_by_name["loss"].id == metric_loss.id
+        assert metrics_by_name["loss"].value == 0.2
+        assert metrics_by_name["score"].id == metric_score.id
+        assert metrics_by_name["score"].value == 0.9
 
     async def test_get_aggregated_metrics_for_project_average_raises(
         self,
@@ -361,7 +376,7 @@ class TestMetricService:
         project_service = ProjectService(db_session)
         experiment = await _create_experiment(db_session, project, "Experiment")
         await _create_metric(
-            db_session, experiment, "average_metric", value=0.4, step=1
+            db_session, experiment, "average_metric", value=0.4, created_at=datetime(2024, 1, 1)
         )
 
         permission_service = PermissionService(db_session, auto_commit=True)

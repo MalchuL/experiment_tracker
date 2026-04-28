@@ -5,7 +5,12 @@ from domain.hypotheses.dto import HypothesisListResponseDTO
 from domain.experiments.dto import ExperimentListResponseDTO
 from domain.experiments.service import ExperimentService
 from domain.hypotheses.service import HypothesisService
-from domain.metrics.dto import MetricListResponseDTO
+from domain.metrics.dto import (
+    MetricLabelsResponseDTO,
+    MetricListResponseDTO,
+    MetricsByLabelSnapshotResponseDTO,
+    UniqueMetricDimensionsResponseDTO,
+)
 from domain.metrics.service import MetricService
 
 import httpx
@@ -27,6 +32,8 @@ from .dto import (
     ProjectSettingValueUpdateDTO,
     ProjectUpdateDTO,
 )
+from domain.metrics.error import MetricNotAccessibleError, MetricNotFoundError
+
 from .errors import ProjectNotAccessibleError, ProjectPermissionError
 from .service import ProjectService
 from api.routes.service_dependencies import (
@@ -40,6 +47,10 @@ router = APIRouter(prefix="/projects", tags=["projects"])
 
 
 def _raise_project_http_error(error: Exception) -> None:
+    if isinstance(error, MetricNotAccessibleError):
+        raise HTTPException(status_code=403, detail=str(error))
+    if isinstance(error, MetricNotFoundError):
+        raise HTTPException(status_code=404, detail=str(error))
     if isinstance(error, ProjectPermissionError):
         raise HTTPException(status_code=403, detail=str(error))
     if isinstance(error, ProjectNotAccessibleError):
@@ -100,6 +111,72 @@ async def get_project_hypotheses(
         return await hypothesis_service.get_hypotheses_by_project(
             user,
             project_id,
+            ListOptions(limit=limit, offset=offset),
+        )
+    except Exception as exc:  # noqa: BLE001
+        _raise_project_http_error(exc)
+
+
+@router.get(
+    "/{project_id}/metric-labels",
+    response_model=MetricLabelsResponseDTO,
+)
+async def get_project_metric_labels(
+    project_id: UUID,
+    user: User = Depends(get_current_user_dual),
+    _: None = Depends(require_api_token_scopes(ProjectActions.VIEW_METRIC)),
+    metric_service: MetricService = Depends(get_metric_service),
+):
+    try:
+        return await metric_service.get_metric_labels_for_project(user, project_id)
+    except Exception as exc:  # noqa: BLE001
+        _raise_project_http_error(exc)
+
+
+@router.get(
+    "/{project_id}/metrics/unique-dimensions",
+    response_model=UniqueMetricDimensionsResponseDTO,
+)
+async def get_project_unique_metric_dimensions(
+    project_id: UUID,
+    user: User = Depends(get_current_user_dual),
+    _: None = Depends(require_api_token_scopes(ProjectActions.VIEW_METRIC)),
+    metric_service: MetricService = Depends(get_metric_service),
+):
+    try:
+        return await metric_service.get_unique_metric_dimensions_for_project(
+            user, project_id
+        )
+    except Exception as exc:  # noqa: BLE001
+        _raise_project_http_error(exc)
+
+
+@router.get(
+    "/{project_id}/metrics/by-label",
+    response_model=MetricsByLabelSnapshotResponseDTO,
+)
+async def get_project_metrics_by_label(
+    project_id: UUID,
+    label: str = Query(
+        ...,
+        description="Metric label filter. Use empty string for unlabeled (NULL) metrics.",
+    ),
+    include_experiments_without_metrics: bool = Query(
+        default=False,
+        description="If true, include experiments with no row for this label (cells null).",
+    ),
+    limit: int = Query(default=MAX_LIST_PAGE_SIZE, ge=1, le=MAX_LIST_PAGE_SIZE),
+    offset: int = Query(default=0, ge=0),
+    user: User = Depends(get_current_user_dual),
+    _: None = Depends(require_api_token_scopes(ProjectActions.VIEW_METRIC)),
+    metric_service: MetricService = Depends(get_metric_service),
+):
+    try:
+        return await metric_service.get_metrics_by_label_snapshot(
+            user,
+            project_id,
+            label,
+            include_experiments_without_metrics,
             ListOptions(limit=limit, offset=offset),
         )
     except Exception as exc:  # noqa: BLE001

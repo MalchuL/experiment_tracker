@@ -2,11 +2,13 @@ from dataclasses import dataclass
 from domain.projects.dto import (
     ProjectCreateDTO,
     ProjectDTO,
+    ProjectMetricKeyDTO,
     ProjectMetricsDTO,
     ProjectOwnerDTO,
     ProjectSettingDTO,
     ProjectTeamDTO,
     ProjectUpdateDTO,
+    ProjectMetricDTO,
 )
 from domain.projects.utils import default_project_metrics
 from lib.dto_converter import DtoConverter
@@ -34,20 +36,33 @@ class ProjectMapper:
     """Mapper for converting between Project DTOs and SQLAlchemy models"""
 
     @staticmethod
+    def _display_item_to_key(item: Any) -> Dict[str, Any]:
+        if isinstance(item, str):
+            return {"name": item, "label": None}
+        if isinstance(item, dict):
+            return {
+                "name": str(item.get("name", "")),
+                "label": item.get("label"),
+            }
+        return {"name": str(item), "label": None}
+
+    @staticmethod
     def _normalize_metrics(
         metrics: Any, settings: Any | None = None
-    ) -> Dict[str, List[Dict[str, Any]] | List[str]]:
+    ) -> Dict[str, List[Dict[str, Any]]]:
         default_metrics = default_project_metrics()
         tracked_metrics: List[Dict[str, Any]] = []
-        display_metrics: List[str] = []
+        display_metrics: List[Dict[str, Any]] = []
 
         if isinstance(metrics, dict):
             tracked_raw = metrics.get("tracked_metrics", metrics.get("trackedMetrics", []))
             display_raw = metrics.get("display_metrics", metrics.get("displayMetrics", []))
             if isinstance(tracked_raw, list):
-                tracked_metrics = tracked_raw
+                tracked_metrics = list(tracked_raw)
             if isinstance(display_raw, list):
-                display_metrics = [str(item) for item in display_raw]
+                display_metrics = [
+                    ProjectMapper._display_item_to_key(x) for x in display_raw
+                ]
         elif isinstance(metrics, list):
             tracked_metrics = metrics
             if isinstance(settings, dict):
@@ -55,7 +70,9 @@ class ProjectMapper:
                     "display_metrics", settings.get("displayMetrics", [])
                 )
                 if isinstance(legacy_display, list):
-                    display_metrics = [str(item) for item in legacy_display]
+                    display_metrics = [
+                        ProjectMapper._display_item_to_key(x) for x in legacy_display
+                    ]
 
         return {
             "tracked_metrics": tracked_metrics or default_metrics["tracked_metrics"],
@@ -90,6 +107,13 @@ class ProjectMapper:
         normalized_metrics = self._normalize_metrics(project.metrics, project.settings)
         normalized_settings = self._normalize_settings(project.settings)
 
+        tracked = [
+            ProjectMetricDTO.model_validate(m) for m in normalized_metrics["tracked_metrics"]
+        ]
+        display = [
+            ProjectMetricKeyDTO.model_validate(m) for m in normalized_metrics["display_metrics"]
+        ]
+
         return ProjectDTO(
             id=str(project.id),
             name=project.name,
@@ -97,8 +121,8 @@ class ProjectMapper:
             owner=owner,
             created_at=project.created_at.isoformat() if project.created_at else "",
             metrics=ProjectMetricsDTO(
-                tracked_metrics=normalized_metrics["tracked_metrics"],
-                display_metrics=normalized_metrics["display_metrics"],
+                tracked_metrics=tracked,
+                display_metrics=display,
             ),
             settings=[
                 ProjectSettingDTO.model_validate(item) for item in normalized_settings
