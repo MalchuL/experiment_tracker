@@ -344,18 +344,20 @@ export default function AdminPage() {
         <CardHeader>
           <CardTitle>Users</CardTitle>
           <CardDescription>
-            Search by email or display name. Loads {PAGE_SIZE} rows per request.
+            Search by email, display name, or user UUID (full or partial). Loads {PAGE_SIZE} rows per
+            request.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <Input
-            placeholder="Search…"
+            placeholder="Search by email, name, or UUID…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-[280px] min-w-[200px]">UUID</TableHead>
                 <TableHead>Email</TableHead>
                 <TableHead>Display name</TableHead>
                 <TableHead>Active</TableHead>
@@ -365,6 +367,9 @@ export default function AdminPage() {
             <TableBody>
               {users.map((u) => (
                 <TableRow key={u.id}>
+                  <TableCell className="font-mono text-xs break-all text-muted-foreground">
+                    {u.id}
+                  </TableCell>
                   <TableCell>{u.email}</TableCell>
                   <TableCell>{u.displayName ?? "—"}</TableCell>
                   <TableCell>{u.isActive ? "yes" : "no"}</TableCell>

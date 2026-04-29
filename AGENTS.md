@@ -152,7 +152,7 @@ The HTTP API is mounted with a configurable prefix (see `config/settings.py` / `
 ### Admin panel and passwords (main API)
 
 - **`ADMIN_PANEL_KEY`**: Defaults to insecure `admin` for local dev. On startup the backend logs a **warning** when the key is still `admin`, and an **info** line (without revealing the value) when a custom key was loaded from `ADMIN_PANEL_KEY`.
-- **Admin HTTP API** (no JWT; header **`X-Admin-Key`** must match the configured key): `GET /admin/users?q=&limit=` (default **20**) **`&offset=`**, `GET /admin/teams?q=&limit=` (default **20**) **`&offset=`** (`q` filters team name and description), `POST /admin/users/{user_id}/reset-password` → JSON includes **`temporaryPassword`** once.
+- **Admin HTTP API** (no JWT; header **`X-Admin-Key`** must match the configured key): `GET /admin/users?q=&limit=` (default **20**) **`&offset=`** (`q` filters email, display name, and user UUID substring), `GET /admin/teams?q=&limit=` (default **20**) **`&offset=`** (`q` filters team name and description), `POST /admin/users/{user_id}/reset-password` → JSON includes **`temporaryPassword`** once.
 - **User password change** (JWT or session cookie auth, not PAT): `POST /users/me/change-password` with JSON **`currentPassword`** and **`newPassword`** (min 8). Web UI: **`/profile`** (collapsible section); legacy **`/profile/password`** redirects there. Bootstrap admin UI: **`/admin`** (stores key in `sessionStorage`).
 
 ## Cross-service configuration
