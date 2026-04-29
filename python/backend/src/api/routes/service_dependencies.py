@@ -36,6 +36,7 @@ from domain.hypotheses.service import HypothesisService
 from domain.metrics.repository import MetricRepository
 from domain.metrics.service import MetricService
 
+from domain.projects.members.service import ProjectMembersService
 from domain.projects.repository import ProjectRepository
 from domain.projects.service import ProjectService
 
@@ -250,4 +251,20 @@ async def get_project_service(
         project_repository=project_repository,
         team_repository=team_repository,
         scalars_service=scalars_service,
+    )
+
+
+async def get_project_members_service(
+    session: AsyncSession = Depends(get_async_session),
+    project_repository: ProjectRepository = Depends(get_project_repository),
+    permission_repository: PermissionRepository = Depends(get_permission_repository),
+    permission_service: PermissionService = Depends(get_permission_service),
+    permission_checker: PermissionChecker = Depends(get_permission_checker),
+) -> ProjectMembersService:
+    return ProjectMembersService(
+        db=session,
+        project_repository=project_repository,
+        permission_repository=permission_repository,
+        permission_service=permission_service,
+        permission_checker=permission_checker,
     )

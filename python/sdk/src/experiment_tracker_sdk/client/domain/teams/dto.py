@@ -43,7 +43,7 @@ class TeamMemberUpdateRequest(BaseModel):
 
 class TeamMemberDeleteRequest(BaseModel):
     userId: str
-    teamMemberId: str
+    teamId: str
 
 
 class TeamMemberResponse(BaseModel):

@@ -42,10 +42,25 @@ from .errors import ProjectNotAccessibleError, ProjectPermissionError
 from .service import ProjectService
 from api.routes.service_dependencies import (
     get_experiment_service,
-    get_project_service,
     get_metric_service,
+    get_project_members_service,
+    get_project_service,
 )
 from api.routes.service_dependencies import get_hypothesis_service
+from domain.projects.members.dto import (
+    ProjectMemberInviteDTO,
+    ProjectMemberRemoveDTO,
+    ProjectMemberRowDTO,
+    ProjectMemberUpdateRoleDTO,
+    UserLookupDTO,
+)
+from domain.projects.members.errors import (
+    ProjectMemberAccessDenied,
+    ProjectMemberInvalidRole,
+    ProjectMemberLastEditor,
+    ProjectMemberNotFound,
+)
+from domain.projects.members.service import ProjectMembersService
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
@@ -67,6 +82,18 @@ def _raise_project_http_error(error: Exception) -> None:
         )
     if isinstance(error, httpx.RequestError):
         raise HTTPException(status_code=502, detail="Scalars service unavailable")
+    raise HTTPException(status_code=400, detail=str(error))
+
+
+def _raise_project_members_http_error(error: Exception) -> None:
+    if isinstance(error, ProjectMemberAccessDenied):
+        raise HTTPException(status_code=403, detail=str(error))
+    if isinstance(error, (ProjectMemberNotFound, ProjectNotAccessibleError)):
+        raise HTTPException(status_code=404, detail=str(error))
+    if isinstance(error, ProjectMemberInvalidRole):
+        raise HTTPException(status_code=400, detail=str(error))
+    if isinstance(error, ProjectMemberLastEditor):
+        raise HTTPException(status_code=400, detail=str(error))
     raise HTTPException(status_code=400, detail=str(error))
 
 
@@ -234,6 +261,76 @@ async def get_aggregatedproject_metrics(
         )
     except Exception as exc:  # noqa: BLE001
         _raise_project_http_error(exc)
+
+
+@router.get("/{project_id}/members", response_model=list[ProjectMemberRowDTO])
+async def list_project_members(
+    project_id: UUID,
+    user: User = Depends(get_current_user_dual),
+    _: None = Depends(require_api_token_scopes(ProjectActions.VIEW_PROJECT)),
+    members_service: ProjectMembersService = Depends(get_project_members_service),
+):
+    try:
+        return await members_service.list_members(user.id, project_id)
+    except Exception as exc:  # noqa: BLE001
+        _raise_project_members_http_error(exc)
+
+
+@router.get("/{project_id}/users/lookup", response_model=UserLookupDTO)
+async def lookup_project_user_by_email(
+    project_id: UUID,
+    email: str = Query(..., min_length=1, max_length=320),
+    user: User = Depends(get_current_user_dual),
+    _: None = Depends(require_api_token_scopes(ProjectActions.EDIT_PROJECT)),
+    members_service: ProjectMembersService = Depends(get_project_members_service),
+):
+    try:
+        return await members_service.lookup_user_by_email(user.id, project_id, email)
+    except Exception as exc:  # noqa: BLE001
+        _raise_project_members_http_error(exc)
+
+
+@router.post("/{project_id}/members", response_model=ProjectMemberRowDTO)
+async def invite_project_member(
+    project_id: UUID,
+    data: ProjectMemberInviteDTO,
+    user: User = Depends(get_current_user_dual),
+    _: None = Depends(require_api_token_scopes(ProjectActions.EDIT_PROJECT)),
+    members_service: ProjectMembersService = Depends(get_project_members_service),
+):
+    try:
+        return await members_service.invite_member(user.id, project_id, data)
+    except Exception as exc:  # noqa: BLE001
+        _raise_project_members_http_error(exc)
+
+
+@router.patch("/{project_id}/members", response_model=ProjectMemberRowDTO)
+async def update_project_member_role(
+    project_id: UUID,
+    data: ProjectMemberUpdateRoleDTO,
+    user: User = Depends(get_current_user_dual),
+    _: None = Depends(require_api_token_scopes(ProjectActions.EDIT_PROJECT)),
+    members_service: ProjectMembersService = Depends(get_project_members_service),
+):
+    try:
+        return await members_service.update_member_role(user.id, project_id, data)
+    except Exception as exc:  # noqa: BLE001
+        _raise_project_members_http_error(exc)
+
+
+@router.delete("/{project_id}/members")
+async def remove_project_member(
+    project_id: UUID,
+    data: ProjectMemberRemoveDTO,
+    user: User = Depends(get_current_user_dual),
+    _: None = Depends(require_api_token_scopes(ProjectActions.EDIT_PROJECT)),
+    members_service: ProjectMembersService = Depends(get_project_members_service),
+):
+    try:
+        await members_service.remove_member(user.id, project_id, data)
+    except Exception as exc:  # noqa: BLE001
+        _raise_project_members_http_error(exc)
+    return {"success": True}
 
 
 @router.get("/{project_id}", response_model=ProjectDTO)
