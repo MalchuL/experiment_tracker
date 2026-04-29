@@ -18,7 +18,7 @@ from domain.team.users.dto import UserUpdate
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from fastapi_users import BaseUserManager, exceptions
 from pydantic import BaseModel
-from sqlalchemy import func, literal, or_, select
+from sqlalchemy import String, cast, func, literal, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from lib.dto_config import model_config as dto_model_config
@@ -92,16 +92,22 @@ async def admin_panel_list_all_users(
     limit: int = Query(default=20, ge=1, le=MAX_ADMIN_LIST),
     offset: int = Query(default=0, ge=0),
 ) -> list[AdminUserRowDTO]:
-    """Return a global, paginated catalog of user accounts (optional ``q`` filters email and display name)."""
+    """Return a global, paginated catalog of user accounts.
+
+    Optional ``q`` filters email, display name, and user id (substring match on UUID text).
+    """
     stmt = select(User).order_by(User.email).offset(offset).limit(limit)
     if q and q.strip():
-        needle = f"%{q.strip().lower()}%"
+        qq = q.strip()
+        needle = f"%{qq.lower()}%"
+        id_as_text = cast(User.id, String)
         stmt = (
             select(User)
             .where(
                 or_(
                     func.lower(User.email).like(needle),
                     func.lower(func.coalesce(User.display_name, literal(""))).like(needle),
+                    id_as_text.ilike(f"%{qq}%"),
                 )
             )
             .order_by(User.email)

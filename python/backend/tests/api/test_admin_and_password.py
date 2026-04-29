@@ -45,12 +45,15 @@ class TestAdminRoutes:
         r = client.get("/api/admin/users", headers={"X-Admin-Key": "wrong"})
         assert r.status_code == 403
 
-    def test_admin_users_default_key(self, client: TestClient, test_user: User):
-        r = client.get("/api/admin/users", headers={"X-Admin-Key": "admin"})
+    def test_admin_users_search_by_uuid_substring(self, client: TestClient, test_user: User):
+        uid = str(test_user.id)
+        fragment = uid.split("-")[0]
+        r = client.get(
+            f"/api/admin/users?q={fragment}",
+            headers={"X-Admin-Key": "admin"},
+        )
         assert r.status_code == 200
-        data = r.json()
-        assert len(data) >= 1
-        ids = {str(row["id"]) for row in data}
+        ids = {row["id"] for row in r.json()}
         assert str(test_user.id) in ids
 
     def test_admin_reset_password(self, client: TestClient, test_user_2: User):
