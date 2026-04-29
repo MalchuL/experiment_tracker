@@ -1,5 +1,5 @@
 import uuid
-from typing import List, Optional
+from typing import Optional
 
 from pydantic import BaseModel
 
@@ -12,21 +12,21 @@ class TeamBase(BaseModel):
     name: str
     description: Optional[str] = None
 
+    model_config = model_config()
+
 
 class TeamReadDTO(TeamBase):
     id: uuid.UUID
     created_at: ApiDateTime
     owner_id: uuid.UUID
-    model_config = model_config()
 
 
 class TeamCreateDTO(TeamBase):
-    model_config = model_config()
+    pass
 
 
 class TeamUpdateDTO(TeamBase):
     id: uuid.UUID
-    model_config = model_config()
 
 
 class TeamMemberBase(BaseModel):
@@ -34,18 +34,19 @@ class TeamMemberBase(BaseModel):
     team_id: uuid.UUID
     role: Role
 
+    model_config = model_config()
+
 
 class TeamMemberReadDTO(TeamMemberBase):
     id: uuid.UUID
-    model_config = model_config()
 
 
 class TeamMemberCreateDTO(TeamMemberBase):
-    model_config = model_config()
+    pass
 
 
 class TeamMemberUpdateDTO(TeamMemberBase):
-    model_config = model_config()
+    pass
 
 
 class TeamMemberDeleteDTO(BaseModel):
@@ -53,6 +54,7 @@ class TeamMemberDeleteDTO(BaseModel):
 
     user_id: uuid.UUID
     team_id: uuid.UUID
+
     model_config = model_config()
 
 
@@ -60,13 +62,13 @@ class TeamListItemDTO(TeamReadDTO):
     """Team row for list views with permission hints for the UI."""
 
     can_create_project: bool = False
-    model_config = model_config()
 
 
 class TeamUserLookupDTO(BaseModel):
     id: uuid.UUID
     email: Optional[str] = None
     display_name: Optional[str] = None
+
     model_config = model_config()
 
 
@@ -80,4 +82,5 @@ class TeamMemberWithUserDTO(BaseModel):
     email: str | None = None
     display_name: str | None = None
     is_team_owner: bool = False
+
     model_config = model_config()

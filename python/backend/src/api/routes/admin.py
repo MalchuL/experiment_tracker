@@ -17,11 +17,11 @@ from db.database import get_async_session
 from domain.team.users.dto import UserUpdate
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from fastapi_users import BaseUserManager, exceptions
-from pydantic import BaseModel, ConfigDict
-from pydantic.alias_generators import to_camel
+from pydantic import BaseModel
 from sqlalchemy import func, literal, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from lib.dto_config import model_config as dto_model_config
 from models import Team, User
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -48,11 +48,7 @@ async def require_admin_panel_key(
 class AdminUserRowDTO(BaseModel):
     """Safe JSON row for a user in the admin panel list (no secrets or ORM extras)."""
 
-    model_config = ConfigDict(
-        alias_generator=to_camel,
-        populate_by_name=True,
-        serialize_by_alias=True,
-    )
+    model_config = dto_model_config()
 
     id: uuid.UUID
     email: str
@@ -65,11 +61,7 @@ class AdminUserRowDTO(BaseModel):
 class AdminTeamRowDTO(BaseModel):
     """Safe JSON row for a team in the admin panel list."""
 
-    model_config = ConfigDict(
-        alias_generator=to_camel,
-        populate_by_name=True,
-        serialize_by_alias=True,
-    )
+    model_config = dto_model_config()
 
     id: uuid.UUID
     name: str
@@ -81,11 +73,7 @@ class AdminTeamRowDTO(BaseModel):
 class AdminResetPasswordResponse(BaseModel):
     """One-time response after forcing a new password (plaintext shown only in this payload)."""
 
-    model_config = ConfigDict(
-        alias_generator=to_camel,
-        populate_by_name=True,
-        serialize_by_alias=True,
-    )
+    model_config = dto_model_config()
 
     user_id: uuid.UUID
     email: str
