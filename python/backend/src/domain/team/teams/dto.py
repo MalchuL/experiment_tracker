@@ -1,5 +1,5 @@
 import uuid
-from typing import Optional, List
+from typing import Optional
 from pydantic import BaseModel
 from datetime import datetime
 
@@ -10,41 +10,40 @@ from lib.dto_config import model_config
 class TeamBase(BaseModel):
     name: str
     description: Optional[str] = None
+    model_config = model_config()
 
 
 class TeamReadDTO(TeamBase):
     id: uuid.UUID
     created_at: datetime
     owner_id: uuid.UUID
-    model_config = model_config()
 
 
 class TeamCreateDTO(TeamBase):
-    model_config = model_config()
+    pass
 
 
 class TeamUpdateDTO(TeamBase):
     id: uuid.UUID
-    model_config = model_config()
 
 
 class TeamMemberBase(BaseModel):
     user_id: uuid.UUID
     team_id: uuid.UUID
     role: Role
+    model_config = model_config()
 
 
 class TeamMemberReadDTO(TeamMemberBase):
     id: uuid.UUID
-    model_config = model_config()
 
 
 class TeamMemberCreateDTO(TeamMemberBase):
-    model_config = model_config()
+    pass
 
 
 class TeamMemberUpdateDTO(TeamMemberBase):
-    model_config = model_config()
+    pass
 
 
 class TeamMemberDeleteDTO(BaseModel):
@@ -59,7 +58,6 @@ class TeamListItemDTO(TeamReadDTO):
     """Team row for list views with permission hints for the UI."""
 
     can_create_project: bool = False
-    model_config = model_config()
 
 
 class TeamUserLookupDTO(BaseModel):

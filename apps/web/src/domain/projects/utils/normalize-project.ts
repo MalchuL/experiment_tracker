@@ -1,6 +1,6 @@
 import type { Project, ProjectOwner } from "../types";
 
-/** API may return `team: { id, name }` (nested) or flat `teamId` / `teamName`. */
+/** Normalizes API payload: camelCase keys only (`owner.displayName`, nested `team`). */
 export function normalizeProject(raw: unknown): Project {
   const r = raw as Record<string, unknown>;
   const team = r.team as { id?: string; name?: string | null } | null | undefined;
@@ -8,15 +8,10 @@ export function normalizeProject(raw: unknown): Project {
   const owner: ProjectOwner = {
     id: String(ownerRaw?.id ?? ""),
     email: String(ownerRaw?.email ?? ""),
-    displayName:
-      (ownerRaw?.displayName as string | null | undefined) ??
-      (ownerRaw?.display_name as string | null | undefined) ??
-      null,
+    displayName: (ownerRaw?.displayName as string | null | undefined) ?? null,
   };
-  const teamId: string | null =
-    (r.teamId as string | null | undefined) ?? team?.id ?? null;
-  const teamName: string | null =
-    (r.teamName as string | null | undefined) ?? team?.name ?? null;
+  const teamId: string | null = team?.id ?? null;
+  const teamName: string | null = team?.name ?? null;
   return {
     ...(r as unknown as Project),
     owner,
