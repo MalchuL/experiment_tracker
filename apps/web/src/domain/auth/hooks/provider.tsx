@@ -16,7 +16,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   login: (payload: LoginPayload, options?: AuthProviderOptions) => Promise<void>;
   register: (payload: SignUpPayload, options?: AuthProviderOptions) => Promise<void>;
-  updateUser: (payload: User, options?: AuthProviderOptions) => Promise<void>;
+  updateUser: (payload: Partial<User>, options?: AuthProviderOptions) => Promise<void>;
   logout: (options?: AuthProviderOptions) => Promise<void>;
 }
 

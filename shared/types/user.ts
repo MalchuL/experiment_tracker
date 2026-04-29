@@ -6,4 +6,6 @@ export interface User {
     isActive: boolean;
     isSuperuser: boolean;
     isVerified: boolean;
+    /** ISO datetime from the API when present */
+    createdAt?: string | null;
 }

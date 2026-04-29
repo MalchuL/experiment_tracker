@@ -18,7 +18,7 @@ export interface AuthHookResult {
     isAuthenticated: boolean;
     login(payload: LoginPayload, options?: AuthHookOptions): Promise<void>;
     register(payload: SignUpPayload, options?: AuthHookOptions): Promise<void>;
-    updateUser(payload: User, options?: AuthHookOptions): Promise<void>;
+    updateUser(payload: Partial<User>, options?: AuthHookOptions): Promise<void>;
     logout(options?: AuthHookOptions): Promise<void>;
     error: Error | null;
 }
@@ -71,7 +71,7 @@ export function useAuthService(): AuthHookResult {
 
     // Update user mutation
     const updateUserMutation = useMutation({
-        mutationFn: async (payload: User) => {
+        mutationFn: async (payload: Partial<User>) => {
             const user = await authService.updateUser(payload);
             setUser(user);
             return user;
@@ -95,12 +95,19 @@ export function useAuthService(): AuthHookResult {
         }
     }, [isLoading, queryIsLoading]);
     
-    const logout = useCallback(({onSuccess, onError}: {onSuccess: () => void, onError: (error: Error) => void}) => {
+    const logout = useCallback((options?: AuthHookOptions) => {
         return logoutMutation.mutateAsync(undefined, {
-            onSuccess,
-            onError,
-        });  
+            onSuccess: options?.onSuccess,
+            onError: options?.onError,
+        });
     }, [logoutMutation]);
+
+    const updateUser = useCallback((payload: Partial<User>, options?: AuthHookOptions) => {
+        return updateUserMutation.mutateAsync(payload, {
+            onSuccess: options?.onSuccess,
+            onError: options?.onError,
+        }).then(() => undefined);
+    }, [updateUserMutation]);
 
     return {
         user,
@@ -108,9 +115,9 @@ export function useAuthService(): AuthHookResult {
         isAuthenticated,
         login: loginMutation.mutateAsync,
         register: registerMutation.mutateAsync,
-        updateUser: updateUserMutation.mutateAsync,
+        updateUser,
         logout,
         error: error as Error | null,
     };
 
-}   
+}

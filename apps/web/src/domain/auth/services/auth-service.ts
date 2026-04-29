@@ -8,8 +8,12 @@ import { LoginPayload, SignUpPayload, LoginResponse } from "../types";
 export interface AuthService {
     login: (payload: LoginPayload) => Promise<LoginResponse>;
     register: (payload: SignUpPayload) => Promise<User>;
-    updateUser: (user: User) => Promise<User>;
+    updateUser: (payload: Partial<User>) => Promise<User>;
     getUser: () => Promise<User>;
+    changePassword: (payload: {
+        currentPassword: string;
+        newPassword: string;
+    }) => Promise<{ success: boolean }>;
     logout: () => void;
 }
 
@@ -36,12 +40,22 @@ export const authService: AuthService = {
         const response = await serviceClients.api.post<User>(API_ROUTES.AUTH.REGISTER, payload);
         return response.data;
     },
-    updateUser: async (user: User) => {
-        const response = await serviceClients.api.patch(API_ROUTES.USERS.ME, user);
+    updateUser: async (payload: Partial<User>) => {
+        const response = await serviceClients.api.patch<User>(API_ROUTES.USERS.ME, payload);
         return response.data;
     },
     getUser: async () => {
         const response = await serviceClients.api.get(API_ROUTES.USERS.ME);
+        return response.data;
+    },
+    changePassword: async (payload: {
+        currentPassword: string;
+        newPassword: string;
+    }): Promise<{ success: boolean }> => {
+        const response = await serviceClients.api.post<{ success: boolean }>(
+            API_ROUTES.USERS.CHANGE_PASSWORD,
+            payload,
+        );
         return response.data;
     },
     logout: async () => {

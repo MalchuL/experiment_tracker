@@ -1,5 +1,6 @@
 from fastapi import APIRouter
 
+from api.routes.admin import router as admin_router
 from api.routes.auth import router as auth_router
 from config.settings import get_settings
 from domain.api_tokens.controller import router as api_tokens_router
@@ -25,6 +26,7 @@ router.include_router(scalars_router)
 router.include_router(teams_router)
 router.include_router(dashboard_router)
 router.include_router(auth_router)
+router.include_router(admin_router)
 router.include_router(api_tokens_router)
 router.include_router(experiment_artifacts_router)
 router.include_router(project_artifacts_router)
