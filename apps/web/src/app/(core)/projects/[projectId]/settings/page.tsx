@@ -6,7 +6,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { AlertCircle, Eye, Pencil, Plus, Settings, Trash2, X } from "lucide-react";
 import { useCurrentProject } from "@/domain/projects/hooks";
 import { useProject } from "@/domain/projects/hooks/project-hook";
-import { BasicInfoForm, DisplayMetricsForm, MetricsManagement } from "@/domain/projects/components";
+import {
+  BasicInfoForm,
+  DisplayMetricsForm,
+  MetricsManagement,
+  ProjectMembersPanel,
+} from "@/domain/projects/components";
 import { BasicInfoFormData } from "@/domain/projects/schemas";
 import { ProjectDisplayMetric, ProjectMetric, ProjectSettingType } from "@/domain/projects/types";
 import { displayMetricKeyEquals, displayMetricsForApiSave } from "@/lib/metrics/format-metric-label";
@@ -256,6 +261,8 @@ export default function ProjectSettings() {
             />
           </CardContent>
         </Card>
+
+        <ProjectMembersPanel projectId={projectId} />
 
         <Card>
           <CardHeader>

@@ -18,8 +18,16 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Plus } from "lucide-react";
 import type { InsertProject } from "@/domain/projects/types";
+import { useTeams } from "@/domain/teams/hooks";
 
 interface CreateProjectModalProps {
   isOpen: boolean;
@@ -36,6 +44,9 @@ export function CreateProjectModal({
   onSubmit,
   creationIsPending,
 }: CreateProjectModalProps) {
+  const { data: teamsData } = useTeams();
+  const creatableTeams = (teamsData?.data ?? []).filter((t) => t.canCreateProject);
+
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogTrigger asChild>
@@ -88,6 +99,36 @@ export function CreateProjectModal({
                 </FormItem>
               )}
             />
+            {creatableTeams.length > 0 && (
+              <FormField
+                control={form.control}
+                name="teamId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Team (optional)</FormLabel>
+                    <Select
+                      value={field.value ?? "none"}
+                      onValueChange={(v) => field.onChange(v === "none" ? null : v)}
+                    >
+                      <FormControl>
+                        <SelectTrigger data-testid="select-project-team">
+                          <SelectValue placeholder="Personal project" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="none">Personal (no team)</SelectItem>
+                        {creatableTeams.map((t) => (
+                          <SelectItem key={t.id} value={t.id}>
+                            {t.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
             <div className="flex justify-end gap-2">
               <Button
                 type="button"

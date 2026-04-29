@@ -16,8 +16,9 @@ export function UserMenu() {
 
   if (!user) return null;
 
-  const initials = user.display_name
-    ? user.display_name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2)
+  const displayLabel = user.displayName ?? user.email;
+  const initials = user.displayName
+    ? user.displayName.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)
     : user.email.slice(0, 2).toUpperCase();
 
   return (
@@ -31,7 +32,7 @@ export function UserMenu() {
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
         <div className="px-2 py-1.5">
-          <p className="text-sm font-medium">{user.display_name || "User"}</p>
+          <p className="text-sm font-medium">{displayLabel || "User"}</p>
           <p className="text-xs text-muted-foreground">{user.email}</p>
         </div>
         <DropdownMenuSeparator />
@@ -48,7 +49,7 @@ export function UserMenu() {
           </Link>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={logout} data-testid="menu-logout">
+        <DropdownMenuItem onClick={() => void logout()} data-testid="menu-logout">
           <LogOut className="mr-2 h-4 w-4" />
           Sign out
         </DropdownMenuItem>

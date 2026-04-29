@@ -40,21 +40,17 @@ export const API_ROUTES = {
     TEAMS: {
       LIST: "/api/teams",
       CREATE: "/api/teams",
-  
+      PATCH: "/api/teams",
       BY_ID: {
         GET: (teamId: string) => `/api/teams/${teamId}`,
-        UPDATE: (teamId: string) => `/api/teams/${teamId}`,
+        MEMBERS: (teamId: string) => `/api/teams/${teamId}/members`,
+        USERS_LOOKUP: (teamId: string) => `/api/teams/${teamId}/users/lookup`,
         DELETE: (teamId: string) => `/api/teams/${teamId}`,
-  
-        LEAVE: (teamId: string) => `/api/teams/${teamId}/leave`,
-  
-        MEMBERS: {
-          ADD: (teamId: string) => `/api/teams/${teamId}/members`,
-          UPDATE_ROLE: (teamId: string, memberId: string) =>
-            `/api/teams/${teamId}/members/${memberId}`,
-          REMOVE: (teamId: string, memberId: string) =>
-            `/api/teams/${teamId}/members/${memberId}`,
-        },
+      },
+      MEMBERS: {
+        ADD: "/api/teams/members",
+        PATCH: "/api/teams/members",
+        DELETE: "/api/teams/members",
       },
     },
   
@@ -94,6 +90,8 @@ export const API_ROUTES = {
           `/api/projects/${projectId}/settings/map`,
         SETTINGS_BY_NAME: (projectId: string, name: string) =>
           `/api/projects/${projectId}/settings/${encodeURIComponent(name)}`,
+        MEMBERS: (projectId: string) => `/api/projects/${projectId}/members`,
+        USERS_LOOKUP: (projectId: string) => `/api/projects/${projectId}/users/lookup`,
       },
     },
   

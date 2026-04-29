@@ -6,6 +6,7 @@ export const FRONTEND_ROUTES = {
   EXPERIMENTS: "/experiments",
   HYPOTHESES: "/hypotheses",
   TEAMS: "/teams",
+  TEAM_BY_ID: (teamId: string) => `/teams/${teamId}`,
   USERS: "/users",
   SETTINGS: "/settings",
   

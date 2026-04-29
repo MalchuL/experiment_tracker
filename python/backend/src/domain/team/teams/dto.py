@@ -48,6 +48,35 @@ class TeamMemberUpdateDTO(TeamMemberBase):
 
 
 class TeamMemberDeleteDTO(BaseModel):
+    """Remove a member from a team. ``team_id`` identifies the team (not the member row)."""
+
     user_id: uuid.UUID
-    team_member_id: uuid.UUID
+    team_id: uuid.UUID
+    model_config = model_config()
+
+
+class TeamListItemDTO(TeamReadDTO):
+    """Team row for list views with permission hints for the UI."""
+
+    can_create_project: bool = False
+    model_config = model_config()
+
+
+class TeamUserLookupDTO(BaseModel):
+    id: uuid.UUID
+    email: Optional[str] = None
+    display_name: Optional[str] = None
+    model_config = model_config()
+
+
+class TeamMemberWithUserDTO(BaseModel):
+    """Team member (or team owner) with profile fields for display."""
+
+    member_id: uuid.UUID | None = None
+    user_id: uuid.UUID
+    team_id: uuid.UUID
+    role: Role
+    email: str | None = None
+    display_name: str | None = None
+    is_team_owner: bool = False
     model_config = model_config()

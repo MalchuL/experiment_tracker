@@ -1,3 +1,4 @@
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from domain.team.teams.repository import TeamRepository
 from domain.rbac.service import PermissionService
@@ -12,15 +13,19 @@ from domain.team.teams.errors import (
 from lib.db.error import DBNotFoundError
 from .dto import (
     TeamCreateDTO,
-    TeamMemberUpdateDTO,
-    TeamReadDTO,
-    TeamMemberCreateDTO,
+    TeamListItemDTO,
     TeamMemberDeleteDTO,
     TeamMemberReadDTO,
+    TeamMemberUpdateDTO,
+    TeamMemberWithUserDTO,
+    TeamMemberCreateDTO,
+    TeamReadDTO,
     TeamUpdateDTO,
+    TeamUserLookupDTO,
 )
 from .mapper import TeamMapper, CreateDTOToSchemaProps
-from models import Role
+from lib.pagination import ListOptions, Page, paginate_sequence
+from models import Role, User
 
 
 class TeamService:
@@ -122,6 +127,100 @@ class TeamService:
         await self.team_repository.delete(team_id)
         await self.db.commit()
 
+    async def list_teams(
+        self, user_id: UUID, list_options: ListOptions
+    ) -> Page[TeamListItemDTO]:
+        teams = await self.team_repository.list_teams_for_user(user_id)
+        items: list[TeamListItemDTO] = []
+        for team in teams:
+            base = self.team_mapper.team_schema_to_dto(team)
+            can_create = await self.permission_checker.can_create_project(
+                user_id, team.id
+            )
+            items.append(
+                TeamListItemDTO.model_validate(
+                    {**base.model_dump(), "can_create_project": can_create}
+                )
+            )
+        page = paginate_sequence(items, list_options)
+        return page
+
+    async def get_team(self, user_id: UUID, team_id: UUID) -> TeamReadDTO:
+        if not await self.permission_checker.can_view_team(user_id, team_id):
+            raise TeamAccessDeniedError("You do not have permission to view this team")
+        try:
+            team = await self.team_repository.get_by_id(team_id)
+        except DBNotFoundError:
+            raise TeamNotFoundError("Team not found")
+        return self.team_mapper.team_schema_to_dto(team)
+
+    async def list_team_members(
+        self, user_id: UUID, team_id: UUID
+    ) -> list[TeamMemberWithUserDTO]:
+        if not await self.permission_checker.can_view_team(user_id, team_id):
+            raise TeamAccessDeniedError("You do not have permission to view this team")
+        try:
+            team = await self.team_repository.get_by_id_with_owner(team_id)
+        except DBNotFoundError:
+            raise TeamNotFoundError("Team not found")
+        members = await self.team_repository.list_team_members_with_users(team_id)
+        owner = team.owner
+        out: list[TeamMemberWithUserDTO] = []
+        out.append(
+            TeamMemberWithUserDTO(
+                member_id=None,
+                user_id=team.owner_id,
+                team_id=team_id,
+                role=Role.OWNER,
+                email=owner.email,
+                display_name=owner.display_name,
+                is_team_owner=True,
+            )
+        )
+        owner_in_members = False
+        for tm in members:
+            if tm.user_id == team.owner_id:
+                owner_in_members = True
+                continue
+            u = tm.user
+            out.append(
+                TeamMemberWithUserDTO(
+                    member_id=tm.id,
+                    user_id=tm.user_id,
+                    team_id=tm.team_id,
+                    role=tm.role,
+                    email=u.email,
+                    display_name=u.display_name,
+                    is_team_owner=False,
+                )
+            )
+        if owner_in_members:
+            # Owner also has a team_members row; synthetic owner row already covers them.
+            pass
+        return out
+
+    async def lookup_user_by_email(
+        self, requester_id: UUID, team_id: UUID, email: str
+    ) -> TeamUserLookupDTO:
+        if not await self.permission_checker.can_manage_team(requester_id, team_id):
+            raise TeamAccessDeniedError("You do not have permission to look up users")
+        try:
+            await self.team_repository.get_by_id(team_id)
+        except DBNotFoundError:
+            raise TeamNotFoundError("Team not found")
+        normalized = email.strip().lower()
+        stmt = select(User).where(
+            func.lower(User.email) == normalized,
+            User.is_active.is_(True),
+        )
+        result = await self.db.execute(stmt)
+        user = result.scalar_one_or_none()
+        if user is None:
+            raise TeamMemberNotFoundError("User not found")
+        return TeamUserLookupDTO(
+            id=user.id, email=user.email, display_name=user.display_name
+        )
+
     # Team Member
     async def add_team_member(
         self, user_id: UUID, team_member: TeamMemberCreateDTO
@@ -146,7 +245,9 @@ class TeamService:
         await self.db.commit()
         return self.team_mapper.team_member_schema_to_dto(team_member)
 
-    async def update_team_member(self, user_id: UUID, dto: TeamMemberUpdateDTO) -> None:
+    async def update_team_member(
+        self, user_id: UUID, dto: TeamMemberUpdateDTO
+    ) -> TeamMemberReadDTO:
         await self._check_role(user_id, dto.team_id, dto.role, dto.user_id)
         if not await self.permission_checker.can_manage_team(user_id, dto.team_id):
             raise TeamAccessDeniedError(
@@ -171,21 +272,35 @@ class TeamService:
         return self.team_mapper.team_member_schema_to_dto(team_member)
 
     async def remove_team_member(self, user_id: UUID, dto: TeamMemberDeleteDTO) -> None:
+        team_id = dto.team_id
+        try:
+            team = await self.team_repository.get_by_id_with_owner(team_id)
+        except DBNotFoundError:
+            raise TeamNotFoundError("Team not found")
+
+        if str(dto.user_id) == str(team.owner_id):
+            raise TeamAccessDeniedError("Cannot remove the team owner")
+
         team_member = await self.team_repository.get_team_member_if_accessible(
-            dto.user_id, dto.team_member_id
+            dto.user_id, team_id
         )
-        if team_member is not None and team_member.role == Role.ADMIN:
+        if team_member is None:
+            raise TeamMemberNotFoundError("Team member not found")
+        if team_member.role == Role.ADMIN:
             raise TeamAccessDeniedError("You do not have permission to remove an admin")
-        if str(user_id) != str(
-            dto.user_id
-        ) and not await self.permission_checker.can_manage_team(
-            user_id, dto.team_member_id
-        ):
+
+        is_self = str(user_id) == str(dto.user_id)
+        can_manage = await self.permission_checker.can_manage_team(user_id, team_id)
+        if not is_self and not can_manage:
             raise TeamAccessDeniedError(
                 "You do not have permission to remove a team member"
             )
-        await self.team_repository.delete_team_member(dto.user_id, dto.team_member_id)
+        if is_self and not can_manage:
+            # Member may leave the team without manage_team
+            pass
+
+        await self.team_repository.delete_team_member(dto.user_id, team_id)
         await self.permission_service.remove_user_from_team_permissions(
-            dto.user_id, dto.team_member_id
+            dto.user_id, team_id
         )
         await self.db.commit()

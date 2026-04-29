@@ -17,6 +17,7 @@ import type {
   UniqueMetricDimensionsResponse,
 } from "@/domain/metrics/types";
 import type { PaginatedResponse, PaginationParams } from "@/lib/types/pagination";
+import { normalizeProject, normalizeProjectPage } from "../utils/normalize-project";
 
 
 export interface ProjectsService {
@@ -62,11 +63,11 @@ export const projectsService: ProjectsService = {
     const response = await serviceClients.api.get<PaginatedResponse<Project>>(
       appendPaginationParams(API_ROUTES.PROJECTS.LIST, params),
     );
-    return response.data;
+    return normalizeProjectPage(response.data);
   },
   getById: async (id: string): Promise<Project> => {
     const response = await serviceClients.api.get<Project>(API_ROUTES.PROJECTS.BY_ID.GET(id));
-    return response.data;
+    return normalizeProject(response.data);
   },
   getExperiments: async (
     id: string,
@@ -90,12 +91,12 @@ export const projectsService: ProjectsService = {
 
   create: async (project: InsertProject): Promise<Project> => {
     const response = await serviceClients.api.post<Project>(API_ROUTES.PROJECTS.CREATE, project);
-    return response.data;
+    return normalizeProject(response.data);
   },
 
   update: async (id: string, updates: UpdateProject): Promise<Project> => {
     const response = await serviceClients.api.patch<Project>(API_ROUTES.PROJECTS.BY_ID.UPDATE(id), updates);
-    return response.data;
+    return normalizeProject(response.data);
   },
 
   delete: async (id: string): Promise<void> => {

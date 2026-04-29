@@ -7,4 +7,5 @@ export * from "./recent-hypotheses-card";
 export * from "./settings/basic-info-form";
 export * from "./settings/display-metrics-form";
 export * from "./settings/metrics-management";
+export * from "./settings/project-members-panel";
 

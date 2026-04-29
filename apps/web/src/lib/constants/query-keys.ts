@@ -1,4 +1,12 @@
 export const QUERY_KEYS = {
+    TEAMS: {
+        LIST: "teams",
+        GET_BY_ID: (teamId: string) => `teams/${teamId}`,
+        MEMBERS: (teamId: string) => `teams/${teamId}/members`,
+    },
+    PROJECT_MEMBERS: {
+        LIST: (projectId: string) => `projects/${projectId}/members`,
+    },
     PROJECTS: {
         LIST: "/projects",
         GET_BY_ID: (projectId: string) => `projects/${projectId}`,
