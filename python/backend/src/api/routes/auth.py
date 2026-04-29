@@ -21,7 +21,10 @@ from domain.api_tokens.error import (
 )
 from domain.api_tokens.service import ApiTokenService
 from domain.team.users.dto import UserCreate, UserRead, UserUpdate
+from fastapi_users.exceptions import InvalidPasswordException
+from lib.dto_config import model_config
 from models import User
+from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 SECRET = get_settings().jwt_secret
@@ -177,3 +180,50 @@ router.include_router(
 @router.get("/users/me/profile", response_model=UserRead, tags=["users"])
 async def get_my_profile(user: User = Depends(get_current_user_dual)) -> User:
     return user
+
+
+class ChangePasswordDTO(BaseModel):
+    current_password: str
+    new_password: str = Field(..., min_length=8)
+    model_config = model_config()
+
+
+@router.post("/users/me/change-password", tags=["users"])
+async def change_my_password(
+    body: ChangePasswordDTO,
+    request: Request,
+    user: User = Depends(get_current_user_dual),
+    user_manager: BaseUserManager[User, uuid.UUID] = Depends(get_user_manager),
+    db: AsyncSession = Depends(get_async_session),
+):
+    if getattr(request.state, "api_token_scopes", None) is not None:
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "Password change is not available when authenticated with an API token; "
+                "use JWT login."
+            ),
+        )
+
+    verified, _ = user_manager.password_helper.verify_and_update(
+        body.current_password, user.hashed_password
+    )
+    if not verified:
+        raise HTTPException(status_code=400, detail="Invalid current password")
+
+    try:
+        await user_manager.validate_password(body.new_password, user)
+        await user_manager.update(
+            UserUpdate(password=body.new_password),
+            user,
+            safe=True,
+            request=request,
+        )
+    except InvalidPasswordException as e:
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "invalid_password", "reason": e.reason},
+        ) from e
+
+    await db.commit()
+    return {"success": True}

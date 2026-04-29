@@ -18,9 +18,16 @@ export const API_ROUTES = {
       REQUEST_VERIFY_TOKEN: "api/auth/request-verify-token",
       VERIFY: "api/auth/verify",
     },
+
+    ADMIN: {
+      USERS: "api/admin/users",
+      TEAMS: "api/admin/teams",
+      RESET_PASSWORD: (userId: string) => `api/admin/users/${userId}/reset-password`,
+    },
   
     USERS: {
       ME: "api/users/me",
+      CHANGE_PASSWORD: "api/users/me/change-password",
       API_TOKENS: {
         LIST: "api/users/me/api-tokens",
         CREATE: "api/users/me/api-tokens",

@@ -8,8 +8,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Key, LogOut, Users } from "lucide-react";
+import { Key, LogOut, UserCircle, Users } from "lucide-react";
 import Link from "next/link";
+import { FRONTEND_ROUTES } from "@/lib/constants/frontend-routes";
 
 export function UserMenu() {
   const { user, logout } = useAuth();
@@ -37,13 +38,19 @@ export function UserMenu() {
         </div>
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
-          <Link href="/teams" className="cursor-pointer" data-testid="menu-teams">
+          <Link href={FRONTEND_ROUTES.TEAMS} className="cursor-pointer" data-testid="menu-teams">
             <Users className="mr-2 h-4 w-4" />
             Teams
           </Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
-          <Link href="/profile/api-tokens" className="cursor-pointer" data-testid="menu-api-tokens">
+          <Link href={FRONTEND_ROUTES.PROFILE} className="cursor-pointer" data-testid="menu-profile">
+            <UserCircle className="mr-2 h-4 w-4" />
+            Profile
+          </Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <Link href={FRONTEND_ROUTES.PROFILE_API_TOKENS} className="cursor-pointer" data-testid="menu-api-tokens">
             <Key className="mr-2 h-4 w-4" />
             API Tokens
           </Link>

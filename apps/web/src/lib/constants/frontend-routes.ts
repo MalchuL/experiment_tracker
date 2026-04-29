@@ -7,6 +7,8 @@ export const FRONTEND_ROUTES = {
   HYPOTHESES: "/hypotheses",
   TEAMS: "/teams",
   TEAM_BY_ID: (teamId: string) => `/teams/${teamId}`,
+  PROFILE: "/profile",
+  PROFILE_API_TOKENS: "/profile/api-tokens",
   USERS: "/users",
   SETTINGS: "/settings",
   

@@ -7,6 +7,12 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import { ChevronDown } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from "@/lib/hooks/use-toast";
 import { apiTokensService } from "@/domain/api-tokens/services";
@@ -190,7 +196,6 @@ export default function ApiTokensPage() {
         title="API Tokens"
         description="Create personal API tokens for training scripts and SDK usage."
       />
-
       {createdToken && (
         <Alert>
           <AlertTitle>Token created</AlertTitle>
@@ -210,63 +215,75 @@ export default function ApiTokensPage() {
         </Alert>
       )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Create token</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Name</label>
-              <Input
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-                placeholder="Training cluster token"
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Expires in days (optional)</label>
-              <Input
-                value={expiresInDays}
-                onChange={(event) => setExpiresInDays(event.target.value)}
-                placeholder="30"
-                type="number"
-                min={1}
-              />
-            </div>
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Description</label>
-            <Textarea
-              value={description}
-              onChange={(event) => setDescription(event.target.value)}
-              placeholder="Optional description"
-            />
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Scopes</label>
-            <div className="grid gap-2 md:grid-cols-2">
-              {scopesByGroup.map((scope) => (
-                <label key={scope} className="flex items-start gap-2 text-sm">
-                  <Checkbox
-                    checked={selectedScopes.includes(scope)}
-                    onCheckedChange={() => handleToggleScope(scope)}
+      <Collapsible defaultOpen={false}>
+        <Card>
+          <CardHeader className="p-0">
+            <CollapsibleTrigger asChild>
+              <button
+                type="button"
+                className="flex w-full items-center justify-between gap-4 rounded-t-xl p-6 text-left outline-none transition-colors hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring group"
+              >
+                <CardTitle>Create token</CardTitle>
+                <ChevronDown className="h-5 w-5 shrink-0 text-muted-foreground transition-transform duration-200 group-data-[state=open]:rotate-180" />
+              </button>
+            </CollapsibleTrigger>
+          </CardHeader>
+          <CollapsibleContent>
+            <CardContent className="space-y-4">
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Name</label>
+                  <Input
+                    value={name}
+                    onChange={(event) => setName(event.target.value)}
+                    placeholder="Training cluster token"
                   />
-                  <span>
-                    <span className="font-medium">{scope}</span>
-                    <span className="block text-xs text-muted-foreground">
-                      {SCOPE_DESCRIPTIONS[scope] ?? "Controls API access for this action."}
-                    </span>
-                  </span>
-                </label>
-              ))}
-            </div>
-          </div>
-          <Button onClick={handleCreateToken} disabled={isSubmitting}>
-            {isSubmitting ? "Creating..." : "Create token"}
-          </Button>
-        </CardContent>
-      </Card>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Expires in days (optional)</label>
+                  <Input
+                    value={expiresInDays}
+                    onChange={(event) => setExpiresInDays(event.target.value)}
+                    placeholder="30"
+                    type="number"
+                    min={1}
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Description</label>
+                <Textarea
+                  value={description}
+                  onChange={(event) => setDescription(event.target.value)}
+                  placeholder="Optional description"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Scopes</label>
+                <div className="grid gap-2 md:grid-cols-2">
+                  {scopesByGroup.map((scope) => (
+                    <label key={scope} className="flex items-start gap-2 text-sm">
+                      <Checkbox
+                        checked={selectedScopes.includes(scope)}
+                        onCheckedChange={() => handleToggleScope(scope)}
+                      />
+                      <span>
+                        <span className="font-medium">{scope}</span>
+                        <span className="block text-xs text-muted-foreground">
+                          {SCOPE_DESCRIPTIONS[scope] ?? "Controls API access for this action."}
+                        </span>
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <Button onClick={handleCreateToken} disabled={isSubmitting}>
+                {isSubmitting ? "Creating..." : "Create token"}
+              </Button>
+            </CardContent>
+          </CollapsibleContent>
+        </Card>
+      </Collapsible>
 
       <Card>
         <CardHeader>
