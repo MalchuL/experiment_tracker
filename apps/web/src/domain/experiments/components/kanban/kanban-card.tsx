@@ -59,11 +59,18 @@ export function KanbanCard({ experiment, isSelected, onClick }: KanbanCardProps)
               style={{ backgroundColor: experiment.color }}
             />
             <div className="min-w-0 w-full flex-1 overflow-hidden">
-              <ExperimentTruncatedText text={experiment.name} className="text-sm font-medium" />
+              <ExperimentTruncatedText
+                text={experiment.name}
+                className="text-sm font-medium"
+                showTooltip="always"
+                lineClamp={2}
+              />
               {experiment.description ? (
                 <ExperimentTruncatedText
                   text={experiment.description}
                   className="mt-0.5 text-xs text-muted-foreground"
+                  showTooltip="always"
+                  lineClamp={3}
                 />
               ) : null}
               <p className="mt-0.5 font-mono text-xs text-muted-foreground">{experiment.id.slice(0, 8)}</p>
