@@ -3,15 +3,8 @@
 import { useCallback, useMemo, useState } from "react";
 import Plot from "react-plotly.js";
 import type { Config, Layout } from "plotly.js";
-type RelayoutEvent = Record<string, unknown> & {
-  dragmode?: "zoom" | "pan";
-  "xaxis.range[0]"?: number;
-  "xaxis.range[1]"?: number;
-  "xaxis.autorange"?: boolean;
-  "yaxis.range[0]"?: number;
-  "yaxis.range[1]"?: number;
-  "yaxis.autorange"?: boolean;
-};
+
+type RelayoutEvent = Readonly<Record<string, unknown>>;
 
 import type { Experiment } from "@/domain/experiments/types";
 import type { ChartDomain } from "@/domain/scalars/types";
@@ -71,7 +64,7 @@ export function MetricChart({
 
   const handleRelayout = useCallback(
     (event: RelayoutEvent) => {
-      if (event?.dragmode) {
+      if (event?.dragmode === "zoom" || event?.dragmode === "pan") {
         setDragMode(event.dragmode);
       }
       const nextDomain: ChartDomain = {
@@ -80,13 +73,19 @@ export function MetricChart({
       };
 
       if (event["xaxis.range[0]"] !== undefined && event["xaxis.range[1]"] !== undefined) {
-        nextDomain.x = [event["xaxis.range[0]"], event["xaxis.range[1]"]];
+        nextDomain.x = [
+          Number(event["xaxis.range[0]"]),
+          Number(event["xaxis.range[1]"]),
+        ];
       } else if (event["xaxis.autorange"] === true) {
         nextDomain.x = null;
       }
 
       if (event["yaxis.range[0]"] !== undefined && event["yaxis.range[1]"] !== undefined) {
-        nextDomain.y = [event["yaxis.range[0]"], event["yaxis.range[1]"]];
+        nextDomain.y = [
+          Number(event["yaxis.range[0]"]),
+          Number(event["yaxis.range[1]"]),
+        ];
       } else if (event["yaxis.autorange"] === true) {
         nextDomain.y = null;
       }

@@ -1,6 +1,7 @@
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import type { ExperimentStatusType, HypothesisStatusType } from "@shared/schema";
+import type { ExperimentStatusType } from "@/domain/experiments/types";
+import type { HypothesisStatusType } from "@/domain/hypothesis/types/types";
 
 interface StatusBadgeProps {
   status: ExperimentStatusType | HypothesisStatusType;

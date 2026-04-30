@@ -110,15 +110,17 @@ export function LoggedObjectsSection({
                           ? debouncedExperimentStepOverrides[experimentOverrideKey] ?? overrideRawStep
                           : debouncedSelectedStep;
                         const nearestStep = closestStep(targetStep, experimentSteps);
-                        const objectAtStep = nearestStep === null ? undefined : experimentStepMap[nearestStep];
-                        const objectSrc = objectAtStep
-                          ? API_ROUTES.EXPERIMENT_ARTIFACTS.DOWNLOAD_AT_STEP(
-                              experiment.id,
-                              nearestStep,
-                              name,
-                              objectType
-                            )
-                          : "";
+                        const objectAtStep =
+                          nearestStep === null ? undefined : experimentStepMap[nearestStep];
+                        const objectSrc =
+                          objectAtStep && nearestStep !== null
+                            ? API_ROUTES.EXPERIMENT_ARTIFACTS.DOWNLOAD_AT_STEP(
+                                experiment.id,
+                                nearestStep,
+                                name,
+                                objectType
+                              )
+                            : "";
                         const currentOverrideIndex = Math.max(
                           0,
                           experimentSteps.findIndex(

@@ -75,6 +75,9 @@ export function useProjectObjects(params: UseProjectObjectsParams) {
     artifacts,
     isLoading,
     isFetching,
+    isFetchingNextPage,
+    hasNextPage,
+    fetchNextPage,
     refetch,
   };
 }
