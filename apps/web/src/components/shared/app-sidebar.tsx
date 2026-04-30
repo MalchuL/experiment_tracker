@@ -92,7 +92,7 @@ export function AppSidebar() {
   return (
     <Sidebar>
       <SidebarHeader className="p-4 border-b border-sidebar-border">
-        <Link href={FRONTEND_ROUTES.ROOT}>
+        <Link href={FRONTEND_ROUTES.PROJECTS}>
           <div className="flex items-center gap-2 hover-elevate active-elevate-2 rounded-md px-2 py-1.5 cursor-pointer">
             <div className="flex items-center justify-center w-8 h-8 rounded-md bg-primary text-primary-foreground">
               <Beaker className="w-4 h-4" />

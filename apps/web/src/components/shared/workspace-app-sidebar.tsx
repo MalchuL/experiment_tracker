@@ -14,7 +14,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
-import { Beaker, FolderKanban, Home, Users } from "lucide-react";
+import { Beaker, BookOpen, FolderKanban, Home, Users } from "lucide-react";
 import { FRONTEND_ROUTES } from "@/lib/constants/frontend-routes";
 import { cn } from "@/lib/utils";
 
@@ -23,6 +23,7 @@ export function WorkspaceAppSidebar() {
   const projectsActive = pathname === FRONTEND_ROUTES.PROJECTS;
   const teamsActive =
     pathname === FRONTEND_ROUTES.TEAMS || pathname?.startsWith(`${FRONTEND_ROUTES.TEAMS}/`);
+  const docsActive = pathname === FRONTEND_ROUTES.DOCS || pathname?.startsWith(`${FRONTEND_ROUTES.DOCS}/`);
 
   return (
     <Sidebar>
@@ -69,12 +70,24 @@ export function WorkspaceAppSidebar() {
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={docsActive}>
+                  <Link
+                    href={FRONTEND_ROUTES.DOCS}
+                    data-testid="nav-workspace-docs"
+                    className={cn(docsActive && "font-medium")}
+                  >
+                    <BookOpen className="w-4 h-4" />
+                    <span>Documentation</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
       <SidebarFooter className="p-4 border-t border-sidebar-border">
-        <div className="text-xs text-muted-foreground">Projects and teams</div>
+        <div className="text-xs text-muted-foreground">Projects, teams, and docs</div>
       </SidebarFooter>
     </Sidebar>
   );

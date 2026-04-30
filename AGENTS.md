@@ -162,3 +162,5 @@ Running the full stack locally requires the backend plus whatever URLs you confi
 ## Documentation policy for agents
 
 Prefer updating this file or code comments when changing global runbooks; avoid adding new markdown files unless the user asks for them.
+
+For **changing how in-app docs render** (remark/rehype directives, sanitize allowlist, `DocsMarkdown` components), follow and keep in sync **`apps/web/content/docs/contributing/extending-doc-pipeline.md`** (published at `/docs/contributing/extending-doc-pipeline`).

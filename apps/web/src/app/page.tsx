@@ -1,9 +1,6 @@
-"use client";
-
-import Link from "next/link";
+import { redirect } from "next/navigation";
+import { FRONTEND_ROUTES } from "@/lib/constants/frontend-routes";
 
 export default function Home() {
-  return (
-    <Link href="/projects">Go to projects</Link>
-  );
+  redirect(FRONTEND_ROUTES.PROJECTS);
 }

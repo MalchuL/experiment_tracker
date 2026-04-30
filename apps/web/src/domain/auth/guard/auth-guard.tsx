@@ -21,7 +21,7 @@ export function AuthGuard({ children, requireAuth = true }: AuthGuardProps) {
       router.push(FRONTEND_ROUTES.LOGIN);
     }
     if (!requireAuth && isAuthenticated) {
-      router.push(FRONTEND_ROUTES.ROOT);
+      router.push(FRONTEND_ROUTES.PROJECTS);
     }
   }, [isAuthenticated, requireAuth, isLoading]);
 

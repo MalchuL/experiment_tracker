@@ -123,3 +123,113 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Scoped markdown (docs) — avoids pulling @tailwindcss/typography */
+@layer components {
+  .docs-prose {
+    @apply text-foreground max-w-none;
+  }
+  .docs-prose h1 {
+    @apply text-2xl font-semibold tracking-tight mt-8 mb-3 first:mt-0;
+  }
+  .docs-prose h2 {
+    @apply text-xl font-semibold tracking-tight mt-8 mb-3 border-b border-border pb-1;
+  }
+  .docs-prose h3 {
+    @apply text-lg font-medium mt-6 mb-2;
+  }
+  .docs-prose p {
+    @apply text-sm leading-relaxed mb-4 text-muted-foreground;
+  }
+  .docs-prose ul {
+    @apply list-disc pl-5 mb-4 text-sm text-muted-foreground space-y-1;
+  }
+  .docs-prose ol {
+    @apply list-decimal pl-5 mb-4 text-sm text-muted-foreground space-y-1;
+  }
+  .docs-prose li {
+    @apply leading-relaxed;
+  }
+  .docs-prose a {
+    @apply text-primary underline-offset-4 hover:underline font-medium text-foreground;
+  }
+  .docs-prose strong {
+    @apply font-semibold text-foreground;
+  }
+  .docs-prose code {
+    @apply rounded bg-muted px-1.5 py-0.5 text-xs font-mono text-foreground;
+  }
+  .docs-prose pre {
+    @apply rounded-md border bg-muted/50 p-4 overflow-x-auto mb-4 text-xs font-mono;
+  }
+  .docs-prose pre code {
+    @apply bg-transparent p-0 text-xs;
+  }
+  .docs-prose table {
+    @apply w-full text-sm border-collapse mb-4;
+  }
+  .docs-prose th,
+  .docs-prose td {
+    @apply border border-border px-3 py-2 text-left;
+  }
+  .docs-prose th {
+    @apply bg-muted/60 font-medium text-foreground;
+  }
+  .docs-prose blockquote {
+    @apply border-l-4 border-muted-foreground/30 pl-4 italic text-muted-foreground my-4;
+  }
+  .docs-prose hr {
+    @apply my-8 border-border;
+  }
+  .docs-prose .docs-figure img {
+    @apply max-h-[min(420px,70vh)];
+    object-fit: contain;
+  }
+
+  /* Callouts (directive → aside) */
+  .docs-prose .docs-callout {
+    @apply my-4 rounded-lg border p-3.5 text-sm text-muted-foreground sm:p-4;
+  }
+  .docs-prose .docs-callout-inner {
+    @apply min-w-0;
+  }
+  .docs-prose .docs-callout.docs-callout-warning,
+  .docs-prose .docs-callout.docs-callout-caution {
+    @apply border-amber-500/35 bg-amber-500/[0.07];
+  }
+  .docs-prose .docs-callout.docs-callout-warning .docs-callout-icon-ring,
+  .docs-prose .docs-callout.docs-callout-caution .docs-callout-icon-ring {
+    @apply border-amber-600/40 bg-amber-500/10 text-amber-700 dark:text-amber-400;
+  }
+  .docs-prose .docs-callout.docs-callout-danger {
+    @apply border-red-500/35 bg-red-500/[0.06];
+  }
+  .docs-prose .docs-callout.docs-callout-danger .docs-callout-icon-ring {
+    @apply border-red-600/40 bg-red-500/10 text-red-700 dark:text-red-400;
+  }
+  .docs-prose .docs-callout.docs-callout-tip {
+    @apply border-emerald-500/30 bg-emerald-500/[0.06];
+  }
+  .docs-prose .docs-callout.docs-callout-tip .docs-callout-icon-ring {
+    @apply border-emerald-600/35 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400;
+  }
+  .docs-prose .docs-callout.docs-callout-note,
+  .docs-prose .docs-callout.docs-callout-info {
+    @apply border-sky-500/30 bg-sky-500/[0.06];
+  }
+  .docs-prose .docs-callout.docs-callout-note .docs-callout-icon-ring,
+  .docs-prose .docs-callout.docs-callout-info .docs-callout-icon-ring {
+    @apply border-sky-600/35 bg-sky-500/10 text-sky-700 dark:text-sky-400;
+  }
+
+  /* Collapsible (directive → details + summary) */
+  .docs-prose .docs-collapsible {
+    @apply overflow-hidden rounded-lg border border-border bg-muted/15;
+  }
+  .docs-prose .docs-collapsible > :not(summary) {
+    @apply px-5 pb-5 pt-4 text-sm text-muted-foreground;
+  }
+  .docs-prose .docs-collapsible > summary + * {
+    @apply border-t border-border/70 pt-3;
+  }
+}

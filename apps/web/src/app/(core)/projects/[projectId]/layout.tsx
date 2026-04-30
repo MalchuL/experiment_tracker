@@ -4,6 +4,7 @@ import { AppSidebar } from "@/components/shared/app-sidebar";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { ThemeToggle } from "@/components/shared/theme-toggle";
 import { UserMenu } from "@/components/shared/user-menu";
+import { WorkspaceDocsNav } from "@/components/shared/workspace-docs-nav";
 import { ProjectProvider } from "@/domain/projects/hooks";
 import { useParams, usePathname } from "next/navigation";
 
@@ -35,7 +36,10 @@ export default function ProjectLayout({
           <AppSidebar />
           <SidebarInset className="flex flex-col flex-1 overflow-hidden">
             <header className="flex items-center justify-between gap-2 h-14 px-4 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50">
-              <SidebarTrigger data-testid="button-sidebar-toggle" />
+              <div className="flex min-w-0 flex-1 items-center gap-3">
+                <SidebarTrigger data-testid="button-sidebar-toggle" />
+                <WorkspaceDocsNav className="hidden sm:flex" />
+              </div>
               <div className="flex items-center gap-2">
                 <ThemeToggle />
                 <UserMenu />
