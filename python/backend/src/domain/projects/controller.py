@@ -2,7 +2,10 @@ from typing import Any, Dict, List
 from uuid import UUID
 
 from domain.hypotheses.dto import HypothesisListResponseDTO
-from domain.experiments.dto import ExperimentListResponseDTO
+from domain.experiments.dto import (
+    ExperimentBatchLookupDTO,
+    ExperimentListResponseDTO,
+)
 from domain.experiments.service import ExperimentService
 from domain.hypotheses.service import HypothesisService
 from domain.metrics.dto import (
@@ -12,6 +15,7 @@ from domain.metrics.dto import (
     UniqueMetricDimensionsResponseDTO,
 )
 from domain.metrics.service import MetricService
+from domain.metrics.error import MetricNotAccessibleError, MetricNotFoundError
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -32,7 +36,7 @@ from .dto import (
     ProjectSettingValueUpdateDTO,
     ProjectUpdateDTO,
 )
-from domain.metrics.error import MetricNotAccessibleError, MetricNotFoundError
+from domain.experiments.error import ExperimentNotAccessibleError
 
 from .errors import ProjectNotAccessibleError, ProjectPermissionError
 from .service import ProjectService
@@ -47,6 +51,8 @@ router = APIRouter(prefix="/projects", tags=["projects"])
 
 
 def _raise_project_http_error(error: Exception) -> None:
+    if isinstance(error, ExperimentNotAccessibleError):
+        raise HTTPException(status_code=404, detail=str(error))
     if isinstance(error, MetricNotAccessibleError):
         raise HTTPException(status_code=403, detail=str(error))
     if isinstance(error, MetricNotFoundError):
@@ -97,6 +103,29 @@ async def get_project_experiments(
         )
     except Exception as exc:  # noqa: BLE001
         _raise_project_http_error(exc)
+
+
+@router.post(
+    "/{project_id}/experiments/batch",
+    response_model=ExperimentListResponseDTO,
+)
+async def post_project_experiments_batch(
+    project_id: UUID,
+    body: ExperimentBatchLookupDTO,
+    user: User = Depends(get_current_user_dual),
+    _: None = Depends(require_api_token_scopes(ProjectActions.VIEW_EXPERIMENT)),
+    experiment_service: ExperimentService = Depends(get_experiment_service),
+):
+    """Load specific experiments by id in one request (same shape as GET …/experiments)."""
+    try:
+        return await experiment_service.get_experiments_batch_for_project(
+            user,
+            project_id,
+            list(body.experiment_ids),
+        )
+    except Exception as exc:  # noqa: BLE001
+        _raise_project_http_error(exc)
+
 
 @router.get("/{project_id}/hypotheses", response_model=HypothesisListResponseDTO)
 async def get_project_hypotheses(

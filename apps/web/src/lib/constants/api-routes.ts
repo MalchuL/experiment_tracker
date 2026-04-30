@@ -73,6 +73,8 @@ export const API_ROUTES = {
   
         EXPERIMENTS: (projectId: string) =>
           `/api/projects/${projectId}/experiments`,
+        EXPERIMENTS_BATCH: (projectId: string) =>
+          `/api/projects/${projectId}/experiments/batch`,
         REORDER_EXPERIMENTS: (projectId: string) =>
           `/api/projects/${projectId}/experiments/reorder`,
   

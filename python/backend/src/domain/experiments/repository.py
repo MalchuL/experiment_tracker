@@ -58,6 +58,8 @@ class ExperimentRepository(BaseRepository[Experiment]):
     async def get_experiments_by_ids(
         self, experiment_ids: List[UUID_TYPE]
     ) -> List[Experiment]:
+        if not experiment_ids:
+            return []
         experiments = await self.advanced_alchemy_repository.list(
             Experiment.id.in_(experiment_ids),
         )

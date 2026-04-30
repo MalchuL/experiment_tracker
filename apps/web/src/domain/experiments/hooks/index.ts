@@ -1,4 +1,5 @@
 export * from "./experiments-hook";
+export * from "./use-missing-parent-experiment-names";
 export * from "./create-experiment-hook";
 export * from "./reorder-experiments-hook";
 export * from "./aggregated-metrics-hook";
