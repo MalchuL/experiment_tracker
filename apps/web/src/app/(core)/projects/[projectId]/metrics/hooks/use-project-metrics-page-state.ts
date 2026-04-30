@@ -89,7 +89,17 @@ export function useProjectMetricsPageState() {
   const baseNames = latest?.metricNames ?? pages?.pages?.[0]?.metricNames ?? [];
   const flatRows: MetricsTableRow[] = useMemo(() => {
     const all = pages?.pages.flatMap((p) => p.rows) ?? [];
-    return all.map((r, idx) => {
+    const sorted = [...all].sort((a, b) => {
+      const ta =
+        a.createdAt != null && a.createdAt !== "" ? Date.parse(a.createdAt) : 0;
+      const tb =
+        b.createdAt != null && b.createdAt !== "" ? Date.parse(b.createdAt) : 0;
+      if (Number.isFinite(tb) && Number.isFinite(ta) && tb !== ta) {
+        return tb - ta;
+      }
+      return b.experimentId.localeCompare(a.experimentId);
+    });
+    return sorted.map((r, idx) => {
       const byName: Record<string, number | null> = {};
       baseNames.forEach((n, i) => {
         byName[n] = r.values[i] ?? null;

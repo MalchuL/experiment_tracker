@@ -1,3 +1,10 @@
+/**
+ * Persists the experiments table **manual order** (`order` column) via the reorder API.
+ *
+ * The list UI sorts rows by **`createdAt` (newest first)**; dragging does not reshuffle the cache.
+ * On optimistic update we only patch each row’s numeric **`order`** to match the new sequence until
+ * `invalidateQueries` refetches.
+ */
 import { InfiniteData, QueryKey, useMutation, useQueryClient } from "@tanstack/react-query";
 import { experimentsService } from "../services";
 import { Experiment } from "../types";
@@ -11,56 +18,49 @@ export interface UseReorderExperimentsOptions {
 }
 
 export interface UseReorderExperimentsResult {
-    reorderExperiments: (experimentIds: string[], options?: UseReorderExperimentsOptions) => Promise<Experiment[]>;
+    /** Sends `orderedExperimentIds` to the backend reorder endpoint. */
+    reorderExperiments: (
+        orderedExperimentIds: string[],
+        options?: UseReorderExperimentsOptions
+    ) => Promise<Experiment[]>;
     isPending: boolean;
 }
 
-function reorderExperimentPages(
+/**
+ * Updates `experiment.order` to each id’s index in `orderedExperimentIds` across all cached pages.
+ * Does not change array order or pagination—only the `order` field on matching rows.
+ */
+function applyManualOrderToExperimentPagesCache(
     current: InfiniteData<PaginatedResponse<Experiment>> | undefined,
-    experimentIds: string[]
+    orderedExperimentIds: string[]
 ): InfiniteData<PaginatedResponse<Experiment>> | undefined {
     if (!current) {
         return current;
     }
-
-    const experiments = current.pages.flatMap((page) => page.data);
-    const reorderedExperiments = experimentIds
-        .map((id, index) => {
-            const experiment = experiments.find((candidate) => candidate.id === id);
-            return experiment ? { ...experiment, order: index } : null;
-        })
-        .filter((experiment): experiment is Experiment => experiment !== null);
-
-    let cursor = 0;
-
+    const orderIndexById = new Map(orderedExperimentIds.map((id, i) => [id, i]));
     return {
         ...current,
-        pages: current.pages.map((page) => {
-            const nextPageData = reorderedExperiments.slice(
-                cursor,
-                cursor + page.data.length
-            );
-            cursor += page.data.length;
-
-            return {
-                ...page,
-                data: nextPageData,
-                size: nextPageData.length,
-            };
-        }),
+        pages: current.pages.map((page) => ({
+            ...page,
+            data: page.data.map((e) => {
+                const nextOrder = orderIndexById.get(e.id);
+                return nextOrder !== undefined ? { ...e, order: nextOrder } : e;
+            }),
+        })),
     };
 }
 
+/** Mutation hook for `POST …/experiments/reorder` (manual `order` only; list sort stays by `createdAt`). */
 export function useReorderExperiments(projectId?: string): UseReorderExperimentsResult {
     const queryClient = useQueryClient();
     const { toast } = useToast();
 
     const mutation = useMutation({
-        mutationFn: async (experimentIds: string[]) => {
+        mutationFn: async (orderedExperimentIds: string[]) => {
             if (!projectId) throw new Error("Project ID is required");
-            return experimentsService.reorder(projectId, experimentIds);
+            return experimentsService.reorder(projectId, orderedExperimentIds);
         },
-        onMutate: async (experimentIds: string[]) => {
+        onMutate: async (orderedExperimentIds: string[]) => {
             if (!projectId) {
                 return {
                     previousExperiments: [] as Array<
@@ -85,13 +85,13 @@ export function useReorderExperiments(projectId?: string): UseReorderExperiments
             previousExperiments.forEach(([queryKey, data]) => {
                 queryClient.setQueryData(
                     queryKey,
-                    reorderExperimentPages(data, experimentIds)
+                    applyManualOrderToExperimentPagesCache(data, orderedExperimentIds)
                 );
             });
 
             return { previousExperiments };
         },
-        onError: (_err, _experimentIds, context) => {
+        onError: (_err, _orderedExperimentIds, context) => {
             context?.previousExperiments?.forEach(([queryKey, data]) => {
                 queryClient.setQueryData(queryKey, data);
             });
@@ -115,4 +115,3 @@ export function useReorderExperiments(projectId?: string): UseReorderExperiments
         isPending: mutation.isPending,
     };
 }
-

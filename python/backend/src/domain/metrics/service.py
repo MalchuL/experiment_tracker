@@ -279,7 +279,7 @@ class MetricService:
             if k not in latest or m.created_at > latest[k].created_at:
                 latest[k] = m
 
-        ordered_ids = await self.experiment_repository.list_ordered_experiment_ids_for_project(
+        ordered_ids = await self.experiment_repository.list_experiment_ids_for_project_by_created_at_desc(
             project_id
         )
         if include_experiments_without_metrics:
