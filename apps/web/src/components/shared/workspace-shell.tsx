@@ -24,6 +24,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { FRONTEND_ROUTES } from "@/lib/constants/frontend-routes";
+import { WorkspaceDocsNav } from "@/components/shared/workspace-docs-nav";
 import { cn } from "@/lib/utils";
 
 type WorkspaceHeaderContextValue = {
@@ -119,6 +120,7 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
             <header className="flex h-14 min-h-14 items-center justify-between gap-2 border-b bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50">
               <div className="flex min-w-0 flex-1 items-center gap-3">
                 <SidebarTrigger data-testid="button-workspace-sidebar-toggle" />
+                <WorkspaceDocsNav className="hidden sm:flex" />
                 <WorkspaceScopeCircles />
               </div>
               <div className="flex flex-shrink-0 flex-wrap items-center justify-end gap-2">

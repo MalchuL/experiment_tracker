@@ -2,6 +2,8 @@ import { buildExperimentDetailsHref } from "@/lib/experiment-details-url";
 
 export const FRONTEND_ROUTES = {
   ROOT: "/",
+  DOCS: "/docs",
+  DOCS_DOC: (docPath: string) => `/docs/${docPath}`,
   LOGIN: "/login",
   REGISTER: "/register",
   PROJECTS: "/projects",
