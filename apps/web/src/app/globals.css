@@ -123,3 +123,11 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Project DAG: selected parent edges read clearly (React Flow class names). */
+.dag-flow-canvas .react-flow__edge.selected .react-flow__edge-path {
+  stroke-width: 3.5px !important;
+}
+.dag-flow-canvas .react-flow__edge.selected .react-flow__edge-interaction {
+  stroke-width: 24px;
+}

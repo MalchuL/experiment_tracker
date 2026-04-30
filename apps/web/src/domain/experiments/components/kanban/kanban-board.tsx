@@ -17,12 +17,14 @@ import { KanbanCardOverlay } from "./kanban-card-overlay";
 
 interface KanbanBoardProps {
   experiments: Experiment[];
+  selectedExperimentId?: string | null;
   onExperimentClick: (experimentId: string) => void;
   onStatusUpdate: (experimentId: string, status: ExperimentStatusType) => void;
 }
 
 export function KanbanBoard({
   experiments,
+  selectedExperimentId,
   onExperimentClick,
   onStatusUpdate,
 }: KanbanBoardProps) {
@@ -87,7 +89,7 @@ export function KanbanBoard({
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 flex-1">
+      <div className="grid min-w-0 flex-1 grid-cols-1 gap-4 md:grid-cols-[repeat(2,minmax(0,1fr))] lg:grid-cols-[repeat(4,minmax(0,1fr))]">
         {KANBAN_COLUMNS.map((column) => {
           const columnExperiments = getExperimentsByStatus(column.id);
 
@@ -96,6 +98,7 @@ export function KanbanBoard({
               key={column.id}
               column={column}
               experiments={columnExperiments}
+              selectedExperimentId={selectedExperimentId}
               onExperimentClick={onExperimentClick}
             />
           );

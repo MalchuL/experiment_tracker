@@ -5,7 +5,10 @@ import { ExperimentSidebar } from "@/components/shared/experiment-sidebar";
 import { useAggregatedMetrics } from "@/domain/experiments/hooks";
 import { getDisplayedTrackedMetrics } from "@/lib/metrics/format-metric-label";
 import { REFRESH_EXPERIMENTS_LIST_INTERVAL } from "@/lib/constants/rates";
-import { ProjectMetricsPageIntro } from "./components/project-metrics-page-intro";
+import {
+  ProjectMetricsPageIntro,
+  ProjectMetricsPageUsageHint,
+} from "./components/project-metrics-page-intro";
 import {
   ProjectMetricsLabelListError,
   ProjectMetricsLoadingProject,
@@ -86,54 +89,58 @@ export function ProjectMetricsPage() {
   }
 
   return (
-    <>
-      <div className="box-border flex h-[calc(100vh-5rem)] min-h-0 w-full flex-col gap-4 p-4 sm:p-3 lg:flex-row">
-        <ProjectMetricsControlPanel
-          labelData={labelData}
-          label={label}
-          onLabelChange={setLabel}
-          includeAll={includeAll}
-          onIncludeAllChange={setIncludeAll}
-          nameFilter={nameFilter}
-          onNameFilterChange={setNameFilter}
-          editMode={editMode}
-          onEditModeChange={setEditMode}
-        />
+    <div className="flex h-[calc(100vh-8rem)] w-full min-w-0 gap-0">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden px-6 pt-6 pb-6">
+        <div className="box-border flex min-h-0 flex-1 flex-col gap-4 lg:flex-row lg:items-stretch">
+          <ProjectMetricsControlPanel
+            labelData={labelData}
+            label={label}
+            onLabelChange={setLabel}
+            includeAll={includeAll}
+            onIncludeAllChange={setIncludeAll}
+            nameFilter={nameFilter}
+            onNameFilterChange={setNameFilter}
+            editMode={editMode}
+            onEditModeChange={setEditMode}
+          />
 
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-hidden">
-          <ProjectMetricsPageIntro projectName={project?.name} editMode={editMode} />
-          <div className="min-h-0 flex-1 overflow-auto">
-            <ProjectMetricsTableSection
-              dataLoading={dataLoading}
-              isError={isError}
-              canShowTable={!dataLoading && label !== null && latest != null}
-              table={table}
-              editMode={editMode}
-              nameFilter={nameFilter}
-              rowsInReport={rowsInReport}
-              filteredRows={filteredRows}
-              hasNextPage={hasNextPage}
-              isFetchingNextPage={isFetchingNextPage}
-              onLoadMore={() => void fetchNextPage()}
-              latest={latest}
-              tableDataLength={tableData.length}
-              hiddenRowIds={hiddenRowIds}
-              hiddenColumnIds={hiddenColumnIds}
-              selectedExperimentId={selectedExperimentId}
-              exportFileBase={exportFileBase}
-            />
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-hidden">
+            <ProjectMetricsPageIntro projectName={project?.name} />
+            <div className="min-h-0 flex-1 overflow-auto">
+              <ProjectMetricsTableSection
+                dataLoading={dataLoading}
+                isError={isError}
+                canShowTable={!dataLoading && label !== null && latest != null}
+                table={table}
+                editMode={editMode}
+                nameFilter={nameFilter}
+                rowsInReport={rowsInReport}
+                filteredRows={filteredRows}
+                hasNextPage={hasNextPage}
+                isFetchingNextPage={isFetchingNextPage}
+                onLoadMore={() => void fetchNextPage()}
+                latest={latest}
+                tableDataLength={tableData.length}
+                hiddenRowIds={hiddenRowIds}
+                hiddenColumnIds={hiddenColumnIds}
+                selectedExperimentId={selectedExperimentId}
+                exportFileBase={exportFileBase}
+              />
+            </div>
+            <ProjectMetricsPageUsageHint />
           </div>
         </div>
       </div>
 
       {selectedExperimentId ? (
         <ExperimentSidebar
+          variant="push"
           experimentId={selectedExperimentId}
           onClose={() => setSelectedExperimentId(null)}
           projectMetrics={projectMetricsForSidebar}
           aggregatedMetrics={aggregatedMetricsByExperiment[selectedExperimentId] ?? undefined}
         />
       ) : null}
-    </>
+    </div>
   );
 }
