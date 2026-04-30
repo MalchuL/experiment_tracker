@@ -5,7 +5,7 @@ import { PageHeader } from "@/components/shared/page-header";
 import { ListSkeleton } from "@/components/shared/loading-skeleton";
 import { EmptyState } from "@/components/shared/empty-state";
 import { ExperimentSidebar } from "@/components/shared/experiment-sidebar";
-import { AlertCircle, FlaskConical, RefreshCw } from "lucide-react";
+import { AlertCircle, FlaskConical, RefreshCw, Loader2 } from "lucide-react";
 import { useCurrentProject } from "@/domain/projects/hooks";
 import { useExperiments, useAggregatedMetrics, useUpdateExperimentStatus } from "@/domain/experiments/hooks";
 import { useSelectedExperimentStore } from "@/domain/experiments/store";
@@ -25,6 +25,8 @@ export default function Kanban() {
     experiments,
     isLoading: experimentsLoading,
     isFetching: experimentsFetching,
+    isFetchingNextPage: experimentsFetchingNextPage,
+    hasNextPage: experimentsHasNextPage,
     refetch: refetchExperiments,
   } = useExperiments(projectId, {
     refetchInterval: REFRESH_EXPERIMENTS_LIST_INTERVAL,
@@ -69,6 +71,10 @@ export default function Kanban() {
 
   const isLoading = projectLoading || experimentsLoading || metricsLoading;
   const isRefreshing = experimentsFetching || metricsFetching;
+  const experimentsStillPaging =
+    Boolean(experimentsHasNextPage) &&
+    (experimentsFetchingNextPage || experimentsFetching) &&
+    !experimentsLoading;
   const handleRefresh = () => {
     void Promise.all([refetchExperiments(), refetchMetrics()]);
   };
@@ -105,16 +111,27 @@ export default function Kanban() {
           title="Kanban View"
           description={`Kanban board for "${project?.name}"`}
           actions={
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={handleRefresh}
-              disabled={isRefreshing}
-              data-testid="button-refresh-kanban"
-              aria-label="Refresh kanban"
-            >
-              <RefreshCw className={isRefreshing ? "animate-spin" : ""} />
-            </Button>
+            <div className="flex items-center gap-2">
+              {experimentsStillPaging ? (
+                <div
+                  className="flex h-9 w-9 items-center justify-center rounded-md border bg-background"
+                  title="Loading more experiments…"
+                  aria-label="Loading more experiments"
+                >
+                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                </div>
+              ) : null}
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={handleRefresh}
+                disabled={isRefreshing}
+                data-testid="button-refresh-kanban"
+                aria-label="Refresh kanban"
+              >
+                <RefreshCw className={isRefreshing ? "animate-spin" : ""} />
+              </Button>
+            </div>
           }
         />
 

@@ -12,6 +12,7 @@ import {
     useExperiments,
     useReorderExperiments,
     useAggregatedMetrics,
+    useMissingParentExperimentNames,
 } from "@/domain/experiments/hooks";
 import { CreateExperimentDialog, ExperimentsTable } from "@/domain/experiments/components";
 import { useSelectedExperimentStore } from "@/domain/experiments/store";
@@ -56,6 +57,8 @@ export default function Experiments() {
     if (!experiments) return [];
     return [...experiments].sort((a, b) => a.order - b.order);
   }, [experiments]);
+
+  const parentNamesById = useMissingParentExperimentNames(projectId, sortedExperiments);
 
   const isLoading = projectLoading || experimentsLoading || metricsLoading;
   const isRefreshing = experimentsFetching || metricsFetching;
@@ -164,6 +167,7 @@ export default function Experiments() {
                   experiments={sortedExperiments}
                   projectMetrics={filteredMetrics}
                   aggregatedMetrics={aggregatedMetricsByExperiment}
+                  parentNamesById={parentNamesById}
                   selectedExperimentId={selectedExperimentId}
                   onExperimentClick={setSelectedExperimentId}
                   onReorder={reorderExperiments}

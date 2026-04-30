@@ -52,6 +52,7 @@ import {
   Search,
   X,
   LayoutGrid,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -328,6 +329,7 @@ function DagViewCanvas({
   refetchMetrics,
   experimentsFetching,
   metricsFetching,
+  experimentsStillPaging,
 }: {
   projectId: string;
   project: Project | null | undefined;
@@ -338,6 +340,7 @@ function DagViewCanvas({
   refetchMetrics: () => Promise<unknown>;
   experimentsFetching: boolean;
   metricsFetching: boolean;
+  experimentsStillPaging: boolean;
 }) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -598,7 +601,20 @@ function DagViewCanvas({
                 ) : null}
               </div>
             </Panel>
-            <Panel position="top-right" className="m-2 flex gap-2">
+            <Panel position="top-right" className="m-2 flex items-center gap-2">
+              {experimentsStillPaging ? (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div
+                      className="flex h-9 w-9 items-center justify-center rounded-md border bg-card/95 shadow-sm"
+                      aria-label="Loading more experiments"
+                    >
+                      <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">Loading more experiments…</TooltipContent>
+                </Tooltip>
+              ) : null}
               <Button
                 variant="outline"
                 size="icon"
@@ -647,6 +663,8 @@ export function ProjectDagView() {
     experiments,
     isLoading: experimentsLoading,
     isFetching: experimentsFetching,
+    isFetchingNextPage: experimentsFetchingNextPage,
+    hasNextPage: experimentsHasNextPage,
     refetch: refetchExperiments,
   } = useExperiments(projectId, {
     refetchInterval: REFRESH_EXPERIMENTS_LIST_INTERVAL,
@@ -672,6 +690,11 @@ export function ProjectDagView() {
   );
 
   const isLoading = projectLoading || experimentsLoading || metricsLoading;
+
+  const experimentsStillPaging =
+    Boolean(experimentsHasNextPage) &&
+    (experimentsFetchingNextPage || experimentsFetching) &&
+    !experimentsLoading;
 
   if (!projectId) {
     return (
@@ -721,6 +744,7 @@ export function ProjectDagView() {
             refetchMetrics={refetchMetrics}
             experimentsFetching={experimentsFetching}
             metricsFetching={metricsFetching}
+            experimentsStillPaging={experimentsStillPaging}
           />
         </ReactFlowProvider>
       </div>

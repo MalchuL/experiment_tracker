@@ -32,6 +32,8 @@ interface ExperimentsTableProps {
     experiments: Experiment[];
     projectMetrics?: ProjectMetric[];
     aggregatedMetrics?: Record<string, Metric[]>;
+    /** Parent names for ids not present in `experiments` (fetched separately). */
+    parentNamesById?: Record<string, string>;
     selectedExperimentId?: string | null;
     onExperimentClick: (experimentId: string) => void;
     onReorder: (experimentIds: string[]) => void;
@@ -41,6 +43,7 @@ export function ExperimentsTable({
     experiments,
     projectMetrics,
     aggregatedMetrics,
+    parentNamesById,
     selectedExperimentId,
     onExperimentClick,
     onReorder,
@@ -104,6 +107,10 @@ export function ExperimentsTable({
                                 const parent = experiments.find(
                                     (e) => e.id === experiment.parentExperimentId
                                 );
+                                const pid = experiment.parentExperimentId;
+                                const parentName =
+                                    parent?.name ??
+                                    (pid ? parentNamesById?.[pid] : undefined);
                                 return (
                                     <ExperimentTableRow
                                         key={experiment.id}
@@ -112,7 +119,7 @@ export function ExperimentsTable({
                                         onClick={() => onExperimentClick(experiment.id)}
                                         projectMetrics={filteredMetrics}
                                         expMetrics={aggregatedMetrics?.[experiment.id]}
-                                        parentName={parent?.name}
+                                        parentName={parentName}
                                     />
                                 );
                             })}

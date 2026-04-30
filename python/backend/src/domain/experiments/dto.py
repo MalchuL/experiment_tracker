@@ -7,7 +7,7 @@ from typing import List, Optional, Dict, Any
 from models import ExperimentStatus
 
 from lib.dto_config import model_config
-from lib.pagination import PaginatedResponse
+from lib.pagination import PaginatedResponse, MAX_LIST_PAGE_SIZE
 
 
 class ExperimentBaseDTO(BaseModel):
@@ -69,5 +69,18 @@ class ExperimentListResponseDTO(PaginatedResponse[ExperimentDTO]):
 class ExperimentReorderDTO(BaseModel):
     project_id: UUID
     experiment_ids: List[UUID]
+
+    model_config = model_config()
+
+
+class ExperimentBatchLookupDTO(BaseModel):
+    """Request body for loading specific experiments in a project (same DTOs as list)."""
+
+    experiment_ids: List[UUID] = Field(
+        ...,
+        min_length=1,
+        max_length=MAX_LIST_PAGE_SIZE,
+        description="Experiment UUIDs to resolve; must belong to the project in the URL.",
+    )
 
     model_config = model_config()
