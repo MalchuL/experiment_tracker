@@ -18,11 +18,18 @@ export function KanbanCardOverlay({ experiment }: KanbanCardOverlayProps) {
             style={{ backgroundColor: experiment.color }}
           />
           <div className="min-w-0 flex-1">
-            <ExperimentTruncatedText text={experiment.name} className="text-sm font-medium" />
+            <ExperimentTruncatedText
+              text={experiment.name}
+              className="text-sm font-medium"
+              showTooltip="always"
+              lineClamp={2}
+            />
             {experiment.description ? (
               <ExperimentTruncatedText
                 text={experiment.description}
                 className="mt-0.5 text-xs text-muted-foreground"
+                showTooltip="always"
+                lineClamp={3}
               />
             ) : null}
             <p className="mt-0.5 font-mono text-xs text-muted-foreground">{experiment.id.slice(0, 8)}</p>
