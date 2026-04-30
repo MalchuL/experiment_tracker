@@ -41,7 +41,7 @@ export function CreateTeamModal({ open, onOpenChange }: CreateTeamModalProps) {
   const createTeam = useCreateTeam();
 
   const form = useForm<CreateTeamFormValues>({
-    resolver: zodResolver(createTeamSchema),
+    resolver: zodResolver(createTeamSchema as any),
     defaultValues: { name: "", description: "" },
   });
 

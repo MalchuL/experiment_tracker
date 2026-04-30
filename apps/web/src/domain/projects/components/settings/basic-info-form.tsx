@@ -22,20 +22,26 @@ interface BasicInfoFormProps {
   isPending: boolean;
 }
 
+function ownerDisplay(project: Project): string {
+  const o = project.owner;
+  if (!o) return "";
+  return o.displayName || o.email || o.id;
+}
+
 export function BasicInfoForm({ project, onSubmit, isPending }: BasicInfoFormProps) {
   const form = useForm<BasicInfoFormData>({
-    resolver: zodResolver(basicInfoSchema),
+    resolver: zodResolver(basicInfoSchema as never),
     defaultValues: {
       name: project?.name || "",
       description: project?.description || "",
-      owner: project?.owner || "",
     },
     values: {
       name: project?.name || "",
       description: project?.description || "",
-      owner: project?.owner || "",
     },
   });
+
+  const ownerLabel = ownerDisplay(project);
 
   return (
     <Form {...form}>
@@ -75,23 +81,17 @@ export function BasicInfoForm({ project, onSubmit, isPending }: BasicInfoFormPro
             </FormItem>
           )}
         />
-        <FormField
-          control={form.control}
-          name="owner"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Owner</FormLabel>
-              <FormControl>
-                <Input
-                  placeholder="Team or individual"
-                  data-testid="input-project-owner"
-                  {...field}
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+        <div className="space-y-2">
+          <FormLabel>Owner</FormLabel>
+          <div
+            className="rounded-md border border-input bg-muted/50 px-3 py-2 text-sm text-foreground shadow-xs"
+            data-testid="display-project-owner"
+            aria-readonly="true"
+          >
+            {ownerLabel || "—"}
+          </div>
+          <p className="text-xs text-muted-foreground">Owner cannot be changed here.</p>
+        </div>
         <Button
           type="submit"
           disabled={isPending}
