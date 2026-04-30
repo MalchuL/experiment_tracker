@@ -1,7 +1,7 @@
 "use client";
 
 import { Database, Filter, Wrench } from "lucide-react";
-import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -47,7 +47,6 @@ export function ProjectMetricsControlPanel({
             <Database className="h-4 w-4 text-muted-foreground" aria-hidden />
             <span>Data source</span>
           </div>
-          <CardDescription>Label and which experiments load in the grid.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3 pt-0">
           <div className="space-y-1.5">
@@ -88,7 +87,6 @@ export function ProjectMetricsControlPanel({
             <Filter className="h-4 w-4 text-muted-foreground" aria-hidden />
             <span>Table filter</span>
           </div>
-          <CardDescription>Client-side: narrows the loaded rows only.</CardDescription>
         </CardHeader>
         <CardContent className="pt-0">
           <div className="space-y-1.5">
@@ -109,7 +107,6 @@ export function ProjectMetricsControlPanel({
             <Wrench className="h-4 w-4 text-muted-foreground" aria-hidden />
             <span>Report &amp; layout</span>
           </div>
-          <CardDescription>Toggle controls for row/column and cell marks (session only).</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-3 pt-0">
           <div className="flex shrink-0 items-center gap-2">
@@ -118,12 +115,6 @@ export function ProjectMetricsControlPanel({
               Edit mode
             </Label>
           </div>
-          <p className="text-xs leading-snug text-muted-foreground">
-            <strong>On</strong> — all rows; each column (including <span className="font-mono text-[11px]">experimentId</span> and{" "}
-            <span className="font-mono text-[11px]">createdAt</span> on the right) has a <strong>Col</strong> toggle.
-            <strong> Off</strong> — the report (which columns/rows, tints, min/max bold) applies. Session resets on
-            reload.
-          </p>
         </CardContent>
       </Card>
     </aside>

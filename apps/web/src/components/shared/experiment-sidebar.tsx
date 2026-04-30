@@ -7,7 +7,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { RightSidebarShell } from "@/components/shared/right-sidebar-shell";
+import { RightSidebarShell, type RightSidebarVariant } from "@/components/shared/right-sidebar-shell";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
@@ -57,6 +57,8 @@ interface ExperimentSidebarProps {
   onClose: () => void;
   projectMetrics?: ProjectMetric[];
   aggregatedMetrics?: Metric[];
+  /** `push` = list/kanban (main area shrinks); `overlay` = graph/full-bleed (default). */
+  variant?: RightSidebarVariant;
 }
 
 export function ExperimentSidebar({
@@ -64,6 +66,7 @@ export function ExperimentSidebar({
   onClose,
   projectMetrics,
   aggregatedMetrics,
+  variant = "overlay",
 }: ExperimentSidebarProps) {
   const { toast } = useToast();
   const [parentMenuOpen, setParentMenuOpen] = useState(false);
@@ -226,6 +229,7 @@ export function ExperimentSidebar({
 
   return (
     <RightSidebarShell
+      variant={variant}
       title={
         experimentLoading ? (
           <Skeleton className="h-5 w-32" />

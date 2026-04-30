@@ -32,6 +32,7 @@ interface ExperimentsTableProps {
     experiments: Experiment[];
     projectMetrics?: ProjectMetric[];
     aggregatedMetrics?: Record<string, Metric[]>;
+    selectedExperimentId?: string | null;
     onExperimentClick: (experimentId: string) => void;
     onReorder: (experimentIds: string[]) => void;
 }
@@ -40,6 +41,7 @@ export function ExperimentsTable({
     experiments,
     projectMetrics,
     aggregatedMetrics,
+    selectedExperimentId,
     onExperimentClick,
     onReorder,
 }: ExperimentsTableProps) {
@@ -106,6 +108,7 @@ export function ExperimentsTable({
                                     <ExperimentTableRow
                                         key={experiment.id}
                                         experiment={experiment}
+                                        isSelected={selectedExperimentId === experiment.id}
                                         onClick={() => onExperimentClick(experiment.id)}
                                         projectMetrics={filteredMetrics}
                                         expMetrics={aggregatedMetrics?.[experiment.id]}
