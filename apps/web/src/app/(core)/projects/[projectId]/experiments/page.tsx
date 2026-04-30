@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useRef } from "react";
 import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
 import { ListSkeleton } from "@/components/shared/loading-skeleton";
@@ -53,12 +53,7 @@ export default function Experiments() {
         project.metrics.displayMetrics
       );
 
-  const sortedExperiments = useMemo(() => {
-    if (!experiments) return [];
-    return [...experiments].sort((a, b) => a.order - b.order);
-  }, [experiments]);
-
-  const parentNamesById = useMissingParentExperimentNames(projectId, sortedExperiments);
+  const parentNamesById = useMissingParentExperimentNames(projectId, experiments);
 
   const isLoading = projectLoading || experimentsLoading || metricsLoading;
   const isRefreshing = experimentsFetching || metricsFetching;
@@ -88,7 +83,7 @@ export default function Experiments() {
 
     observer.observe(node);
     return () => observer.disconnect();
-  }, [experimentsFetchingNextPage, fetchNextPage, hasNextPage, sortedExperiments.length]);
+  }, [experimentsFetchingNextPage, fetchNextPage, hasNextPage, experiments.length]);
 
   if (!projectId) {
     return (
@@ -117,7 +112,7 @@ export default function Experiments() {
         <div className="flex min-h-0 flex-1 flex-col space-y-6">
           <PageHeader
             title="Experiments"
-            description={`Experiments for "${project?.name}". Drag to reorder.`}
+            description={`Experiments for "${project?.name}". Shown newest first. Drag rows to update saved order.`}
             actions={
               projectId ? (
                 <div className="flex items-center gap-2">
@@ -141,7 +136,7 @@ export default function Experiments() {
           />
 
           <div className="min-h-0 flex-1 overflow-y-auto">
-            {!sortedExperiments.length ? (
+            {!experiments.length ? (
               <EmptyState
                 icon={FlaskConical}
                 title="No experiments yet"
@@ -164,7 +159,7 @@ export default function Experiments() {
             ) : (
               <>
                 <ExperimentsTable
-                  experiments={sortedExperiments}
+                  experiments={experiments}
                   projectMetrics={filteredMetrics}
                   aggregatedMetrics={aggregatedMetricsByExperiment}
                   parentNamesById={parentNamesById}

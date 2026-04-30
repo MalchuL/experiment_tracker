@@ -42,9 +42,7 @@ class ExperimentService:
             project_id, list_options
         )
         return ExperimentListResponseDTO.from_page(
-            experiments_page.map(
-                self.experiment_mapper.experiment_schema_to_dto
-            )
+            experiments_page.map(self.experiment_mapper.experiment_schema_to_dto)
         )
 
     async def get_experiment_if_accessible(
@@ -158,9 +156,7 @@ class ExperimentService:
             list_options=list_options,
         )
         return ExperimentListResponseDTO.from_page(
-            experiments_page.map(
-                self.experiment_mapper.experiment_schema_to_dto
-            )
+            experiments_page.map(self.experiment_mapper.experiment_schema_to_dto)
         )
 
     async def get_experiments_batch_for_project(
@@ -175,10 +171,9 @@ class ExperimentService:
             )
         unique_ids = list(dict.fromkeys(experiment_ids))
         rows = await self.experiment_repository.get_experiments_by_ids(unique_ids)
-        in_project = [e for e in rows if e.project_id == project_id]
-        dtos = [
-            self.experiment_mapper.experiment_schema_to_dto(e) for e in in_project
-        ]
+        by_id = {e.id: e for e in rows if e.project_id == project_id}
+        ordered = [by_id[eid] for eid in unique_ids if eid in by_id]
+        dtos = [self.experiment_mapper.experiment_schema_to_dto(e) for e in ordered]
         return ExperimentListResponseDTO(
             data=dtos,
             has_next=False,
