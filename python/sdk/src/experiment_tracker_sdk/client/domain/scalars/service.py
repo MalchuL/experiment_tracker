@@ -2,6 +2,8 @@ from datetime import datetime
 from typing import Literal, cast
 from uuid import UUID
 
+from experiment_tracker_shared.datetime_utc import to_json_utc_z
+
 from .dto import (
     LastLoggedExperimentsRequest,
     LastLoggedExperimentsResponse,
@@ -84,9 +86,9 @@ class ScalarsRequestSpecFactory:
         if max_points is not None:
             params["max_points"] = max_points
         if start_time is not None:
-            params["start_time"] = start_time.isoformat()
+            params["start_time"] = to_json_utc_z(start_time)
         if end_time is not None:
-            params["end_time"] = end_time.isoformat()
+            params["end_time"] = to_json_utc_z(end_time)
         return ApiRequestSpec(
             method="GET",
             endpoint=endpoint,
@@ -124,9 +126,9 @@ class ScalarsRequestSpecFactory:
         if max_points is not None:
             params["max_points"] = max_points
         if start_time is not None:
-            params["start_time"] = start_time.isoformat()
+            params["start_time"] = to_json_utc_z(start_time)
         if end_time is not None:
-            params["end_time"] = end_time.isoformat()
+            params["end_time"] = to_json_utc_z(end_time)
         return ApiRequestSpec(
             method="GET",
             endpoint=endpoint,

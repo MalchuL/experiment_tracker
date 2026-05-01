@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field
+from lib.datetime_types import ApiDateTime
 from lib.pagination import PaginatedResponse
 
 ArtifactType = Literal["image", "video", "audio", "text", "point_cloud_3d"]
@@ -25,7 +25,7 @@ class LogArtifactResponseDTO(BaseModel):
 
 
 class ArtifactInfoEntryDTO(BaseModel):
-    timestamp: datetime
+    timestamp: ApiDateTime
     step: int
     name: str
     artifact_type: ArtifactType

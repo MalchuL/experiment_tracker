@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { parseISO } from "date-fns";
 import type { Experiment } from "@/domain/experiments/types";
 import type { ExperimentScalarsPoints } from "@/domain/scalars/types";
 import { applySmoothing } from "@/domain/scalars/utils";
@@ -28,7 +28,7 @@ export function useScalarsDataModel({
 }: UseScalarsDataModelParams) {
   const sortedExperiments = useMemo(() => {
     return [...experiments].sort((a, b) => {
-      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      return parseISO(b.createdAt).getTime() - parseISO(a.createdAt).getTime();
     });
   }, [experiments]);
 

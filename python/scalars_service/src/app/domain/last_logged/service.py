@@ -1,18 +1,17 @@
 """Last logged experiments service - shared by scalars and objects domains."""
 
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import cast
 from uuid import UUID
+
+from experiment_tracker_shared import utc_now_naive
+from experiment_tracker_shared.datetime_utc import to_json_utc_z
 
 from app.domain.last_logged.dto import (  # type: ignore
     LastLoggedExperimentDTO,
     LastLoggedExperimentsResultDTO,
 )
 from app.domain.utils.scalars_db_utils import SCALARS_DB_UTILS  # type: ignore
-
-
-def _get_now_datetime() -> datetime:
-    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
 class LastLoggedService:
@@ -27,7 +26,7 @@ class LastLoggedService:
     ) -> None:
         """Update last_logged for the experiment. Creates table if it does not exist."""
         if last_modified is None:
-            last_modified = _get_now_datetime()
+            last_modified = utc_now_naive()
         await self._ensure_table(project_id)
         table_name = SCALARS_DB_UTILS.safe_last_logged_table_name(project_id)
         statement = SCALARS_DB_UTILS.build_upsert_last_logged_statement(
@@ -68,7 +67,7 @@ class LastLoggedService:
         data = [
             LastLoggedExperimentDTO(
                 experiment_id=cast(UUID, row[0]),
-                last_modified=cast(datetime, row[1]).isoformat(),
+                last_modified=to_json_utc_z(cast(datetime, row[1])),
             )
             for row in result.result_rows
         ]

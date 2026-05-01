@@ -70,6 +70,7 @@ class TestProjectDTO:
         converter = DtoConverter[ProjectDTO](ProjectDTO)
         dto = converter.dict_with_json_case_to_dto(self.INPUT_DATA)
         dumped_data = converter.dto_to_json_dict_with_json_case(dto)
+        assert dumped_data["createdAt"].endswith("Z")
         assert dumped_data["metrics"]["trackedMetrics"][0]["name"] == "test_metric"
         assert dumped_data["metrics"]["displayMetrics"] == [
             {"name": "test_metric", "label": None}

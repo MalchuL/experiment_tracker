@@ -1,22 +1,13 @@
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime
 from enum import Enum
 from typing import Optional, List, Any
 
-
-def utc_now() -> datetime:
-    """
-    Get current UTC datetime as a naive datetime object.
-    This replaces datetime.utcnow() which is deprecated.
-    Returns a timezone-naive datetime representing UTC time.
-    """
-    return datetime.now(timezone.utc).replace(tzinfo=None)
-
+from experiment_tracker_shared import UtcNaiveDateTime, utc_now_naive
 
 from sqlalchemy import (
     String,
     Boolean,
-    DateTime,
     ForeignKey,
     Enum as SQLEnum,
     Integer,
@@ -88,7 +79,7 @@ class TeamMember(UUIDBase):
         SQLEnum(Role), default=Role.MEMBER, nullable=False
     )
     joined_at: Mapped[datetime] = mapped_column(
-        DateTime, default=utc_now, nullable=False
+        UtcNaiveDateTime, default=utc_now_naive, nullable=False
     )
 
     team: Mapped["Team"] = relationship(
@@ -105,7 +96,7 @@ class User(SQLAlchemyBaseUserTableUUID, Base):
 
     display_name: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     avatar_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
+    created_at: Mapped[datetime] = mapped_column(UtcNaiveDateTime, default=utc_now_naive)
 
     teams: Mapped[List["Team"]] = relationship(
         "Team",
@@ -136,10 +127,10 @@ class ApiToken(UUIDBase):
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     scopes: Mapped[list[str]] = mapped_column(JSONB, default=list)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
-    expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(UtcNaiveDateTime, default=utc_now_naive)
+    expires_at: Mapped[Optional[datetime]] = mapped_column(UtcNaiveDateTime, nullable=True)
     revoked: Mapped[bool] = mapped_column(Boolean, default=False)
-    last_used_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    last_used_at: Mapped[Optional[datetime]] = mapped_column(UtcNaiveDateTime, nullable=True)
 
     user: Mapped["User"] = relationship(
         "User", back_populates="api_tokens", lazy="raise"
@@ -154,7 +145,7 @@ class Team(UUIDBase):
     owner_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
+    created_at: Mapped[datetime] = mapped_column(UtcNaiveDateTime, default=utc_now_naive)
 
     owner: Mapped["User"] = relationship(
         "User", back_populates="owned_teams", foreign_keys=[owner_id]
@@ -194,7 +185,7 @@ class Project(UUIDBase):
     )
     metrics: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
     settings: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, default=list)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
+    created_at: Mapped[datetime] = mapped_column(UtcNaiveDateTime, default=utc_now_naive)
 
     owner: Mapped["User"] = relationship("User", lazy="raise")
     team: Mapped[Optional["Team"]] = relationship(
@@ -248,9 +239,9 @@ class Experiment(UUIDBase):
         nullable=True,
         default=None,
     )
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
-    started_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
-    completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(UtcNaiveDateTime, default=utc_now_naive)
+    started_at: Mapped[Optional[datetime]] = mapped_column(UtcNaiveDateTime, nullable=True)
+    completed_at: Mapped[Optional[datetime]] = mapped_column(UtcNaiveDateTime, nullable=True)
 
     project: Mapped["Project"] = relationship(
         "Project", back_populates="experiments", lazy="raise"
@@ -282,9 +273,9 @@ class Hypothesis(UUIDBase):
     )
     target_metrics: Mapped[List[str]] = mapped_column(JSONB, default=list)
     baseline: Mapped[str] = mapped_column(String(100), default="root")
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
+    created_at: Mapped[datetime] = mapped_column(UtcNaiveDateTime, default=utc_now_naive)
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime, default=utc_now, onupdate=utc_now
+        UtcNaiveDateTime, default=utc_now_naive, onupdate=utc_now_naive
     )
 
     project: Mapped["Project"] = relationship(
@@ -324,7 +315,7 @@ class Metric(UUIDBase):
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     value: Mapped[float] = mapped_column(Float, nullable=False)
     label: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
+    created_at: Mapped[datetime] = mapped_column(UtcNaiveDateTime, default=utc_now_naive)
 
     experiment: Mapped["Experiment"] = relationship(
         "Experiment", back_populates="metrics", lazy="raise"
@@ -357,9 +348,9 @@ class ExperimentArtifact(UUIDBase):
     filename: Mapped[str] = mapped_column(String(255), nullable=False)
     mime_type: Mapped[str] = mapped_column(String(255), nullable=False)
     storage_path: Mapped[str] = mapped_column(String(1024), nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
+    created_at: Mapped[datetime] = mapped_column(UtcNaiveDateTime, default=utc_now_naive)
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime, default=utc_now, onupdate=utc_now
+        UtcNaiveDateTime, default=utc_now_naive, onupdate=utc_now_naive
     )
 
 
@@ -399,7 +390,7 @@ class Permission(UUIDBase):
     allowed: Mapped[bool] = mapped_column(Boolean, default=True)
 
     # Временные рамки (опционально)
-    expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    expires_at: Mapped[Optional[datetime]] = mapped_column(UtcNaiveDateTime, nullable=True)
 
     # Индексы для скорости
     __table_args__ = (

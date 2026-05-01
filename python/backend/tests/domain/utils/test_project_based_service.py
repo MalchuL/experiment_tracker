@@ -135,7 +135,7 @@ class TestProjectBasedService:
         assert result.description == project.description
         assert len(result.metrics.tracked_metrics) == 1
         assert result.metrics.tracked_metrics[0].name == "accuracy"
-        assert result.metrics.display_metrics[0] == "accuracy"
+        assert result.metrics.display_metrics[0].name == "accuracy"
         assert result.settings[0].name == "naming_pattern"
         assert result.settings[0].type == "string"
         assert result.settings[0].value == "{num}_from_{parent}_{change}"

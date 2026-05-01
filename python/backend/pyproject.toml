@@ -5,6 +5,7 @@ description = "MVP backend-first experiment tracker"
 authors = [{ name = "Experiment Tracker Team" }]
 requires-python = ">=3.10"
 dependencies = [
+  "experiment-tracker-shared",
   "fastapi>=0.111.0",
   "fastapi-users[sqlalchemy]>=15.0.3",
   "asyncpg>=0.31.0",
@@ -20,6 +21,9 @@ dependencies = [
   "python-multipart>=0.0.9",
   "alembic>=1.18.0",
 ]
+
+[tool.uv.sources]
+experiment-tracker-shared = { path = "../shared", editable = true }
 
 [project.optional-dependencies]
 dev = [

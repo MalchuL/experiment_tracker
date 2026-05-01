@@ -9,6 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from "@/lib/hooks/use-toast";
+import { formatLocalDateTime } from "@/lib/format-local-datetime";
 import { apiTokensService } from "@/domain/api-tokens/services";
 import type { ApiTokenCreateResponse, ApiTokenListItem } from "@/domain/api-tokens/types";
 
@@ -290,16 +291,16 @@ export default function ApiTokensPage() {
                       Scopes: {token.scopes.join(", ") || "none"}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      Created: {new Date(token.createdAt).toLocaleString()}
+                      Created: {formatLocalDateTime(token.createdAt, "PPpp")}
                     </p>
                     {token.expiresAt && (
                       <p className="text-xs text-muted-foreground">
-                        Expires: {new Date(token.expiresAt).toLocaleString()}
+                        Expires: {formatLocalDateTime(token.expiresAt, "PPpp")}
                       </p>
                     )}
                     {token.lastUsedAt && (
                       <p className="text-xs text-muted-foreground">
-                        Last used: {new Date(token.lastUsedAt).toLocaleString()}
+                        Last used: {formatLocalDateTime(token.lastUsedAt, "PPpp")}
                       </p>
                     )}
                   </div>

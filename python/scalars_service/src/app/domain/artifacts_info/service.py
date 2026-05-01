@@ -1,7 +1,9 @@
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Sequence, cast
 from uuid import UUID
+
+from experiment_tracker_shared import utc_now_naive
 
 from .dto import (
     ExperimentArtifactsInfoResultDTO,
@@ -19,10 +21,6 @@ from app.domain.utils.scalars_db_utils import (  # type: ignore
 from app.domain.last_logged.service import LastLoggedService
 
 
-def _get_now_datetime() -> datetime:
-    return datetime.now(timezone.utc).replace(tzinfo=None)
-
-
 class ArtifactsInfoService:
     def __init__(self, client, last_logged_service: LastLoggedService | None = None):
         self.client = client
@@ -37,7 +35,7 @@ class ArtifactsInfoService:
         warnings = self._validate_artifact_info_request(request)
         if warnings:
             return LogArtifactInfoResponseDTO(status="logged", warnings=warnings)
-        logged_at = _get_now_datetime()
+        logged_at = utc_now_naive()
         row = [
             logged_at,
             experiment_id,
@@ -75,7 +73,7 @@ class ArtifactsInfoService:
             return LogArtifactsInfoResponseDTO(status="logged")
         rows = []
         warnings: list[str] = []
-        last_modified = _get_now_datetime()
+        last_modified = utc_now_naive()
         for item in request.artifacts:
             # Keep batch writes robust: invalid rows are skipped with warnings, not hard-failed.
             item_warnings = self._validate_artifact_info_request(item)
@@ -95,7 +93,7 @@ class ArtifactsInfoService:
                 ]
             )
         if rows:
-            last_modified = _get_now_datetime()
+            last_modified = utc_now_naive()
             await self.client.insert(
                 table_name,
                 rows,

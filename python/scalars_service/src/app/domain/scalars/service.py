@@ -1,8 +1,11 @@
 import asyncio
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Literal, Sequence, cast
 from uuid import UUID, uuid4
+
+from experiment_tracker_shared import utc_now_naive
+from experiment_tracker_shared.datetime_utc import to_json_utc_z
 
 from app.domain.scalars.dto import (  # type: ignore
     ExperimentsScalarsPointsResultDTO,
@@ -20,10 +23,6 @@ from app.domain.utils.scalars_db_utils import (  # type: ignore
     ProjectTableColumns,
 )
 from app.infrastructure.cache.cache import Cache  # type: ignore
-
-
-def _get_now_datetime() -> datetime:
-    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
 def _sampling_cache_fragment(sampling: ScalarsSampling | Literal["*"]) -> str:
@@ -76,10 +75,10 @@ def _build_scalars_cache_key(
         A unique string suitable for ``Cache.get`` / ``Cache.set`` / ``Cache.invalidate`` matching.
     """
     start_time_key = (
-        "*" if start_time == "*" else start_time.isoformat() if start_time else "none"
+        "*" if start_time == "*" else to_json_utc_z(start_time) if start_time else "none"
     )
     end_time_key = (
-        "*" if end_time == "*" else end_time.isoformat() if end_time else "none"
+        "*" if end_time == "*" else to_json_utc_z(end_time) if end_time else "none"
     )
     sampling_key = _sampling_cache_fragment(sampling)
     return (
@@ -156,7 +155,7 @@ class ScalarsService:
         )
 
         columns = SCALARS_DB_UTILS.get_base_columns() + list(mapped_columns.values())
-        logged_at = _get_now_datetime()
+        logged_at = utc_now_naive()
         row = [
             logged_at,
             experiment_id,
@@ -220,7 +219,7 @@ class ScalarsService:
 
         columns = SCALARS_DB_UTILS.get_base_columns() + list(mapped_columns.values())
         rows = []
-        last_modified = _get_now_datetime()
+        last_modified = utc_now_naive()
         for item in filtered_items:
             row = [
                 last_modified,
@@ -881,7 +880,7 @@ class ScalarsService:
         payload = {str(k): str(v) for k, v in mapping.items()}
         await self.client.insert(
             table=SCALARS_DB_UTILS.get_mapping_table_name(),
-            data=[[project_id, payload, _get_now_datetime()]],
+            data=[[project_id, payload, utc_now_naive()]],
             column_names=["project_id", "mapping", "updated_at"],
         )
 

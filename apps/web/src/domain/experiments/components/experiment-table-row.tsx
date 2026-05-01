@@ -7,7 +7,7 @@ import { StatusBadge } from "@/components/shared/status-badge";
 import { GripVertical } from "lucide-react";
 import { Experiment } from "../types";
 import { ProjectMetric } from "@/domain/projects/types";
-import { format } from "date-fns";
+import { format, parseISO } from "date-fns";
 import { Metric } from "@/domain/metrics/types";
 import { displayMetricKeyEquals, projectMetricKeyString } from "@/lib/metrics/format-metric-label";
 
@@ -99,7 +99,7 @@ export function ExperimentTableRow({
                 </TableCell>
             ))}
             <TableCell className="text-muted-foreground text-sm">
-                {format(new Date(experiment.createdAt), "MMM d")}
+                {format(parseISO(experiment.createdAt), "MMM d")}
             </TableCell>
         </TableRow>
     );

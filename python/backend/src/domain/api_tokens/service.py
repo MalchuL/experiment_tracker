@@ -10,7 +10,9 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from models import ApiToken, User, utc_now
+from experiment_tracker_shared import utc_now_naive
+
+from models import ApiToken, User
 
 from lib.pagination import ListOptions
 
@@ -90,7 +92,7 @@ class ApiTokenService:
         raw_token = generate_raw_token()
         token_hash = hash_token(raw_token)
         expires_at = (
-            utc_now() + timedelta(days=expires_in_days)
+            utc_now_naive() + timedelta(days=expires_in_days)
             if expires_in_days is not None
             else None
         )
@@ -141,7 +143,7 @@ class ApiTokenService:
         if scopes is not None:
             token.scopes = scopes
         if expires_in_days is not None:
-            token.expires_at = utc_now() + timedelta(days=expires_in_days)
+            token.expires_at = utc_now_naive() + timedelta(days=expires_in_days)
         token = await self.api_token_repository.update(token)
         logger.info(
             "api_token_updated",
@@ -169,7 +171,7 @@ class ApiTokenService:
         if cached:
             if cached.revoked:
                 raise ApiTokenRevokedError("Token revoked")
-            if cached.expires_at and cached.expires_at <= utc_now():
+            if cached.expires_at and cached.expires_at <= utc_now_naive():
                 raise ApiTokenExpiredError("Token expired")
             token = await self.api_token_repository.get_by_hash(token_hash)
             if token is None or not hmac.compare_digest(token.token_hash, token_hash):
@@ -181,7 +183,7 @@ class ApiTokenService:
             raise ApiTokenInvalidError("Token invalid")
         if token.revoked:
             raise ApiTokenRevokedError("Token revoked")
-        if token.expires_at and token.expires_at <= utc_now():
+        if token.expires_at and token.expires_at <= utc_now_naive():
             raise ApiTokenExpiredError("Token expired")
 
         TOKEN_CACHE.set(
@@ -198,7 +200,7 @@ class ApiTokenService:
         return token
 
     async def mark_used(self, token: ApiToken) -> None:
-        token.last_used_at = utc_now()
+        token.last_used_at = utc_now_naive()
         await self.api_token_repository.update(token)
         logger.info(
             "api_token_used",

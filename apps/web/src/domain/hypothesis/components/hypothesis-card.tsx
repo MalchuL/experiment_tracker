@@ -11,7 +11,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Lightbulb, MoreVertical, User, Calendar } from "lucide-react";
-import { format } from "date-fns";
+import { format, parseISO } from "date-fns";
 import type { Hypothesis } from "@/domain/hypothesis/types";
 import { FRONTEND_ROUTES } from "@/lib/constants/frontend-routes";
 
@@ -50,7 +50,7 @@ export function HypothesisCard({
                   </span>
                   <span className="flex items-center gap-1">
                     <Calendar className="w-3 h-3" />
-                    {format(new Date(hypothesis.createdAt), "MMM d")}
+                    {format(parseISO(hypothesis.createdAt), "MMM d")}
                   </span>
                 </div>
               </div>

@@ -14,7 +14,7 @@ from clients.object_storage import (
 )
 
 from .dto import ExperimentArtifactDTO
-from models import utc_now
+from experiment_tracker_shared import utc_now_naive
 
 
 class ExperimentArtifactsMapper:
@@ -76,7 +76,7 @@ class ExperimentArtifactsMapper:
         """Map a listed tracked row from object storage to :class:`ExperimentArtifactDTO`."""
 
         md = item.metadata or {}
-        now = utc_now()
+        now = utc_now_naive()
         display_name = self.display_name_for_tracked(item.file_path, md)
         filename = os.path.basename(item.file_path) or display_name
         return ExperimentArtifactDTO(
@@ -101,7 +101,7 @@ class ExperimentArtifactsMapper:
         """Map a tracked upload response to :class:`ExperimentArtifactDTO`."""
 
         md = item.metadata or {}
-        now = utc_now()
+        now = utc_now_naive()
         filename = upload_filename or os.path.basename(item.file_path) or "artifact"
         display_name = self.display_name_for_tracked(item.file_path, md)
         return ExperimentArtifactDTO(
