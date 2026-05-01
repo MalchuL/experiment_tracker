@@ -439,14 +439,14 @@ export function ExperimentSidebar({
               <div className="p-2 rounded-md bg-muted/50">
                 <p className="text-muted-foreground text-xs">Created</p>
                 <p className="font-medium">
-                  {format(parseISO(experiment.createdAt), "MMM d, yyyy")}
+                  {format(parseISO(experiment.createdAt), "MMM d, yyyy, HH:mm")}
                 </p>
               </div>
               <div className="p-2 rounded-md bg-muted/50">
                 <p className="text-muted-foreground text-xs">Started</p>
                 <p className="font-medium">
                   {experiment.startedAt
-                    ? format(parseISO(experiment.startedAt), "MMM d, HH:mm")
+                    ? format(parseISO(experiment.startedAt), "MMM d, yyyy, HH:mm")
                     : "-"}
                 </p>
               </div>
