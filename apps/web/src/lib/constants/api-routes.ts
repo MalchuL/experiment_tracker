@@ -223,14 +223,6 @@ export const API_ROUTES = {
         return `/api/experiment-artifacts/delete?${q.toString()}`;
       },
     },
-    PROJECT_ARTIFACTS: {
-      ARTIFACTS: {
-        GET: (projectId: string, artifactHash: string, contentType?: string) =>
-          contentType
-            ? `/api/project-artifacts/${projectId}/artifacts/${artifactHash}?contentType=${encodeURIComponent(contentType)}`
-            : `/api/project-artifacts/${projectId}/artifacts/${artifactHash}`,
-      },
-    },
   } as const;
   
   /**

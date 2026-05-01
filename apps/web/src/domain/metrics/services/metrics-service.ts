@@ -8,11 +8,27 @@ import { Metric } from "../types";
 export interface MetricsService {
   getByExperiment: (experimentId: string) => Promise<Metric[]>;
   delete: (metricId: string) => Promise<void>;
+  upsert: (payload: {
+    experimentId: string;
+    name: string;
+    value: number;
+    label?: string | null;
+  }) => Promise<Metric>;
 }
 
 export const metricsService = {
   delete: async (metricId: string): Promise<void> => {
     await serviceClients.api.delete(API_ROUTES.METRICS.DELETE(metricId));
+  },
+
+  upsert: async (payload: {
+    experimentId: string;
+    name: string;
+    value: number;
+    label?: string | null;
+  }): Promise<Metric> => {
+    const response = await serviceClients.api.post<Metric>(API_ROUTES.METRICS.CREATE, payload);
+    return response.data;
   },
 
   getByExperiment: async (experimentId: string) => {

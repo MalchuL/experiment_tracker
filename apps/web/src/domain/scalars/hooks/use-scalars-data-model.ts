@@ -15,6 +15,8 @@ export interface UseScalarsDataModelParams {
   smoothing: number;
   soloMode: boolean;
   chosenExperimentId: string | null;
+  /** When set, selected experiments follow this order (e.g. URL order on Details page). */
+  experimentDisplayOrder?: string[] | null;
 }
 
 export function useScalarsDataModel({
@@ -25,6 +27,7 @@ export function useScalarsDataModel({
   smoothing,
   soloMode,
   chosenExperimentId,
+  experimentDisplayOrder,
 }: UseScalarsDataModelParams) {
   const sortedExperiments = useMemo(() => {
     return [...experiments].sort((a, b) => {
@@ -46,8 +49,17 @@ export function useScalarsDataModel({
   }, [allLoggedMetricNames, hiddenMetrics]);
 
   const selectedExperiments = useMemo(() => {
-    return sortedExperiments.filter((experiment) => selectedExperimentIds.has(experiment.id));
-  }, [sortedExperiments, selectedExperimentIds]);
+    const filtered = sortedExperiments.filter((experiment) =>
+      selectedExperimentIds.has(experiment.id)
+    );
+    if (!experimentDisplayOrder?.length) {
+      return filtered;
+    }
+    const idx = new Map(experimentDisplayOrder.map((id, i) => [id, i]));
+    return [...filtered].sort(
+      (a, b) => (idx.get(a.id) ?? 999) - (idx.get(b.id) ?? 999)
+    );
+  }, [sortedExperiments, selectedExperimentIds, experimentDisplayOrder]);
 
   const visibleExperiments = useMemo(() => {
     if (soloMode && chosenExperimentId) {

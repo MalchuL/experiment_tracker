@@ -247,15 +247,17 @@ export function ExperimentSidebar({
               variant="ghost"
               size="sm"
               className="h-8 px-2"
-              data-testid="button-open-final-artifacts"
+              data-testid="button-open-experiment-details"
             >
               <Link
-                href={FRONTEND_ROUTES.PROJECT_PAGES.EXPERIMENT_ARTIFACTS(
+                href={FRONTEND_ROUTES.PROJECT_PAGES.EXPERIMENT_DETAILS(
                   experiment.projectId,
-                  experiment.id
+                  [experiment.id]
                 )}
+                target="_blank"
+                rel="noopener noreferrer"
               >
-                Artifacts
+                Details
               </Link>
             </Button>
           )}
