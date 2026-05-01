@@ -90,7 +90,7 @@ export function ExperimentsTable({
                                     </div>
                                 </TableHead>
                             ))}
-                            <TableHead className="w-[80px]">Created</TableHead>
+                            <TableHead className="min-w-[140px] whitespace-nowrap">Created</TableHead>
                         </TableRow>
                     </TableHeader>
                     <SortableContext

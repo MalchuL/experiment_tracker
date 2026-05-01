@@ -98,8 +98,8 @@ export function ExperimentTableRow({
                     )}
                 </TableCell>
             ))}
-            <TableCell className="text-muted-foreground text-sm">
-                {format(parseISO(experiment.createdAt), "MMM d")}
+            <TableCell className="text-muted-foreground text-sm whitespace-nowrap tabular-nums">
+                {format(parseISO(experiment.createdAt), "MMM d, yyyy, HH:mm")}
             </TableCell>
         </TableRow>
     );
