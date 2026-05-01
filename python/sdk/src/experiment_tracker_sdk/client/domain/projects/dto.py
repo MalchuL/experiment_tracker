@@ -1,6 +1,6 @@
 from datetime import datetime
 from enum import Enum
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 from ...pagination import PaginatedResponse
 
@@ -30,11 +30,32 @@ class ProjectMetricResponse(BaseModel):
     name: str
     direction: MetricDirection
     aggregation: MetricAggregation
+    label: str | None = None
+
+
+class ProjectDisplayMetricKeyResponse(BaseModel):
+    """Subset of a tracked metric used in project `displayMetrics` (API camelCase keys)."""
+
+    name: str
+    label: str | None = None
 
 
 class ProjectMetricsResponse(BaseModel):
     trackedMetrics: list[ProjectMetricResponse] = []
-    displayMetrics: list[str] = []
+    displayMetrics: list[ProjectDisplayMetricKeyResponse] = []
+
+    @field_validator("displayMetrics", mode="before")
+    @classmethod
+    def _coerce_display_metrics_legacy(cls, v: object) -> object:
+        if not isinstance(v, list):
+            return v
+        out: list[object] = []
+        for item in v:
+            if isinstance(item, str):
+                out.append({"name": item, "label": None})
+            else:
+                out.append(item)
+        return out
 
 
 class ProjectSettingType(str, Enum):
