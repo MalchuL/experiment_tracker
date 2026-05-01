@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { parseISO } from "date-fns";
 import { InfiniteData, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
 import { AlertCircle, RotateCcw } from "lucide-react";
@@ -68,7 +68,7 @@ export default function Scalars() {
 
   const sortedExperiments = useMemo(() => {
     return [...experiments].sort((a, b) => {
-      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      return parseISO(b.createdAt).getTime() - parseISO(a.createdAt).getTime();
     });
   }, [experiments]);
 

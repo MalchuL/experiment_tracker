@@ -1,7 +1,7 @@
 "use client";
 
 import type { Dispatch, SetStateAction } from "react";
-import { format } from "date-fns";
+import { format, isValid, parseISO } from "date-fns";
 import { Checkbox } from "@/components/ui/checkbox";
 import type { HeaderContext } from "@tanstack/react-table";
 import { cn } from "@/lib/utils";
@@ -302,8 +302,8 @@ export function CreatedAtCell({ raw }: CreatedAtCellProps) {
   }
   let d: Date;
   try {
-    d = new Date(raw);
-    if (Number.isNaN(d.getTime())) throw new Error("invalid");
+    d = parseISO(raw);
+    if (!isValid(d)) throw new Error("invalid");
   } catch {
     return <div className="pr-2 text-right font-mono text-xs text-muted-foreground/80 select-text">{raw}</div>;
   }

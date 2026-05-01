@@ -1,11 +1,12 @@
 """Pydantic DTOs for experiment-scoped artifacts storage."""
 
 from dataclasses import dataclass
-from datetime import datetime
 from typing import Any, BinaryIO
 from uuid import UUID
 
 from pydantic import BaseModel, Field
+
+from object_storage.lib.datetime_types import ApiDateTime
 
 
 class UntrackedUploadArtifactResponseDTO(BaseModel):
@@ -44,8 +45,8 @@ class TrackedArtifactInfoResponseDTO(BaseModel):
     mime_type: str
     size: int
     metadata: dict[str, Any] = Field(default_factory=dict)
-    created_at: datetime
-    updated_at: datetime
+    created_at: ApiDateTime
+    updated_at: ApiDateTime
 
 
 @dataclass

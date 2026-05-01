@@ -119,7 +119,7 @@ class ProjectMapper:
             name=project.name,
             description=project.description,
             owner=owner,
-            created_at=project.created_at.isoformat() if project.created_at else "",
+            created_at=project.created_at,
             metrics=ProjectMetricsDTO(
                 tracked_metrics=tracked,
                 display_metrics=display,

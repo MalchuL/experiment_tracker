@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 from typing import Any
-from datetime import datetime
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
+from lib.datetime_types import ApiDateTime
 from lib.pagination import PaginatedResponse
 
 
@@ -85,8 +85,8 @@ class ExperimentTrackedArtifactInfoDTO(BaseModel):
     mime_type: str
     size: int
     metadata: dict[str, Any] = Field(default_factory=dict)
-    created_at: datetime
-    updated_at: datetime
+    created_at: ApiDateTime
+    updated_at: ApiDateTime
 
 
 class DeleteExperimentArtifactResponseDTO(BaseModel):

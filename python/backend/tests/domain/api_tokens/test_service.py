@@ -13,7 +13,8 @@ from domain.api_tokens.service import (
     TOKEN_CACHE,
     hash_token,
 )
-from models import User, utc_now
+from experiment_tracker_shared import utc_now_naive
+from models import User
 
 
 @pytest.fixture(autouse=True)
@@ -145,7 +146,7 @@ class TestApiTokenService:
         )
         token = await api_token_service.api_token_repository.get_by_id(created.id, test_user.id)
         assert token is not None
-        token.expires_at = utc_now() - timedelta(days=1)
+        token.expires_at = utc_now_naive() - timedelta(days=1)
         await api_token_service.api_token_repository.update(token)
 
         with pytest.raises(ApiTokenExpiredError):

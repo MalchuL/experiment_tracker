@@ -1,4 +1,3 @@
-from datetime import datetime
 import re
 from uuid import UUID
 from lib.types import UUID_TYPE
@@ -6,6 +5,7 @@ from pydantic import BaseModel, Field, field_validator
 from typing import List, Optional, Dict, Any
 from models import ExperimentStatus
 
+from lib.datetime_types import ApiDateTime, ApiOptionalDateTime
 from lib.dto_config import model_config
 from lib.pagination import PaginatedResponse
 
@@ -55,9 +55,9 @@ class ExperimentDTO(ExperimentBaseDTO):
     id: UUID
     features_diff: Optional[Dict[str, Any]]
     progress: int
-    created_at: datetime
-    started_at: Optional[datetime]
-    completed_at: Optional[datetime]
+    created_at: ApiDateTime
+    started_at: ApiOptionalDateTime
+    completed_at: ApiOptionalDateTime
 
     model_config = model_config()
 

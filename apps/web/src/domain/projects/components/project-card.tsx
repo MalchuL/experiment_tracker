@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { format } from "date-fns";
+import { format, parseISO } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -77,7 +77,7 @@ export function ProjectCard({ project, onDelete }: ProjectCardProps) {
 
           <div className="flex items-center gap-1 text-xs text-muted-foreground mt-3 pt-3 border-t">
             <Calendar className="w-3 h-3" />
-            <span>Created {format(new Date(project.createdAt), "MMM d, yyyy")}</span>
+            <span>Created {format(parseISO(project.createdAt), "MMM d, yyyy")}</span>
           </div>
         </CardContent>
       </Card>

@@ -8,7 +8,13 @@ version = "0.1.0"
 description = "Shared utilities for experiment tracker Python services"
 readme = "README.md"
 requires-python = ">=3.10"
-dependencies = []
+dependencies = [
+  "pendulum>=3.0.0",
+  "sqlalchemy>=2.0.30",
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+experiment_tracker_shared = ["py.typed"]

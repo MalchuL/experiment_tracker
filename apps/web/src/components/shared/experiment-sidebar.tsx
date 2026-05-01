@@ -31,7 +31,7 @@ import {
   X,
   ChevronDown,
 } from "lucide-react";
-import { format } from "date-fns";
+import { format, parseISO } from "date-fns";
 import type { Experiment } from "@/domain/experiments/types";
 import type { Metric } from "@/domain/metrics/types";
 import type { ProjectMetric } from "@/domain/projects/types";
@@ -439,14 +439,14 @@ export function ExperimentSidebar({
               <div className="p-2 rounded-md bg-muted/50">
                 <p className="text-muted-foreground text-xs">Created</p>
                 <p className="font-medium">
-                  {format(new Date(experiment.createdAt), "MMM d, yyyy")}
+                  {format(parseISO(experiment.createdAt), "MMM d, yyyy")}
                 </p>
               </div>
               <div className="p-2 rounded-md bg-muted/50">
                 <p className="text-muted-foreground text-xs">Started</p>
                 <p className="font-medium">
                   {experiment.startedAt
-                    ? format(new Date(experiment.startedAt), "MMM d, HH:mm")
+                    ? format(parseISO(experiment.startedAt), "MMM d, HH:mm")
                     : "-"}
                 </p>
               </div>

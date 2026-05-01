@@ -1,10 +1,11 @@
 import uuid
-from typing import Optional, List
-from pydantic import BaseModel
-from datetime import datetime
+from typing import List, Optional
 
-from models import Role
+from pydantic import BaseModel
+
+from lib.datetime_types import ApiDateTime
 from lib.dto_config import model_config
+from models import Role
 
 
 class TeamBase(BaseModel):
@@ -14,7 +15,7 @@ class TeamBase(BaseModel):
 
 class TeamReadDTO(TeamBase):
     id: uuid.UUID
-    created_at: datetime
+    created_at: ApiDateTime
     owner_id: uuid.UUID
     model_config = model_config()
 

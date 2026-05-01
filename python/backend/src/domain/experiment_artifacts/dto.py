@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
 from typing import Any
 from uuid import UUID
 
+from pydantic import BaseModel, Field
+
+from lib.datetime_types import ApiDateTime
 from lib.dto_config import model_config
 from lib.pagination import PaginatedResponse
-from pydantic import BaseModel, Field
 
 
 @dataclass(frozen=True, slots=True)
@@ -28,8 +29,8 @@ class ExperimentArtifactDTO(BaseModel):
     mime_type: str
     storage_path: str
     metadata: dict[str, Any] = Field(default_factory=dict)
-    created_at: datetime
-    updated_at: datetime
+    created_at: ApiDateTime
+    updated_at: ApiDateTime
 
     model_config = model_config()
 
