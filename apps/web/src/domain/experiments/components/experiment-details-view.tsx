@@ -67,7 +67,7 @@ import {
 } from "@/lib/metrics/format-metric-label";
 import { useToast } from "@/lib/hooks/use-toast";
 import { GitBranch, ChevronDown, X } from "lucide-react";
-import { format } from "date-fns";
+import { format, parseISO } from "date-fns";
 import { experimentsService } from "@/domain/experiments/services";
 import type { InsertExperiment } from "@/shared/schema";
 
@@ -569,14 +569,16 @@ function ExperimentDetailsMetadataCard({
         <div className="grid grid-cols-2 gap-2 text-sm max-w-md">
           <div className="p-2 rounded-md bg-muted/50">
             <p className="text-muted-foreground text-xs">Created</p>
-            <p className="font-medium">{format(new Date(experiment.createdAt), "MMM d, yyyy")}</p>
+            <p className="font-medium">
+              {format(parseISO(experiment.createdAt), "MMM d, yyyy, HH:mm")}
+            </p>
           </div>
           <div className="p-2 rounded-md bg-muted/50">
             <p className="text-muted-foreground text-xs">Started</p>
             <p className="font-medium">
               {experiment.startedAt
-                ? format(new Date(experiment.startedAt), "MMM d, HH:mm")
-                : "—"}
+                ? format(parseISO(experiment.startedAt), "MMM d, yyyy, HH:mm")
+                : "-"}
             </p>
           </div>
         </div>

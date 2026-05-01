@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { parseISO } from "date-fns";
 import type { Experiment } from "@/domain/experiments/types";
 import type { ExperimentScalarsPoints } from "@/domain/scalars/types";
