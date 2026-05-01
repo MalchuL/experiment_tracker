@@ -1,4 +1,12 @@
-"""UTC datetime helpers for persistence and JSON (Z-suffixed ISO-8601)."""
+"""UTC datetime helpers for persistence and JSON (Z-suffixed ISO-8601).
+
+This module is the single source of truth for:
+
+- **"Now"** in the database sense: naive UTC wall clock suitable for ``TIMESTAMP WITHOUT TIME ZONE``.
+- **Normalizing** arbitrary ``datetime`` values before write (strip offset after converting to UTC).
+- **Formatting** instants for JSON and query strings so they match common JavaScript output
+  (``Date.toISOString()``), i.e. UTC with a literal ``Z`` suffix instead of ``+00:00``.
+"""
 
 from __future__ import annotations
 
@@ -8,19 +16,53 @@ import pendulum
 
 
 def utc_now_naive() -> datetime:
-    """Current instant as naive UTC wall clock (for TIMESTAMP WITHOUT TIME ZONE)."""
+    """Return the current instant as a **naive** datetime in the UTC clock.
+
+    PostgreSQL ``timestamp without time zone`` (and similar) store only calendar + clock; they do
+    not store a time zone. Callers treat these columns as **UTC by convention**. This function is
+    the preferred clock for ``default=`` on ORM columns that follow that rule.
+
+    Returns:
+        ``datetime`` with ``tzinfo is None``, representing "now" in UTC (not local server time).
+    """
     return pendulum.now("UTC").naive()
 
 
 def normalize_for_db(dt: datetime) -> datetime:
-    """Return naive UTC suitable for TIMESTAMP WITHOUT TIME ZONE."""
+    """Normalize ``dt`` to naive UTC for columns that store ``TIMESTAMP WITHOUT TIME ZONE`` as UTC.
+
+    SQLAlchemy's :class:`UtcNaiveDateTime` type decorator calls this on bind so aware datetimes from
+    clients or libraries are never persisted with a misleading offset: everything is folded to UTC
+    and the offset is dropped, matching how the rest of the stack reads these columns.
+
+    Args:
+        dt: Any ``datetime``. If ``tzinfo`` is ``None``, the value is returned unchanged (caller
+            asserts it is already UTC wall clock). If aware, it is converted to UTC then made
+            naive.
+
+    Returns:
+        Naive ``datetime`` in the UTC wall clock.
+    """
     if dt.tzinfo is None:
         return dt
     return pendulum.instance(dt).in_tz("UTC").naive()
 
 
 def to_json_utc_z(dt: datetime) -> str:
-    """Serialize instant as ISO-8601 UTC with ``Z`` suffix (not ``+00:00``)."""
+    """Format an instant as an ISO-8601 / RFC 3339 string in UTC with a trailing ``Z``.
+
+    Intended for HTTP JSON bodies, query parameters, and logs where a single string shape is
+    easier for frontends than ``+00:00``. Matches the usual output of JavaScript
+    ``new Date(ms).toISOString()`` for the same instant when the instant is UTC.
+
+    Args:
+        dt: The instant to format. **Naive** values are interpreted as UTC (same as DB columns).
+            **Aware** values are converted to UTC before formatting.
+
+    Returns:
+        ISO-8601-like string ending with ``Z``, never ``+00:00`` or a numeric offset. Includes
+        fractional seconds when non-zero (via pendulum's string form, then ``Z`` normalization).
+    """
     if dt.tzinfo is None:
         p = pendulum.datetime(
             dt.year,
