@@ -10,6 +10,36 @@ type AxisWithUnifiedHoverTitle = NonNullable<Partial<Layout>["xaxis"]> & {
     text: string;
   };
 };
+interface MultiHoverRow {
+  experimentName: string;
+  step: number;
+  value: number;
+  color: string;
+  displayName: string;
+  displayStep: string;
+  displayValue: string;
+}
+
+interface MultiHoverState {
+  x: number;
+  y: number;
+  graphWidth: number;
+  graphHeight: number;
+  rows: MultiHoverRow[];
+}
+
+// Tooltip geometry is estimated because the custom hover is positioned before layout measurement.
+const TOOLTIP_EDGE_OFFSET_PX = 4;
+const TOOLTIP_CURSOR_OFFSET_PX = 4;
+const TOOLTIP_MIN_WIDTH_PX = 120;
+const TOOLTIP_MIN_HEIGHT_PX = 80;
+const TOOLTIP_MAX_WIDTH_PX = 520;
+const TOOLTIP_MAX_HEIGHT_PX = 480;
+const TOOLTIP_MONOSPACE_CHAR_WIDTH_PX = 7;
+const TOOLTIP_HORIZONTAL_PADDING_PX = 24;
+const TOOLTIP_ROW_HEIGHT_PX = 18;
+const TOOLTIP_VERTICAL_PADDING_PX = 12;
+const TOOLTIP_EXTRA_TEXT_CHARS = 8;
 
 import type { Experiment } from "@/domain/experiments/types";
 import type {
@@ -56,6 +86,7 @@ export function MetricChart({
 }: MetricChartProps) {
   const [dragMode, setDragMode] = useState<"zoom" | "pan">("zoom");
   const activePointRef = useRef<ScalarPointSelection | null>(null);
+  const [multiHover, setMultiHover] = useState<MultiHoverState | null>(null);
 
   const plotData = useMemo(() => {
     const traces: Partial<PlotData>[] = [];
@@ -134,7 +165,8 @@ export function MetricChart({
           color: experimentColor,
           size: isFullscreen ? 5 : 4,
         },
-        hovertemplate: hoverTemplate(hoverMode),
+        hoverinfo: hoverMode === "compare" ? "none" : undefined,
+        hovertemplate: hoverMode === "compare" ? undefined : hoverTemplate(hoverMode),
       });
     });
     return traces;
@@ -174,6 +206,9 @@ export function MetricChart({
   );
 
   const handleHover = useCallback((event: Readonly<PlotMouseEvent>) => {
+    if (hoverMode === "compare") {
+      setMultiHover(buildMultiHoverState(event, hoverNameMaxLength));
+    }
     const point = pickNearestHoverPoint(event);
     const customData = point?.customdata;
     if (!Array.isArray(customData) || customData.length < 6) return;
@@ -197,6 +232,10 @@ export function MetricChart({
       originalValue,
       smoothedValue,
     };
+  }, [hoverMode, hoverNameMaxLength]);
+
+  const handleUnhover = useCallback(() => {
+    setMultiHover(null);
   }, []);
 
   const handleContextMenu = useCallback(
@@ -282,7 +321,12 @@ export function MetricChart({
   };
 
   return (
-    <div style={{ height }} onContextMenu={handleContextMenu}>
+    <div
+      className="relative"
+      style={{ height }}
+      onContextMenu={handleContextMenu}
+      onPointerLeave={handleUnhover}
+    >
       <Plot
         data={plotData}
         layout={layout}
@@ -290,9 +334,125 @@ export function MetricChart({
         style={{ width: "100%", height: "100%" }}
         useResizeHandler={true}
         onHover={handleHover}
+        onUnhover={handleUnhover}
         onRelayout={handleRelayout}
       />
+      {hoverMode === "compare" && multiHover ? <MultiHoverTooltip hover={multiHover} /> : null}
     </div>
+  );
+}
+
+function MultiHoverTooltip({ hover }: { hover: MultiHoverState }) {
+  const estimatedWidth = estimateTooltipWidth(hover.rows);
+  const estimatedHeight = estimateTooltipHeight(hover.rows);
+  const left =
+    hover.x + estimatedWidth + TOOLTIP_CURSOR_OFFSET_PX > hover.graphWidth
+      ? Math.max(TOOLTIP_EDGE_OFFSET_PX, hover.x - estimatedWidth - TOOLTIP_CURSOR_OFFSET_PX)
+      : hover.x + TOOLTIP_CURSOR_OFFSET_PX;
+  const top =
+    hover.y + estimatedHeight + TOOLTIP_CURSOR_OFFSET_PX > hover.graphHeight
+      ? Math.max(TOOLTIP_EDGE_OFFSET_PX, hover.y - estimatedHeight - TOOLTIP_CURSOR_OFFSET_PX)
+      : Math.max(TOOLTIP_EDGE_OFFSET_PX, hover.y - TOOLTIP_CURSOR_OFFSET_PX);
+  return (
+    <div
+      className="pointer-events-none absolute z-20 rounded border border-white/70 bg-white/90 px-2 py-1 font-mono text-[11px] text-slate-950 shadow"
+      style={{
+        left,
+        top,
+        maxWidth: Math.max(TOOLTIP_MIN_WIDTH_PX, hover.graphWidth - TOOLTIP_EDGE_OFFSET_PX * 2),
+        maxHeight: Math.max(TOOLTIP_MIN_HEIGHT_PX, hover.graphHeight - TOOLTIP_EDGE_OFFSET_PX * 2),
+        overflow: "hidden",
+      }}
+    >
+      <div className="space-y-0.5">
+        {hover.rows.map((row) => (
+          <div
+            key={`${row.experimentName}:${row.step}`}
+            className="whitespace-pre"
+          >
+            <span style={{ color: row.color }}>━━━━</span>
+            {" "}
+            {row.displayName} {row.displayStep} {row.displayValue}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function buildMultiHoverState(
+  event: Readonly<PlotMouseEvent>,
+  hoverNameMaxLength: number
+): MultiHoverState | null {
+  const mouseEvent = event.event as unknown as globalThis.MouseEvent | undefined;
+  const graphElement = findPlotlyGraphElement(mouseEvent?.target ?? null);
+  if (!mouseEvent || !graphElement) {
+    return null;
+  }
+  const rect = graphElement.getBoundingClientRect();
+  const rows = (event.points ?? [])
+    .map((point): MultiHoverRow | null => {
+      const trace = point.data as { hoverinfo?: string } | undefined;
+      const customData = point.customdata;
+      if (trace?.hoverinfo === "skip" || !Array.isArray(customData) || customData.length < 7) {
+        return null;
+      }
+      const [, experimentName, , originalValue, smoothedValue, step, color] = customData;
+      const displayedValue = typeof point.y === "number" ? point.y : Number(point.y);
+      if (
+        typeof experimentName !== "string" ||
+        typeof color !== "string" ||
+        typeof step !== "number" ||
+        typeof originalValue !== "number" ||
+        typeof smoothedValue !== "number" ||
+        !Number.isFinite(displayedValue)
+      ) {
+        return null;
+      }
+      return {
+        experimentName,
+        step,
+        value: displayedValue,
+        color,
+        displayName: padColumn(truncateName(experimentName, hoverNameMaxLength), hoverNameMaxLength),
+        displayStep: padColumn(String(step), 4, "left"),
+        displayValue: padColumn(formatScalarValue(displayedValue), 8, "left"),
+      };
+    })
+    .filter((row): row is MultiHoverRow => row !== null)
+    .sort((a, b) => b.value - a.value);
+  if (!rows.length) {
+    return null;
+  }
+  const nameWidth = Math.max(1, ...rows.map((row) => truncateName(row.experimentName, hoverNameMaxLength).length));
+  const formattedRows = rows.map((row) => ({
+    ...row,
+    displayName: padColumn(truncateName(row.experimentName, hoverNameMaxLength), nameWidth),
+  }));
+  return {
+    x: mouseEvent.clientX - rect.left,
+    y: mouseEvent.clientY - rect.top,
+    graphWidth: rect.width,
+    graphHeight: rect.height,
+    rows: formattedRows,
+  };
+}
+
+function estimateTooltipWidth(rows: MultiHoverRow[]): number {
+  const maxChars = Math.max(
+    1,
+    ...rows.map((row) => row.displayName.length + row.displayStep.length + row.displayValue.length + TOOLTIP_EXTRA_TEXT_CHARS)
+  );
+  return Math.min(
+    TOOLTIP_MAX_WIDTH_PX,
+    maxChars * TOOLTIP_MONOSPACE_CHAR_WIDTH_PX + TOOLTIP_HORIZONTAL_PADDING_PX
+  );
+}
+
+function estimateTooltipHeight(rows: MultiHoverRow[]): number {
+  return Math.min(
+    TOOLTIP_MAX_HEIGHT_PX,
+    rows.length * TOOLTIP_ROW_HEIGHT_PX + TOOLTIP_VERTICAL_PADDING_PX
   );
 }
 
@@ -302,10 +462,12 @@ function pickNearestHoverPoint(event: Readonly<PlotMouseEvent>) {
     return points[0];
   }
   const mouseEvent = event.event as unknown as globalThis.MouseEvent | undefined;
-  const clientY = mouseEvent?.clientY;
-  if (typeof clientY !== "number") {
+  if (!mouseEvent || typeof mouseEvent.clientY !== "number") {
     return points[0];
   }
+  const clientY = mouseEvent.clientY;
+  const graphElement = findPlotlyGraphElement(mouseEvent.target);
+  const plotLocalY = graphElement ? clientY - graphElement.getBoundingClientRect().top : clientY;
   let bestPoint = points[0];
   let bestDistance = Number.POSITIVE_INFINITY;
   for (const point of points) {
@@ -314,14 +476,21 @@ function pickNearestHoverPoint(event: Readonly<PlotMouseEvent>) {
     if (!yaxis?.l2p || !Number.isFinite(y)) {
       continue;
     }
-    const pointClientY = (yaxis._offset ?? 0) + yaxis.l2p(y);
-    const distance = Math.abs(pointClientY - clientY);
+    const pointLocalY = (yaxis._offset ?? 0) + yaxis.l2p(y);
+    const distance = Math.abs(pointLocalY - plotLocalY);
     if (distance < bestDistance) {
       bestDistance = distance;
       bestPoint = point;
     }
   }
   return bestPoint;
+}
+
+function findPlotlyGraphElement(target: EventTarget | null): Element | null {
+  if (!(target instanceof Element)) {
+    return null;
+  }
+  return target.closest(".js-plotly-plot");
 }
 
 function normalizePointValue(
