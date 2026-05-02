@@ -25,10 +25,11 @@ export default function ProjectLayout({
   const isMetricsPage = pathname?.endsWith("/metrics");
   const isExperimentsPage = pathname?.endsWith("/experiments");
   const isKanbanPage = pathname?.endsWith("/kanban");
+  const isScalarsPage = pathname?.endsWith("/scalars");
 
   const containerClassName = isDagPage
     ? "w-full max-w-none p-0 h-full flex flex-col"
-    : isMetricsPage || isExperimentsPage || isKanbanPage
+    : isMetricsPage || isExperimentsPage || isKanbanPage || isScalarsPage
       ? "w-full max-w-none p-0 h-full min-h-0"
       : "container max-w-screen-2xl mx-auto p-6";
 

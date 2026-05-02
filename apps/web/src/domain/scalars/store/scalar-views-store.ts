@@ -78,14 +78,12 @@ export const useScalarViewsStore = create<ScalarViewsStoreState>((set, get) => (
 
   renameView: (projectId: string, viewId: string, name: string) => {
     const currentProjectViews = get().viewsByProject[projectId] ?? [];
-    const now = new Date().toISOString();
     const updated = currentProjectViews.map((view) =>
-      view.id === viewId ? { ...view, name, updatedAt: now } : view
+      view.id === viewId ? { ...view, name } : view
     );
-    const sorted = sortLatestFirst(updated);
     const nextViewsByProject = {
       ...get().viewsByProject,
-      [projectId]: sorted,
+      [projectId]: updated,
     };
     persistViews(nextViewsByProject);
     set({ viewsByProject: nextViewsByProject });

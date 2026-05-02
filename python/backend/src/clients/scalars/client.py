@@ -25,7 +25,7 @@ class ScalarsServiceClient:
         "log_scalar": lambda project_id, experiment_id: f"/scalars/log/{project_id}/{experiment_id}",
         "log_scalars_batch": lambda project_id, experiment_id: f"/scalars/log_batch/{project_id}/{experiment_id}",
         "get_scalars": lambda project_id: f"/scalars/get/{project_id}",
-        "get_last_logged_experiments": lambda project_id: f"/scalars/last_logged/{project_id}",
+        "get_last_logged_experiments": lambda project_id: f"/last_logged/{project_id}",
     }
 
     def __init__(self, base_url: str, timeout: float = 10.0):

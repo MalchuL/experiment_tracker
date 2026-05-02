@@ -1,13 +1,15 @@
 "use client";
 
-import { EyeOff, Maximize2, RotateCcw } from "lucide-react";
 import { EmptyState } from "@/components/shared/empty-state";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BarChart3 } from "lucide-react";
 import type { Experiment } from "@/domain/experiments/types";
-import type { ChartDomain } from "@/domain/scalars/types";
-import { MetricChart } from "@/domain/scalars/components/metric-chart";
+import type {
+  ChartDomain,
+  ScalarChartPoint,
+  ScalarHoverMode,
+  ScalarPointSelection,
+} from "@/domain/scalars/types";
+import { ScalarChartCard } from "@/domain/scalars/components/charts";
 
 interface MetricItem {
   name: string;
@@ -15,16 +17,23 @@ interface MetricItem {
 
 export interface ScalarsMetricsGridProps {
   visibleMetrics: MetricItem[];
-  chartDataByMetric: Record<string, Array<Record<string, number | null>>>;
+  chartDataByMetric: Record<string, ScalarChartPoint[]>;
   metricDomains: Record<string, ChartDomain>;
   cardHeight: number;
   cardMinWidth: number;
+  smoothing?: number;
+  dotThreshold?: number;
+  hoverMode?: ScalarHoverMode;
+  hoverNameMaxLength?: number;
   allExperiments: Experiment[];
   visibleExperiments: Experiment[];
   onResetDomain: (metricName: string) => void;
   onExpandMetric: (metricName: string) => void;
   onHideMetric: (metricName: string) => void;
   onDomainChange: (metricName: string, domain: ChartDomain | null) => void;
+  onResizeCards?: (size: { width: number; height: number }) => void;
+  onHoverModeChange?: (mode: ScalarHoverMode) => void;
+  onPointContextMenu?: (point: ScalarPointSelection, position: { x: number; y: number }) => void;
 }
 
 export function ScalarsMetricsGrid({
@@ -33,12 +42,19 @@ export function ScalarsMetricsGrid({
   metricDomains,
   cardHeight,
   cardMinWidth,
+  smoothing = 0,
+  dotThreshold = 10,
+  hoverMode = "compare",
+  hoverNameMaxLength = 50,
   allExperiments,
   visibleExperiments,
   onResetDomain,
   onExpandMetric,
   onHideMetric,
   onDomainChange,
+  onResizeCards = () => {},
+  onHoverModeChange = () => {},
+  onPointContextMenu = () => {},
 }: ScalarsMetricsGridProps) {
   if (visibleMetrics.length === 0) {
     return (
@@ -52,7 +68,7 @@ export function ScalarsMetricsGrid({
 
   return (
     <div
-      className="grid gap-4"
+      className="grid gap-3"
       style={{
         gridTemplateColumns: `repeat(auto-fill, ${cardMinWidth}px)`,
         justifyContent: "start",
@@ -64,64 +80,27 @@ export function ScalarsMetricsGrid({
         const domain = metricDomains[metric.name] || { x: null, y: null };
 
         return (
-          <Card key={metric.name} data-testid={`card-metric-${metric.name}`}>
-            <CardHeader className="py-2 px-3">
-              <CardTitle className="text-sm flex items-center justify-between gap-2">
-                <span className="truncate">{metric.name}</span>
-                <div className="flex items-center gap-1 flex-shrink-0">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6"
-                    onClick={() => onResetDomain(metric.name)}
-                    title="Reset zoom"
-                    data-testid={`button-reset-zoom-${metric.name}`}
-                  >
-                    <RotateCcw className="w-3 h-3" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6"
-                    onClick={() => onExpandMetric(metric.name)}
-                    title="Expand"
-                    data-testid={`button-expand-${metric.name}`}
-                  >
-                    <Maximize2 className="w-3 h-3" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6"
-                    onClick={() => onHideMetric(metric.name)}
-                    title="Hide"
-                    data-testid={`button-hide-metric-${metric.name}`}
-                  >
-                    <EyeOff className="w-3 h-3" />
-                  </Button>
-                </div>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="px-2 pb-2 pt-0">
-              {!hasData ? (
-                <div
-                  className="flex items-center justify-center text-sm text-muted-foreground"
-                  style={{ height: cardHeight }}
-                >
-                  No data for selected experiments
-                </div>
-              ) : (
-                <MetricChart
-                  data={data}
-                  selectedExperiments={visibleExperiments}
-                  allExperiments={allExperiments}
-                  height={cardHeight}
-                  domain={domain}
-                  onDomainChange={(nextDomain) => onDomainChange(metric.name, nextDomain)}
-                />
-              )}
-            </CardContent>
-          </Card>
+          <ScalarChartCard
+            key={metric.name}
+            metricName={metric.name}
+            data={hasData ? data : []}
+            domain={domain}
+            cardHeight={cardHeight}
+            cardMinWidth={cardMinWidth}
+            allExperiments={allExperiments}
+            visibleExperiments={visibleExperiments}
+            smoothing={smoothing}
+            dotThreshold={dotThreshold}
+            hoverMode={hoverMode}
+            hoverNameMaxLength={hoverNameMaxLength}
+            onHoverModeChange={onHoverModeChange}
+            onResetDomain={onResetDomain}
+            onExpandMetric={onExpandMetric}
+            onHideMetric={onHideMetric}
+            onDomainChange={onDomainChange}
+            onResizeCards={onResizeCards}
+            onPointContextMenu={onPointContextMenu}
+          />
         );
       })}
     </div>

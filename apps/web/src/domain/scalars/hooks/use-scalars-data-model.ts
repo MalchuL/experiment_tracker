@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { parseISO } from "date-fns";
 import type { Experiment } from "@/domain/experiments/types";
-import type { ExperimentScalarsPoints } from "@/domain/scalars/types";
+import type { ExperimentScalarsPoints, ScalarChartPoint, ScalarPointValue } from "@/domain/scalars/types";
 import { applySmoothing } from "@/domain/scalars/utils";
 
 export interface ScalarMetricItem {
@@ -70,12 +70,12 @@ export function useScalarsDataModel({
   }, [soloMode, chosenExperimentId, sortedExperiments, selectedExperiments]);
 
   const chartDataByMetric = useMemo(() => {
-    const result: Record<string, Array<Record<string, number | null>>> = {};
+    const result: Record<string, ScalarChartPoint[]> = {};
     if (scalars.length === 0 || visibleExperiments.length === 0) return result;
 
     const scalarsByExperiment = new Map(scalars.map((entry) => [entry.experiment_id, entry.scalars]));
     for (const metric of visibleMetrics) {
-      const stepMap = new Map<number, Record<string, number | null>>();
+      const stepMap = new Map<number, ScalarChartPoint>();
       visibleExperiments.forEach((experiment) => {
         const experimentScalars = scalarsByExperiment.get(experiment.id);
         const series = experimentScalars?.[metric.name];
@@ -83,7 +83,14 @@ export function useScalarsDataModel({
         const smoothedValues = applySmoothing(series.y, smoothing);
         series.x.forEach((step, i) => {
           const existing = stepMap.get(step) || { step };
-          existing[experiment.id] = smoothedValues[i];
+          const original = series.y[i];
+          const smoothed = smoothedValues[i];
+          if (original !== undefined && smoothed !== undefined) {
+            existing[experiment.id] = {
+              original,
+              smoothed,
+            } satisfies ScalarPointValue;
+          }
           stepMap.set(step, existing);
         });
       });

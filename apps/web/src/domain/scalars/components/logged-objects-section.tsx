@@ -10,6 +10,7 @@ import { API_ROUTES } from "@/lib/constants/api-routes";
 import { CHART_COLORS } from "@/domain/scalars/constants";
 import type { LoggedObjectGroups, LoggedObjectNameGroup } from "@/domain/scalars/types";
 import { closestStep } from "@/domain/scalars/utils";
+import { ArtifactMedia } from "@/domain/scalars/components/artifacts";
 
 export interface LoggedObjectsSectionProps {
   objectGroups: LoggedObjectGroups;
@@ -25,6 +26,8 @@ export interface LoggedObjectsSectionProps {
   setExperimentStepOverrides: Dispatch<SetStateAction<Record<string, number>>>;
   debouncedExperimentStepOverrides: Record<string, number>;
   onImagePreview: (payload: { src: string; title: string }) => void;
+  hiddenArtifactIds?: Set<string>;
+  onlyArtifactId?: string | null;
 }
 
 export function LoggedObjectsSection({
@@ -41,22 +44,24 @@ export function LoggedObjectsSection({
   setExperimentStepOverrides,
   debouncedExperimentStepOverrides,
   onImagePreview,
+  hiddenArtifactIds = new Set(),
+  onlyArtifactId = null,
 }: LoggedObjectsSectionProps) {
   if (Object.keys(objectGroups).length === 0) return null;
 
   return (
-    <div className="mt-6 space-y-6">
+    <div className="mt-4 space-y-4">
       <div>
-        <h2 className="text-lg font-semibold">Logged Objects</h2>
+        <h2 className="text-base font-semibold">Logged Objects</h2>
         <p className="text-sm text-muted-foreground">
           Objects are grouped by type and name; each card shows one object per selected experiment at the chosen step.
         </p>
       </div>
       {Object.entries(objectGroups as LoggedObjectGroups).map(([objectType, byName]) => (
-        <div key={objectType} className="space-y-3">
-          <h3 className="text-base font-medium capitalize">{objectType.replaceAll("_", " ")}</h3>
+        <div key={objectType} className="space-y-2">
+          <h3 className="text-sm font-medium capitalize">{objectType.replaceAll("_", " ")}</h3>
           <div
-            className="grid gap-4"
+            className="grid gap-3"
             style={{
               gridTemplateColumns: `repeat(auto-fill, ${cardMinWidth}px)`,
               justifyContent: "start",
@@ -64,6 +69,9 @@ export function LoggedObjectsSection({
           >
             {Object.entries(byName).map(([name, group]: [string, LoggedObjectNameGroup]) => {
               const selectionKey = `${objectType}:${name}`;
+              if (hiddenArtifactIds.has(selectionKey) || (onlyArtifactId && onlyArtifactId !== selectionKey)) {
+                return null;
+              }
               const availableSteps = group.steps;
               const selectedStep = objectStepSelection[selectionKey] ?? availableSteps[availableSteps.length - 1] ?? 0;
               const debouncedSelectedStep = debouncedObjectStepSelection[selectionKey] ?? selectedStep;
@@ -73,13 +81,13 @@ export function LoggedObjectsSection({
               );
               return (
                 <Card key={selectionKey}>
-                  <CardHeader className="py-2 px-3">
+                  <CardHeader className="px-2.5 py-1.5">
                     <CardTitle className="text-sm flex items-center justify-between gap-2">
                       <span className="truncate">{name}</span>
                       <span className="text-xs text-muted-foreground">step {selectedStep}</span>
                     </CardTitle>
                   </CardHeader>
-                  <CardContent className="space-y-3">
+                  <CardContent className="space-y-2 px-2 pb-2 pt-0">
                     <Slider
                       value={[currentIndex]}
                       min={0}
@@ -95,7 +103,7 @@ export function LoggedObjectsSection({
                         }));
                       }}
                     />
-                    <div className="space-y-2" style={{ minHeight: cardHeight }}>
+                    <div className="space-y-1.5" style={{ minHeight: cardHeight }}>
                       {visibleExperiments.map((experiment, idx) => {
                         const experimentOverrideKey = `${selectionKey}:${experiment.id}`;
                         const isOverrideEnabled = experimentStepOverrideEnabled[experimentOverrideKey] ?? false;
@@ -129,7 +137,7 @@ export function LoggedObjectsSection({
                           )
                         );
                         return (
-                          <div key={`${selectionKey}:${experiment.id}`} className="rounded border p-2 space-y-1">
+                          <div key={`${selectionKey}:${experiment.id}`} className="space-y-1 rounded border p-1.5">
                             <div className="flex items-center gap-2">
                               <span
                                 className="inline-block w-2.5 h-2.5 rounded-full"
@@ -182,45 +190,16 @@ export function LoggedObjectsSection({
                             )}
                             {!objectAtStep ? (
                               <p className="text-xs text-muted-foreground">No object for this step</p>
-                            ) : objectType === "image" ? (
-                              <button
-                                type="button"
-                                className="w-full"
-                                onClick={() =>
-                                  onImagePreview({
-                                    src: objectSrc,
-                                    title: `${name} · ${experiment.name} · step ${nearestStep ?? targetStep}`,
-                                  })
-                                }
-                              >
-                                <img
-                                  src={objectSrc}
-                                  alt={`${name}-${experiment.name}`}
-                                  className="w-full max-h-40 object-contain rounded"
-                                />
-                              </button>
-                            ) : objectType === "video" ? (
-                              <video src={objectSrc} controls className="w-full max-h-40 rounded" />
-                            ) : objectType === "audio" ? (
-                              <audio src={objectSrc} controls className="w-full" />
-                            ) : objectType === "text" ? (
-                              <a
-                                href={objectSrc}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="text-xs text-primary underline"
-                              >
-                                Open logged text
-                              </a>
                             ) : (
-                              <a
-                                href={objectSrc}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="text-xs text-primary underline"
-                              >
-                                Open logged object
-                              </a>
+                              <ArtifactMedia
+                                objectType={objectType}
+                                src={objectSrc}
+                                name={name}
+                                experimentName={experiment.name}
+                                maxHeight={Math.max(120, cardHeight - 50)}
+                                onImagePreview={onImagePreview}
+                                title={`${name} · ${experiment.name} · step ${nearestStep ?? targetStep}`}
+                              />
                             )}
                             {nearestStep !== null && (
                               <p className="text-[10px] text-muted-foreground">closest step {nearestStep}</p>

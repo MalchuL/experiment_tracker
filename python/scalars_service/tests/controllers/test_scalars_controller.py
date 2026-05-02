@@ -81,6 +81,26 @@ async def test_get_scalars_uniform_max_points_caps_series(
     xs = resp.json()["data"][0]["scalars"]["loss"]["x"]
     assert len(xs) == 5
     assert set(xs).issubset(set(range(1, 21)))
+    assert xs[-1] == 20
+
+
+@pytest.mark.asyncio
+async def test_get_scalars_uniform_max_points_one_returns_latest(
+    clickhouse_url: str, http_client: AsyncClient, project_with_tables: tuple
+) -> None:
+    project_id, experiment_id = project_with_tables
+    for step in range(1, 6):
+        await http_client.post(
+            f"/api/scalars/log/{project_id}/{experiment_id}",
+            json={"scalars": {"loss": float(step)}, "step": step, "tags": None},
+        )
+    resp = await http_client.get(
+        f"/api/scalars/get/{project_id}?max_points=1&sampling=uniform"
+    )
+    assert resp.status_code == 200
+    series = resp.json()["data"][0]["scalars"]["loss"]
+    assert series["x"] == [5]
+    assert series["y"] == [5.0]
 
 
 @pytest.mark.asyncio

@@ -9,6 +9,7 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@faker-js/faker": "^10.4.0",
     "@hookform/resolvers": "^5.2.2",
     "@radix-ui/react-navigation-menu": "^1.2.6",
     "@radix-ui/react-slot": "^1.2.4",

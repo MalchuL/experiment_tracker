@@ -5,3 +5,7 @@ export * from "./scalars-controls-panel";
 export * from "./scalars-metrics-grid";
 export * from "./logged-objects-section";
 export * from "./scalars-dialogs";
+export * from "./artifacts";
+export * from "./charts";
+export * from "./metric-create";
+export * from "./view-settings";
