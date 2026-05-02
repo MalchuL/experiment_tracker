@@ -116,6 +116,7 @@ export function ScalarChartCard({
             selectedExperiments={visibleExperiments}
             allExperiments={allExperiments}
             height={cardHeight}
+            resizeRevision={cardMinWidth}
             domain={domain}
             smoothing={smoothing}
             dotThreshold={dotThreshold}

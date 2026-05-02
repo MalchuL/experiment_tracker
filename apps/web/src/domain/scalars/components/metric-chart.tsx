@@ -53,17 +53,19 @@ interface StablePlotProps {
   data: Partial<PlotData>[];
   layout: Partial<Layout>;
   config: Partial<Config>;
+  revision?: number;
   onHover: (event: Readonly<PlotMouseEvent>) => void;
   onUnhover?: () => void;
   onRelayout: (event: RelayoutEvent) => void;
 }
 
-function StablePlot({ data, layout, config, onHover, onUnhover, onRelayout }: StablePlotProps) {
+function StablePlot({ data, layout, config, revision, onHover, onUnhover, onRelayout }: StablePlotProps) {
   return (
     <Plot
       data={data}
       layout={layout}
       config={config}
+      revision={revision}
       style={PLOT_STYLE}
       useResizeHandler={true}
       onHover={onHover}
@@ -91,6 +93,7 @@ export interface MetricChartProps {
   selectedExperiments: Experiment[];
   allExperiments: Experiment[];
   height?: number;
+  resizeRevision?: number;
   domain?: ChartDomain | null;
   onDomainChange?: (domain: ChartDomain | null) => void;
   isFullscreen?: boolean;
@@ -108,6 +111,7 @@ export function MetricChart({
   selectedExperiments,
   allExperiments,
   height = 200,
+  resizeRevision,
   domain,
   onDomainChange,
   isFullscreen = false,
@@ -283,13 +287,9 @@ export function MetricChart({
     [onPointContextMenu]
   );
 
-  if (data.length === 0) {
-    return (
-      <div className="flex items-center justify-center text-sm text-muted-foreground" style={{ height }}>
-        No data for selected experiments
-      </div>
-    );
-  }
+  const handleResetAxes = useCallback(() => {
+    onDomainChange?.({ x: null, y: null });
+  }, [onDomainChange]);
 
   const layout = useMemo<Partial<Layout>>(() => {
     const xAxis: AxisWithUnifiedHoverTitle = {
@@ -337,25 +337,42 @@ export function MetricChart({
     };
   }, [domain?.x, domain?.y, dragMode, height, hoverMode, isFullscreen]);
 
-  const config = useMemo<Partial<Config>>(() => ({
-    displayModeBar: true,
-    modeBarButtonsToRemove: ["lasso2d", "select2d", "autoScale2d"],
-    modeBarButtonsToAdd: onHoverModeChange
-      ? [
-          {
-            name: hoverMode === "compare" ? "Hover nearest" : "Hover all",
-            title:
-              hoverMode === "compare"
-                ? "Show only nearest experiment on hover"
-                : "Show all experiments on hover",
-            icon: hoverMode === "compare" ? HOVER_ALL_ICON : HOVER_NEAREST_ICON,
-            click: () => onHoverModeChange(hoverMode === "compare" ? "nearest" : "compare"),
-          },
-        ]
-      : undefined,
-    displaylogo: false,
-    responsive: true,
-  }), [hoverMode, onHoverModeChange]);
+  const config = useMemo<Partial<Config>>(() => {
+    const modeBarButtonsToAdd = [
+      {
+        name: "Reset axes",
+        title: "Reset axes",
+        icon: RESET_AXES_ICON,
+        click: handleResetAxes,
+      },
+    ];
+    if (onHoverModeChange) {
+      modeBarButtonsToAdd.push({
+        name: hoverMode === "compare" ? "Hover nearest" : "Hover all",
+        title:
+          hoverMode === "compare"
+            ? "Show only nearest experiment on hover"
+            : "Show all experiments on hover",
+        icon: hoverMode === "compare" ? HOVER_ALL_ICON : HOVER_NEAREST_ICON,
+        click: () => onHoverModeChange(hoverMode === "compare" ? "nearest" : "compare"),
+      });
+    }
+    return {
+      displayModeBar: true,
+      modeBarButtonsToRemove: ["lasso2d", "select2d", "autoScale2d", "resetScale2d"],
+      modeBarButtonsToAdd,
+      displaylogo: false,
+      responsive: true,
+    };
+  }, [handleResetAxes, hoverMode, onHoverModeChange]);
+
+  if (data.length === 0) {
+    return (
+      <div className="flex items-center justify-center text-sm text-muted-foreground" style={{ height }}>
+        No data for selected experiments
+      </div>
+    );
+  }
 
   return (
     <div
@@ -368,6 +385,7 @@ export function MetricChart({
         data={plotData}
         layout={layout}
         config={config}
+        revision={resizeRevision}
         onHover={handleHover}
         onUnhover={hoverMode === "compare" ? undefined : handleUnhover}
         onRelayout={handleRelayout}
@@ -614,6 +632,12 @@ const HOVER_NEAREST_ICON = {
   width: 1000,
   height: 1000,
   path: "M120 450H880V550H120V450Z",
+};
+
+const RESET_AXES_ICON = {
+  width: 1000,
+  height: 1000,
+  path: "M500 120C320 120 170 250 135 420H35L185 600L335 420H235C268 305 374 220 500 220C655 220 780 345 780 500C780 655 655 780 500 780C410 780 330 738 279 672L199 732C268 823 377 880 500 880C710 880 880 710 880 500C880 290 710 120 500 120Z",
 };
 
 const HOVER_ALL_ICON = {
