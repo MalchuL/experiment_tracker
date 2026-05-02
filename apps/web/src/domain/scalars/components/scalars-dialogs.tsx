@@ -14,6 +14,7 @@ import type {
 } from "@/domain/scalars/types";
 import { MetricChart } from "@/domain/scalars/components/metric-chart";
 import { LoggedObjectsSection } from "@/domain/scalars/components/logged-objects-section";
+import { ImagePreviewDialog } from "@/domain/scalars/components/artifacts";
 import type { Dispatch, SetStateAction } from "react";
 
 export interface ScalarsDialogsProps {
@@ -161,22 +162,10 @@ export function ScalarsDialogs({
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!imagePreview} onOpenChange={(open) => !open && setImagePreview(null)}>
-        <DialogContent className="max-w-6xl w-[92vw] h-[88vh]">
-          <DialogHeader>
-            <DialogTitle>{imagePreview?.title ?? "Image preview"}</DialogTitle>
-          </DialogHeader>
-          <div className="flex-1 min-h-0 flex items-center justify-center">
-            {imagePreview && (
-              <img
-                src={imagePreview.src}
-                alt={imagePreview.title}
-                className="max-h-[76vh] max-w-full object-contain rounded"
-              />
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
+      <ImagePreviewDialog
+        imagePreview={imagePreview}
+        onOpenChange={(open) => !open && setImagePreview(null)}
+      />
 
       <Dialog open={!!editExperiment} onOpenChange={(open) => !open && setEditExperiment(null)}>
         <DialogContent className="max-w-lg">
