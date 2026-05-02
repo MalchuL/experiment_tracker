@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
+import { memo, useCallback, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 import Plot from "react-plotly.js";
 import type { Config, Layout, PlotData, PlotMouseEvent } from "plotly.js";
 
@@ -18,6 +18,13 @@ interface MultiHoverRow {
   displayName: string;
   displayStep: string;
   displayValue: string;
+}
+
+interface ValueColumnWidths {
+  integer: number;
+  fraction: number;
+  suffix: number;
+  hasDecimal: boolean;
 }
 
 interface MultiHoverState {
@@ -40,6 +47,33 @@ const TOOLTIP_HORIZONTAL_PADDING_PX = 24;
 const TOOLTIP_ROW_HEIGHT_PX = 18;
 const TOOLTIP_VERTICAL_PADDING_PX = 12;
 const TOOLTIP_EXTRA_TEXT_CHARS = 8;
+const PLOT_STYLE = { width: "100%", height: "100%" };
+
+interface StablePlotProps {
+  data: Partial<PlotData>[];
+  layout: Partial<Layout>;
+  config: Partial<Config>;
+  onHover: (event: Readonly<PlotMouseEvent>) => void;
+  onUnhover?: () => void;
+  onRelayout: (event: RelayoutEvent) => void;
+}
+
+function StablePlot({ data, layout, config, onHover, onUnhover, onRelayout }: StablePlotProps) {
+  return (
+    <Plot
+      data={data}
+      layout={layout}
+      config={config}
+      style={PLOT_STYLE}
+      useResizeHandler={true}
+      onHover={onHover}
+      onUnhover={onUnhover}
+      onRelayout={onRelayout}
+    />
+  );
+}
+
+const MemoizedPlot = memo(StablePlot);
 
 import type { Experiment } from "@/domain/experiments/types";
 import type {
@@ -235,6 +269,7 @@ export function MetricChart({
   }, [hoverMode, hoverNameMaxLength]);
 
   const handleUnhover = useCallback(() => {
+    activePointRef.current = null;
     setMultiHover(null);
   }, []);
 
@@ -256,51 +291,53 @@ export function MetricChart({
     );
   }
 
-  const xAxis: AxisWithUnifiedHoverTitle = {
-    title: isFullscreen ? { text: "Step", font: { size: 12 } } : undefined,
-    tickfont: { size: isFullscreen ? 12 : 10 },
-    gridcolor: "rgba(128, 128, 128, 0.2)",
-    range: domain?.x || undefined,
-    autorange: domain?.x ? false : true,
-    unifiedhovertitle: {
-      text: "\u00A0",
-    },
-  };
-
-  const layout: Partial<Layout> = {
-    autosize: true,
-    height,
-    margin: {
-      l: isFullscreen ? 60 : 50,
-      r: 20,
-      t: 10,
-      b: isFullscreen ? 40 : 30,
-    },
-    xaxis: xAxis,
-    yaxis: {
+  const layout = useMemo<Partial<Layout>>(() => {
+    const xAxis: AxisWithUnifiedHoverTitle = {
+      title: isFullscreen ? { text: "Step", font: { size: 12 } } : undefined,
       tickfont: { size: isFullscreen ? 12 : 10 },
       gridcolor: "rgba(128, 128, 128, 0.2)",
-      range: domain?.y || undefined,
-      autorange: domain?.y ? false : true,
-    },
-    showlegend: false,
-    hovermode: hoverMode === "compare" ? "x unified" : "closest",
-    hoverlabel: {
-      align: "left",
-      namelength: -1,
-      bgcolor: "rgba(255, 255, 255, 0.9)",
-      bordercolor: "rgba(255, 255, 255, 0.7)",
-      font: {
-        color: "rgba(15, 23, 42, 0.95)",
-        family: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+      range: domain?.x || undefined,
+      autorange: domain?.x ? false : true,
+      unifiedhovertitle: {
+        text: "\u00A0",
       },
-    },
-    paper_bgcolor: "transparent",
-    plot_bgcolor: "transparent",
-    dragmode: dragMode,
-  };
+    };
 
-  const config: Partial<Config> = {
+    return {
+      autosize: true,
+      height,
+      margin: {
+        l: isFullscreen ? 60 : 50,
+        r: 20,
+        t: 10,
+        b: isFullscreen ? 40 : 30,
+      },
+      xaxis: xAxis,
+      yaxis: {
+        tickfont: { size: isFullscreen ? 12 : 10 },
+        gridcolor: "rgba(128, 128, 128, 0.2)",
+        range: domain?.y || undefined,
+        autorange: domain?.y ? false : true,
+      },
+      showlegend: false,
+      hovermode: hoverMode === "compare" ? "x unified" : "closest",
+      hoverlabel: {
+        align: "left",
+        namelength: -1,
+        bgcolor: "rgba(255, 255, 255, 0.9)",
+        bordercolor: "rgba(255, 255, 255, 0.7)",
+        font: {
+          color: "rgba(15, 23, 42, 0.95)",
+          family: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+        },
+      },
+      paper_bgcolor: "transparent",
+      plot_bgcolor: "transparent",
+      dragmode: dragMode,
+    };
+  }, [domain?.x, domain?.y, dragMode, height, hoverMode, isFullscreen]);
+
+  const config = useMemo<Partial<Config>>(() => ({
     displayModeBar: true,
     modeBarButtonsToRemove: ["lasso2d", "select2d", "autoScale2d"],
     modeBarButtonsToAdd: onHoverModeChange
@@ -318,7 +355,7 @@ export function MetricChart({
       : undefined,
     displaylogo: false,
     responsive: true,
-  };
+  }), [hoverMode, onHoverModeChange]);
 
   return (
     <div
@@ -327,14 +364,12 @@ export function MetricChart({
       onContextMenu={handleContextMenu}
       onPointerLeave={handleUnhover}
     >
-      <Plot
+      <MemoizedPlot
         data={plotData}
         layout={layout}
         config={config}
-        style={{ width: "100%", height: "100%" }}
-        useResizeHandler={true}
         onHover={handleHover}
-        onUnhover={handleUnhover}
+        onUnhover={hoverMode === "compare" ? undefined : handleUnhover}
         onRelayout={handleRelayout}
       />
       {hoverMode === "compare" && multiHover ? <MultiHoverTooltip hover={multiHover} /> : null}
@@ -425,9 +460,11 @@ function buildMultiHoverState(
     return null;
   }
   const nameWidth = Math.max(1, ...rows.map((row) => truncateName(row.experimentName, hoverNameMaxLength).length));
+  const valueColumnWidths = getValueColumnWidths(rows);
   const formattedRows = rows.map((row) => ({
     ...row,
     displayName: padColumn(truncateName(row.experimentName, hoverNameMaxLength), nameWidth),
+    displayValue: formatScalarValueForColumn(row.value, valueColumnWidths),
   }));
   return {
     x: mouseEvent.clientX - rect.left,
@@ -533,6 +570,44 @@ function padColumn(value: string, width: number, align: "left" | "right" = "righ
 
 function formatScalarValue(value: number): string {
   return Number.isInteger(value) ? String(value) : value.toPrecision(6);
+}
+
+function getValueColumnWidths(rows: MultiHoverRow[]): ValueColumnWidths {
+  const parts = rows.map((row) => splitScalarValue(formatScalarValue(row.value)));
+  return {
+    integer: Math.max(1, ...parts.map((part) => part.integer.length)),
+    fraction: Math.max(0, ...parts.map((part) => part.fraction.length)),
+    suffix: Math.max(0, ...parts.map((part) => part.suffix.length)),
+    hasDecimal: parts.some((part) => part.fraction.length > 0),
+  };
+}
+
+function formatScalarValueForColumn(value: number, widths: ValueColumnWidths): string {
+  const part = splitScalarValue(formatScalarValue(value));
+  const integer = padColumn(part.integer, widths.integer, "left");
+  const decimal = widths.hasDecimal ? "." : "";
+  const fraction = widths.hasDecimal ? padColumn(part.fraction, widths.fraction) : "";
+  const suffix = padColumn(part.suffix, widths.suffix);
+  return `${integer}${decimal}${fraction}${suffix}`;
+}
+
+function splitScalarValue(value: string) {
+  const exponentIndex = value.search(/[eE]/);
+  const suffix = exponentIndex === -1 ? "" : value.slice(exponentIndex);
+  const mantissa = exponentIndex === -1 ? value : value.slice(0, exponentIndex);
+  const decimalIndex = mantissa.indexOf(".");
+  if (decimalIndex === -1) {
+    return {
+      integer: mantissa,
+      fraction: "",
+      suffix,
+    };
+  }
+  return {
+    integer: mantissa.slice(0, decimalIndex),
+    fraction: mantissa.slice(decimalIndex + 1),
+    suffix,
+  };
 }
 
 const HOVER_NEAREST_ICON = {

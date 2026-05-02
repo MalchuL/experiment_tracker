@@ -28,6 +28,8 @@ export interface ScalarsDialogsProps {
   smoothing: number;
   dotThreshold: number;
   hoverMode: ScalarHoverMode;
+  hoverNameMaxLength: number;
+  onHoverModeChange: (mode: ScalarHoverMode) => void;
   onPointContextMenu: (point: ScalarPointSelection, position: { x: number; y: number }) => void;
   fullscreenArtifactId: string | null;
   setFullscreenArtifactId: (artifactId: string | null) => void;
@@ -62,6 +64,8 @@ export function ScalarsDialogs({
   smoothing,
   dotThreshold,
   hoverMode,
+  hoverNameMaxLength,
+  onHoverModeChange,
   onPointContextMenu,
   fullscreenArtifactId,
   setFullscreenArtifactId,
@@ -86,7 +90,7 @@ export function ScalarsDialogs({
   return (
     <>
       <Dialog open={!!fullscreenMetric} onOpenChange={(open) => !open && setFullscreenMetric(null)}>
-        <DialogContent className="max-w-[96vw] w-[96vw] h-[84vh]">
+        <DialogContent className="flex h-[84vh] w-[96vw] max-w-[96vw] flex-col overflow-hidden p-3">
           <DialogHeader>
             <DialogTitle className="flex items-center justify-between gap-4">
               <span>{fullscreenMetric}</span>
@@ -105,18 +109,20 @@ export function ScalarsDialogs({
               </div>
             </DialogTitle>
           </DialogHeader>
-          <div className="flex-1 min-h-0">
+          <div className="min-h-0 flex-1">
             {fullscreenMetric && (
               <MetricChart
                 metricName={fullscreenMetric}
                 data={fullscreenMetricData}
                 selectedExperiments={visibleExperiments}
                 allExperiments={allExperiments}
-                height={620}
+                height={Math.max(360, Math.min(720, cardHeight + 180))}
                 domain={metricDomains[fullscreenMetric] || { x: null, y: null }}
                 smoothing={smoothing}
                 dotThreshold={dotThreshold}
                 hoverMode={hoverMode}
+                hoverNameMaxLength={hoverNameMaxLength}
+                onHoverModeChange={onHoverModeChange}
                 onPointContextMenu={onPointContextMenu}
                 onDomainChange={(domain) => onDomainChange(fullscreenMetric, domain)}
                 isFullscreen={true}

@@ -163,6 +163,7 @@ export default function Scalars() {
     visibleMetrics,
     visibleExperiments,
     chartDataByMetric,
+    allChartDataByMetric,
   } = useScalarsDataModel({
     experiments,
     scalars,
@@ -180,7 +181,7 @@ export default function Scalars() {
 
   const objectState = useLoggedObjectsState();
   const objectGroups = useLoggedObjectGroups(projectArtifactsAtStep, visibleExperiments);
-  const fullscreenMetricData = fullscreenMetric ? chartDataByMetric[fullscreenMetric] || [] : [];
+  const fullscreenMetricData = fullscreenMetric ? allChartDataByMetric[fullscreenMetric] || [] : [];
   const artifactItems = useMemo<ArtifactViewItem[]>(() => {
     return Object.entries(objectGroups).flatMap(([artifactType, byName]) =>
       Object.keys(byName).map((name) => ({
@@ -461,6 +462,8 @@ export default function Scalars() {
         smoothing={smoothing}
         dotThreshold={dotThreshold}
         hoverMode={hoverMode}
+        hoverNameMaxLength={hoverNameMaxLength}
+        onHoverModeChange={setHoverMode}
         onPointContextMenu={handlePointContextMenu}
         fullscreenArtifactId={fullscreenArtifactId}
         setFullscreenArtifactId={setFullscreenArtifactId}
