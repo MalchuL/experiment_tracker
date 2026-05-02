@@ -117,7 +117,7 @@ export function ScalarsDialogs({
                 data={fullscreenMetricData}
                 selectedExperiments={visibleExperiments}
                 allExperiments={allExperiments}
-                height={Math.max(360, Math.min(720, cardHeight + 180))}
+                height="100%"
                 domain={metricDomains[fullscreenMetric] || { x: null, y: null }}
                 smoothing={smoothing}
                 dotThreshold={dotThreshold}

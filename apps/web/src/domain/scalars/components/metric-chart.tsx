@@ -92,7 +92,7 @@ export interface MetricChartProps {
   data: ScalarChartPoint[];
   selectedExperiments: Experiment[];
   allExperiments: Experiment[];
-  height?: number;
+  height?: number | string;
   resizeRevision?: number;
   domain?: ChartDomain | null;
   onDomainChange?: (domain: ChartDomain | null) => void;
@@ -305,7 +305,7 @@ export function MetricChart({
 
     return {
       autosize: true,
-      height,
+      height: typeof height === "number" ? height : undefined,
       margin: {
         l: isFullscreen ? 60 : 50,
         r: 20,
