@@ -1,4 +1,6 @@
+import { parseISO } from "date-fns";
 import { create } from "zustand";
+
 import type { ScalarSavedView } from "../types";
 
 const STORAGE_KEY = "scalars:saved-views:v1";
@@ -26,7 +28,7 @@ function persistViews(viewsByProject: Record<string, ScalarSavedView[]>) {
 
 function sortLatestFirst(views: ScalarSavedView[]): ScalarSavedView[] {
   return [...views].sort((a, b) => {
-    return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+    return parseISO(b.updatedAt).getTime() - parseISO(a.updatedAt).getTime();
   });
 }
 
@@ -76,14 +78,12 @@ export const useScalarViewsStore = create<ScalarViewsStoreState>((set, get) => (
 
   renameView: (projectId: string, viewId: string, name: string) => {
     const currentProjectViews = get().viewsByProject[projectId] ?? [];
-    const now = new Date().toISOString();
     const updated = currentProjectViews.map((view) =>
-      view.id === viewId ? { ...view, name, updatedAt: now } : view
+      view.id === viewId ? { ...view, name } : view
     );
-    const sorted = sortLatestFirst(updated);
     const nextViewsByProject = {
       ...get().viewsByProject,
-      [projectId]: sorted,
+      [projectId]: updated,
     };
     persistViews(nextViewsByProject);
     set({ viewsByProject: nextViewsByProject });

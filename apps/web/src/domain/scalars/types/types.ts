@@ -5,6 +5,27 @@ export interface ScalarSeries {
   y: number[];
 }
 
+export interface ScalarPointValue {
+  original: number;
+  smoothed: number;
+}
+
+export interface ScalarChartPoint {
+  step: number;
+  [experimentId: string]: number | ScalarPointValue | null;
+}
+
+export type ScalarHoverMode = "compare" | "nearest";
+
+export interface ScalarPointSelection {
+  experimentId: string;
+  experimentName: string;
+  metricName: string;
+  step: number;
+  originalValue: number;
+  smoothedValue: number;
+}
+
 export interface StepTags {
   step: number;
   scalar_names: string[];
@@ -60,3 +81,10 @@ export interface LoggedObjectNameGroup {
 }
 
 export type LoggedObjectGroups = Record<string, Record<string, LoggedObjectNameGroup>>;
+
+export interface ArtifactViewItem {
+  id: string;
+  artifactType: string;
+  name: string;
+  label: string;
+}

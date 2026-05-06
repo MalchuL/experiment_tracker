@@ -55,8 +55,8 @@ class ProjectMapper:
         display_metrics: List[Dict[str, Any]] = []
 
         if isinstance(metrics, dict):
-            tracked_raw = metrics.get("tracked_metrics", metrics.get("trackedMetrics", []))
-            display_raw = metrics.get("display_metrics", metrics.get("displayMetrics", []))
+            tracked_raw = metrics.get("tracked_metrics", [])
+            display_raw = metrics.get("display_metrics", [])
             if isinstance(tracked_raw, list):
                 tracked_metrics = list(tracked_raw)
             if isinstance(display_raw, list):
@@ -66,9 +66,7 @@ class ProjectMapper:
         elif isinstance(metrics, list):
             tracked_metrics = metrics
             if isinstance(settings, dict):
-                legacy_display = settings.get(
-                    "display_metrics", settings.get("displayMetrics", [])
-                )
+                legacy_display = settings.get("display_metrics", [])
                 if isinstance(legacy_display, list):
                     display_metrics = [
                         ProjectMapper._display_item_to_key(x) for x in legacy_display
@@ -119,7 +117,7 @@ class ProjectMapper:
             name=project.name,
             description=project.description,
             owner=owner,
-            created_at=project.created_at.isoformat() if project.created_at else "",
+            created_at=project.created_at,
             metrics=ProjectMetricsDTO(
                 tracked_metrics=tracked,
                 display_metrics=display,

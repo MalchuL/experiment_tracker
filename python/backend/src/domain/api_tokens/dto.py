@@ -1,9 +1,9 @@
-from datetime import datetime
-from typing import Optional, List
+from typing import List, Optional
 from uuid import UUID
 
 from pydantic import BaseModel, Field
 
+from lib.datetime_types import ApiDateTime, ApiOptionalDateTime
 from lib.dto_config import model_config
 from lib.pagination import PaginatedResponse
 
@@ -21,7 +21,7 @@ class ApiTokenCreateResponseDTO(BaseModel):
     id: UUID
     name: str
     token: str
-    created_at: datetime
+    created_at: ApiDateTime
 
     model_config = model_config()
 
@@ -31,10 +31,10 @@ class ApiTokenListItemDTO(BaseModel):
     name: str
     description: Optional[str] = None
     scopes: List[str] = Field(default_factory=list)
-    created_at: datetime
-    expires_at: Optional[datetime] = None
+    created_at: ApiDateTime
+    expires_at: ApiOptionalDateTime = None
     revoked: bool
-    last_used_at: Optional[datetime] = None
+    last_used_at: ApiOptionalDateTime = None
 
     model_config = model_config()
 

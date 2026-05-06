@@ -5,7 +5,7 @@ import { PageHeader } from "@/components/shared/page-header";
 import { ListSkeleton } from "@/components/shared/loading-skeleton";
 import { EmptyState } from "@/components/shared/empty-state";
 import { ExperimentSidebar } from "@/components/shared/experiment-sidebar";
-import { AlertCircle, FlaskConical, RefreshCw } from "lucide-react";
+import { AlertCircle, FlaskConical, RefreshCw, Loader2 } from "lucide-react";
 import { useCurrentProject } from "@/domain/projects/hooks";
 import { useExperiments, useAggregatedMetrics, useUpdateExperimentStatus } from "@/domain/experiments/hooks";
 import { useSelectedExperimentStore } from "@/domain/experiments/store";
@@ -25,6 +25,8 @@ export default function Kanban() {
     experiments,
     isLoading: experimentsLoading,
     isFetching: experimentsFetching,
+    isFetchingNextPage: experimentsFetchingNextPage,
+    hasNextPage: experimentsHasNextPage,
     refetch: refetchExperiments,
   } = useExperiments(projectId, {
     refetchInterval: REFRESH_EXPERIMENTS_LIST_INTERVAL,
@@ -69,6 +71,10 @@ export default function Kanban() {
 
   const isLoading = projectLoading || experimentsLoading || metricsLoading;
   const isRefreshing = experimentsFetching || metricsFetching;
+  const experimentsStillPaging =
+    Boolean(experimentsHasNextPage) &&
+    (experimentsFetchingNextPage || experimentsFetching) &&
+    !experimentsLoading;
   const handleRefresh = () => {
     void Promise.all([refetchExperiments(), refetchMetrics()]);
   };
@@ -88,7 +94,7 @@ export default function Kanban() {
 
   if (isLoading) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-6 px-6 pt-6">
         <PageHeader
           title="Kanban View"
           description="Drag experiments between columns to update status"
@@ -99,44 +105,63 @@ export default function Kanban() {
   }
 
   return (
-    <div className="h-[calc(100vh-8rem)] flex flex-col">
-      <PageHeader
-        title="Kanban View"
-        description={`Kanban board for "${project?.name}"`}
-        actions={
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={handleRefresh}
-            disabled={isRefreshing}
-            data-testid="button-refresh-kanban"
-            aria-label="Refresh kanban"
-          >
-            <RefreshCw className={isRefreshing ? "animate-spin" : ""} />
-          </Button>
-        }
-      />
-
-      {experiments.length === 0 ? (
-        <EmptyState
-          icon={FlaskConical}
-          title="No experiments yet"
-          description={
-            projectId
-              ? "No experiments in this project."
-              : "Create experiments to organize them by status."
+    <div className="flex h-[calc(100vh-8rem)] w-full min-w-0 gap-0">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden px-6 pt-6 pb-6">
+        <PageHeader
+          title="Kanban View"
+          description={`Kanban board for "${project?.name}"`}
+          actions={
+            <div className="flex items-center gap-2">
+              {experimentsStillPaging ? (
+                <div
+                  className="flex h-9 w-9 items-center justify-center rounded-md border bg-background"
+                  title="Loading more experiments…"
+                  aria-label="Loading more experiments"
+                >
+                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                </div>
+              ) : null}
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={handleRefresh}
+                disabled={isRefreshing}
+                data-testid="button-refresh-kanban"
+                aria-label="Refresh kanban"
+              >
+                <RefreshCw className={isRefreshing ? "animate-spin" : ""} />
+              </Button>
+            </div>
           }
         />
-      ) : (
-        <KanbanBoard
-          experiments={experiments}
-          onExperimentClick={setSelectedExperimentId}
-          onStatusUpdate={handleStatusUpdate}
-        />
-      )}
 
-      {selectedExperimentId && (
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          {experiments.length === 0 ? (
+            <EmptyState
+              icon={FlaskConical}
+              title="No experiments yet"
+              description={
+                projectId
+                  ? "No experiments in this project."
+                  : "Create experiments to organize them by status."
+              }
+            />
+          ) : (
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+              <KanbanBoard
+                experiments={experiments}
+                selectedExperimentId={selectedExperimentId}
+                onExperimentClick={setSelectedExperimentId}
+                onStatusUpdate={handleStatusUpdate}
+              />
+            </div>
+          )}
+        </div>
+      </div>
+
+      {selectedExperimentId ? (
         <ExperimentSidebar
+          variant="push"
           experimentId={selectedExperimentId}
           onClose={() => setSelectedExperimentId(null)}
           projectMetrics={filteredMetrics}
@@ -144,7 +169,7 @@ export default function Kanban() {
             aggregatedMetricsByExperiment?.[selectedExperimentId] || undefined
           }
         />
-      )}
+      ) : null}
     </div>
   );
 }

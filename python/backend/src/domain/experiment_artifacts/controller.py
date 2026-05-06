@@ -1,5 +1,6 @@
 """Experiment artifacts controller: log, upload, download, delete."""
 
+from experiment_tracker_shared.datetime_utc import to_json_utc_z
 import json
 from datetime import datetime
 from urllib.parse import quote
@@ -117,8 +118,8 @@ async def get_experiments_artifacts_at_step(
             artifact_names=artifact_name,
             steps=step,
             list_options=ListOptions(limit=limit, offset=offset),
-            start_time=start_time.isoformat() if start_time else None,
-            end_time=end_time.isoformat() if end_time else None,
+            start_time=to_json_utc_z(start_time) if start_time else None,
+            end_time=to_json_utc_z(end_time) if end_time else None,
         )
         return result
     except Exception as exc:  # noqa: BLE001

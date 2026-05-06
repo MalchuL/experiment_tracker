@@ -6,7 +6,8 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID as PyUUID, uuid4
 
-from sqlalchemy import BigInteger, Index, Integer, String, func, text
+from experiment_tracker_shared import UtcNaiveDateTime
+from sqlalchemy import BigInteger, Index, Integer, String, text
 from sqlalchemy.dialects.postgresql import JSONB, UUID as SAUUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -27,7 +28,9 @@ class Snapshot(Base):
         SAUUID(as_uuid=True), nullable=False, index=True
     )
     created_at: Mapped[datetime] = mapped_column(
-        server_default=func.now(), nullable=False
+        UtcNaiveDateTime,
+        server_default=text("timezone('utc', now())"),
+        nullable=False,
     )
     manifest: Mapped[list[dict]] = mapped_column(JSONB, nullable=False)
 
@@ -52,7 +55,9 @@ class ProjectBlob(Base):
     size: Mapped[int] = mapped_column(BigInteger, nullable=False)
     ref_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     created_at: Mapped[datetime] = mapped_column(
-        server_default=func.now(), nullable=False
+        UtcNaiveDateTime,
+        server_default=text("timezone('utc', now())"),
+        nullable=False,
     )
 
 
@@ -86,10 +91,15 @@ class ExperimentBlob(Base):
         server_default=text("'{}'::jsonb"),
     )
     created_at: Mapped[datetime] = mapped_column(
-        server_default=func.now(), nullable=False
+        UtcNaiveDateTime,
+        server_default=text("timezone('utc', now())"),
+        nullable=False,
     )
     updated_at: Mapped[datetime] = mapped_column(
-        server_default=func.now(), nullable=False, onupdate=func.now()
+        UtcNaiveDateTime,
+        server_default=text("timezone('utc', now())"),
+        nullable=False,
+        onupdate=text("timezone('utc', now())"),
     )
 
 
@@ -127,6 +137,8 @@ class Bucket(Base):
     )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
-        server_default=func.now(), nullable=False
+        UtcNaiveDateTime,
+        server_default=text("timezone('utc', now())"),
+        nullable=False,
     )
     size: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)

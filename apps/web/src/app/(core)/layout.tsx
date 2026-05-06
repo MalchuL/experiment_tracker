@@ -22,9 +22,5 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  return (
-    <div>
-      {children}
-    </div>
-  );
+  return <div className="flex h-screen min-h-0 w-full min-w-0 flex-col overflow-hidden">{children}</div>;
 }

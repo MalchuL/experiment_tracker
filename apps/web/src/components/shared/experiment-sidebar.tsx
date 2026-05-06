@@ -7,7 +7,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { RightSidebarShell } from "@/components/shared/right-sidebar-shell";
+import { RightSidebarShell, type RightSidebarVariant } from "@/components/shared/right-sidebar-shell";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
@@ -31,7 +31,7 @@ import {
   X,
   ChevronDown,
 } from "lucide-react";
-import { format } from "date-fns";
+import { format, parseISO } from "date-fns";
 import type { Experiment } from "@/domain/experiments/types";
 import type { Metric } from "@/domain/metrics/types";
 import type { ProjectMetric } from "@/domain/projects/types";
@@ -57,6 +57,8 @@ interface ExperimentSidebarProps {
   onClose: () => void;
   projectMetrics?: ProjectMetric[];
   aggregatedMetrics?: Metric[];
+  /** `push` = list/kanban (main area shrinks); `overlay` = graph/full-bleed (default). */
+  variant?: RightSidebarVariant;
 }
 
 export function ExperimentSidebar({
@@ -64,6 +66,7 @@ export function ExperimentSidebar({
   onClose,
   projectMetrics,
   aggregatedMetrics,
+  variant = "overlay",
 }: ExperimentSidebarProps) {
   const { toast } = useToast();
   const [parentMenuOpen, setParentMenuOpen] = useState(false);
@@ -226,6 +229,7 @@ export function ExperimentSidebar({
 
   return (
     <RightSidebarShell
+      variant={variant}
       title={
         experimentLoading ? (
           <Skeleton className="h-5 w-32" />
@@ -247,15 +251,17 @@ export function ExperimentSidebar({
               variant="ghost"
               size="sm"
               className="h-8 px-2"
-              data-testid="button-open-final-artifacts"
+              data-testid="button-open-experiment-details"
             >
               <Link
-                href={FRONTEND_ROUTES.PROJECT_PAGES.EXPERIMENT_ARTIFACTS(
+                href={FRONTEND_ROUTES.PROJECT_PAGES.EXPERIMENT_DETAILS(
                   experiment.projectId,
-                  experiment.id
+                  [experiment.id]
                 )}
+                target="_blank"
+                rel="noopener noreferrer"
               >
-                Artifacts
+                Details
               </Link>
             </Button>
           )}
@@ -437,14 +443,14 @@ export function ExperimentSidebar({
               <div className="p-2 rounded-md bg-muted/50">
                 <p className="text-muted-foreground text-xs">Created</p>
                 <p className="font-medium">
-                  {format(new Date(experiment.createdAt), "MMM d, yyyy")}
+                  {format(parseISO(experiment.createdAt), "MMM d, yyyy, HH:mm")}
                 </p>
               </div>
               <div className="p-2 rounded-md bg-muted/50">
                 <p className="text-muted-foreground text-xs">Started</p>
                 <p className="font-medium">
                   {experiment.startedAt
-                    ? format(new Date(experiment.startedAt), "MMM d, HH:mm")
+                    ? format(parseISO(experiment.startedAt), "MMM d, yyyy, HH:mm")
                     : "-"}
                 </p>
               </div>

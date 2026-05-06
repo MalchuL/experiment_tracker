@@ -5,7 +5,10 @@ from enum import Enum
 from typing import Any
 from uuid import UUID
 
+from experiment_tracker_shared.datetime_utc import to_json_utc_z
 from pydantic import BaseModel, ConfigDict, Field
+
+from lib.datetime_types import ApiDateTime
 from lib.pagination import PaginatedResponse
 
 
@@ -67,7 +70,7 @@ class LastLoggedExperimentsRequestDTO(BaseModel):
 
 class LastLoggedExperimentDTO(BaseModel):
     experiment_id: UUID
-    last_modified: datetime
+    last_modified: ApiDateTime
 
 
 class LastLoggedExperimentsResponseDTO(PaginatedResponse[LastLoggedExperimentDTO]):
@@ -101,8 +104,8 @@ class ScalarsQueryDTO(BaseModel):
         if self.max_points is not None:
             params["max_points"] = self.max_points
         if self.start_time is not None:
-            params["start_time"] = self.start_time.isoformat()
+            params["start_time"] = to_json_utc_z(self.start_time)
         if self.end_time is not None:
-            params["end_time"] = self.end_time.isoformat()
+            params["end_time"] = to_json_utc_z(self.end_time)
         return params
 

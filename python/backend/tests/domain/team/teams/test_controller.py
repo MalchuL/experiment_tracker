@@ -522,7 +522,7 @@ class TestTeamMemberRemoval:
             content=json_lib.dumps(
                 {
                     "userId": str(test_user_2.id),
-                    "teamMemberId": team_id,
+                    "teamId": team_id,
                 }
             ),
             headers={"Content-Type": "application/json"},
@@ -563,7 +563,7 @@ class TestTeamMemberRemoval:
             "/api/v1/teams/members",
             json={
                 "userId": str(test_user_2.id),
-                "teamMemberId": team_id,
+                "teamId": team_id,
             },
         )
 
@@ -623,7 +623,7 @@ class TestTeamMemberRemoval:
             "/api/v1/teams/members",
             json={
                 "userId": str(test_user_3.id),
-                "teamMemberId": team_id,
+                "teamId": team_id,
             },
         )
 
@@ -717,10 +717,77 @@ class TestTeamControllerIntegration:
             "/api/v1/teams/members",
             json={
                 "userId": str(test_user_2.id),
-                "teamMemberId": team_id,
+                "teamId": team_id,
             },
         )
 
         # This might be 403 depending on your business rules
         # Adjust assertion based on actual expected behavior
         assert remove_admin.status_code in [200, 403]
+
+
+class TestTeamControllerRead:
+    """Test GET team list, detail, and members."""
+
+    async def test_list_teams_includes_owned_team(
+        self, auth_client, test_user: User, test_user_2: User
+    ):
+        client1 = auth_client(test_user)
+        create_response = client1.post(
+            "/api/v1/teams",
+            json={"name": "Listed Team", "description": "For GET list"},
+        )
+        assert create_response.status_code == 200
+        team_id = create_response.json()["id"]
+
+        list_response = client1.get("/api/v1/teams")
+        assert list_response.status_code == 200
+        data = list_response.json()
+        assert "data" in data
+        ids = {row["id"] for row in data["data"]}
+        assert team_id in ids
+        row = next(r for r in data["data"] if r["id"] == team_id)
+        assert "canCreateProject" in row
+
+    async def test_get_team_and_members(
+        self, auth_client, test_user: User, test_user_2: User
+    ):
+        client1 = auth_client(test_user)
+        create_response = client1.post(
+            "/api/v1/teams",
+            json={"name": "Detail Team", "description": "Detail"},
+        )
+        team_id = create_response.json()["id"]
+
+        get_response = client1.get(f"/api/v1/teams/{team_id}")
+        assert get_response.status_code == 200
+        assert get_response.json()["name"] == "Detail Team"
+
+        members_response = client1.get(f"/api/v1/teams/{team_id}/members")
+        assert members_response.status_code == 200
+        members = members_response.json()
+        assert len(members) >= 1
+        owner_rows = [m for m in members if m.get("isTeamOwner")]
+        assert len(owner_rows) == 1
+        assert owner_rows[0]["userId"] == str(test_user.id)
+        assert owner_rows[0]["role"] == "owner"
+
+    async def test_cannot_remove_team_owner(
+        self, auth_client, test_user: User, test_user_2: User
+    ):
+        client1 = auth_client(test_user)
+        create_response = client1.post(
+            "/api/v1/teams",
+            json={"name": "Owner Protected", "description": ""},
+        )
+        team_id = create_response.json()["id"]
+
+        remove_response = client1.request(
+            "DELETE",
+            "/api/v1/teams/members",
+            json={
+                "userId": str(test_user.id),
+                "teamId": team_id,
+            },
+        )
+        assert remove_response.status_code == 403

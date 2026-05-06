@@ -17,7 +17,7 @@ import { ErrorResponse } from "@/lib/api/error-response";
 import { FRONTEND_ROUTES } from "@/lib/constants/frontend-routes";
 
 const registerSchema = z.object({
-  display_name: z.string().min(1, "Name is required"),
+  displayName: z.string().min(1, "Name is required"),
   email: z.string().email("Please enter a valid email"),
   password: z.string().min(8, "Password must be at least 8 characters"),
   confirmPassword: z.string(),
@@ -39,7 +39,7 @@ export default function Register() {
   const form = useForm<RegisterForm>({
     resolver: zodResolver(registerSchema as any),
     defaultValues: {
-      display_name: "",
+      displayName: "",
       email: "",
       password: "",
       confirmPassword: "",
@@ -49,7 +49,7 @@ export default function Register() {
   const onSubmit = async (data: RegisterForm) => {
     setIsLoading(true);
     try {
-      await registerUser({ email: data.email, password: data.password, display_name: data.display_name },
+      await registerUser({ email: data.email, password: data.password, displayName: data.displayName },
         {onSuccess() {
           router.push(FRONTEND_ROUTES.LOGIN);
           toast({
@@ -96,7 +96,7 @@ export default function Register() {
                 <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                   <FormField
                     control={form.control}
-                    name="display_name"
+                    name="displayName"
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Full Name</FormLabel>

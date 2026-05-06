@@ -2,6 +2,7 @@
 
 import { Card, CardContent } from "@/components/ui/card";
 import { Experiment } from "@/domain/experiments/types";
+import { ExperimentTruncatedText } from "@/domain/experiments/components/experiment-truncated-text";
 
 interface KanbanCardOverlayProps {
   experiment: Experiment;
@@ -11,16 +12,27 @@ export function KanbanCardOverlay({ experiment }: KanbanCardOverlayProps) {
   return (
     <Card className="shadow-lg rotate-2 w-64">
       <CardContent className="p-3">
-        <div className="flex items-start gap-2">
+        <div className="flex items-center gap-2">
           <div
-            className="w-2 h-full rounded-full mt-1 flex-shrink-0"
+            className="h-3 w-3 shrink-0 rounded-full"
             style={{ backgroundColor: experiment.color }}
           />
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-medium truncate">{experiment.name}</p>
-            <p className="text-xs text-muted-foreground font-mono mt-0.5">
-              {experiment.id.slice(0, 8)}
-            </p>
+            <ExperimentTruncatedText
+              text={experiment.name}
+              className="text-sm font-medium"
+              showTooltip="always"
+              lineClamp={2}
+            />
+            {experiment.description ? (
+              <ExperimentTruncatedText
+                text={experiment.description}
+                className="mt-0.5 text-xs text-muted-foreground"
+                showTooltip="always"
+                lineClamp={3}
+              />
+            ) : null}
+            <p className="mt-0.5 font-mono text-xs text-muted-foreground">{experiment.id.slice(0, 8)}</p>
           </div>
         </div>
       </CardContent>

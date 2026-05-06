@@ -4,13 +4,17 @@ import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Card, CardContent } from "@/components/ui/card";
 import { Experiment } from "@/domain/experiments/types";
+import { getExperimentSelectionSurfaceStyle } from "@/domain/experiments/experiment-selection-style";
+import { cn } from "@/lib/utils";
+import { ExperimentTruncatedText } from "@/domain/experiments/components/experiment-truncated-text";
 
 interface KanbanCardProps {
   experiment: Experiment;
+  isSelected?: boolean;
   onClick: () => void;
 }
 
-export function KanbanCard({ experiment, onClick }: KanbanCardProps) {
+export function KanbanCard({ experiment, isSelected, onClick }: KanbanCardProps) {
   const {
     attributes,
     listeners,
@@ -26,24 +30,50 @@ export function KanbanCard({ experiment, onClick }: KanbanCardProps) {
     opacity: isDragging ? 0.5 : 1,
   };
 
+  const selectionStyle = isSelected
+    ? getExperimentSelectionSurfaceStyle(experiment.color)
+    : undefined;
+
   return (
-    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="min-w-0 w-full max-w-full"
+      {...attributes}
+      {...listeners}
+    >
       <Card
-        className="hover-elevate active-elevate-2 cursor-pointer"
+        data-state={isSelected ? "selected" : undefined}
+        className={cn(
+          "min-w-0 w-full max-w-full overflow-hidden hover-elevate active-elevate-2 cursor-pointer",
+          isSelected && "transition-colors"
+        )}
+        style={selectionStyle}
         onClick={onClick}
         data-testid={`kanban-card-${experiment.id}`}
       >
-        <CardContent className="p-3">
-          <div className="flex items-start gap-2">
+        <CardContent className="min-w-0 p-3">
+          <div className="flex min-w-0 items-center gap-2">
             <div
-              className="w-2 h-full rounded-full mt-1 flex-shrink-0"
+              className="h-3 w-3 shrink-0 rounded-full"
               style={{ backgroundColor: experiment.color }}
             />
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium truncate">{experiment.name}</p>
-              <p className="text-xs text-muted-foreground font-mono mt-0.5">
-                {experiment.id.slice(0, 8)}
-              </p>
+            <div className="min-w-0 w-full flex-1 overflow-hidden">
+              <ExperimentTruncatedText
+                text={experiment.name}
+                className="text-sm font-medium"
+                showTooltip="always"
+                lineClamp={2}
+              />
+              {experiment.description ? (
+                <ExperimentTruncatedText
+                  text={experiment.description}
+                  className="mt-0.5 text-xs text-muted-foreground"
+                  showTooltip="always"
+                  lineClamp={3}
+                />
+              ) : null}
+              <p className="mt-0.5 font-mono text-xs text-muted-foreground">{experiment.id.slice(0, 8)}</p>
             </div>
           </div>
           {experiment.status === "running" && (

@@ -230,7 +230,7 @@ class TestTeamService:
 
         await team_service.remove_team_member(
             test_user_2.id,
-            TeamMemberDeleteDTO(user_id=test_user_3.id, team_member_id=created_team.id),
+            TeamMemberDeleteDTO(user_id=test_user_3.id, team_id=created_team.id),
         )
         remaining = await team_repository.get_team_member_if_accessible(
             test_user_3.id, created_team.id
@@ -284,7 +284,7 @@ class TestTeamService:
             await team_service.remove_team_member(
                 test_user_2.id,
                 TeamMemberDeleteDTO(
-                    user_id=test_user_3.id, team_member_id=created_team.id
+                    user_id=test_user_3.id, team_id=created_team.id
                 ),
             )
 
@@ -335,7 +335,7 @@ class TestTeamService:
             await team_service.remove_team_member(
                 test_user_2.id,
                 TeamMemberDeleteDTO(
-                    user_id=test_user_3.id, team_member_id=created_team.id
+                    user_id=test_user_3.id, team_id=created_team.id
                 ),
             )
 
@@ -380,7 +380,7 @@ class TestTeamService:
             await team_service.remove_team_member(
                 test_user_3.id,
                 TeamMemberDeleteDTO(
-                    user_id=test_user_2.id, team_member_id=created_team.id
+                    user_id=test_user_2.id, team_id=created_team.id
                 ),
             )
 
@@ -582,7 +582,7 @@ class TestTeamService:
 
         await team_service.remove_team_member(
             test_user_2.id,
-            TeamMemberDeleteDTO(user_id=test_user_2.id, team_member_id=team.id),
+            TeamMemberDeleteDTO(user_id=test_user_2.id, team_id=team.id),
         )
 
         team_repository = TeamRepository(db_session)
@@ -611,7 +611,7 @@ class TestTeamService:
         with pytest.raises(TeamAccessDeniedError):
             await team_service.remove_team_member(
                 test_user.id,
-                TeamMemberDeleteDTO(user_id=test_user_2.id, team_member_id=team.id),
+                TeamMemberDeleteDTO(user_id=test_user_2.id, team_id=team.id),
             )
 
     async def test_remove_team_member_requires_manage_permission(
@@ -636,5 +636,5 @@ class TestTeamService:
         with pytest.raises(TeamAccessDeniedError):
             await team_service.remove_team_member(
                 test_user.id,
-                TeamMemberDeleteDTO(user_id=test_user_2.id, team_member_id=team.id),
+                TeamMemberDeleteDTO(user_id=test_user_2.id, team_id=team.id),
             )

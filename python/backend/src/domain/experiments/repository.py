@@ -51,6 +51,7 @@ class ExperimentRepository(BaseRepository[Experiment]):
             load = []
         return await self.list(
             Experiment.project_id == project_id,
+            order_by=[Experiment.created_at.desc(), Experiment.id.desc()],
             load=load,
             list_options=list_options,
         )
@@ -58,19 +59,23 @@ class ExperimentRepository(BaseRepository[Experiment]):
     async def get_experiments_by_ids(
         self, experiment_ids: List[UUID_TYPE]
     ) -> List[Experiment]:
-        experiments = await self.advanced_alchemy_repository.list(
-            Experiment.id.in_(experiment_ids),
+        if not experiment_ids:
+            return []
+        experiments = list(
+            await self.advanced_alchemy_repository.list(
+                Experiment.id.in_(experiment_ids),
+            )
         )
         return experiments
 
-    async def list_ordered_experiment_ids_for_project(
+    async def list_experiment_ids_for_project_by_created_at_desc(
         self, project_id: UUID_TYPE
     ) -> List[UUID_TYPE]:
-        """Stable UI order: manual order, then created_at descending."""
+        """Project experiment ids for paging UIs: newest first, stable on id."""
         stmt = (
             select(Experiment.id)
             .where(Experiment.project_id == project_id)
-            .order_by(Experiment.order.asc(), Experiment.created_at.desc())
+            .order_by(Experiment.created_at.desc(), Experiment.id.desc())
         )
         res = await self.db.execute(stmt)
         return [r[0] for r in res.all()]

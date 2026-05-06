@@ -1,33 +1,20 @@
 import { useEffect, useMemo } from "react";
+import { faker } from "@faker-js/faker";
 import { useScalarViewsStore } from "../store";
 import type { ScalarSavedView } from "../types";
 
-const ADJECTIVES = [
-  "Carmic",
-  "Nebula",
-  "Silent",
-  "Curious",
-  "Rapid",
-  "Solar",
-  "Brisk",
-  "Mellow",
-];
-
-const ANIMALS = [
-  "Koala",
-  "Falcon",
-  "Otter",
-  "Lynx",
-  "Panda",
-  "Fox",
-  "Hawk",
-  "Tiger",
-];
-
 export function generateRandomViewName(): string {
-  const adjective = ADJECTIVES[Math.floor(Math.random() * ADJECTIVES.length)];
-  const animal = ANIMALS[Math.floor(Math.random() * ANIMALS.length)];
-  return `${adjective}_${animal}`;
+  const adjective = faker.word.adjective();
+  const animal = faker.animal.type();
+  return `${titleCase(adjective)} ${titleCase(animal)}`;
+}
+
+function titleCase(value: string): string {
+  return value
+    .split(/[\s_-]+/)
+    .filter(Boolean)
+    .map((part) => `${part.charAt(0).toUpperCase()}${part.slice(1).toLowerCase()}`)
+    .join(" ");
 }
 
 export interface UseScalarViewsResult {

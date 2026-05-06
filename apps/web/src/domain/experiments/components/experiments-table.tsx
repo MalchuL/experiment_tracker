@@ -32,6 +32,9 @@ interface ExperimentsTableProps {
     experiments: Experiment[];
     projectMetrics?: ProjectMetric[];
     aggregatedMetrics?: Record<string, Metric[]>;
+    /** Parent names for ids not present in `experiments` (fetched separately). */
+    parentNamesById?: Record<string, string>;
+    selectedExperimentId?: string | null;
     onExperimentClick: (experimentId: string) => void;
     onReorder: (experimentIds: string[]) => void;
 }
@@ -40,6 +43,8 @@ export function ExperimentsTable({
     experiments,
     projectMetrics,
     aggregatedMetrics,
+    parentNamesById,
+    selectedExperimentId,
     onExperimentClick,
     onReorder,
 }: ExperimentsTableProps) {
@@ -90,7 +95,7 @@ export function ExperimentsTable({
                                     </div>
                                 </TableHead>
                             ))}
-                            <TableHead className="w-[80px]">Created</TableHead>
+                            <TableHead className="min-w-[140px] whitespace-nowrap">Created</TableHead>
                         </TableRow>
                     </TableHeader>
                     <SortableContext
@@ -102,14 +107,19 @@ export function ExperimentsTable({
                                 const parent = experiments.find(
                                     (e) => e.id === experiment.parentExperimentId
                                 );
+                                const pid = experiment.parentExperimentId;
+                                const parentName =
+                                    parent?.name ??
+                                    (pid ? parentNamesById?.[pid] : undefined);
                                 return (
                                     <ExperimentTableRow
                                         key={experiment.id}
                                         experiment={experiment}
+                                        isSelected={selectedExperimentId === experiment.id}
                                         onClick={() => onExperimentClick(experiment.id)}
                                         projectMetrics={filteredMetrics}
                                         expMetrics={aggregatedMetrics?.[experiment.id]}
-                                        parentName={parent?.name}
+                                        parentName={parentName}
                                     />
                                 );
                             })}

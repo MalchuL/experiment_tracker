@@ -422,6 +422,8 @@ class ClickHouseScalarsDBUtils:
     def _clickhouse_uniform_sample_predicate(self, max_points: int) -> str:
         """SQL predicate: keep row if partition size <= cap or row index is in the uniform grid."""
         mp = int(max_points)
+        if mp == 1:
+            return f"(_u_cnt <= 1) OR (_u_rn = _u_cnt)"
         return (
             f"(_u_cnt <= {mp}) OR arrayExists("
             f"j -> _u_rn = 1 + intDiv(toInt64(j) * toInt64(_u_cnt - 1), "
@@ -529,7 +531,7 @@ class ClickHouseScalarsDBUtils:
         uniform_filter = self._clickhouse_uniform_sample_predicate(mp)
         inner = (
             f"SELECT {base_cols}, "
-            f"row_number() OVER (PARTITION BY {exp_col} ORDER BY {step_col}) AS _u_rn, "
+            f"row_number() OVER (PARTITION BY {exp_col} ORDER BY {step_col}, {ts_col}) AS _u_rn, "
             f"count(*) OVER (PARTITION BY {exp_col}) AS _u_cnt "
             f"FROM {table_name}{where_sql}"
         )

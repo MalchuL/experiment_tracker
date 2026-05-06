@@ -25,14 +25,16 @@ class ScalarsServiceClient:
         "log_scalar": lambda project_id, experiment_id: f"/scalars/log/{project_id}/{experiment_id}",
         "log_scalars_batch": lambda project_id, experiment_id: f"/scalars/log_batch/{project_id}/{experiment_id}",
         "get_scalars": lambda project_id: f"/scalars/get/{project_id}",
-        "get_last_logged_experiments": lambda project_id: f"/scalars/last_logged/{project_id}",
+        "get_last_logged_experiments": lambda project_id: f"/last_logged/{project_id}",
     }
 
     def __init__(self, base_url: str, timeout: float = 10.0):
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
 
-    async def create_project_table(self, project_id: UUID) -> CreateProjectTableResponseDTO:
+    async def create_project_table(
+        self, project_id: UUID
+    ) -> CreateProjectTableResponseDTO:
         payload = CreateProjectTableRequestDTO(project_id=project_id)
         response = await self._request(
             "POST",
@@ -134,7 +136,9 @@ class NoOpScalarsServiceClient(ScalarsServiceClient):
     def __init__(self) -> None:
         super().__init__(base_url="http://noop")
 
-    async def create_project_table(self, project_id: UUID) -> CreateProjectTableResponseDTO:
+    async def create_project_table(
+        self, project_id: UUID
+    ) -> CreateProjectTableResponseDTO:
         return CreateProjectTableResponseDTO(status="noop")
 
     async def log_scalar(
@@ -161,4 +165,3 @@ class NoOpScalarsServiceClient(ScalarsServiceClient):
     ) -> LastLoggedExperimentsResponseDTO:
         _ = (project_id, payload, limit, offset)
         return LastLoggedExperimentsResponseDTO(data=[], has_next=False, size=0)
-

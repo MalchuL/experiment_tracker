@@ -18,9 +18,16 @@ export const API_ROUTES = {
       REQUEST_VERIFY_TOKEN: "api/auth/request-verify-token",
       VERIFY: "api/auth/verify",
     },
+
+    ADMIN: {
+      USERS: "api/admin/users",
+      TEAMS: "api/admin/teams",
+      RESET_PASSWORD: (userId: string) => `api/admin/users/${userId}/reset-password`,
+    },
   
     USERS: {
       ME: "api/users/me",
+      CHANGE_PASSWORD: "api/users/me/change-password",
       API_TOKENS: {
         LIST: "api/users/me/api-tokens",
         CREATE: "api/users/me/api-tokens",
@@ -40,21 +47,17 @@ export const API_ROUTES = {
     TEAMS: {
       LIST: "/api/teams",
       CREATE: "/api/teams",
-  
+      PATCH: "/api/teams",
       BY_ID: {
         GET: (teamId: string) => `/api/teams/${teamId}`,
-        UPDATE: (teamId: string) => `/api/teams/${teamId}`,
+        MEMBERS: (teamId: string) => `/api/teams/${teamId}/members`,
+        USERS_LOOKUP: (teamId: string) => `/api/teams/${teamId}/users/lookup`,
         DELETE: (teamId: string) => `/api/teams/${teamId}`,
-  
-        LEAVE: (teamId: string) => `/api/teams/${teamId}/leave`,
-  
-        MEMBERS: {
-          ADD: (teamId: string) => `/api/teams/${teamId}/members`,
-          UPDATE_ROLE: (teamId: string, memberId: string) =>
-            `/api/teams/${teamId}/members/${memberId}`,
-          REMOVE: (teamId: string, memberId: string) =>
-            `/api/teams/${teamId}/members/${memberId}`,
-        },
+      },
+      MEMBERS: {
+        ADD: "/api/teams/members",
+        PATCH: "/api/teams/members",
+        DELETE: "/api/teams/members",
       },
     },
   
@@ -73,6 +76,8 @@ export const API_ROUTES = {
   
         EXPERIMENTS: (projectId: string) =>
           `/api/projects/${projectId}/experiments`,
+        EXPERIMENTS_BATCH: (projectId: string) =>
+          `/api/projects/${projectId}/experiments/batch`,
         REORDER_EXPERIMENTS: (projectId: string) =>
           `/api/projects/${projectId}/experiments/reorder`,
   
@@ -94,6 +99,8 @@ export const API_ROUTES = {
           `/api/projects/${projectId}/settings/map`,
         SETTINGS_BY_NAME: (projectId: string, name: string) =>
           `/api/projects/${projectId}/settings/${encodeURIComponent(name)}`,
+        MEMBERS: (projectId: string) => `/api/projects/${projectId}/members`,
+        USERS_LOOKUP: (projectId: string) => `/api/projects/${projectId}/users/lookup`,
       },
     },
   
@@ -221,14 +228,6 @@ export const API_ROUTES = {
         if (blobId) q.set("blob_id", blobId);
         if (artifactHash) q.set("artifact_hash", artifactHash);
         return `/api/experiment-artifacts/delete?${q.toString()}`;
-      },
-    },
-    PROJECT_ARTIFACTS: {
-      ARTIFACTS: {
-        GET: (projectId: string, artifactHash: string, contentType?: string) =>
-          contentType
-            ? `/api/project-artifacts/${projectId}/artifacts/${artifactHash}?contentType=${encodeURIComponent(contentType)}`
-            : `/api/project-artifacts/${projectId}/artifacts/${artifactHash}`,
       },
     },
   } as const;

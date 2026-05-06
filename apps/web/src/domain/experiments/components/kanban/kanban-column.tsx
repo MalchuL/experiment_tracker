@@ -3,7 +3,6 @@
 import { useDroppable } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { KanbanColumn } from "@/domain/experiments/types";
 import { Experiment } from "@/domain/experiments/types";
 import { KanbanCard } from "./kanban-card";
@@ -11,12 +10,14 @@ import { KanbanCard } from "./kanban-card";
 interface KanbanColumnProps {
   column: KanbanColumn;
   experiments: Experiment[];
+  selectedExperimentId?: string | null;
   onExperimentClick: (experimentId: string) => void;
 }
 
 export function KanbanColumnComponent({
   column,
   experiments,
+  selectedExperimentId,
   onExperimentClick,
 }: KanbanColumnProps) {
   const { setNodeRef, isOver } = useDroppable({
@@ -27,7 +28,7 @@ export function KanbanColumnComponent({
 
   return (
     <Card
-      className="flex flex-col h-[calc(100vh-16rem)]"
+      className="flex h-[calc(100vh-16rem)] min-w-0 max-w-full flex-col overflow-hidden"
       data-testid={`kanban-column-${column.id}`}
     >
       <CardHeader className={`rounded-t-md ${column.className}`}>
@@ -39,12 +40,14 @@ export function KanbanColumnComponent({
           </span>
         </CardTitle>
       </CardHeader>
-      <CardContent className="flex-1 p-2 overflow-hidden">
-        <ScrollArea className="h-full">
+      <CardContent className="min-h-0 flex-1 overflow-hidden p-2">
+        {/* Native scroll: Radix ScrollArea viewport uses `display:table` on its inner wrapper, which
+            lets wide card text expand the column past the grid track. */}
+        <div className="h-full min-h-0 min-w-0 max-w-full overflow-y-auto overflow-x-hidden overscroll-y-contain">
           <div
             ref={setNodeRef}
-            className={`space-y-2 pr-2 min-h-[100px] ${
-              isOver ? "bg-accent/30 rounded-md" : ""
+            className={`min-h-[100px] min-w-0 max-w-full space-y-2 pr-1 ${
+              isOver ? "rounded-md bg-accent/30" : ""
             }`}
             data-column={column.id}
           >
@@ -55,7 +58,7 @@ export function KanbanColumnComponent({
             >
               {experiments.length === 0 ? (
                 <div
-                  className="text-center py-8 text-sm text-muted-foreground border-2 border-dashed rounded-md"
+                  className="rounded-md border-2 border-dashed py-8 text-center text-sm text-muted-foreground"
                   data-testid={`kanban-drop-${column.id}`}
                 >
                   Drop here
@@ -65,13 +68,14 @@ export function KanbanColumnComponent({
                   <KanbanCard
                     key={experiment.id}
                     experiment={experiment}
+                    isSelected={selectedExperimentId === experiment.id}
                     onClick={() => onExperimentClick(experiment.id)}
                   />
                 ))
               )}
             </SortableContext>
           </div>
-        </ScrollArea>
+        </div>
       </CardContent>
     </Card>
   );

@@ -170,3 +170,13 @@ class PermissionRepository(BaseRepository[Permission]):
             for permission_id in permissions_ids.scalars().all()
             if permission_id is not None
         ]
+
+    async def list_distinct_user_ids_for_project(self, project_id: UUID) -> list[UUID]:
+        """User ids that have at least one project-scoped permission row for this project."""
+        stmt = (
+            select(Permission.user_id)
+            .distinct()
+            .where(Permission.project_id == project_id)
+        )
+        result = await self.db.execute(stmt)
+        return list(result.scalars().all())

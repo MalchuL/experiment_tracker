@@ -4,6 +4,7 @@ import { QUERY_KEYS } from "@/lib/constants/query-keys";
 import { DEFAULT_PAGE_SIZE } from "@/lib/constants/pagination";
 import { Experiment } from "../types";
 import { useEffect, useMemo } from "react";
+import { compareExperimentsByCreatedAtDesc } from "../lib/sort-experiments-by-created-at";
 
 export interface UseExperimentsResult {
     experiments: Experiment[];
@@ -67,12 +68,13 @@ export function useExperiments(
         paginationMode,
     ]);
 
-    const experimentsCached = useMemo(() => {
-        return data?.pages.flatMap((page) => page.data) ?? [];
+    const experiments = useMemo(() => {
+        const flat = data?.pages.flatMap((page) => page.data) ?? [];
+        return [...flat].sort(compareExperimentsByCreatedAtDesc);
     }, [data]);
 
     return {
-        experiments: experimentsCached,
+        experiments,
         isLoading,
         isFetching,
         isFetchingNextPage,

@@ -85,3 +85,14 @@ def role_to_project_permissions(role: Role) -> Dict[str, bool]:
                 ProjectActions.VIEW_ARTIFACT,
             }
             return _build_permissions(allowed)
+
+
+def infer_role_from_allowed_map(allowed_map: dict[str, bool]) -> Role:
+    """Pick the highest role whose project permission map matches ``allowed_map`` exactly.
+
+    ``OWNER`` and ``ADMIN`` share the same map; prefer ``OWNER`` when both match.
+    """
+    for role in (Role.OWNER, Role.ADMIN, Role.MEMBER, Role.VIEWER):
+        if allowed_map == role_to_project_permissions(role):
+            return role
+    return Role.VIEWER

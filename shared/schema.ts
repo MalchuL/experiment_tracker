@@ -169,8 +169,7 @@ export interface Metric {
   experimentId: string;
   name: string;
   value: number;
-  step: number;
-  direction: MetricDirectionType;
+  label: string | null;
   createdAt: string;
 }
 
@@ -178,16 +177,14 @@ export interface InsertMetric {
   experimentId: string;
   name: string;
   value: number;
-  step?: number;
-  direction?: MetricDirectionType;
+  label?: string | null;
 }
 
 export const insertMetricSchema = z.object({
   experimentId: z.string().min(1, "Experiment is required"),
   name: z.string().min(1, "Name is required"),
   value: z.number(),
-  step: z.number().default(0),
-  direction: z.enum(["minimize", "maximize"]).default("minimize"),
+  label: z.string().nullable().optional(),
 });
 
 export interface Hypothesis {

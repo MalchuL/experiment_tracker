@@ -1,11 +1,12 @@
-from datetime import datetime
+from typing import List, Optional
 from uuid import UUID
-from pydantic import BaseModel, Field
-from typing import Optional, List
-from models import HypothesisStatus
 
+from pydantic import BaseModel, Field
+
+from lib.datetime_types import ApiDateTime
 from lib.dto_config import model_config
 from lib.pagination import PaginatedResponse
+from models import HypothesisStatus
 
 
 class HypothesisBaseDTO(BaseModel):
@@ -39,8 +40,8 @@ class HypothesisUpdateDTO(BaseModel):
 
 class HypothesisDTO(HypothesisBaseDTO):
     id: UUID
-    created_at: datetime
-    updated_at: datetime
+    created_at: ApiDateTime
+    updated_at: ApiDateTime
 
     model_config = model_config()
 

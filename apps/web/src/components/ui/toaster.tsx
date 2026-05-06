@@ -17,12 +17,12 @@ export function Toaster() {
         return (
           <Toast key={id} {...props}>
             <div className="grid gap-1">
-              {title && <ToastTitle>{title}</ToastTitle>}
+              {title && <ToastTitle>{title as never}</ToastTitle>}
               {description && (
-                <ToastDescription>{description}</ToastDescription>
+                <ToastDescription>{description as never}</ToastDescription>
               )}
             </div>
-            {action}
+            {action as never}
             <ToastClose />
           </Toast>
         )

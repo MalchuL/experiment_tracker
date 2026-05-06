@@ -1,13 +1,13 @@
 from enum import Enum
+from typing import Any, List, Optional
 from uuid import UUID
+
 from pydantic import BaseModel, Field, field_validator
 
-from typing import Optional, List, Any
-from datetime import datetime
-from models import MetricDirection, MetricAggregation
-
+from lib.datetime_types import ApiDateTime
 from lib.dto_config import model_config
 from lib.pagination import PaginatedResponse
+from models import MetricAggregation, MetricDirection
 
 
 class ProjectOwnerDTO(BaseModel):
@@ -90,7 +90,7 @@ class ProjectBaseDTO(BaseModel):
 class ProjectDTO(ProjectBaseDTO):
     id: UUID
     owner: ProjectOwnerDTO
-    created_at: datetime
+    created_at: ApiDateTime
     experiment_count: int = 0
     hypothesis_count: int = 0
     team: Optional[ProjectTeamDTO] = None

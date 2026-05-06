@@ -1,6 +1,7 @@
 import { useMemo } from "react";
+import { parseISO } from "date-fns";
 import type { Experiment } from "@/domain/experiments/types";
-import type { ExperimentScalarsPoints } from "@/domain/scalars/types";
+import type { ExperimentScalarsPoints, ScalarChartPoint, ScalarPointValue } from "@/domain/scalars/types";
 import { applySmoothing } from "@/domain/scalars/utils";
 
 export interface ScalarMetricItem {
@@ -15,6 +16,8 @@ export interface UseScalarsDataModelParams {
   smoothing: number;
   soloMode: boolean;
   chosenExperimentId: string | null;
+  /** When set, selected experiments follow this order (e.g. URL order on Details page). */
+  experimentDisplayOrder?: string[] | null;
 }
 
 export function useScalarsDataModel({
@@ -25,10 +28,11 @@ export function useScalarsDataModel({
   smoothing,
   soloMode,
   chosenExperimentId,
+  experimentDisplayOrder,
 }: UseScalarsDataModelParams) {
   const sortedExperiments = useMemo(() => {
     return [...experiments].sort((a, b) => {
-      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      return parseISO(b.createdAt).getTime() - parseISO(a.createdAt).getTime();
     });
   }, [experiments]);
 
@@ -46,8 +50,17 @@ export function useScalarsDataModel({
   }, [allLoggedMetricNames, hiddenMetrics]);
 
   const selectedExperiments = useMemo(() => {
-    return sortedExperiments.filter((experiment) => selectedExperimentIds.has(experiment.id));
-  }, [sortedExperiments, selectedExperimentIds]);
+    const filtered = sortedExperiments.filter((experiment) =>
+      selectedExperimentIds.has(experiment.id)
+    );
+    if (!experimentDisplayOrder?.length) {
+      return filtered;
+    }
+    const idx = new Map(experimentDisplayOrder.map((id, i) => [id, i]));
+    return [...filtered].sort(
+      (a, b) => (idx.get(a.id) ?? 999) - (idx.get(b.id) ?? 999)
+    );
+  }, [sortedExperiments, selectedExperimentIds, experimentDisplayOrder]);
 
   const visibleExperiments = useMemo(() => {
     if (soloMode && chosenExperimentId) {
@@ -56,30 +69,43 @@ export function useScalarsDataModel({
     return selectedExperiments;
   }, [soloMode, chosenExperimentId, sortedExperiments, selectedExperiments]);
 
-  const chartDataByMetric = useMemo(() => {
-    const result: Record<string, Array<Record<string, number | null>>> = {};
+  const allChartDataByMetric = useMemo(() => {
+    const result: Record<string, ScalarChartPoint[]> = {};
     if (scalars.length === 0 || visibleExperiments.length === 0) return result;
 
     const scalarsByExperiment = new Map(scalars.map((entry) => [entry.experiment_id, entry.scalars]));
-    for (const metric of visibleMetrics) {
-      const stepMap = new Map<number, Record<string, number | null>>();
+    for (const metricName of allLoggedMetricNames) {
+      const stepMap = new Map<number, ScalarChartPoint>();
       visibleExperiments.forEach((experiment) => {
         const experimentScalars = scalarsByExperiment.get(experiment.id);
-        const series = experimentScalars?.[metric.name];
+        const series = experimentScalars?.[metricName];
         if (!series || series.x.length === 0 || series.y.length === 0) return;
         const smoothedValues = applySmoothing(series.y, smoothing);
         series.x.forEach((step, i) => {
           const existing = stepMap.get(step) || { step };
-          existing[experiment.id] = smoothedValues[i];
+          const original = series.y[i];
+          const smoothed = smoothedValues[i];
+          if (original !== undefined && smoothed !== undefined) {
+            existing[experiment.id] = {
+              original,
+              smoothed,
+            } satisfies ScalarPointValue;
+          }
           stepMap.set(step, existing);
         });
       });
-      result[metric.name] = Array.from(stepMap.values()).sort(
+      result[metricName] = Array.from(stepMap.values()).sort(
         (a, b) => (a.step as number) - (b.step as number)
       );
     }
     return result;
-  }, [scalars, visibleExperiments, visibleMetrics, smoothing]);
+  }, [allLoggedMetricNames, scalars, visibleExperiments, smoothing]);
+
+  const chartDataByMetric = useMemo(() => {
+    return Object.fromEntries(
+      visibleMetrics.map((metric) => [metric.name, allChartDataByMetric[metric.name] ?? []])
+    );
+  }, [allChartDataByMetric, visibleMetrics]);
 
   return {
     sortedExperiments,
@@ -88,5 +114,6 @@ export function useScalarsDataModel({
     selectedExperiments,
     visibleExperiments,
     chartDataByMetric,
+    allChartDataByMetric,
   };
 }

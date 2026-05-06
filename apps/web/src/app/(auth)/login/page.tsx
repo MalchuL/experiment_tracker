@@ -48,7 +48,7 @@ export default function Login() {
             title: "Welcome back!",
             description: "You have been successfully logged in.",
           });
-          router.push(FRONTEND_ROUTES.ROOT);
+          router.push(FRONTEND_ROUTES.PROJECTS);
         },
       });
     } catch (error) {

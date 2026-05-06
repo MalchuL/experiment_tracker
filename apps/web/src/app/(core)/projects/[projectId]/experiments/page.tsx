@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useRef } from "react";
 import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
 import { ListSkeleton } from "@/components/shared/loading-skeleton";
@@ -12,6 +12,7 @@ import {
     useExperiments,
     useReorderExperiments,
     useAggregatedMetrics,
+    useMissingParentExperimentNames,
 } from "@/domain/experiments/hooks";
 import { CreateExperimentDialog, ExperimentsTable } from "@/domain/experiments/components";
 import { useSelectedExperimentStore } from "@/domain/experiments/store";
@@ -52,10 +53,7 @@ export default function Experiments() {
         project.metrics.displayMetrics
       );
 
-  const sortedExperiments = useMemo(() => {
-    if (!experiments) return [];
-    return [...experiments].sort((a, b) => a.order - b.order);
-  }, [experiments]);
+  const parentNamesById = useMissingParentExperimentNames(projectId, experiments);
 
   const isLoading = projectLoading || experimentsLoading || metricsLoading;
   const isRefreshing = experimentsFetching || metricsFetching;
@@ -85,7 +83,7 @@ export default function Experiments() {
 
     observer.observe(node);
     return () => observer.disconnect();
-  }, [experimentsFetchingNextPage, fetchNextPage, hasNextPage, sortedExperiments.length]);
+  }, [experimentsFetchingNextPage, fetchNextPage, hasNextPage, experiments.length]);
 
   if (!projectId) {
     return (
@@ -101,7 +99,7 @@ export default function Experiments() {
 
   if (isLoading) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-6 px-6 pt-6">
         <PageHeader title="Experiments" description="Loading..." />
         <ListSkeleton count={5} />
       </div>
@@ -109,80 +107,91 @@ export default function Experiments() {
   }
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title="Experiments"
-        description={`Experiments for "${project?.name}". Drag to reorder.`}
-        actions={
-          projectId ? (
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={handleRefresh}
-                disabled={isRefreshing}
-                data-testid="button-refresh-experiments"
-                aria-label="Refresh experiments"
-              >
-                <RefreshCw className={isRefreshing ? "animate-spin" : ""} />
-              </Button>
-              <CreateExperimentDialog
-                projectId={projectId}
-                projectName={project?.name}
-              />
-            </div>
-          ) : null
-        }
-      />
-
-      {!sortedExperiments.length ? (
-        <EmptyState
-          icon={FlaskConical}
-          title="No experiments yet"
-          description="Create your first experiment to start tracking your research runs."
-          action={
-            projectId ? (
-              <CreateExperimentDialog
-                projectId={projectId}
-                projectName={project?.name}
-                trigger={
-                  <Button data-testid="button-empty-create-experiment">
-                    <Plus className="w-4 h-4 mr-2" />
-                    Create Experiment
+    <div className="flex h-[calc(100vh-8rem)] w-full min-w-0 gap-0">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden px-6 pt-6 pb-6">
+        <div className="flex min-h-0 flex-1 flex-col space-y-6">
+          <PageHeader
+            title="Experiments"
+            description={`Experiments for "${project?.name}". Shown newest first. Drag rows to update saved order.`}
+            actions={
+              projectId ? (
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={handleRefresh}
+                    disabled={isRefreshing}
+                    data-testid="button-refresh-experiments"
+                    aria-label="Refresh experiments"
+                  >
+                    <RefreshCw className={isRefreshing ? "animate-spin" : ""} />
                   </Button>
+                  <CreateExperimentDialog
+                    projectId={projectId}
+                    projectName={project?.name}
+                  />
+                </div>
+              ) : null
+            }
+          />
+
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            {!experiments.length ? (
+              <EmptyState
+                icon={FlaskConical}
+                title="No experiments yet"
+                description="Create your first experiment to start tracking your research runs."
+                action={
+                  projectId ? (
+                    <CreateExperimentDialog
+                      projectId={projectId}
+                      projectName={project?.name}
+                      trigger={
+                        <Button data-testid="button-empty-create-experiment">
+                          <Plus className="mr-2 h-4 w-4" />
+                          Create Experiment
+                        </Button>
+                      }
+                    />
+                  ) : null
                 }
               />
-            ) : null
-          }
-        />
-      ) : (
-        <>
-          <ExperimentsTable
-            experiments={sortedExperiments}
-            projectMetrics={filteredMetrics}
-            aggregatedMetrics={aggregatedMetricsByExperiment}
-            onExperimentClick={setSelectedExperimentId}
-            onReorder={reorderExperiments}
-          />
-          <div ref={loadMoreRef} className="h-4" aria-hidden="true" />
-          {(experimentsFetchingNextPage || hasNextPage) && (
-            <p className="text-sm text-muted-foreground">
-              {experimentsFetchingNextPage
-                ? "Loading more experiments..."
-                : "Scroll down to load more experiments."}
-            </p>
-          )}
-        </>
-      )}
+            ) : (
+              <>
+                <ExperimentsTable
+                  experiments={experiments}
+                  projectMetrics={filteredMetrics}
+                  aggregatedMetrics={aggregatedMetricsByExperiment}
+                  parentNamesById={parentNamesById}
+                  selectedExperimentId={selectedExperimentId}
+                  onExperimentClick={setSelectedExperimentId}
+                  onReorder={reorderExperiments}
+                />
+                <div ref={loadMoreRef} className="h-4" aria-hidden="true" />
+                {(experimentsFetchingNextPage || hasNextPage) && (
+                  <p className="text-sm text-muted-foreground">
+                    {experimentsFetchingNextPage
+                      ? "Loading more experiments..."
+                      : "Scroll down to load more experiments."}
+                  </p>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      </div>
 
-      {selectedExperimentId && (
+      {selectedExperimentId ? (
         <ExperimentSidebar
+          variant="push"
           experimentId={selectedExperimentId}
           onClose={() => setSelectedExperimentId(null)}
           projectMetrics={filteredMetrics}
-          aggregatedMetrics={aggregatedMetricsByExperiment?.[selectedExperimentId] || undefined}
+          aggregatedMetrics={
+            aggregatedMetricsByExperiment?.[selectedExperimentId] || undefined
+          }
         />
-      )}
+      ) : null}
     </div>
   );
 }

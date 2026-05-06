@@ -1,7 +1,10 @@
+from datetime import datetime, timedelta
 from typing import Any
+
+from experiment_tracker_shared import utc_now_naive
+
 from api.logger import logger
 from app.infrastructure.cache.cache import Cache
-from datetime import datetime, timedelta
 from app.infrastructure.cache.utils.pattern_matcher import PatternMatcher
 
 
@@ -15,7 +18,7 @@ class InMemoryCache(Cache):
         if key not in self.cache:
             logger.info(f"Cache key {key} not found")
             return None
-        if self.timestamps[key] + timedelta(seconds=self.ttl_seconds) < datetime.now():
+        if self.timestamps[key] + timedelta(seconds=self.ttl_seconds) < utc_now_naive():
             del self.cache[key]
             del self.timestamps[key]
             logger.info(f"Cache key {key} expired")
@@ -26,7 +29,7 @@ class InMemoryCache(Cache):
     async def set(self, key: str, value: Any) -> None:
         logger.info(f"Setting cache key {key}")
         self.cache[key] = value
-        self.timestamps[key] = datetime.now()
+        self.timestamps[key] = utc_now_naive()
 
     async def remove(self, key: str) -> None:
         del self.cache[key]

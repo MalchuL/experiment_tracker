@@ -1,14 +1,18 @@
 from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from api.routes.api import router as api_router
+
+from api.admin_panel_log import log_admin_panel_key_startup
 from api.error_logging import configure_logging, register_exception_handlers
+from api.routes.api import router as api_router
 from config.settings import get_settings
 from db.database import create_db_and_tables
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    log_admin_panel_key_startup()
     await create_db_and_tables()
     yield
 

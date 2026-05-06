@@ -16,6 +16,7 @@ export interface UseProjectScalarsParams {
 
 export interface UseProjectScalarsResult {
   scalars: ScalarsPointsResult["data"];
+  queryKey: readonly unknown[];
   isLoading: boolean;
   isFetching: boolean;
   isFetchingNextPage: boolean;
@@ -91,6 +92,7 @@ export function useProjectScalars(
 
   return {
     scalars,
+    queryKey,
     isLoading,
     isFetching,
     isFetchingNextPage,

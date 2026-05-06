@@ -1,9 +1,8 @@
-from datetime import datetime
-from pydantic import BaseModel, Field, field_validator
-
+from lib.datetime_types import ApiDateTime
 from lib.dto_config import model_config
 from lib.pagination import PaginatedResponse
 from lib.types import UUID_TYPE
+from pydantic import BaseModel, Field, field_validator
 
 
 class MetricBase(BaseModel):
@@ -30,7 +29,7 @@ class MetricUpsertDTO(MetricBase):
 
 class MetricDTO(MetricBase):
     id: UUID_TYPE
-    created_at: datetime
+    created_at: ApiDateTime
 
     model_config = model_config()
 
@@ -64,7 +63,7 @@ class UniqueMetricDimensionsResponseDTO(BaseModel):
 class MetricsByLabelRowDTO(BaseModel):
     experiment_id: UUID_TYPE
     experiment_name: str
-    created_at: datetime
+    created_at: ApiDateTime
     color: str
     values: list[float | None]
 

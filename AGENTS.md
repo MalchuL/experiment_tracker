@@ -144,6 +144,17 @@ For local development against the backend, set the web env so the UI and BFF tar
 
 The HTTP API is mounted with a configurable prefix (see `config/settings.py` / `api_prefix`); client code and the Next.js BFF should stay aligned with that prefix.
 
+### Teams and project members (main API)
+
+- **Teams**: `GET /teams` (paginated list with `canCreateProject` per row), `GET /teams/{team_id}`, `GET /teams/{team_id}/members`, `GET /teams/{team_id}/users/lookup?email=` (requires team manage). Writes: `POST` / `PATCH` on `/teams` (body includes `id` for update), `POST` / `PATCH` / `DELETE` on `/teams/members` (JSON body; member delete uses `userId` + `teamId`).
+- **Project members**: `GET /projects/{id}/members` returns `accessSource`: `team` (inherits team role), `override` (per-project permission rows on top of team), or `direct` (invited / project owner). Maintainers with `project.edit` can `PATCH` any **team** member to apply or change a per-project role (writes full project-scoped permission rows; `PermissionService.has_permission` prefers those over team). `DELETE` removes project-scoped rows only—team members then fall back to team inheritance; pure team rows cannot be removed here. Also: `GET /projects/{id}/users/lookup?email=`, `POST` for email invites (`DELETE` JSON body `{ "userId": "..." }`).
+
+### Admin panel and passwords (main API)
+
+- **`ADMIN_PANEL_KEY`**: Defaults to insecure `admin` for local dev. On startup the backend logs a **warning** when the key is still `admin`, and an **info** line (without revealing the value) when a custom key was loaded from `ADMIN_PANEL_KEY`.
+- **Admin HTTP API** (no JWT; header **`X-Admin-Key`** must match the configured key): `GET /admin/users?q=&limit=` (default **20**) **`&offset=`** (`q` filters email, display name, and user UUID substring), `GET /admin/teams?q=&limit=` (default **20**) **`&offset=`** (`q` filters team name and description), `POST /admin/users/{user_id}/reset-password` → JSON includes **`temporaryPassword`** once.
+- **User password change** (JWT or session cookie auth, not PAT): `POST /users/me/change-password` with JSON **`currentPassword`** and **`newPassword`** (min 8). Web UI: **`/profile`** (collapsible section); legacy **`/profile/password`** redirects there. Bootstrap admin UI: **`/admin`** (stores key in `sessionStorage`).
+
 ## Cross-service configuration
 
 Running the full stack locally requires the backend plus whatever URLs you configure for **scalars** and **object storage** services (and their databases/ClickHouse). Those are typically set via environment variables consumed by `python/backend`’s settings and the respective services’ configs—check each package’s `config` or `README` when wiring a new environment.
@@ -151,3 +162,5 @@ Running the full stack locally requires the backend plus whatever URLs you confi
 ## Documentation policy for agents
 
 Prefer updating this file or code comments when changing global runbooks; avoid adding new markdown files unless the user asks for them.
+
+For **changing how in-app docs render** (remark/rehype directives, sanitize allowlist, `DocsMarkdown` components), follow and keep in sync **`apps/web/content/docs/contributing/extending-doc-pipeline.md`** (published at `/docs/contributing/extending-doc-pipeline`).

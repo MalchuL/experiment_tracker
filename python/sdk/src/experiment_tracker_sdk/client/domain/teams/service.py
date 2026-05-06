@@ -94,14 +94,14 @@ class TeamRequestSpecFactory:
         )
 
     def remove_team_member(
-        self, user_id: str | UUID, team_member_id: str | UUID
+        self, user_id: str | UUID, team_id: str | UUID
     ) -> ApiRequestSpec[SuccessResponse]:
         if isinstance(user_id, UUID):
             user_id = str(user_id)
-        if isinstance(team_member_id, UUID):
-            team_member_id = str(team_member_id)
+        if isinstance(team_id, UUID):
+            team_id = str(team_id)
         endpoint = cast(str, self.ENDPOINTS["remove_team_member"])
-        payload = TeamMemberDeleteRequest(userId=user_id, teamMemberId=team_member_id)
+        payload = TeamMemberDeleteRequest(userId=user_id, teamId=team_id)
         return ApiRequestSpec(
             method="DELETE",
             endpoint=endpoint,
