@@ -21,7 +21,6 @@ export default function ProjectDashboard() {
 
   const { hypotheses: recentHypotheses, recentHypothesesIsLoading: hypothesesLoading } = useRecentHypothesis(projectId);
 
-
   if (isLoading) {
     return <DashboardSkeleton />;
   }

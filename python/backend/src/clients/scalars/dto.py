@@ -6,9 +6,10 @@ from typing import Any
 from uuid import UUID
 
 from experiment_tracker_shared.datetime_utc import to_json_utc_z
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, Field
 
 from lib.datetime_types import ApiDateTime
+from lib.dto_config import model_config
 from lib.pagination import PaginatedResponse
 
 
@@ -19,13 +20,85 @@ class ScalarsSampling(str, Enum):
 
 
 class CreateProjectTableRequestDTO(BaseModel):
+    model_config = model_config()
+
     project_id: UUID
 
 
 class CreateProjectTableResponseDTO(BaseModel):
-    model_config = ConfigDict(extra="allow")
+    model_config = model_config()
 
-    status: str | None = None
+    table_name: str
+    project_id: UUID
+
+
+class ScalarsDeleteProjectTablesResponseDTO(BaseModel):
+    model_config = model_config()
+
+    message: str
+
+
+class ScalarsDeleteExperimentDataResponseDTO(BaseModel):
+    model_config = model_config()
+
+    deleted: bool
+
+
+class ScalarsCompactColumnsResponseDTO(BaseModel):
+    model_config = model_config()
+
+    dropped_columns: list[str] = Field(default_factory=list)
+
+
+class ScalarsTableUsageDTO(BaseModel):
+    model_config = model_config()
+
+    table: str
+    exists: bool
+    rows: int
+    columns: int
+    bytes: int
+
+
+class ScalarsProjectUsageResponseDTO(BaseModel):
+    model_config = model_config()
+
+    project_id: UUID
+    total_bytes: int
+    tables: list[ScalarsTableUsageDTO]
+
+
+class ScalarsExperimentUsageResponseDTO(BaseModel):
+    model_config = model_config()
+
+    project_id: UUID
+    experiment_id: UUID
+    rows: int
+    bytes: int
+
+
+class ScalarsStorageTableRowDTO(BaseModel):
+    model_config = model_config()
+
+    name: str
+    rows: int
+    bytes: int
+
+
+class ScalarsListStorageTablesResponseDTO(BaseModel):
+    model_config = model_config()
+
+    tables: list[ScalarsStorageTableRowDTO]
+    total: int
+    limit: int
+    offset: int
+
+
+class ScalarsDropStorageTableResponseDTO(BaseModel):
+    model_config = model_config()
+
+    dropped: bool
+    table: str
 
 
 class LogScalarRequestDTO(BaseModel):

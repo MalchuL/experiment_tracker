@@ -10,6 +10,8 @@ from domain.projects.errors import ProjectNotAccessibleError
 
 
 class DashboardService:
+    """Read-only aggregates for the project dashboard (requires ``VIEW_PROJECT``)."""
+
     def __init__(
         self,
         session: AsyncSession,

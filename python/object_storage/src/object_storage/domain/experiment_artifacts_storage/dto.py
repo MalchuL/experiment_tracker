@@ -7,6 +7,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 
 from object_storage.lib.datetime_types import ApiDateTime
+from object_storage.lib.dto_config import model_config
 
 
 class UntrackedUploadArtifactResponseDTO(BaseModel):
@@ -76,3 +77,25 @@ class ExperimentArtifactsSizeResponseDTO(BaseModel):
     """Response DTO returning total artifacts size for one experiment."""
 
     total_size_bytes: int
+
+
+class ExperimentArtifactsUsageItemDTO(BaseModel):
+    """Usage counters for one experiment artifact category."""
+
+    model_config = model_config()
+
+    count: int
+    bytes: int
+
+
+class ExperimentArtifactsUsageResponseDTO(BaseModel):
+    """Usage payload returned by experiment artifacts usage endpoints."""
+
+    model_config = model_config()
+
+    project_id: str
+    experiment_id: str
+    experiment_artifacts: ExperimentArtifactsUsageItemDTO
+    at_step_artifacts: ExperimentArtifactsUsageItemDTO
+    bucket_bytes: int
+    total_bytes: int

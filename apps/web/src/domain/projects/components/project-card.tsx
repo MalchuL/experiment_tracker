@@ -34,7 +34,9 @@ export function ProjectCard({ project, onDelete }: ProjectCardProps) {
               </div>
               <div className="min-w-0">
                 <h3 className="font-medium truncate">{project.name}</h3>
-                <p className="text-xs text-muted-foreground">{project.owner.displayName}</p>
+                <p className="text-xs text-muted-foreground">
+                  {project.owner?.displayName ?? project.owner?.email ?? "No owner"}
+                </p>
               </div>
             </div>
             <DropdownMenu>

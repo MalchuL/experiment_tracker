@@ -127,7 +127,11 @@ class PermissionService:
         if project_permissions:
             return any(permission.allowed for permission in project_permissions)
 
-        project = await self.project_repo.get_by_id(project_id)
+        project = await self.project_repo.get_project_by_id(
+            project_id, full_load=False
+        )
+        if project is None:
+            return False
         if project.team_id is None:
             return False
 

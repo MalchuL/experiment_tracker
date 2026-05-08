@@ -45,6 +45,7 @@ import {
 } from "@/domain/teams/hooks";
 import { teamsService } from "@/domain/teams/services";
 import type { TeamMemberRow, TeamRole } from "@/domain/teams/types";
+import { TeamDangerZone } from "@/domain/teams/components";
 import { FRONTEND_ROUTES } from "@/lib/constants/frontend-routes";
 import { useToast } from "@/lib/hooks/use-toast";
 import { ArrowLeft, Trash2 } from "lucide-react";
@@ -58,10 +59,10 @@ const settingsSchema = z.object({
 
 type SettingsForm = z.infer<typeof settingsSchema>;
 
-const ROLE_OPTIONS: { value: TeamRole; label: string; hint: string }[] = [
-  { value: "admin", label: "Maintainer", hint: "Manage team and projects" },
-  { value: "member", label: "Developer", hint: "Work on projects" },
-  { value: "viewer", label: "Guest", hint: "Read-only" },
+const ROLE_OPTIONS: { value: TeamRole; label: string }[] = [
+  { value: "admin", label: "Maintainer" },
+  { value: "member", label: "Developer" },
+  { value: "viewer", label: "Guest" },
 ];
 
 function initials(row: TeamMemberRow) {
@@ -208,7 +209,10 @@ export default function TeamDetailPage() {
             <ArrowLeft className="h-4 w-4" />
           </Link>
         </Button>
-        <PageHeader title={team.name} description="Team settings and members" />
+        <PageHeader
+          title={team.name}
+          description="Team settings and members"
+        />
       </div>
 
       <Card>
@@ -359,6 +363,14 @@ export default function TeamDetailPage() {
           </Table>
         </CardContent>
       </Card>
+
+      {teamId ? (
+        <TeamDangerZone
+          teamId={teamId}
+          teamName={team.name}
+          onTeamRefetch={() => void refetchTeam()}
+        />
+      ) : null}
     </div>
   );
 }

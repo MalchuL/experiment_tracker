@@ -32,7 +32,7 @@ export interface Project {
     id: string;
     name: string;
     description: string;
-    owner: ProjectOwner;
+    owner: ProjectOwner | null;
     createdAt: string;
     experimentCount: number;
     hypothesisCount: number;

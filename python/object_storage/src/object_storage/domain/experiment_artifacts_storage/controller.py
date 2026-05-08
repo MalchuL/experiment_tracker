@@ -13,6 +13,7 @@ from object_storage.api.service_dependencies import get_experiment_artifacts_ser
 from .dto import (
     DeleteArtifactResponseDTO,
     DeleteExperimentArtifactsResponseDTO,
+    ExperimentArtifactsUsageResponseDTO,
     TrackedArtifactsListResponseDTO,
     TrackedArtifactInfoResponseDTO,
     TrackedUploadArtifactResponseDTO,
@@ -183,6 +184,18 @@ async def get_tracked_artifact_info(
         message = str(exc)
         status = 404 if "not found" in message.lower() else 400
         raise HTTPException(status_code=status, detail=message) from exc
+
+
+@router.get(
+    "/projects/{project_id}/experiments/{experiment_id}/usage",
+    response_model=ExperimentArtifactsUsageResponseDTO,
+)
+async def get_experiment_artifacts_usage(
+    project_id: UUID,
+    experiment_id: UUID,
+    service: ArtifactsStorageService = Depends(get_experiment_artifacts_service),
+):
+    return await service.get_experiment_usage(project_id, experiment_id)
 
 
 @router.get(

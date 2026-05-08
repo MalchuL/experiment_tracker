@@ -8,6 +8,7 @@ from models import ExperimentStatus
 from lib.datetime_types import ApiDateTime, ApiOptionalDateTime
 from lib.dto_config import model_config
 from lib.pagination import PaginatedResponse, MAX_LIST_PAGE_SIZE
+from lib.category_cleanup_dto import CategoryCleanupResponseDTO
 
 
 class ExperimentBaseDTO(BaseModel):
@@ -58,6 +59,62 @@ class ExperimentDTO(ExperimentBaseDTO):
     created_at: ApiDateTime
     started_at: ApiOptionalDateTime
     completed_at: ApiOptionalDateTime
+
+    model_config = model_config()
+
+
+class ExperimentDeleteResponseDTO(CategoryCleanupResponseDTO):
+    """Outcome of DELETE ``/experiments/{id}`` (cleanup-shaped: ``success``, ``results``, ``errors``)."""
+
+    model_config = model_config()
+
+
+class UsageBytesCountDTO(BaseModel):
+    """Generic ``{count, bytes}`` block reused for artifact groupings in usage DTOs."""
+
+    count: int = 0
+    bytes: int = 0
+
+    model_config = model_config()
+
+
+class ExperimentUsageSnapshotsDTO(BaseModel):
+    """Placeholder for future per-experiment snapshot storage accounting."""
+
+    count: int = 0
+    bytes: int = 0
+    known: bool = False
+
+    model_config = model_config()
+
+
+class ExperimentScalarsUsageDTO(BaseModel):
+    """ClickHouse footprint for the experiment (time-series + metadata tables on scalars)."""
+
+    rows: int = 0
+    bytes: int = 0
+
+    model_config = model_config()
+
+
+class ExperimentUsageTotalDTO(BaseModel):
+    """Sum of artifact + at-step + snapshot + scalar bytes returned to the client."""
+
+    bytes: int = 0
+
+    model_config = model_config()
+
+
+class ExperimentUsageDTO(BaseModel):
+    """Unified experiment storage view for dashboards / danger zone lazy loading."""
+
+    experiment_id: str
+    project_id: str
+    experiment_artifacts: UsageBytesCountDTO
+    at_step_artifacts: UsageBytesCountDTO
+    snapshots: ExperimentUsageSnapshotsDTO
+    scalars: ExperimentScalarsUsageDTO
+    total: ExperimentUsageTotalDTO
 
     model_config = model_config()
 

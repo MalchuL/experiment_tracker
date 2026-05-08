@@ -263,7 +263,10 @@ class TestProjectControllerDelete:
         response = client2.delete(f"/api/v1/projects/{project['id']}")
 
         assert response.status_code == 200
-        assert response.json()["success"] is True
+        body = response.json()
+        assert body["success"] is True
+        assert body["errors"] == []
+        assert any(r["category"] == "postgres:project" for r in body["results"])
 
     async def test_delete_project_denied_without_permission(
         self, auth_client, test_user: User, test_user_2: User

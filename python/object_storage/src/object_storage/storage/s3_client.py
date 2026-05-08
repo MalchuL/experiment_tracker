@@ -10,6 +10,7 @@ import boto3  # type: ignore[import-not-found]
 from botocore.exceptions import ClientError  # type: ignore[import-not-found]
 
 from object_storage.config import get_settings
+from object_storage.storage.dto import BlobListEntry
 
 
 class S3PaginatorProtocol(Protocol):
@@ -35,11 +36,19 @@ class S3ClientProtocol(Protocol):
 
     def delete_objects(self, **kwargs) -> dict[str, object]: ...
 
+    def list_buckets(self) -> dict[str, object]: ...
+
 
 def _blob_key(blob_hash: str) -> str:
-    """Build the S3 object key for a CAS blob hash."""
+    """Build the S3 object key for a CAS blob hash.
 
-    return f"blobs/{blob_hash[:2]}/{blob_hash[2:]}"
+    Keys are stored with a lowercase hex hash; callers may pass mixed case.
+    """
+
+    h = blob_hash.strip().lower()
+    if len(h) < 2:
+        return f"blobs/{h}"
+    return f"blobs/{h[:2]}/{h[2:]}"
 
 
 @dataclass
@@ -104,9 +113,17 @@ class S3Storage:
     def get_blob(self, bucket_name: str, blob_hash: str):
         """Get a streaming response for the blob object."""
 
-        body = self.client.get_object(Bucket=bucket_name, Key=_blob_key(blob_hash))[
-            "Body"
-        ]
+        try:
+            body = self.client.get_object(Bucket=bucket_name, Key=_blob_key(blob_hash))[
+                "Body"
+            ]
+        except ClientError as exc:
+            code = exc.response.get("Error", {}).get("Code")
+            if code in ("404", "NoSuchKey", "NotFound"):
+                raise ValueError(
+                    f"Blob not found for hash {blob_hash.strip()!r} in bucket {bucket_name!r}"
+                ) from exc
+            raise
         return _S3BlobStream(body)
 
     def delete_blob(self, bucket_name: str, blob_hash: str) -> bool:
@@ -117,17 +134,29 @@ class S3Storage:
         self.client.delete_object(Bucket=bucket_name, Key=_blob_key(blob_hash))
         return True
 
-    def list_blobs(self, bucket_name: str, prefix: str = "") -> list[str]:
-        """List object keys in a bucket optionally filtered by prefix."""
+    def list_blob_entries(
+        self, bucket_name: str, prefix: str = ""
+    ) -> list[BlobListEntry]:
+        """List objects with sizes from ``list_objects_v2`` (no per-key HEAD)."""
 
         paginator = self.client.get_paginator("list_objects_v2")
-        keys: list[str] = []
+        entries: list[BlobListEntry] = []
         for page in paginator.paginate(Bucket=bucket_name, Prefix=prefix):
             for item in page.get("Contents", []):
                 key = item.get("Key")
                 if key:
-                    keys.append(str(key))
-        return keys
+                    entries.append(
+                        BlobListEntry(
+                            key=str(key),
+                            size=int(item.get("Size") or 0),
+                        )
+                    )
+        return entries
+
+    def list_blobs(self, bucket_name: str, prefix: str = "") -> list[str]:
+        """List object keys in a bucket optionally filtered by prefix."""
+
+        return [e.key for e in self.list_blob_entries(bucket_name, prefix)]
 
     def delete_blobs(self, bucket_name: str, keys: list[str]) -> int:
         """Delete multiple object keys and return deleted count."""
@@ -144,6 +173,11 @@ class S3Storage:
             )
             deleted_count += len(cast(list, response.get("Deleted", [])))
         return deleted_count
+
+    def list_bucket_names(self) -> list[str]:
+        resp = self.client.list_buckets()
+        buckets = cast(list, resp.get("Buckets") or [])
+        return sorted(cast(str, b["Name"]) for b in buckets if b.get("Name"))
 
 
 class _S3BlobStream:

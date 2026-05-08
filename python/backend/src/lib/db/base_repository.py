@@ -6,6 +6,7 @@ from advanced_alchemy.filters import LimitOffset
 from advanced_alchemy.repository import SQLAlchemyAsyncRepository
 from lib.db.error import DBNotFoundError
 from lib.pagination import ListOptions, Page
+from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 
@@ -127,11 +128,37 @@ class BaseRepository(Generic[T]):
             return None
         return LimitOffset(offset=options.offset, limit=options.limit + extra)
 
-    async def delete(self, id: str | UUID) -> None:
-        try:
-            return await self.advanced_alchemy_repository.delete(id)
-        except NotFoundError as e:
-            raise DBNotFoundError(f"Object with id {id} not found") from e
+    def expunge(self, instance: object) -> None:
+        """Detach ``instance`` from the session without changing the database.
+
+        Use before deleting the same row by id when this service already loaded a rich
+        ORM graph (e.g. ``selectinload``): a Core ``DELETE`` (see ``delete``) does not
+        remove in-memory instances, so expunging avoids a stale identity map until
+        ``commit``/``expire``.
+        """
+
+        self.db.expunge(instance)
+
+    async def delete(self, id: str | UUID) -> int:
+        """Delete one row by primary key using SQLAlchemy Core ``DELETE``.
+
+        We do **not** use Advanced Alchemy's ``repository.delete(id)``, which does
+        ``get`` + ``session.delete(instance)``. That ORM path often collides with an
+        already-loaded row (different loader options on the same identity) and surfaces
+        SQLAlchemy ``InvalidRequestError`` wrapped as **"An invalid request was made."**
+        It can also traverse relationships such as ``Experiment.parent`` where
+        ``lazy="raise"`` is configured.
+
+        A single ``DELETE FROM … WHERE id = :id`` lets the database apply foreign-key
+        ``ON DELETE`` rules (same as migrations) without walking the Python object graph.
+        Returns:
+            Number of deleted rows (``0`` when the row does not exist).
+        """
+        pk: UUID = UUID(str(id)) if not isinstance(id, UUID) else id
+        result = await self.db.execute(
+            delete(self.model_type).where(self.model_type.id == pk)
+        )
+        return int(result.rowcount or 0)
 
     async def get_single(self, id: str | UUID) -> T:
         return await self.get_by_id(id)

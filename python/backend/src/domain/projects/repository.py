@@ -24,8 +24,9 @@ class ProjectRepository(BaseRepository):
     async def get_project_by_id(
         self, project_id: UUID_TYPE, full_load: bool = True
     ) -> Project | None:
+        filters = [Project.id == project_id]
         return await self.advanced_alchemy_repository.get_one_or_none(
-            Project.id == project_id, load=self._load_options(full_load)
+            *filters, load=self._load_options(full_load)
         )
 
     async def get_projects_by_ids(
@@ -36,14 +37,20 @@ class ProjectRepository(BaseRepository):
     ) -> Page[Project]:
         if not project_ids:
             return Page(data=[], has_next=False, total=0)
+        filters = [Project.id.in_(project_ids)]
         return await self.list(
-            Project.id.in_(project_ids),
+            *filters,
             load=self._load_options(full_load),
             list_options=list_options,
         )
 
-    async def get_projects_by_team(self, team_id: UUID_TYPE) -> List[Project]:
-        return await self.advanced_alchemy_repository.list(Project.team_id == team_id)
+    async def get_projects_by_team(
+        self, team_id: UUID_TYPE
+    ) -> List[Project]:
+        filters = [Project.team_id == team_id]
+        return await self.advanced_alchemy_repository.list(
+            *filters, load=[selectinload(Project.experiments)]
+        )
 
     async def get_project_for_member_list(self, project_id: UUID_TYPE) -> Project | None:
         load = [

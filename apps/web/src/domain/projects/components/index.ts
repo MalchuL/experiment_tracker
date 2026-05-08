@@ -8,4 +8,5 @@ export * from "./settings/basic-info-form";
 export * from "./settings/display-metrics-form";
 export * from "./settings/metrics-management";
 export * from "./settings/project-members-panel";
+export * from "./settings/project-danger-zone";
 

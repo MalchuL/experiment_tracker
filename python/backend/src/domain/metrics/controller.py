@@ -1,3 +1,5 @@
+"""HTTP routes under ``/metrics``: upsert and fetch metric definitions for experiments."""
+
 from api.routes.service_dependencies import get_metric_service
 from uuid import UUID
 
@@ -19,6 +21,7 @@ router = APIRouter(prefix="/metrics", tags=["metrics"])
 
 
 def _raise_metric_http_error(error: Exception) -> None:
+    """Map metric access/not-found errors to HTTP responses."""
     if isinstance(error, MetricNotAccessibleError):
         raise HTTPException(status_code=403, detail=str(error))
     if isinstance(error, MetricNotFoundError):

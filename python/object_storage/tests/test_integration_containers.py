@@ -80,7 +80,8 @@ async def test_project_artifacts_workflow_with_isolated_containers(
         repository = ObjectStorageRepository(session)
         storage = get_s3_storage()
         buckets = BucketRegistryService(BucketsRepository(session), storage)
-        service = ObjectStorageService(repository, buckets)
+        exp_repo = ExperimentArtifactsRepository(session)
+        service = ObjectStorageService(repository, buckets, exp_repo)
 
         upload = UploadFile(filename="blob.bin", file=io.BytesIO(payload))
         upload_result = await service.upload_project_blob(project_id, blob_hash, upload)
@@ -131,7 +132,8 @@ async def test_check_blobs_returns_missing_hashes(pytestconfig: pytest.Config) -
         repository = ObjectStorageRepository(session)
         storage = get_s3_storage()
         buckets = BucketRegistryService(BucketsRepository(session), storage)
-        service = ObjectStorageService(repository, buckets)
+        exp_repo = ExperimentArtifactsRepository(session)
+        service = ObjectStorageService(repository, buckets, exp_repo)
 
         upload = UploadFile(filename="blob.bin", file=io.BytesIO(payload))
         await service.upload_project_blob(project_id, present_hash, upload)
@@ -163,7 +165,8 @@ async def test_download_blob_roundtrip(pytestconfig: pytest.Config) -> None:
         repository = ObjectStorageRepository(session)
         storage = get_s3_storage()
         buckets = BucketRegistryService(BucketsRepository(session), storage)
-        service = ObjectStorageService(repository, buckets)
+        exp_repo = ExperimentArtifactsRepository(session)
+        service = ObjectStorageService(repository, buckets, exp_repo)
 
         upload = UploadFile(filename="blob.bin", file=io.BytesIO(payload))
         await service.upload_project_blob(project_id, blob_hash, upload)
@@ -204,7 +207,8 @@ async def test_project_blob_hash_case_insensitive_check_and_download(
         repository = ObjectStorageRepository(session)
         storage = get_s3_storage()
         buckets = BucketRegistryService(BucketsRepository(session), storage)
-        service = ObjectStorageService(repository, buckets)
+        exp_repo = ExperimentArtifactsRepository(session)
+        service = ObjectStorageService(repository, buckets, exp_repo)
 
         upload = UploadFile(filename="blob.bin", file=io.BytesIO(payload))
         upload_result = await service.upload_project_blob(
@@ -246,7 +250,8 @@ async def test_snapshot_download_full_zip(pytestconfig: pytest.Config) -> None:
         repository = ObjectStorageRepository(session)
         storage = get_s3_storage()
         buckets = BucketRegistryService(BucketsRepository(session), storage)
-        service = ObjectStorageService(repository, buckets)
+        exp_repo = ExperimentArtifactsRepository(session)
+        service = ObjectStorageService(repository, buckets, exp_repo)
 
         for payload, h in [(content_a, hash_a), (content_b, hash_b)]:
             upload = UploadFile(filename="x.bin", file=io.BytesIO(payload))
@@ -295,7 +300,8 @@ async def test_snapshot_download_with_missing_blobs(pytestconfig: pytest.Config)
         repository = ObjectStorageRepository(session)
         storage = get_s3_storage()
         buckets = BucketRegistryService(BucketsRepository(session), storage)
-        service = ObjectStorageService(repository, buckets)
+        exp_repo = ExperimentArtifactsRepository(session)
+        service = ObjectStorageService(repository, buckets, exp_repo)
 
         upload = UploadFile(filename="blob.bin", file=io.BytesIO(present_payload))
         await service.upload_project_blob(project_id, present_hash, upload)

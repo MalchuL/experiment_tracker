@@ -188,6 +188,14 @@ class FakeRepository:
         self.commit_calls += 1
 
 
+class FakeExperimentArtifactsRepository:
+    def __init__(self) -> None:
+        self.delete_all_experiment_blobs_calls: list[tuple[object, object]] = []
+
+    async def delete_all_experiment_blobs(self, project_id, experiment_id) -> None:
+        self.delete_all_experiment_blobs_calls.append((project_id, experiment_id))
+
+
 @pytest.mark.asyncio
 async def test_check_blobs_returns_only_missing_normalized_hashes() -> None:
     project_id = uuid4()
@@ -197,7 +205,7 @@ async def test_check_blobs_returns_only_missing_normalized_hashes() -> None:
     repo.existing_hashes = {existing_hash.lower()}
     storage = FakeStorage()
     buckets = FakeBucketsService(storage)
-    service = ObjectStorageService(repo, buckets)
+    service = ObjectStorageService(repo, buckets, FakeExperimentArtifactsRepository())
 
     result = await service.check_project_blobs(project_id, [existing_hash, missing_hash])
 
@@ -212,7 +220,7 @@ async def test_upload_blob_rejects_hash_mismatch() -> None:
     repo = FakeRepository()
     storage = FakeStorage()
     buckets = FakeBucketsService(storage)
-    service = ObjectStorageService(repo, buckets)
+    service = ObjectStorageService(repo, buckets, FakeExperimentArtifactsRepository())
     upload = UploadFile(filename="artifact.bin", file=io.BytesIO(b"payload"))
 
     with pytest.raises(HTTPException, match="Hash mismatch") as exc_info:
@@ -235,7 +243,7 @@ async def test_create_snapshot_rejects_parent_traversal_paths() -> None:
     repo = FakeRepository()
     storage = FakeStorage()
     buckets = FakeBucketsService(storage)
-    service = ObjectStorageService(repo, buckets)
+    service = ObjectStorageService(repo, buckets, FakeExperimentArtifactsRepository())
 
     with pytest.raises(HTTPException, match="Invalid path") as exc_info:
         await service.create_project_snapshot(payload)
@@ -256,7 +264,7 @@ async def test_create_snapshot_rejects_special_symbol_paths(invalid_path: str) -
     repo = FakeRepository()
     storage = FakeStorage()
     buckets = FakeBucketsService(storage)
-    service = ObjectStorageService(repo, buckets)
+    service = ObjectStorageService(repo, buckets, FakeExperimentArtifactsRepository())
 
     with pytest.raises(HTTPException, match="Invalid path") as exc_info:
         await service.create_project_snapshot(payload)
@@ -273,7 +281,7 @@ async def test_delete_blob_rejects_referenced_blob() -> None:
     repo.blob_to_return = SimpleNamespace(ref_count=1)
     storage = FakeStorage()
     buckets = FakeBucketsService(storage)
-    service = ObjectStorageService(repo, buckets)
+    service = ObjectStorageService(repo, buckets, FakeExperimentArtifactsRepository())
 
     with pytest.raises(HTTPException, match="referenced by a snapshot") as exc_info:
         await service.delete_project_blob(project_id, blob_hash)
@@ -289,7 +297,7 @@ async def test_delete_project_removes_bucket_and_metadata_rows() -> None:
     repo = FakeRepository()
     storage = FakeStorage()
     buckets = FakeBucketsService(storage)
-    service = ObjectStorageService(repo, buckets)
+    service = ObjectStorageService(repo, buckets, FakeExperimentArtifactsRepository())
 
     result = await service.delete_project(project_id)
 
@@ -319,7 +327,7 @@ async def test_prepare_snapshot_download_includes_missing_manifest_file() -> Non
     storage.stat_blob_map[(bucket_name, missing_hash)] = False
     storage.object_payloads[(bucket_name, present_hash)] = b"existing-content"
     buckets = FakeBucketsService(storage)
-    service = ObjectStorageService(repo, buckets)
+    service = ObjectStorageService(repo, buckets, FakeExperimentArtifactsRepository())
 
     zip_path, _ = await service.prepare_project_snapshot_download(project_id, uuid4())
 
@@ -342,7 +350,7 @@ async def test_prepare_snapshot_download_rejects_invalid_manifest_paths() -> Non
     )
     storage = FakeStorage()
     buckets = FakeBucketsService(storage)
-    service = ObjectStorageService(repo, buckets)
+    service = ObjectStorageService(repo, buckets, FakeExperimentArtifactsRepository())
 
     with pytest.raises(HTTPException, match="Invalid path in snapshot") as exc_info:
         await service.prepare_project_snapshot_download(project_id, uuid4())

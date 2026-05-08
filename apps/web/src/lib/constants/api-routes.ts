@@ -23,6 +23,17 @@ export const API_ROUTES = {
       USERS: "api/admin/users",
       TEAMS: "api/admin/teams",
       RESET_PASSWORD: (userId: string) => `api/admin/users/${userId}/reset-password`,
+      DEACTIVATE_USER: (userId: string) => `api/admin/users/${userId}/deactivate`,
+      REACTIVATE_USER: (userId: string) => `api/admin/users/${userId}/reactivate`,
+      DELETE_USER: (userId: string) => `api/admin/users/${userId}`,
+      STORAGE_BUCKETS: "api/admin/storage/buckets",
+      STORAGE_BUCKET: (bucketId: string) => `api/admin/storage/buckets/${bucketId}`,
+      STORAGE_BUCKET_STORAGE_ONLY: "api/admin/storage/buckets/storage-only",
+      STORAGE_BUCKET_STORAGE_ONLY_CLEAR: "api/admin/storage/buckets/storage-only/clear",
+      STORAGE_BUCKET_CLEAR: (bucketId: string) => `api/admin/storage/buckets/${bucketId}/clear`,
+      STORAGE_BUCKET_RECONCILE: (bucketId: string) => `api/admin/storage/buckets/${bucketId}/reconcile`,
+      STORAGE_SCALARS: "api/admin/storage/scalars",
+      STORAGE_SCALAR_TABLE: (tableName: string) => `api/admin/storage/scalars/${encodeURIComponent(tableName)}`,
     },
   
     USERS: {
@@ -73,6 +84,9 @@ export const API_ROUTES = {
         GET: (projectId: string) => `/api/projects/${projectId}`,
         UPDATE: (projectId: string) => `/api/projects/${projectId}`,
         DELETE: (projectId: string) => `/api/projects/${projectId}`,
+        USAGE: (projectId: string) => `/api/projects/${projectId}/usage`,
+        CLEANUP: (projectId: string, category: string) =>
+          `/api/projects/${projectId}/cleanup/${encodeURIComponent(category)}`,
   
         EXPERIMENTS: (projectId: string) =>
           `/api/projects/${projectId}/experiments`,
@@ -122,6 +136,10 @@ export const API_ROUTES = {
           `/api/experiments/${experimentId}`,
         DELETE: (experimentId: string) =>
           `/api/experiments/${experimentId}`,
+        USAGE: (experimentId: string) =>
+          `/api/experiments/${experimentId}/usage`,
+        CLEANUP: (experimentId: string, category: string) =>
+          `/api/experiments/${experimentId}/cleanup/${encodeURIComponent(category)}`,
   
         METRICS: (experimentId: string) =>
           `/api/experiments/${experimentId}/metrics`,

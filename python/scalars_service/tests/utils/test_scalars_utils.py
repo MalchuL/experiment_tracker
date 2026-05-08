@@ -2,6 +2,7 @@ import pytest
 from uuid import UUID
 
 from app.domain.utils.scalars_db_utils import SCALARS_DB_UTILS
+from app.domain.utils.scalars_select_sql import SCALARS_SELECT_SQL
 from config import get_settings  # type: ignore
 
 
@@ -34,6 +35,43 @@ def test_build_create_table_statement_with_scalars():
 def test_remove_table():
     result = "DROP TABLE IF EXISTS scalars_123"
     assert SCALARS_DB_UTILS.build_drop_table_statement("scalars_123") == result
+
+
+def test_build_alter_delete_experiment_rows_statement():
+    exp = UUID("33333333-3333-3333-3333-333333333333")
+    sql = SCALARS_DB_UTILS.build_alter_delete_experiment_rows_statement(
+        "scalars_abcd",
+        exp,
+        "__experiment_id__",
+    )
+    assert sql == (
+        "ALTER TABLE scalars_abcd DELETE WHERE __experiment_id__ = "
+        f"'{exp}'"
+    )
+    sql_last = SCALARS_DB_UTILS.build_alter_delete_experiment_rows_statement(
+        "scalars_last_logged_abcd",
+        exp,
+        "experiment_id",
+    )
+    assert "DELETE WHERE experiment_id =" in sql_last
+
+
+def test_build_alter_delete_experiment_rows_rejects_unknown_column():
+    with pytest.raises(ValueError, match="experiment_id_column"):
+        SCALARS_DB_UTILS.build_alter_delete_experiment_rows_statement(
+            "scalars_x",
+            UUID("44444444-4444-4444-4444-444444444444"),
+            "malicious",
+        )
+
+
+def test_build_alter_table_drop_column_if_exists_statement():
+    assert (
+        SCALARS_DB_UTILS.build_alter_table_drop_column_if_exists_statement(
+            "scalars_abcd", "loss_metric"
+        )
+        == "ALTER TABLE scalars_abcd DROP COLUMN IF EXISTS loss_metric"
+    )
 
 
 def test_safe_scalars_table_name():
@@ -74,7 +112,10 @@ def test_select_uniform_sampled_column_non_null_and_windows():
     )
     assert "loss IS NOT NULL" in sql
     assert "SELECT * EXCEPT(_u_rn, _u_cnt) FROM (" in sql
-    assert "row_number() OVER (PARTITION BY __experiment_id__ ORDER BY __step__)" in sql
+    assert (
+        "row_number() OVER (PARTITION BY __experiment_id__ ORDER BY __step__, __timestamp__)"
+        in sql
+    )
     assert "count(*) OVER (PARTITION BY __experiment_id__)" in sql
     assert "arrayExists(" in sql
     assert "range(toUInt32(50))" in sql
@@ -140,3 +181,32 @@ def test_validate_scalar_column_name():
     )
     assert SCALARS_DB_UTILS.validate_scalar_column_name("loss/1") is None
     assert SCALARS_DB_UTILS.validate_scalar_column_name("   \n\t ") == "_empty_"
+
+
+def test_scalars_select_sql_usage_and_admin_queries():
+    assert SCALARS_SELECT_SQL.count_all_rows("scalars_abcd1234") == (
+        "SELECT count() FROM scalars_abcd1234"
+    )
+
+    exp = UUID("22222222-2222-2222-2222-222222222222")
+    assert SCALARS_SELECT_SQL.count_rows_for_experiment(
+        "scalars_abcd1234", "__experiment_id__", str(exp)
+    ) == (
+        "SELECT count() FROM scalars_abcd1234 "
+        f"WHERE __experiment_id__ = '{exp}'"
+    )
+
+    assert SCALARS_SELECT_SQL.managed_tables_predicate_sql() == (
+        "database = currentDatabase() "
+        "AND (name LIKE 'scalars_%' OR name LIKE 'artifacts_info_%')"
+    )
+
+    extra = " AND positionCaseInsensitive(name, 'x') > 0"
+    assert "system.tables" in SCALARS_SELECT_SQL.list_tables_count(extra)
+    assert extra in SCALARS_SELECT_SQL.list_tables_count(extra)
+
+    page_sql = SCALARS_SELECT_SQL.list_tables_page(
+        extra_predicate=extra, limit=10, offset=5
+    )
+    assert "LIMIT 10 OFFSET 5" in page_sql
+    assert "total_rows" in page_sql

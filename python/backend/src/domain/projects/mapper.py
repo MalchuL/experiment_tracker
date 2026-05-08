@@ -88,11 +88,13 @@ class ProjectMapper:
     ) -> ProjectDTO:
         """Convert Project model to ProjectDTO"""
 
-        owner = ProjectOwnerDTO(
-            id=project.owner.id,
-            email=project.owner.email,
-            display_name=project.owner.display_name,
-        )
+        owner = None
+        if project.owner is not None:
+            owner = ProjectOwnerDTO(
+                id=project.owner.id,
+                email=project.owner.email,
+                display_name=project.owner.display_name,
+            )
 
         if project.team_id:
             team = ProjectTeamDTO(

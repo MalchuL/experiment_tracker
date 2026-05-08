@@ -2,7 +2,9 @@ from enum import Enum
 from typing import Dict, List, Optional
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+
+from app.lib.dto_config import model_config
 
 
 class ScalarsSampling(str, Enum):
@@ -57,3 +59,9 @@ class LogScalarResponseDTO(BaseModel):
 class LogScalarsResponseDTO(BaseModel):
     status: str
     warnings: List[str] | None = None
+
+
+class CompactProjectColumnsResponseDTO(BaseModel):
+    model_config = model_config()
+
+    dropped_columns: List[str] = Field(default_factory=list)

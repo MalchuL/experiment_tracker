@@ -33,7 +33,7 @@ flowchart LR
 |------|------|
 | `apps/web/` | Next.js app (pnpm). UI, `src/app/api/*` BFF proxies to backend. |
 | `python/backend/src/` | FastAPI app: `api/` routes, `domain/*` bounded contexts, `clients/*` HTTP clients, `db/`, `lib/`. |
-| `python/scalars_service/src/` | FastAPI scalars/artifacts_info service. `GET /scalars/get/...` paginates **experiments** first, then loads each metric column with ClickHouse `IS NOT NULL` + per-(experiment, column) uniform `max_points` sampling (`columns_per_query` controls parallel column queries; default 1). |
+| `python/scalars_service/src/` | FastAPI scalars/artifacts_info service. `GET /scalars/get/...` paginates **experiments** first, then loads each metric column with ClickHouse `IS NOT NULL` + per-(experiment, column) uniform `max_points` sampling (`columns_per_query` controls parallel column queries; default 1). Cross-table ClickHouse work (delete experiment rows across scalars + artifacts_info + last_logged, usage, admin table listing) is under **`/projects`** (`projects` domain); compaction stays **`POST /scalars/projects/{id}/compact-columns`**. |
 | `python/object_storage/src/` | FastAPI storage service (buckets, experiment/project artifacts). |
 | `python/sdk/src/experiment_tracker_sdk/` | Public Python SDK for the tracker API. |
 | `python/shared/` | Shared package (`experiment-tracker-shared`). |
@@ -152,7 +152,7 @@ The HTTP API is mounted with a configurable prefix (see `config/settings.py` / `
 ### Admin panel and passwords (main API)
 
 - **`ADMIN_PANEL_KEY`**: Defaults to insecure `admin` for local dev. On startup the backend logs a **warning** when the key is still `admin`, and an **info** line (without revealing the value) when a custom key was loaded from `ADMIN_PANEL_KEY`.
-- **Admin HTTP API** (no JWT; header **`X-Admin-Key`** must match the configured key): `GET /admin/users?q=&limit=` (default **20**) **`&offset=`** (`q` filters email, display name, and user UUID substring), `GET /admin/teams?q=&limit=` (default **20**) **`&offset=`** (`q` filters team name and description), `POST /admin/users/{user_id}/reset-password` → JSON includes **`temporaryPassword`** once.
+- **Admin HTTP API** (no JWT; header **`X-Admin-Key`** must match the configured key): `GET /admin/users?q=&limit=` (default **20**) **`&offset=`** → JSON **`{ items, total, limit, offset }`** (`q` filters email, display name, and user UUID substring), `GET /admin/teams?q=&limit=` **`&offset=`** → same shape (`q` filters team name and description), `POST /admin/users/{user_id}/reset-password` → JSON includes **`temporaryPassword`** once. Storage admin: `GET /admin/storage/buckets` and `GET /admin/storage/scalars` accept **`limit`**, **`offset`**, and optional **`q`** (bucket name / scalar table name filter); responses include **`total`** alongside **`buckets`** or **`tables`**.
 - **User password change** (JWT or session cookie auth, not PAT): `POST /users/me/change-password` with JSON **`currentPassword`** and **`newPassword`** (min 8). Web UI: **`/profile`** (collapsible section); legacy **`/profile/password`** redirects there. Bootstrap admin UI: **`/admin`** (stores key in `sessionStorage`).
 
 ## Cross-service configuration

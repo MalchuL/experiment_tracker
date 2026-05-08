@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Iterable
 from uuid import UUID
 
-from sqlalchemy import delete, select, update
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from object_storage.db.models import ProjectBlob, Snapshot
@@ -144,3 +144,29 @@ class ObjectStorageRepository:
         await self._session.execute(
             delete(Snapshot).where(Snapshot.project_id == project_id)
         )
+
+    async def get_project_blob_usage(self, project_id: UUID) -> dict:
+        result = await self._session.execute(
+            select(func.count(), func.coalesce(func.sum(ProjectBlob.size), 0)).where(
+                ProjectBlob.project_id == project_id
+            )
+        )
+        count, size = result.one()
+        ref_result = await self._session.execute(
+            select(func.count(), func.coalesce(func.sum(ProjectBlob.size), 0)).where(
+                ProjectBlob.project_id == project_id,
+                ProjectBlob.ref_count > 0,
+            )
+        )
+        ref_count, ref_size = ref_result.one()
+        snapshots = await self._session.scalar(
+            select(func.count()).select_from(Snapshot).where(Snapshot.project_id == project_id)
+        )
+        return {
+            "projectArtifacts": {"count": int(count or 0), "bytes": int(size or 0)},
+            "snapshots": {
+                "count": int(snapshots or 0),
+                "referencedBlobCount": int(ref_count or 0),
+                "bytes": int(ref_size or 0),
+            },
+        }

@@ -1,3 +1,5 @@
+"""HTTP routes under ``/scalars``: log and query time-series via the scalars satellite service."""
+
 from uuid import UUID
 from datetime import datetime
 
@@ -26,6 +28,7 @@ router = APIRouter(prefix="/scalars", tags=["scalars"])
 
 
 def _raise_scalars_http_error(error: Exception) -> None:
+    """Map scalars access errors and HTTP client failures to API responses."""
     if isinstance(error, ScalarsNotAccessibleError):
         raise HTTPException(status_code=403, detail=str(error))
     if isinstance(error, httpx.HTTPStatusError):
@@ -46,10 +49,7 @@ async def log_scalar(
     scalars_service: ScalarsServiceProtocol = Depends(get_scalars_service),
 ):
     try:
-        result = await scalars_service.log_scalar(
-            user, experiment_id, data.model_dump()
-        )
-        return LogScalarResponseDTO.model_validate(result)
+        return await scalars_service.log_scalar(user, experiment_id, data)
     except Exception as exc:  # noqa: BLE001
         _raise_scalars_http_error(exc)
 
@@ -66,10 +66,7 @@ async def log_scalars_batch(
     scalars_service: ScalarsServiceProtocol = Depends(get_scalars_service),
 ):
     try:
-        result = await scalars_service.log_scalars_batch(
-            user, experiment_id, data.model_dump()
-        )
-        return LogScalarResponseDTO.model_validate(result)
+        return await scalars_service.log_scalars_batch(user, experiment_id, data)
     except Exception as exc:  # noqa: BLE001
         _raise_scalars_http_error(exc)
 
@@ -90,7 +87,7 @@ async def get_scalars(
     scalars_service: ScalarsServiceProtocol = Depends(get_scalars_service),
 ):
     try:
-        result = await scalars_service.get_scalars_for_experiment(
+        return await scalars_service.get_scalars_for_experiment(
             user,
             experiment_id,
             list_options=ListOptions(limit=limit, offset=offset),
@@ -101,7 +98,6 @@ async def get_scalars(
             start_time=start_time,
             end_time=end_time,
         )
-        return GetScalarsResponseDTO.model_validate(result)
     except Exception as exc:  # noqa: BLE001
         _raise_scalars_http_error(exc)
 
@@ -123,7 +119,7 @@ async def get_project_scalars(
     scalars_service: ScalarsServiceProtocol = Depends(get_scalars_service),
 ):
     try:
-        result = await scalars_service.get_scalars(
+        return await scalars_service.get_scalars(
             user=user,
             project_id=project_id,
             experiment_ids=experiment_id,
@@ -135,7 +131,6 @@ async def get_project_scalars(
             start_time=start_time,
             end_time=end_time,
         )
-        return GetScalarsResponseDTO.model_validate(result)
     except Exception as exc:  # noqa: BLE001
         _raise_scalars_http_error(exc)
 
@@ -154,12 +149,11 @@ async def get_last_logged_experiments(
     scalars_service: ScalarsServiceProtocol = Depends(get_scalars_service),
 ):
     try:
-        result = await scalars_service.get_last_logged_experiments(
+        return await scalars_service.get_last_logged_experiments(
             user=user,
             project_id=project_id,
             experiment_ids=payload.experiment_ids,
             list_options=ListOptions(limit=limit, offset=offset),
         )
-        return LastLoggedExperimentsResponseDTO.model_validate(result)
     except Exception as exc:  # noqa: BLE001
         _raise_scalars_http_error(exc)

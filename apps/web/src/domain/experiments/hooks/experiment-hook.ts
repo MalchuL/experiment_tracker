@@ -1,12 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { experimentsService } from "../services";
 import { QUERY_KEYS } from "@/lib/constants/query-keys";
-import { Experiment, UpdateExperiment } from "../types";
+import { Experiment, CategoryCleanupResponse, UpdateExperiment } from "../types";
 import { useCallback, useEffect } from "react";
 
 export interface UseExperimentOptions {
     onSuccess?: () => void;
     onError?: (error: Error) => void;
+    /** Passed to ``deleteExperiment`` — full API response (satellite steps, postgres flag). */
+    onDeleteSuccess?: (result: CategoryCleanupResponse) => void;
 }
 
 export interface UseExperimentQueryOptions {
@@ -53,8 +55,8 @@ export function useExperiment(
         // Only run when experiment.projectId changes
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [experiment]);
-    
-    const deleteExperiment = useMutation({
+
+    const deleteExperimentMutation = useMutation({
         mutationFn: () => experimentsService.delete(experimentId),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.EXPERIMENTS.BY_ID(experimentId)] });
@@ -63,13 +65,33 @@ export function useExperiment(
             }
         },
     });
-    const updateFn = useCallback((data: UpdateExperiment, options?: UseExperimentOptions) => updateExperiment.mutateAsync(data as Experiment, options), [updateExperiment]);
-    const deleteFn = useCallback((options?: UseExperimentOptions) => deleteExperiment.mutateAsync(undefined, options), [deleteExperiment]);
-    return { experiment,
+
+    const updateFn = useCallback(
+        (data: UpdateExperiment, options?: UseExperimentOptions) =>
+            updateExperiment.mutateAsync(data as Experiment, options),
+        [updateExperiment],
+    );
+
+    const deleteFn = useCallback(
+        (options?: UseExperimentOptions) =>
+            deleteExperimentMutation
+                .mutateAsync(undefined, {
+                    onSuccess: (result) => {
+                        options?.onDeleteSuccess?.(result);
+                        options?.onSuccess?.();
+                    },
+                    onError: options?.onError,
+                })
+                .then(() => undefined),
+        [deleteExperimentMutation],
+    );
+
+    return {
+        experiment,
         isLoading,
         isFetching,
         updateIsPending: updateExperiment.isPending,
-        deleteIsPending: deleteExperiment.isPending,
+        deleteIsPending: deleteExperimentMutation.isPending,
         refetch,
         updateExperiment: updateFn,
         deleteExperiment: deleteFn,

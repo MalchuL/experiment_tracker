@@ -10,6 +10,7 @@ import { CreateProjectModal } from "@/domain/projects/components/create-project-
 import { ProjectCard } from "@/domain/projects/components/project-card";
 import { ListSkeleton } from "@/components/shared/loading-skeleton";
 import { Button } from "@/components/ui/button";
+import { formatDeletionOutcomeDescription } from "@/lib/format-satellite-toast";
 import { useToast } from "@/lib/hooks/use-toast";
 import { Plus, FolderKanban, AlertCircle, Users } from "lucide-react";
 import type { InsertProject, Project } from "@/domain/projects/types";
@@ -79,7 +80,7 @@ export default function Projects() {
         const list = map.get(p.teamId) ?? [];
         list.push(p);
         map.set(p.teamId, list);
-      } else if (p.owner.id === uid) {
+      } else if (p.owner?.id === uid) {
         pers.push(p);
       } else {
         shr.push(p);
@@ -122,10 +123,11 @@ export default function Projects() {
   const deleteMutation = useCallback(
     (id: string) => {
       deleteProject(id, {
-        onSuccess: () => {
+        onDeleteSuccess: (result) => {
           toast({
-            title: "Project deleted",
-            description: "The project has been deleted successfully.",
+            title: result.success ? "Project deleted" : "Project deleted (warnings)",
+            description: result.success ? "No errors reported." : formatDeletionOutcomeDescription(result),
+            variant: result.success ? "default" : "destructive",
           });
         },
         onError: () => {

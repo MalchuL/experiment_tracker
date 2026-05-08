@@ -21,6 +21,8 @@ from .dto import (
     ArtifactStreamResponseDTO,
     DeleteArtifactResponseDTO,
     DeleteExperimentArtifactsResponseDTO,
+    ExperimentArtifactsUsageItemDTO,
+    ExperimentArtifactsUsageResponseDTO,
     TrackedArtifactsListResponseDTO,
     TrackedArtifactInfoResponseDTO,
     TrackedUploadArtifactResponseDTO,
@@ -41,6 +43,13 @@ class ArtifactsStorageService:
         buckets_service: BucketRegistryService,
         artifacts_repository: ExperimentArtifactsRepository,
     ) -> None:
+        """Initialize experiment artifacts service dependencies.
+
+        Args:
+            buckets_service: Bucket registry service used for object operations.
+            artifacts_repository: Repository for tracked experiment artifact metadata.
+        """
+
         self._buckets_service = buckets_service
         self._artifacts_repository = artifacts_repository
         self._mapper = ArtifactsStorageMapper()
@@ -59,7 +68,15 @@ class ArtifactsStorageService:
             )
 
     def check_hash(self, hash: str) -> None:
-        """Check if the hash is valid."""
+        """Validate artifact hash format.
+
+        Args:
+            hash: Candidate object key/hash string.
+
+        Raises:
+            HashNotValidError: If value is not 4-64 hex characters.
+        """
+
         if not re.fullmatch(r"^[0-9a-fA-F]{4,64}$", hash):
             raise HashNotValidError(
                 f"Hash {hash} is not valid, must be 4-64 hex characters"
@@ -107,6 +124,16 @@ class ArtifactsStorageService:
 
     @staticmethod
     def _mime_type_for_tracked(upload: UploadFile, content_type: str | None) -> str:
+        """Resolve MIME type for tracked artifact rows.
+
+        Args:
+            upload: Incoming upload object from FastAPI.
+            content_type: Optional explicit MIME type override from request query.
+
+        Returns:
+            Effective MIME type, defaulting to ``application/octet-stream``.
+        """
+
         if content_type is not None:
             stripped = content_type.strip()
             if stripped:
@@ -200,7 +227,18 @@ class ArtifactsStorageService:
         offset: int = 0,
         file_paths: list[str] | None = None,
     ) -> TrackedArtifactsListResponseDTO:
-        """List tracked artifacts for an experiment with pagination metadata."""
+        """List tracked artifacts for one experiment with pagination metadata.
+
+        Args:
+            project_id: Project UUID owning the experiment.
+            experiment_id: Experiment UUID to list artifacts for.
+            limit: Maximum number of rows to return.
+            offset: Pagination offset.
+            file_paths: Optional path filters; only matching tracked rows are returned.
+
+        Returns:
+            Paginated tracked artifacts response DTO.
+        """
 
         blobs, total = await self._artifacts_repository.list_experiment_blobs(
             project_id,
@@ -210,8 +248,7 @@ class ArtifactsStorageService:
             file_paths=file_paths,
         )
         data = [
-            self._mapper.experiment_model_to_tracked_response(blob)
-            for blob in blobs
+            self._mapper.experiment_model_to_tracked_response(blob) for blob in blobs
         ]
         return TrackedArtifactsListResponseDTO(
             data=data,
@@ -227,7 +264,20 @@ class ArtifactsStorageService:
         artifact_hash: str,
         tracked: bool = False,
     ) -> ArtifactStreamResponseDTO:
-        """Get a streaming handle for one artifact."""
+        """Get a streaming handle for one artifact.
+
+        Args:
+            project_id: Project UUID owning the artifact.
+            experiment_id: Experiment UUID owning the artifact.
+            artifact_hash: Object key/hash to stream.
+            tracked: When ``True``, resolve metadata row and include filename/MIME info.
+
+        Returns:
+            Stream DTO with byte stream plus optional tracked metadata.
+
+        Raises:
+            ValueError: If tracked metadata is requested and row is missing.
+        """
         if tracked:
             blob = await self._artifacts_repository.get_experiment_blob(
                 project_id, experiment_id, artifact_hash=artifact_hash
@@ -264,6 +314,22 @@ class ArtifactsStorageService:
         blob_id: UUID | None = None,
         artifact_hash: str | None = None,
     ) -> TrackedArtifactInfoResponseDTO:
+        """Get one tracked artifact metadata record.
+
+        Args:
+            project_id: Project UUID owning the artifact.
+            experiment_id: Experiment UUID owning the artifact.
+            file_path: Optional tracked file path filter.
+            blob_id: Optional tracked row UUID filter.
+            artifact_hash: Optional hash filter.
+
+        Returns:
+            Tracked artifact metadata DTO.
+
+        Raises:
+            ValueError: If no lookup identifier is provided, path is invalid, or no row exists.
+        """
+
         if file_path is None and blob_id is None and artifact_hash is None:
             raise ValueError("file_path, blob_id, or artifact_hash is required")
         normalized_path: str | None = None
@@ -285,7 +351,16 @@ class ArtifactsStorageService:
     async def delete_artifact(
         self, project_id: UUID, experiment_id: UUID, artifact_hash: str
     ) -> DeleteArtifactResponseDTO:
-        """Delete one artifact for an experiment for tracked and untracked artifacts."""
+        """Delete one artifact for an experiment (tracked metadata and stored object).
+
+        Args:
+            project_id: Project UUID owning the artifact.
+            experiment_id: Experiment UUID owning the artifact.
+            artifact_hash: Artifact hash/object key to remove.
+
+        Returns:
+            DTO indicating the delete operation completed.
+        """
         # Delete the artifact from the database (if not tracked just skipped)
         await self._artifacts_repository.delete_experiment_blob(
             project_id, experiment_id, artifact_hash
@@ -307,3 +382,45 @@ class ArtifactsStorageService:
         )
         await self._artifacts_repository.commit()
         return self._mapper.delete_experiment_to_response(deleted_count=-1)
+
+    async def get_experiment_usage(
+        self, project_id: UUID, experiment_id: UUID
+    ) -> ExperimentArtifactsUsageResponseDTO:
+        """Aggregate usage for one experiment across tracked and at-step artifacts.
+
+        Args:
+            project_id: Project UUID owning the experiment.
+            experiment_id: Experiment UUID to aggregate usage for.
+
+        Returns:
+            Typed usage payload with tracked totals, at-step estimates, and bucket bytes.
+        """
+
+        tracked = await self._artifacts_repository.get_experiment_blob_usage(
+            project_id, experiment_id
+        )
+        bucket_name = await self._buckets_service.get_bucket_name(
+            project_id, experiment_id
+        )
+        bucket_bytes = 0
+        object_count = 0
+        if bucket_name and self._buckets_service.storage.bucket_exists(bucket_name):
+            entries = self._buckets_service.storage.list_blob_entries(bucket_name)
+            object_count = len(entries)
+            bucket_bytes = sum(e.size for e in entries)
+        at_step_bytes = max(0, bucket_bytes - tracked["bytes"])
+        at_step_count = max(0, object_count - tracked["count"])
+        return ExperimentArtifactsUsageResponseDTO(
+            project_id=str(project_id),
+            experiment_id=str(experiment_id),
+            experiment_artifacts=ExperimentArtifactsUsageItemDTO(
+                count=int(tracked["count"]),
+                bytes=int(tracked["bytes"]),
+            ),
+            at_step_artifacts=ExperimentArtifactsUsageItemDTO(
+                count=at_step_count,
+                bytes=at_step_bytes,
+            ),
+            bucket_bytes=bucket_bytes,
+            total_bytes=bucket_bytes,
+        )

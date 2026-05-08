@@ -1,3 +1,9 @@
+"""FastAPI routes for scalar time series reads and writes (per-project ClickHouse wide table).
+
+Compaction drops empty mapped metric columns on the scalars table. Cross-table cleanup,
+usage, and admin storage routes live under ``/projects`` in ``projects.controller``.
+"""
+
 from datetime import datetime
 from uuid import UUID
 
@@ -9,6 +15,7 @@ from .dto import (
     LogScalarsRequestDTO,
     ScalarsPointsResultDTO,
     ScalarsSampling,
+    CompactProjectColumnsResponseDTO,
 )
 from .service import ScalarsService
 
@@ -22,6 +29,7 @@ async def log_scalar(
     payload: LogScalarRequestDTO,
     service: ScalarsService = Depends(get_scalars_service),
 ):
+    """Append one step row with one or more metric values for an experiment."""
     return await service.log_scalar(project_id, experiment_id, payload)
 
 
@@ -32,6 +40,7 @@ async def log_scalars_batch(
     payload: LogScalarsRequestDTO,
     service: ScalarsService = Depends(get_scalars_service),
 ):
+    """Append multiple step rows in a single request for an experiment."""
     return await service.log_scalars(project_id, experiment_id, payload)
 
 
@@ -49,6 +58,11 @@ async def get_scalars(
     end_time: datetime | None = Query(default=None),
     service: ScalarsService = Depends(get_scalars_service),
 ):
+    """Read scalar series for a project, optionally filtered to experiments and time range.
+
+    Paginates by experiment first, then loads each metric column with optional
+    ``max_points`` uniform sampling across non-null rows per experiment.
+    """
     return await service.get_scalars(
         project_id,
         experiment_id,
@@ -63,3 +77,16 @@ async def get_scalars(
     )
 
 
+@router.post(
+    "/projects/{project_id}/compact-columns",
+    response_model=CompactProjectColumnsResponseDTO,
+)
+async def compact_project_columns(
+    project_id: UUID,
+    service: ScalarsService = Depends(get_scalars_service),
+):
+    """Drop all-null metric columns from ClickHouse and remove them from the scalar mapping.
+
+    Base columns (timestamp, experiment id, step, tags) are not affected.
+    """
+    return await service.compact_project_columns(project_id)

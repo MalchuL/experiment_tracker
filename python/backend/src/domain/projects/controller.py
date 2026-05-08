@@ -1,3 +1,8 @@
+"""HTTP routes under ``/projects``: projects, nested experiments/metrics/hypotheses, settings, members.
+
+Errors are normalized with ``_raise_project_http_error`` / ``_raise_project_members_http_error``.
+"""
+
 from typing import Any, Dict, List
 from uuid import UUID
 
@@ -23,6 +28,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.routes.auth import get_current_user_dual, require_api_token_scopes
 from db.database import get_async_session
+from lib.category_cleanup_dto import CategoryCleanupResponseDTO
 from lib.pagination import MAX_LIST_PAGE_SIZE, ListOptions
 from models import User
 from domain.rbac.permissions import ProjectActions
@@ -31,15 +37,17 @@ from domain.rbac.permissions.team import TeamActions
 from .dto import (
     ProjectCreateDTO,
     ProjectDTO,
+    ProjectDeleteResponseDTO,
     ProjectListResponseDTO,
     ProjectSettingDTO,
+    ProjectUsageDTO,
     ProjectSettingValueUpdateDTO,
     ProjectUpdateDTO,
 )
 from domain.experiments.error import ExperimentNotAccessibleError
 
 from .errors import ProjectNotAccessibleError, ProjectPermissionError
-from .service import ProjectService
+from .service import ProjectCleanupCategory, ProjectService
 from api.routes.service_dependencies import (
     get_experiment_service,
     get_metric_service,
@@ -62,10 +70,14 @@ from domain.projects.members.errors import (
 )
 from domain.projects.members.service import ProjectMembersService
 
+from lib.logger import get_logger
+
+logger = get_logger(__name__)
 router = APIRouter(prefix="/projects", tags=["projects"])
 
 
 def _raise_project_http_error(error: Exception) -> None:
+    """Map project/metric/scalars-related exceptions to HTTP status codes."""
     if isinstance(error, ExperimentNotAccessibleError):
         raise HTTPException(status_code=404, detail=str(error))
     if isinstance(error, MetricNotAccessibleError):
@@ -86,6 +98,7 @@ def _raise_project_http_error(error: Exception) -> None:
 
 
 def _raise_project_members_http_error(error: Exception) -> None:
+    """Map project membership invite/update/remove errors to HTTP responses."""
     if isinstance(error, ProjectMemberAccessDenied):
         raise HTTPException(status_code=403, detail=str(error))
     if isinstance(error, (ProjectMemberNotFound, ProjectNotAccessibleError)):
@@ -112,6 +125,7 @@ async def get_all_projects(
         )
     except Exception as exc:  # noqa: BLE001
         _raise_project_http_error(exc)
+
 
 @router.get("/{project_id}/experiments", response_model=ExperimentListResponseDTO)
 async def get_project_experiments(
@@ -376,6 +390,44 @@ async def update_project(
         _raise_project_http_error(exc)
 
 
+@router.get("/{project_id}/usage", response_model=ProjectUsageDTO)
+async def get_project_usage(
+    project_id: UUID,
+    user: User = Depends(get_current_user_dual),
+    _: None = Depends(require_api_token_scopes(ProjectActions.VIEW_PROJECT)),
+    project_service: ProjectService = Depends(get_project_service),
+):
+    """Project-wide storage breakdown: CAS artifacts, snapshots, experiment buckets, scalars.
+
+    Used by the project settings danger zone; combines object-storage and ClickHouse usage.
+    """
+    try:
+        return await project_service.get_project_usage(user, project_id)
+    except Exception as exc:  # noqa: BLE001
+        _raise_project_http_error(exc)
+
+
+@router.post("/{project_id}/cleanup/{category}", response_model=CategoryCleanupResponseDTO)
+async def cleanup_project_category(
+    project_id: UUID,
+    category: ProjectCleanupCategory,
+    user: User = Depends(get_current_user_dual),
+    _: None = Depends(require_api_token_scopes(ProjectActions.DELETE_PROJECT)),
+    project_service: ProjectService = Depends(get_project_service),
+):
+    """Danger-zone partial wipe: one of project artifacts, snapshots, buckets, or full scalars tables.
+
+    Requires project delete permission; does **not** remove the Postgres project record.
+    """
+    try:
+        return await project_service.cleanup_project_category(
+            user, project_id, category
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.error("Error creating project: %s", exc, stack_info=True)
+        _raise_project_http_error(exc)
+
+
 @router.post("/{project_id}/settings", response_model=List[ProjectSettingDTO])
 async def add_project_settings(
     project_id: UUID,
@@ -486,13 +538,16 @@ async def delete_project_setting(
     try:
         success = await project_service.delete_project_setting(user, project_id, name)
     except Exception as exc:  # noqa: BLE001
+        logger.error("Error deleting project setting: %s", exc, stack_info=True)
         _raise_project_http_error(exc)
     if not success:
-        raise HTTPException(status_code=404, detail=f"Project setting '{name}' not found")
+        raise HTTPException(
+            status_code=404, detail=f"Project setting '{name}' not found"
+        )
     return {"success": True}
 
 
-@router.delete("/{project_id}")
+@router.delete("/{project_id}", response_model=ProjectDeleteResponseDTO)
 async def delete_project(
     project_id: UUID,
     user: User = Depends(get_current_user_dual),
@@ -500,9 +555,7 @@ async def delete_project(
     project_service: ProjectService = Depends(get_project_service),
 ):
     try:
-        success = await project_service.delete_project(user, project_id)
+        return await project_service.delete_project(user, project_id)
     except Exception as exc:  # noqa: BLE001
+        logger.error("Error deleting project: %s", exc, stack_info=True)
         _raise_project_http_error(exc)
-    if not success:
-        raise HTTPException(status_code=404, detail="Project not found")
-    return {"success": True}

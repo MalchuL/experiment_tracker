@@ -1,6 +1,5 @@
 from uuid import uuid4
 
-from lib.db.error import DBNotFoundError
 import pytest
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -393,15 +392,14 @@ class TestPermissionService:
             )
             is False
         )
-        with pytest.raises(DBNotFoundError):
-            assert (
-                await permission_service.has_permission(
-                    missing_user_id,
-                    ProjectActions.VIEW_PROJECT,
-                    project_id=missing_project_id,
-                )
-                is False
+        assert (
+            await permission_service.has_permission(
+                missing_user_id,
+                ProjectActions.VIEW_PROJECT,
+                project_id=missing_project_id,
             )
+            is False
+        )
 
         accessible_projects = await permission_service.get_user_accessible_project_ids(
             missing_user_id

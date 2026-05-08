@@ -50,6 +50,8 @@ def _as_uuid(value: UUID | str) -> UUID:
 
 
 class ExperimentArtifactsService:
+    """Experiment-scoped files: tracked/named blobs and step-logged artifacts (object storage + artifacts_info)."""
+
     def __init__(
         self,
         object_storage_client: ObjectStorageClientProtocol,
@@ -100,11 +102,14 @@ class ExperimentArtifactsService:
         return out
 
     def _normalize_filepath(self, filepath: str) -> str:
-        """
-        Normalize a filepath to a relative path.
-        Removes any .., :, characters, replaces \ with / and ensures the path is relative.
+        """Normalize a filepath to a relative path.
+
+        Removes any ``..``, ``:``, unsafe characters, replaces backslashes with ``/``,
+        and ensures the path is relative.
+
         Args:
             filepath: The filepath to normalize.
+
         Returns:
             The normalized filepath.
         """

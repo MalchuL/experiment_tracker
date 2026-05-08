@@ -8,14 +8,6 @@ import pytest
 from httpx import AsyncClient
 
 
-@pytest.fixture
-async def project_with_tables(clickhouse_url: str, http_client: AsyncClient) -> tuple:
-    project_id = uuid4()
-    experiment_id = uuid4()
-    await http_client.post("/api/projects", json={"project_id": str(project_id)})
-    return project_id, experiment_id
-
-
 @pytest.mark.asyncio
 async def test_log_scalar_creates_table_when_missing(clickhouse_url: str, http_client: AsyncClient) -> None:
     """Logging without pre-created project table creates tables on-the-fly and succeeds."""

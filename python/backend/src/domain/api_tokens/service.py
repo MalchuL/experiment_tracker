@@ -76,6 +76,8 @@ TOKEN_CACHE = TokenCache()
 
 
 class ApiTokenService:
+    """Issues and revokes hashed API tokens (scopes, expiry) for automation and SDK access."""
+
     def __init__(self, db: AsyncSession, api_token_repository: ApiTokenRepository):
         self.db = db
         self.api_token_repository = api_token_repository

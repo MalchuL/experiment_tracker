@@ -5,7 +5,7 @@ import type {
   ProjectSetting,
   UpdateProject,
 } from "../types";
-import type { Experiment } from "@/domain/experiments/types";
+import type { CategoryCleanupResponse, Experiment } from "@/domain/experiments/types";
 import type { Hypothesis } from "@/domain/hypothesis/types";
 import { serviceClients } from "@/lib/api/clients/axios-client";
 import { appendPaginationParams } from "@/lib/api/pagination";
@@ -49,7 +49,9 @@ export interface ProjectsService {
   ) => Promise<MetricsByLabelSnapshot>;
   create: (project: InsertProject) => Promise<Project>;
   update: (id: string, updates: UpdateProject) => Promise<Project>;
-  delete: (id: string) => Promise<void>;
+  delete: (id: string) => Promise<CategoryCleanupResponse>;
+  getUsage: (id: string) => Promise<Record<string, unknown>>;
+  cleanupCategory: (id: string, category: string) => Promise<CategoryCleanupResponse>;
   getDashboardStats: (id: string) => Promise<DashboardStats>;
   addSettings: (id: string, settings: ProjectSetting | ProjectSetting[]) => Promise<ProjectSetting[]>;
   getSettings: (id: string) => Promise<ProjectSetting[]>;
@@ -99,8 +101,23 @@ export const projectsService: ProjectsService = {
     return normalizeProject(response.data);
   },
 
-  delete: async (id: string): Promise<void> => {
-    await serviceClients.api.delete(API_ROUTES.PROJECTS.BY_ID.DELETE(id));
+  delete: async (id: string): Promise<CategoryCleanupResponse> => {
+    const response = await serviceClients.api.delete<CategoryCleanupResponse>(
+      API_ROUTES.PROJECTS.BY_ID.DELETE(id),
+    );
+    return response.data;
+  },
+
+  getUsage: async (id: string): Promise<Record<string, unknown>> => {
+    const response = await serviceClients.api.get<Record<string, unknown>>(API_ROUTES.PROJECTS.BY_ID.USAGE(id));
+    return response.data;
+  },
+
+  cleanupCategory: async (id: string, category: string): Promise<CategoryCleanupResponse> => {
+    const response = await serviceClients.api.post<CategoryCleanupResponse>(
+      API_ROUTES.PROJECTS.BY_ID.CLEANUP(id, category),
+    );
+    return response.data;
   },
 
   reorderExperiments: async (id: string, experimentIds: string[]): Promise<Experiment[]> => {

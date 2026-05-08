@@ -23,6 +23,8 @@ from .repository import HypothesisRepository
 
 
 class HypothesisService:
+    """Hypotheses linked to projects: create, update, list with RBAC checks."""
+
     def __init__(
         self,
         db: AsyncSession,

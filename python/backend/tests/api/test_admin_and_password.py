@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from api.main import create_app
 from api.routes.auth import get_current_user_dual
 from db.database import get_async_session
-from models import User
+from models import Experiment, ExperimentStatus, Project, Team, User
 
 
 @pytest.fixture
@@ -53,7 +53,7 @@ class TestAdminRoutes:
             headers={"X-Admin-Key": "admin"},
         )
         assert r.status_code == 200
-        ids = {row["id"] for row in r.json()}
+        ids = {row["id"] for row in r.json()["items"]}
         assert str(test_user.id) in ids
 
     def test_admin_reset_password(self, client: TestClient, test_user_2: User):
@@ -70,7 +70,67 @@ class TestAdminRoutes:
     def test_admin_teams(self, client: TestClient):
         r = client.get("/api/admin/teams", headers={"X-Admin-Key": "admin"})
         assert r.status_code == 200
-        assert isinstance(r.json(), list)
+        body = r.json()
+        assert isinstance(body.get("items"), list)
+
+    @pytest.mark.asyncio
+    async def test_admin_delete_user_removes_personal_projects_keeps_team_owned(
+        self, client: TestClient, db_session: AsyncSession, test_user_2: User
+    ) -> None:
+        """Personal (non-team) projects are deleted with the user; team projects stay with null owner."""
+        personal = Project(
+            name="Personal",
+            description="",
+            owner_id=test_user_2.id,
+            team_id=None,
+        )
+        db_session.add(personal)
+        await db_session.flush()
+        await db_session.refresh(personal)
+
+        db_session.add(
+            Experiment(
+                project_id=personal.id,
+                name="Child experiment",
+                description="",
+                status=ExperimentStatus.PLANNED,
+            )
+        )
+
+        team = Team(name="Owned team", description="t", owner_id=test_user_2.id)
+        db_session.add(team)
+        await db_session.flush()
+        await db_session.refresh(team)
+
+        team_project = Project(
+            name="Team shared",
+            description="",
+            owner_id=test_user_2.id,
+            team_id=team.id,
+        )
+        db_session.add(team_project)
+        await db_session.flush()
+        await db_session.refresh(team_project)
+
+        personal_id = personal.id
+        team_project_id = team_project.id
+
+        headers = {"X-Admin-Key": "admin"}
+        deactivate = client.post(f"/api/admin/users/{test_user_2.id}/deactivate", headers=headers)
+        assert deactivate.status_code == 200, deactivate.text
+        delete = client.delete(f"/api/admin/users/{test_user_2.id}", headers=headers)
+        assert delete.status_code == 200, delete.text
+
+        assert await db_session.get(User, test_user_2.id) is None
+        assert await db_session.get(Project, personal_id) is None
+
+        team_project_row = await db_session.get(Project, team_project_id)
+        assert team_project_row is not None
+        assert team_project_row.team_id == team.id
+        # Postgres nulls ``owner_id`` on user delete (FK ON DELETE SET NULL). SQLite test DBs
+        # often omit ``PRAGMA foreign_keys=ON``, so the column may still hold the old UUID.
+        if team_project_row.owner_id is not None:
+            assert str(team_project_row.owner_id) == str(test_user_2.id)
 
 
 class TestChangePassword:

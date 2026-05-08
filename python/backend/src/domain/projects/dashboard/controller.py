@@ -1,3 +1,5 @@
+"""HTTP routes for project dashboard aggregates (experiment/hypothesis counts by status)."""
+
 from .dto import DashboardStatsDTO
 from fastapi import APIRouter
 from fastapi import Depends

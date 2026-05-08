@@ -109,17 +109,17 @@ class PermissionRepository(BaseRepository[Permission]):
     ) -> None:
         """Delete permission records by id or model instances."""
         if isinstance(id, (UUID, str)):
-            await self.advanced_alchemy_repository.delete(id)
+            await self.delete(id)
         elif isinstance(id, list):
             for item in id:
                 if isinstance(item, (UUID, str)):
-                    await self.advanced_alchemy_repository.delete(item)
+                    await self.delete(item)
                 elif isinstance(item, Permission):
-                    await self.advanced_alchemy_repository.delete(item.id)
+                    await self.delete(item.id)
                 else:
                     raise InvalidIdError("Invalid id type")
         elif isinstance(id, Permission):
-            await self.advanced_alchemy_repository.delete(id.id)
+            await self.delete(id.id)
         else:
             raise InvalidIdError("Invalid id type")
 

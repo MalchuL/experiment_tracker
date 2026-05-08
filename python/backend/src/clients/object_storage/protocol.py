@@ -7,16 +7,22 @@ import httpx
 from fastapi import UploadFile
 
 from .dto import (
+    StorageBucketListResponseDTO,
+    StorageBucketClearResponseDTO,
+    StorageBucketDeleteResponseDTO,
+    StorageBucketReconcileResponseDTO,
     CheckProjectArtifactsResponseDTO,
     DeleteExperimentArtifactResponseDTO,
     DeleteExperimentArtifactsResponseDTO,
     DeleteProjectArtifactResponseDTO,
+    DeleteProjectSnapshotResponseDTO,
     DeleteProjectResponseDTO,
+    ExperimentArtifactsUsageResponseDTO,
     ExperimentTrackedArtifactListDTO,
-    ExperimentTrackedArtifactItemDTO,
     ExperimentTrackedArtifactInfoDTO,
     ExperimentTrackedUploadResponseDTO,
     ExperimentUntrackedUploadResponseDTO,
+    ProjectUsageResponseDTO,
     SnapshotCreateRequestDTO,
     SnapshotCreateResponseDTO,
     UploadProjectArtifactResponseDTO,
@@ -86,6 +92,13 @@ class ObjectStorageClientProtocol(Protocol):
         Returns:
             The response from the object storage.
         """
+
+    async def delete_project_snapshot(
+        self, project_id: UUID, snapshot_id: UUID
+    ) -> DeleteProjectSnapshotResponseDTO: ...
+
+    async def get_project_usage(self, project_id: UUID) -> ProjectUsageResponseDTO:
+        """GET aggregated byte/count stats for project-scoped buckets and CAS artifacts."""
 
     async def delete_project_artifact(
         self, project_id: UUID, artifact_hash: str
@@ -168,3 +181,35 @@ class ObjectStorageClientProtocol(Protocol):
     async def delete_all_experiment_artifacts(
         self, project_id: UUID, experiment_id: UUID
     ) -> DeleteExperimentArtifactsResponseDTO: ...
+
+    async def get_experiment_usage(
+        self, project_id: UUID, experiment_id: UUID
+    ) -> ExperimentArtifactsUsageResponseDTO:
+        """GET counts/bytes for experiment artifacts (named + at-step) in object storage."""
+
+    async def list_buckets(
+        self,
+        project_id: UUID | None = None,
+        experiment_id: UUID | None = None,
+        reconcile: bool = False,
+        *,
+        q: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> StorageBucketListResponseDTO: ...
+
+    async def delete_bucket(self, bucket_id: UUID) -> StorageBucketDeleteResponseDTO: ...
+
+    async def delete_storage_only_bucket(
+        self, name: str
+    ) -> StorageBucketDeleteResponseDTO: ...
+
+    async def clear_storage_only_bucket(
+        self, name: str
+    ) -> StorageBucketClearResponseDTO: ...
+
+    async def clear_bucket(self, bucket_id: UUID) -> StorageBucketClearResponseDTO: ...
+
+    async def reconcile_bucket(
+        self, bucket_id: UUID
+    ) -> StorageBucketReconcileResponseDTO: ...

@@ -69,8 +69,8 @@ import { useToast } from "@/lib/hooks/use-toast";
 import { GitBranch, ChevronDown, X } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { experimentsService } from "@/domain/experiments/services";
+import { ExperimentDangerZoneCard } from "@/domain/experiments/components/experiment-danger-zone-card";
 import type { InsertExperiment } from "@/shared/schema";
-
 function formatExperimentParentOption(exp: Pick<Experiment, "name" | "id">): string {
   return `${exp.name} (${exp.id.slice(0, 7)})`;
 }
@@ -401,6 +401,13 @@ export function ExperimentDetailsView({ projectId }: { projectId: string }) {
           ) : null}
         </CardContent>
       </Card>
+
+      {primaryExperimentId ? (
+        <ExperimentDangerZoneCard
+          experimentId={primaryExperimentId}
+          projectId={projectId}
+        />
+      ) : null}
     </div>
   );
 }

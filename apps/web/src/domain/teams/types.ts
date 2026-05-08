@@ -2,7 +2,7 @@ export interface Team {
   id: string;
   name: string;
   description: string | null;
-  ownerId: string;
+  ownerId: string | null;
   createdAt: string;
 }
 
