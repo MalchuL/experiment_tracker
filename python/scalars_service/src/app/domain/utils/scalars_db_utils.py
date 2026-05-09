@@ -301,7 +301,7 @@ class ClickHouseScalarsDBUtils:
         experiment_uuid = self._format_uuid_literal(experiment_id)
         return (
             f"INSERT INTO {table_name} (experiment_id, last_modified) VALUES "
-            f"('{experiment_uuid}', toDateTime64('{last_modified_value}', 3))"
+            f"('{experiment_uuid}', toDateTime64('{last_modified_value}', 3, 'UTC'))"
         )
 
     def build_select_last_logged_statement(
@@ -439,12 +439,12 @@ class ClickHouseScalarsDBUtils:
         if start_time is not None:
             where_clauses.append(
                 f"{ProjectTableColumns.TIMESTAMP.value} >= "
-                f"toDateTime64('{self._format_datetime_literal(start_time)}', 3)"
+                f"toDateTime64('{self._format_datetime_literal(start_time)}', 3, 'UTC')"
             )
         if end_time is not None:
             where_clauses.append(
                 f"{ProjectTableColumns.TIMESTAMP.value} <= "
-                f"toDateTime64('{self._format_datetime_literal(end_time)}', 3)"
+                f"toDateTime64('{self._format_datetime_literal(end_time)}', 3, 'UTC')"
             )
         if extra:
             where_clauses.extend(extra)
@@ -631,12 +631,12 @@ class ClickHouseScalarsDBUtils:
         if start_time is not None:
             where_clauses.append(
                 f"{ArtifactsInfoTableColumns.TIMESTAMP.value} >= "
-                f"toDateTime64('{self._format_datetime_literal(start_time)}', 3)"
+                f"toDateTime64('{self._format_datetime_literal(start_time)}', 3, 'UTC')"
             )
         if end_time is not None:
             where_clauses.append(
                 f"{ArtifactsInfoTableColumns.TIMESTAMP.value} <= "
-                f"toDateTime64('{self._format_datetime_literal(end_time)}', 3)"
+                f"toDateTime64('{self._format_datetime_literal(end_time)}', 3, 'UTC')"
             )
         if where_clauses:
             select += f" WHERE {' AND '.join(where_clauses)}"

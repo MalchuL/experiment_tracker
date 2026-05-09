@@ -1,3 +1,5 @@
+from datetime import datetime
+
 import pytest
 from uuid import UUID
 
@@ -210,3 +212,30 @@ def test_scalars_select_sql_usage_and_admin_queries():
     )
     assert "LIMIT 10 OFFSET 5" in page_sql
     assert "total_rows" in page_sql
+
+
+def test_datetime_sql_literals_use_utc_timezone():
+    """toDateTime64 from formatted strings must parse as UTC (matches naive UTC writes)."""
+    ts = datetime(2024, 6, 15, 10, 20, 30, 456000)
+    exp = UUID("33333333-3333-3333-3333-333333333333")
+    upsert = SCALARS_DB_UTILS.build_upsert_last_logged_statement(
+        "last_logged_x", exp, ts
+    )
+    assert "toDateTime64('2024-06-15 10:20:30.456', 3, 'UTC')" in upsert
+
+    wide = SCALARS_DB_UTILS.build_select_statement(
+        "scalars_t",
+        scalar_columns=["loss"],
+        experiment_ids=[exp],
+        start_time=ts,
+        end_time=ts,
+    )
+    assert "toDateTime64('2024-06-15 10:20:30.456', 3, 'UTC')" in wide
+
+    artifacts = SCALARS_DB_UTILS.build_select_artifacts_info_statement(
+        "artifacts_info_t",
+        experiment_ids=[exp],
+        start_time=ts,
+        end_time=ts,
+    )
+    assert "toDateTime64('2024-06-15 10:20:30.456', 3, 'UTC')" in artifacts

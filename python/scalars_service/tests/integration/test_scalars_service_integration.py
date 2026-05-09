@@ -5,9 +5,15 @@ from __future__ import annotations
 from uuid import uuid4
 
 import pytest
+from experiment_tracker_shared import utc_now_naive
+from experiment_tracker_shared.datetime_utc import to_json_utc_z
 
+from app.domain.artifacts_info.dto import LogArtifactInfoRequestDTO
 from app.domain.scalars.dto import LogScalarRequestDTO
-from app.domain.utils.scalars_db_utils import SCALARS_DB_UTILS  # type: ignore
+from app.domain.utils.scalars_db_utils import (  # type: ignore
+    ArtifactsInfoTableColumns,
+    SCALARS_DB_UTILS,
+)
 
 from .helpers import domain_services, wait_for_clickhouse
 
@@ -154,3 +160,90 @@ class TestScalarsServiceIntegration:
         await d.scalars.delete_experiment_rows_if_table_exists(project_id, e2)
         await d.scalars.drop_clickhouse_table(project_id)
         await d.scalars.delete_scalar_mapping_for_project(project_id)
+
+    async def test_scalar_artifact_and_last_logged_timestamps_align(
+        self, integration_clickhouse_client
+    ) -> None:
+        """Binary inserts and SQL upserts store the same UTC instants for scalars, artifacts, last_logged."""
+
+        d = domain_services(integration_clickhouse_client)
+        project_id = uuid4()
+        experiment_id = uuid4()
+
+        t_before = utc_now_naive()
+
+        await d.scalars.create_clickhouse_table(project_id)
+        try:
+            await d.artifacts.create_clickhouse_table(project_id)
+            await d.scalars.log_scalar(
+                project_id,
+                experiment_id,
+                LogScalarRequestDTO(scalars={"loss": 1.0}, step=1, tags=None),
+            )
+            await d.artifacts.log_artifact_info(
+                project_id,
+                experiment_id,
+                LogArtifactInfoRequestDTO(
+                    name="probe",
+                    artifact_type="text",
+                    path="h/abc",
+                    step=0,
+                    metadata=None,
+                    tags=None,
+                ),
+            )
+            t_after = utc_now_naive()
+
+            scalars_table = SCALARS_DB_UTILS.safe_scalars_table_name(project_id)
+            s_q = await integration_clickhouse_client.query(
+                f"SELECT __timestamp__ FROM {scalars_table} "
+                f"WHERE __experiment_id__ = '{experiment_id}' LIMIT 1"
+            )
+            scalar_ts = s_q.result_rows[0][0]
+
+            art_table = SCALARS_DB_UTILS.safe_artifacts_info_table_name(project_id)
+            a_q = await integration_clickhouse_client.query(
+                f"SELECT __timestamp__ FROM {art_table} "
+                f"WHERE {ArtifactsInfoTableColumns.EXPERIMENT_ID.value} = '{experiment_id}' "
+                f"ORDER BY {ArtifactsInfoTableColumns.TIMESTAMP.value} DESC LIMIT 1"
+            )
+            art_ts = a_q.result_rows[0][0]
+
+            ll_table = SCALARS_DB_UTILS.safe_last_logged_table_name(project_id)
+            ll_q = await integration_clickhouse_client.query(
+                f"SELECT last_modified FROM {ll_table} "
+                f"WHERE experiment_id = '{experiment_id}' "
+                "ORDER BY last_modified DESC LIMIT 1"
+            )
+            ll_ts = ll_q.result_rows[0][0]
+
+            ll_api = await d.last_logged.get_last_logged_experiments(
+                project_id, experiment_ids=[experiment_id]
+            )
+
+            assert getattr(scalar_ts, "tzinfo", None) is None
+            assert getattr(art_ts, "tzinfo", None) is None
+            assert getattr(ll_ts, "tzinfo", None) is None
+
+            assert t_before <= scalar_ts <= t_after
+            assert t_before <= art_ts <= t_after
+            assert scalar_ts <= art_ts
+            assert art_ts == ll_ts
+
+            assert len(ll_api.data) == 1
+            assert ll_api.data[0].experiment_id == experiment_id
+            assert ll_api.data[0].last_modified == to_json_utc_z(ll_ts)
+        finally:
+            await d.scalars.delete_experiment_rows_if_table_exists(
+                project_id, experiment_id
+            )
+            await d.artifacts.delete_experiment_rows_if_table_exists(
+                project_id, experiment_id
+            )
+            await d.last_logged.delete_experiment_rows_if_table_exists(
+                project_id, experiment_id
+            )
+            await d.scalars.drop_clickhouse_table(project_id)
+            await d.artifacts.drop_clickhouse_table(project_id)
+            await d.last_logged.drop_clickhouse_table(project_id)
+            await d.scalars.delete_scalar_mapping_for_project(project_id)

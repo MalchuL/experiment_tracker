@@ -3,7 +3,7 @@ from datetime import datetime
 from typing import Sequence, cast
 from uuid import UUID
 
-from experiment_tracker_shared import utc_now_naive
+from experiment_tracker_shared import utc_naive_for_clickhouse_insert, utc_now_naive
 
 from .dto import (
     ExperimentArtifactsInfoResultDTO,
@@ -39,7 +39,7 @@ class ArtifactsInfoService:
             return LogArtifactInfoResponseDTO(status="logged", warnings=warnings)
         logged_at = utc_now_naive()
         row = [
-            logged_at,
+            utc_naive_for_clickhouse_insert(logged_at),
             experiment_id,
             request.step,
             request.name,
@@ -76,6 +76,7 @@ class ArtifactsInfoService:
         rows = []
         warnings: list[str] = []
         last_modified = utc_now_naive()
+        wire_ts = utc_naive_for_clickhouse_insert(last_modified)
         for item in request.artifacts:
             # Keep batch writes robust: invalid rows are skipped with warnings, not hard-failed.
             item_warnings = self._validate_artifact_info_request(item)
@@ -84,7 +85,7 @@ class ArtifactsInfoService:
                 continue
             rows.append(
                 [
-                    last_modified,
+                    wire_ts,
                     experiment_id,
                     item.step,
                     item.name,
@@ -95,7 +96,6 @@ class ArtifactsInfoService:
                 ]
             )
         if rows:
-            last_modified = utc_now_naive()
             await self.client.insert(
                 table_name,
                 rows,

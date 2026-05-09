@@ -3,6 +3,7 @@
 from experiment_tracker_shared.datetime_utc import (
     normalize_for_db,
     to_json_utc_z,
+    utc_naive_for_clickhouse_insert,
     utc_now_naive,
 )
 from experiment_tracker_shared.hash_utils import (
@@ -16,6 +17,7 @@ __all__ = [
     "create_sha256_hasher",
     "normalize_for_db",
     "to_json_utc_z",
+    "utc_naive_for_clickhouse_insert",
     "utc_now_naive",
     "UtcNaiveDateTime",
 ]

@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+from datetime import timedelta
 from uuid import uuid4
 
 import pytest
+from experiment_tracker_shared import utc_now_naive
+from experiment_tracker_shared.datetime_utc import to_json_utc_z
 from httpx import AsyncClient
 
 
@@ -120,6 +123,30 @@ async def test_get_scalars_returns_logged_data(
     assert "loss" in data[0]["scalars"]
     assert data[0]["scalars"]["loss"]["x"] == [1]
     assert data[0]["scalars"]["loss"]["y"] == [0.5]
+
+
+@pytest.mark.asyncio
+async def test_get_scalars_start_time_after_log(
+    clickhouse_url: str,
+    http_client: AsyncClient,
+    project_with_tables: tuple,
+) -> None:
+    """Log, then GET with ``start_time`` from before the log (current clock)."""
+    project_id, experiment_id = project_with_tables
+    start_after = utc_now_naive() - timedelta(seconds=30)
+    await http_client.post(
+        f"/api/scalars/log/{project_id}/{experiment_id}",
+        json={"scalars": {"loss": 1.0}, "step": 1, "tags": None},
+    )
+    resp = await http_client.get(
+        f"/api/scalars/get/{project_id}",
+        params={
+            "experiment_id": str(experiment_id),
+            "start_time": to_json_utc_z(start_after),
+        },
+    )
+    assert resp.status_code == 200
+    assert resp.json()["data"][0]["scalars"]["loss"]["y"] == [1.0]
 
 
 @pytest.mark.asyncio
