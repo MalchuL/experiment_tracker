@@ -47,8 +47,7 @@ def test_build_alter_delete_experiment_rows_statement():
         "__experiment_id__",
     )
     assert sql == (
-        "ALTER TABLE scalars_abcd DELETE WHERE __experiment_id__ = "
-        f"'{exp}'"
+        "ALTER TABLE scalars_abcd DELETE WHERE __experiment_id__ = " f"'{exp}'"
     )
     sql_last = SCALARS_DB_UTILS.build_alter_delete_experiment_rows_statement(
         "scalars_last_logged_abcd",
@@ -171,7 +170,9 @@ def test_delete_mapping_statement(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv("SCALARS_MAPPING_TABLE", "scalars_mapping_test")
     get_settings.cache_clear()
     project_id = UUID("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
-    result = f"ALTER TABLE scalars_mapping_test DELETE WHERE project_id = '{project_id}'"
+    result = (
+        f"ALTER TABLE scalars_mapping_test DELETE WHERE project_id = '{project_id}'"
+    )
     assert SCALARS_DB_UTILS.build_delete_mapping_statement(project_id) == result
 
 
@@ -193,10 +194,7 @@ def test_scalars_select_sql_usage_and_admin_queries():
     exp = UUID("22222222-2222-2222-2222-222222222222")
     assert SCALARS_SELECT_SQL.count_rows_for_experiment(
         "scalars_abcd1234", "__experiment_id__", str(exp)
-    ) == (
-        "SELECT count() FROM scalars_abcd1234 "
-        f"WHERE __experiment_id__ = '{exp}'"
-    )
+    ) == ("SELECT count() FROM scalars_abcd1234 " f"WHERE __experiment_id__ = '{exp}'")
 
     assert SCALARS_SELECT_SQL.managed_tables_predicate_sql() == (
         "database = currentDatabase() "
