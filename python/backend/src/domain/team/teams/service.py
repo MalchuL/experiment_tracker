@@ -140,7 +140,9 @@ class TeamService:
         await self.db.commit()
         return self.team_mapper.team_schema_to_dto(team)
 
-    async def delete_team(self, user_id: UUID, team_id: UUID) -> TeamDeleteResponseDTO:
+    async def delete_team(
+        self, user_id: UUID, team_id: UUID, *, detailed: bool = False
+    ) -> TeamDeleteResponseDTO:
         """Delete the team after removing every team-owned project and satellite data.
 
         For each project: same sequence as ``ProjectService.delete_project`` — per
@@ -179,7 +181,7 @@ class TeamService:
         await self.team_repository.delete(team_id)
         await self.db.commit()
         append_postgres_deleted(results, category="postgres:team", entity_id=team_id)
-        finalized = finalize_deletion_outcome(results, errors)
+        finalized = finalize_deletion_outcome(results, errors, detailed=detailed)
         return TeamDeleteResponseDTO.model_validate(finalized.model_dump())
 
     async def list_teams(

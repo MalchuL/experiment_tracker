@@ -33,6 +33,7 @@ const MAX_DELETION_RESULT_LINES = 40;
 /** Human-readable summary for cleanup-shaped delete responses (experiment / project / team / user). */
 export function formatDeletionOutcomeDescription(out: CategoryCleanupResponse): string {
   const lines: string[] = [];
+  const impliedSuccessCount = out.resultCount ?? out.results.length;
   if (out.results.length > 0) {
     lines.push("Steps:");
     const slice = out.results.slice(0, MAX_DELETION_RESULT_LINES);
@@ -41,6 +42,8 @@ export function formatDeletionOutcomeDescription(out: CategoryCleanupResponse): 
     }
     const rest = out.results.length - slice.length;
     if (rest > 0) lines.push(`  …and ${rest} more`);
+  } else if (impliedSuccessCount > 0) {
+    lines.push(`${impliedSuccessCount} step(s) completed`);
   }
   if (out.errors.length > 0) {
     lines.push("Failures:");

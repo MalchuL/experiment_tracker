@@ -657,7 +657,9 @@ class ScalarsService:
         )
         return response
 
-    async def compact_project_columns(self, project_id: UUID) -> CompactProjectColumnsResponseDTO:
+    async def compact_project_columns(
+        self, project_id: UUID
+    ) -> CompactProjectColumnsResponseDTO:
         """Drop empty metric columns from the project scalars table and trim the mapping.
 
         For each mapped scalar column, if no row has a non-null value, runs
@@ -701,7 +703,9 @@ class ScalarsService:
     async def create_clickhouse_table(self, project_id: UUID) -> str:
         """Run DDL for this project's scalars table (base columns only)."""
         table_name = SCALARS_DB_UTILS.safe_scalars_table_name(project_id=project_id)
-        ddl = SCALARS_DB_UTILS.build_create_scalars_table_statement(table_name=table_name)
+        ddl = SCALARS_DB_UTILS.build_create_scalars_table_statement(
+            table_name=table_name
+        )
         await self.client.command(ddl)
         return table_name
 
@@ -723,7 +727,9 @@ class ScalarsService:
 
     async def drop_clickhouse_table(self, project_id: UUID) -> str:
         table_name = SCALARS_DB_UTILS.safe_scalars_table_name(project_id=project_id)
-        await self.client.command(SCALARS_DB_UTILS.build_drop_table_statement(table_name))
+        await self.client.command(
+            SCALARS_DB_UTILS.build_drop_table_statement(table_name)
+        )
         return table_name
 
     async def delete_experiment_rows_if_table_exists(
@@ -740,7 +746,9 @@ class ScalarsService:
             )
         )
 
-    async def get_clickhouse_table_usage_stats(self, project_id: UUID) -> ClickhouseTableUsageStats:
+    async def get_clickhouse_table_usage_stats(
+        self, project_id: UUID
+    ) -> ClickhouseTableUsageStats:
         table_name = SCALARS_DB_UTILS.safe_scalars_table_name(project_id=project_id)
         if not await self._table_exists(table_name=table_name):
             return ClickhouseTableUsageStats(
@@ -750,7 +758,9 @@ class ScalarsService:
                 columns=0,
                 bytes=0,
             )
-        rows_result = await self.client.query(SCALARS_SELECT_SQL.count_all_rows(table_name))
+        rows_result = await self.client.query(
+            SCALARS_SELECT_SQL.count_all_rows(table_name)
+        )
         rows = int(rows_result.result_rows[0][0]) if rows_result.result_rows else 0
         columns_result = await self.client.query(
             SCALARS_DB_UTILS.build_describe_table_statement(table_name)
@@ -761,7 +771,9 @@ class ScalarsService:
                 SCALARS_DB_UTILS.escape_sql_literal(table_name)
             )
         )
-        bytes_on_disk = int(bytes_result.result_rows[0][0]) if bytes_result.result_rows else 0
+        bytes_on_disk = (
+            int(bytes_result.result_rows[0][0]) if bytes_result.result_rows else 0
+        )
         return ClickhouseTableUsageStats(
             table=table_name,
             exists=True,
@@ -774,8 +786,9 @@ class ScalarsService:
         self,
         project_id: UUID,
         experiment_id: UUID,
-        project_table_stats: Sequence[ClickhouseTableUsageStats]
-        | ProjectClickhouseUsageResponseDTO,
+        project_table_stats: (
+            Sequence[ClickhouseTableUsageStats] | ProjectClickhouseUsageResponseDTO
+        ),
     ) -> ExperimentClickhouseUsageResponseDTO:
         if isinstance(project_table_stats, ProjectClickhouseUsageResponseDTO):
             table_rows = [
@@ -872,7 +885,9 @@ class ScalarsService:
             raise ValueError("Only scalar-service managed tables can be dropped")
         if not table_name.replace("_", "").isalnum():
             raise ValueError("Invalid table name")
-        await self.client.command(SCALARS_DB_UTILS.build_drop_table_statement(table_name))
+        await self.client.command(
+            SCALARS_DB_UTILS.build_drop_table_statement(table_name)
+        )
 
     async def _fetch_uniform_sampled_column(
         self,

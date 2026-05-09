@@ -550,12 +550,19 @@ async def delete_project_setting(
 @router.delete("/{project_id}", response_model=ProjectDeleteResponseDTO)
 async def delete_project(
     project_id: UUID,
+    detailed: bool = Query(
+        False,
+        description=(
+            "When true, include full per-step ``results``. "
+            "When false (default), ``results`` is empty and ``resultCount`` counts successes."
+        ),
+    ),
     user: User = Depends(get_current_user_dual),
     _: None = Depends(require_api_token_scopes(ProjectActions.DELETE_PROJECT)),
     project_service: ProjectService = Depends(get_project_service),
 ):
     try:
-        return await project_service.delete_project(user, project_id)
+        return await project_service.delete_project(user, project_id, detailed=detailed)
     except Exception as exc:  # noqa: BLE001
         logger.error("Error deleting project: %s", exc, stack_info=True)
         _raise_project_http_error(exc)

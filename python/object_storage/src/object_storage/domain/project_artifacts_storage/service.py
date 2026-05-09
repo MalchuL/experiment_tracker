@@ -75,6 +75,43 @@ class ObjectStorageService:
         await self._repository.commit()
         return True
 
+    async def cleanup_project_cas_only(self, project_id: UUID) -> bool:
+        """Remove project CAS metadata and blob objects; keep snapshots and experiment buckets."""
+
+        hashes = await self._repository.list_project_blob_hashes(project_id)
+        await self._repository.delete_all_blobs(project_id)
+        for h in hashes:
+            await self._buckets_service.delete_blob(project_id, None, h)
+        await self._repository.commit()
+        return True
+
+    async def cleanup_project_snapshots_only(self, project_id: UUID) -> bool:
+        """Remove all project snapshots and unreferenced CAS blobs; keep other data."""
+
+        ids = await self._repository.list_snapshot_ids_for_project(project_id)
+        for sid in ids:
+            await self.delete_project_snapshot(project_id, sid)
+        return True
+
+    async def cleanup_project_experiment_buckets_only(self, project_id: UUID) -> bool:
+        """Remove experiment-scoped buckets and tracked experiment blobs; keep project CAS."""
+
+        bucket_result = await self._buckets_service.list_buckets(
+            project_id=project_id,
+            limit=None,
+            offset=0,
+        )
+        for row in bucket_result.rows:
+            if row.experiment_id is None:
+                continue
+            eid = UUID(row.experiment_id)
+            await self._experiment_artifacts_repository.delete_all_experiment_blobs(
+                project_id, eid
+            )
+            await self._buckets_service.delete_bucket(project_id, eid)
+        await self._repository.commit()
+        return True
+
     async def check_project_blobs(
         self, project_id: UUID, hashes: list[str]
     ) -> BlobCheckResponseDTO:
@@ -281,10 +318,6 @@ class ObjectStorageService:
             experiment_buckets=ExperimentBucketsUsageDTO(
                 count=len(experiment_buckets),
                 bytes=experiment_bucket_bytes,
-                buckets=[
-                    self._mapper.bucket_row_data_to_response(row)
-                    for row in experiment_buckets
-                ],
             ),
             project_bucket=(
                 self._mapper.bucket_row_data_to_response(project_bucket)

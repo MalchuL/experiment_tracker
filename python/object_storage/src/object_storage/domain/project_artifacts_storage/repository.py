@@ -131,6 +131,22 @@ class ObjectStorageRepository:
         await self._session.delete(blob)
         return True
 
+    async def list_snapshot_ids_for_project(self, project_id: UUID) -> list[UUID]:
+        """Return all snapshot primary keys for a project."""
+
+        result = await self._session.execute(
+            select(Snapshot.id).where(Snapshot.project_id == project_id)
+        )
+        return [row[0] for row in result.all()]
+
+    async def list_project_blob_hashes(self, project_id: UUID) -> list[str]:
+        """Return all CAS blob hashes for a project."""
+
+        result = await self._session.execute(
+            select(ProjectBlob.hash).where(ProjectBlob.project_id == project_id)
+        )
+        return [row[0] for row in result.all()]
+
     async def delete_all_blobs(self, project_id: UUID) -> None:
         """Delete all blobs for a project."""
 

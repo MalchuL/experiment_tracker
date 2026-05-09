@@ -271,6 +271,34 @@ async def delete_artifact(
 
 
 @router.delete(
+    "/projects/{project_id}/experiments/{experiment_id}/cleanup-tracked",
+    response_model=DeleteExperimentArtifactsResponseDTO,
+)
+async def cleanup_tracked_experiment_artifacts(
+    project_id: UUID,
+    experiment_id: UUID,
+    service: ArtifactsStorageService = Depends(get_experiment_artifacts_service),
+) -> DeleteExperimentArtifactsResponseDTO:
+    """Delete tracked experiment artifacts only (metadata + those blob keys)."""
+
+    return await service.delete_tracked_experiment_artifacts(project_id, experiment_id)
+
+
+@router.delete(
+    "/projects/{project_id}/experiments/{experiment_id}/cleanup-untracked",
+    response_model=DeleteExperimentArtifactsResponseDTO,
+)
+async def cleanup_untracked_experiment_blobs(
+    project_id: UUID,
+    experiment_id: UUID,
+    service: ArtifactsStorageService = Depends(get_experiment_artifacts_service),
+) -> DeleteExperimentArtifactsResponseDTO:
+    """Delete storage objects not referenced by tracked experiment artifact rows."""
+
+    return await service.delete_untracked_experiment_blobs(project_id, experiment_id)
+
+
+@router.delete(
     "/projects/{project_id}/experiments/{experiment_id}",
     response_model=DeleteExperimentArtifactsResponseDTO,
 )

@@ -172,11 +172,18 @@ async def remove_team_member(
 @router.delete("/{team_id}", response_model=TeamDeleteResponseDTO)
 async def delete_team(
     team_id: UUID,
+    detailed: bool = Query(
+        False,
+        description=(
+            "When true, include full per-step ``results``. "
+            "When false (default), ``results`` is empty and ``resultCount`` counts successes."
+        ),
+    ),
     user: User = Depends(get_current_user_dual),
     _: None = Depends(require_api_token_scopes(TeamActions.DELETE_TEAM)),
     team_service: TeamService = Depends(get_team_service),
 ):
     try:
-        return await team_service.delete_team(user.id, team_id)
+        return await team_service.delete_team(user.id, team_id, detailed=detailed)
     except Exception as exc:  # noqa: BLE001
         _raise_team_http_error(exc)

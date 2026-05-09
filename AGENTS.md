@@ -159,6 +159,10 @@ The HTTP API is mounted with a configurable prefix (see `config/settings.py` / `
 
 Running the full stack locally requires the backend plus whatever URLs you configure for **scalars** and **object storage** services (and their databases/ClickHouse). Those are typically set via environment variables consumed by `python/backend`’s settings and the respective services’ configs—check each package’s `config` or `README` when wiring a new environment.
 
+### Local dev: file descriptors (`Too many open files`)
+
+Canonical write-up (in-app docs): **`/docs/getting-started/file-descriptors`** — source `apps/web/content/docs/getting-started/file-descriptors.md` (errno 24 / 16, `/proc` checks, `run_local_stack.sh` + `uvicorn --reload`, backend/scalars client paths, mitigations).
+
 ## Documentation policy for agents
 
 Prefer updating this file or code comments when changing global runbooks; avoid adding new markdown files unless the user asks for them.

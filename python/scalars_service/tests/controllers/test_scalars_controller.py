@@ -9,7 +9,9 @@ from httpx import AsyncClient
 
 
 @pytest.mark.asyncio
-async def test_log_scalar_creates_table_when_missing(clickhouse_url: str, http_client: AsyncClient) -> None:
+async def test_log_scalar_creates_table_when_missing(
+    clickhouse_url: str, http_client: AsyncClient
+) -> None:
     """Logging without pre-created project table creates tables on-the-fly and succeeds."""
     project_id = uuid4()
     experiment_id = uuid4()
@@ -22,7 +24,9 @@ async def test_log_scalar_creates_table_when_missing(clickhouse_url: str, http_c
 
 
 @pytest.mark.asyncio
-async def test_log_scalar_success(clickhouse_url: str, http_client: AsyncClient, project_with_tables: tuple) -> None:
+async def test_log_scalar_success(
+    clickhouse_url: str, http_client: AsyncClient, project_with_tables: tuple
+) -> None:
     project_id, experiment_id = project_with_tables
     resp = await http_client.post(
         f"/api/scalars/log/{project_id}/{experiment_id}",
@@ -33,7 +37,9 @@ async def test_log_scalar_success(clickhouse_url: str, http_client: AsyncClient,
 
 
 @pytest.mark.asyncio
-async def test_log_scalars_batch_success(clickhouse_url: str, http_client: AsyncClient, project_with_tables: tuple) -> None:
+async def test_log_scalars_batch_success(
+    clickhouse_url: str, http_client: AsyncClient, project_with_tables: tuple
+) -> None:
     project_id, experiment_id = project_with_tables
     resp = await http_client.post(
         f"/api/scalars/log_batch/{project_id}/{experiment_id}",
@@ -49,7 +55,9 @@ async def test_log_scalars_batch_success(clickhouse_url: str, http_client: Async
 
 
 @pytest.mark.asyncio
-async def test_get_scalars_empty_when_no_table(clickhouse_url: str, http_client: AsyncClient) -> None:
+async def test_get_scalars_empty_when_no_table(
+    clickhouse_url: str, http_client: AsyncClient
+) -> None:
     project_id = uuid4()
     resp = await http_client.get(f"/api/scalars/get/{project_id}")
     assert resp.status_code == 200
@@ -96,7 +104,9 @@ async def test_get_scalars_uniform_max_points_one_returns_latest(
 
 
 @pytest.mark.asyncio
-async def test_get_scalars_returns_logged_data(clickhouse_url: str, http_client: AsyncClient, project_with_tables: tuple) -> None:
+async def test_get_scalars_returns_logged_data(
+    clickhouse_url: str, http_client: AsyncClient, project_with_tables: tuple
+) -> None:
     project_id, experiment_id = project_with_tables
     await http_client.post(
         f"/api/scalars/log/{project_id}/{experiment_id}",
@@ -138,7 +148,9 @@ async def test_get_scalars_applies_limit_offset_to_grouped_results(
 
 
 @pytest.mark.asyncio
-async def test_get_last_logged_experiments_empty(clickhouse_url: str, http_client: AsyncClient, project_with_tables: tuple) -> None:
+async def test_get_last_logged_experiments_empty(
+    clickhouse_url: str, http_client: AsyncClient, project_with_tables: tuple
+) -> None:
     project_id, _ = project_with_tables
     resp = await http_client.post(
         f"/api/last_logged/{project_id}",
@@ -149,7 +161,9 @@ async def test_get_last_logged_experiments_empty(clickhouse_url: str, http_clien
 
 
 @pytest.mark.asyncio
-async def test_get_last_logged_experiments_after_log(clickhouse_url: str, http_client: AsyncClient, project_with_tables: tuple) -> None:
+async def test_get_last_logged_experiments_after_log(
+    clickhouse_url: str, http_client: AsyncClient, project_with_tables: tuple
+) -> None:
     project_id, experiment_id = project_with_tables
     await http_client.post(
         f"/api/scalars/log/{project_id}/{experiment_id}",

@@ -166,7 +166,6 @@ class ProjectUsageExperimentBucketsDTO(BaseModel):
 
     count: int = 0
     bytes: int = 0
-    buckets: list[dict[str, Any]] = Field(default_factory=list)
 
     model_config = model_config()
 

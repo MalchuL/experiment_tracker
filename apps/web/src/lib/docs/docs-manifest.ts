@@ -39,6 +39,12 @@ export const DOCS_MANIFEST: DocManifestEntry[] = [
     description: "Use the workspace, projects, and where to find help in the UI.",
   },
   {
+    path: "getting-started/file-descriptors",
+    title: "File descriptors & local services",
+    description:
+      "Too many open files, FD limits, uvicorn --reload, and backend/scalars code paths to check.",
+  },
+  {
     path: "getting-started/workspace",
     title: "Workspace & navigation",
     description: "Sidebar, header, and moving between projects, teams, and docs.",

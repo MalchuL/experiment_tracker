@@ -232,7 +232,9 @@ class TestExperimentService:
             project_id=project.id,
         )
 
-        deleted = await experiment_service.delete_experiment(test_user, experiment.id)
+        deleted = await experiment_service.delete_experiment(
+            test_user, experiment.id, detailed=True
+        )
 
         assert deleted.success is True
         assert deleted.errors == []

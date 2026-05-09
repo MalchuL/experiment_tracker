@@ -10,8 +10,10 @@ import { useStats } from "@/domain/projects/hooks";
 import { useRecentExperiments } from "@/domain/experiments/hooks";
 import { useRecentHypothesis } from "@/domain/hypothesis/hooks";
 import { useCurrentProject } from "@/domain/projects/hooks";
+import { useParams } from "next/navigation";
 
 export default function ProjectDashboard() {
+  const { projectId: routeProjectId } = useParams<{ projectId: string }>();
   const { project, isLoading } = useCurrentProject();
 
   const projectId = project?.id;
@@ -38,7 +40,10 @@ export default function ProjectDashboard() {
       <ProjectStatsGrid stats={stats} />
 
       <div className="grid gap-4 lg:grid-cols-7">
-        <RecentExperimentsCard experiments={recentExperiments} />
+        <RecentExperimentsCard
+          experiments={recentExperiments}
+          projectId={routeProjectId}
+        />
         <RecentHypothesesCard hypotheses={recentHypotheses} />
       </div>
 

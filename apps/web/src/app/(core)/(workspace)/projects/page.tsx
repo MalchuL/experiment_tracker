@@ -10,7 +10,6 @@ import { CreateProjectModal } from "@/domain/projects/components/create-project-
 import { ProjectCard } from "@/domain/projects/components/project-card";
 import { ListSkeleton } from "@/components/shared/loading-skeleton";
 import { Button } from "@/components/ui/button";
-import { formatDeletionOutcomeDescription } from "@/lib/format-satellite-toast";
 import { useToast } from "@/lib/hooks/use-toast";
 import { Plus, FolderKanban, AlertCircle, Users } from "lucide-react";
 import type { InsertProject, Project } from "@/domain/projects/types";
@@ -20,17 +19,11 @@ import { useAuth } from "@/domain/auth/hooks";
 import { useTeams } from "@/domain/teams/hooks";
 import { CreateTeamModal } from "@/domain/teams/components";
 
-function ProjectGrid({
-  projects,
-  onDelete,
-}: {
-  projects: Project[];
-  onDelete: (id: string) => void;
-}) {
+function ProjectGrid({ projects }: { projects: Project[] }) {
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
       {projects.map((project) => (
-        <ProjectCard key={project.id} project={project} onDelete={onDelete} />
+        <ProjectCard key={project.id} project={project} />
       ))}
     </div>
   );
@@ -48,7 +41,6 @@ export default function Projects() {
     isLoading,
     isFetchingNextPage,
     createProject,
-    deleteProject,
     creationIsPending,
     error,
   } = useProjects();
@@ -118,28 +110,6 @@ export default function Projects() {
       });
     },
     [createProject, form, toast],
-  );
-
-  const deleteMutation = useCallback(
-    (id: string) => {
-      deleteProject(id, {
-        onDeleteSuccess: (result) => {
-          toast({
-            title: result.success ? "Project deleted" : "Project deleted (warnings)",
-            description: result.success ? "No errors reported." : formatDeletionOutcomeDescription(result),
-            variant: result.success ? "default" : "destructive",
-          });
-        },
-        onError: () => {
-          toast({
-            title: "Error",
-            description: "Failed to delete project. Please try again.",
-            variant: "destructive",
-          });
-        },
-      });
-    },
-    [deleteProject, toast],
   );
 
   const onSubmit = useCallback(
@@ -228,7 +198,7 @@ export default function Projects() {
             return (
               <section key={tid} className="space-y-3">
                 <h2 className="text-lg font-semibold tracking-tight">{title}</h2>
-                <ProjectGrid projects={list} onDelete={deleteMutation} />
+                <ProjectGrid projects={list} />
               </section>
             );
           })}
@@ -237,7 +207,7 @@ export default function Projects() {
             <section className="space-y-3">
               <h2 className="text-lg font-semibold tracking-tight">Personal</h2>
               <p className="text-sm text-muted-foreground">Projects without a team that you own.</p>
-              <ProjectGrid projects={personal} onDelete={deleteMutation} />
+              <ProjectGrid projects={personal} />
             </section>
           )}
 
@@ -247,7 +217,7 @@ export default function Projects() {
               <p className="text-sm text-muted-foreground">
                 Personal projects from others where you were granted access.
               </p>
-              <ProjectGrid projects={shared} onDelete={deleteMutation} />
+              <ProjectGrid projects={shared} />
             </section>
           )}
 

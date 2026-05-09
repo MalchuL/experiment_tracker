@@ -220,6 +220,42 @@ async def reconcile_storage_bucket(
     return await service.reconcile_bucket(bucket_id)
 
 
+@router.delete("/{project_id}/cleanup-cas", response_model=DeleteProjectResponseDTO)
+async def cleanup_project_cas_only(
+    project_id: UUID,
+    service: ObjectStorageService = Depends(get_project_artifacts_service),
+):
+    """Delete project CAS blobs only (shared artifacts metadata + objects)."""
+
+    await service.cleanup_project_cas_only(project_id)
+    return DeleteProjectResponseDTO(deleted=True)
+
+
+@router.delete("/{project_id}/cleanup-snapshots", response_model=DeleteProjectResponseDTO)
+async def cleanup_project_snapshots_only(
+    project_id: UUID,
+    service: ObjectStorageService = Depends(get_project_artifacts_service),
+):
+    """Delete all project snapshots (and snapshot-only blob refs); keeps CAS rows used elsewhere."""
+
+    await service.cleanup_project_snapshots_only(project_id)
+    return DeleteProjectResponseDTO(deleted=True)
+
+
+@router.delete(
+    "/{project_id}/cleanup-experiment-buckets",
+    response_model=DeleteProjectResponseDTO,
+)
+async def cleanup_project_experiment_buckets_only(
+    project_id: UUID,
+    service: ObjectStorageService = Depends(get_project_artifacts_service),
+):
+    """Delete experiment-scoped buckets and tracked experiment artifact rows only."""
+
+    await service.cleanup_project_experiment_buckets_only(project_id)
+    return DeleteProjectResponseDTO(deleted=True)
+
+
 @router.delete("/{project_id}", response_model=DeleteProjectResponseDTO)
 async def delete_project(
     project_id: UUID,

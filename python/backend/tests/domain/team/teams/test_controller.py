@@ -218,7 +218,7 @@ class TestTeamControllerDelete:
         team_id = create_response.json()["id"]
 
         # Delete team
-        delete_response = client.delete(f"/api/v1/teams/{team_id}")
+        delete_response = client.delete(f"/api/v1/teams/{team_id}?detailed=true")
 
         assert delete_response.status_code == 200
         body = delete_response.json()

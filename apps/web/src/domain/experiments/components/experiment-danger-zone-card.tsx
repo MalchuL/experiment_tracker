@@ -32,14 +32,12 @@ import { bytesFrom, formatBytes } from "@/lib/format-storage-usage";
 import { useToast } from "@/lib/hooks/use-toast";
 import { AlertTriangle, ChevronDown, ChevronUp } from "lucide-react";
 
-const EXPERIMENT_USAGE_KEYS = ["experimentArtifacts", "atStepArtifacts", "snapshots", "scalars"] as const satisfies ReadonlyArray<
-  keyof ExperimentUsage
->;
+/** Cleanup categories only (no experiment-scoped snapshots; use project danger zone). */
+const EXPERIMENT_CLEANUP_KEYS = ["experimentArtifacts", "atStepArtifacts", "scalars"] as const;
 
-const EXPERIMENT_CLEANUP_LABELS: Record<(typeof EXPERIMENT_USAGE_KEYS)[number], string> = {
+const EXPERIMENT_CLEANUP_LABELS: Record<(typeof EXPERIMENT_CLEANUP_KEYS)[number], string> = {
   experimentArtifacts: "tracked experiment artifacts",
   atStepArtifacts: "step-logged (untracked) blobs and metadata",
-  snapshots: "snapshots for this experiment",
   scalars: "scalar rows and related storage for this experiment",
 };
 
@@ -63,9 +61,9 @@ export function ExperimentDangerZoneCard({
     enabled: zoneOpen && Boolean(experimentId),
   });
 
-  const [cleanCategory, setCleanCategory] = useState<(typeof EXPERIMENT_USAGE_KEYS)[number] | null>(
-    null
-  );
+  const [cleanCategory, setCleanCategory] = useState<
+    (typeof EXPERIMENT_CLEANUP_KEYS)[number] | null
+  >(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
 
   const cleanupMutation = useMutation({
@@ -155,8 +153,8 @@ export function ExperimentDangerZoneCard({
                 {usageQuery.isFetching && !usageQuery.data ? (
                   <p className="text-sm text-muted-foreground">Loading usage…</p>
                 ) : usageQuery.data ? (
-                  <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
-                    {EXPERIMENT_USAGE_KEYS.map((key) => (
+                  <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+                    {EXPERIMENT_CLEANUP_KEYS.map((key) => (
                       <div key={key} className="rounded-md border bg-background p-3">
                         <p className="text-xs text-muted-foreground">{key}</p>
                         <p className="text-lg font-semibold">

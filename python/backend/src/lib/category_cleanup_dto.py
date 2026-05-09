@@ -26,6 +26,13 @@ class CategoryCleanupErrorEntryDTO(BaseModel):
 class CategoryCleanupResponseDTO(BaseModel):
     success: bool
     partial: bool
+    result_count: int = Field(
+        0,
+        description=(
+            "Count of successful result steps (same as len(results) when detailed=true). "
+            "Present when detailed=false with results omitted."
+        ),
+    )
     results: list[CategoryCleanupResultEntryDTO] = Field(default_factory=list)
     errors: list[CategoryCleanupErrorEntryDTO] = Field(default_factory=list)
 

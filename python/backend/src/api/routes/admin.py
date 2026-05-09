@@ -299,6 +299,13 @@ async def admin_panel_reactivate_user(
 @router.delete("/users/{user_id}", response_model=AdminUserDeleteResponseDTO)
 async def admin_panel_delete_user(
     user_id: uuid.UUID,
+    detailed: bool = Query(
+        False,
+        description=(
+            "When true, include full per-step ``results``. "
+            "When false (default), ``results`` is empty and ``resultCount`` counts successes."
+        ),
+    ),
     _: None = Depends(require_admin_panel_key),
     db: AsyncSession = Depends(get_async_session),
 ) -> AdminUserDeleteResponseDTO:
@@ -354,7 +361,7 @@ async def admin_panel_delete_user(
     await db.delete(user)
     await db.commit()
     append_postgres_deleted(results, category="postgres:user", entity_id=user_id)
-    finalized = finalize_deletion_outcome(results, errors)
+    finalized = finalize_deletion_outcome(results, errors, detailed=detailed)
     return AdminUserDeleteResponseDTO.model_validate(finalized.model_dump())
 
 

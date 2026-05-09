@@ -113,7 +113,6 @@ class ExperimentBucketsUsageDTO(BaseModel):
 
     count: int
     bytes: int
-    buckets: list[BucketListRowDTO]
 
 
 class ProjectUsageResponseDTO(BaseModel):

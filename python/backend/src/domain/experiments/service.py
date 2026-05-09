@@ -37,7 +37,7 @@ from clients.scalars.dto import ScalarsExperimentUsageResponseDTO
 from domain.scalars.service import NoOpScalarsService, ScalarsServiceProtocol
 
 ExperimentCleanupCategory = Literal[
-    "experimentArtifacts", "atStepArtifacts", "scalars", "snapshots"
+    "experimentArtifacts", "atStepArtifacts", "scalars"
 ]
 
 
@@ -136,7 +136,11 @@ class ExperimentService:
         return self.experiment_mapper.experiment_schema_to_dto(result)
 
     async def delete_experiment(
-        self, user: UserProtocol, experiment_id: UUID_TYPE
+        self,
+        user: UserProtocol,
+        experiment_id: UUID_TYPE,
+        *,
+        detailed: bool = False,
     ) -> ExperimentDeleteResponseDTO:
         """Delete the experiment row after best-effort satellite cleanup.
 
@@ -184,7 +188,7 @@ class ExperimentService:
         append_postgres_deleted(
             results, category="postgres:experiment", entity_id=experiment_id
         )
-        finalized = finalize_deletion_outcome(results, errors)
+        finalized = finalize_deletion_outcome(results, errors, detailed=detailed)
         return ExperimentDeleteResponseDTO.model_validate(finalized.model_dump())
 
     async def get_experiment_usage(
@@ -272,10 +276,9 @@ class ExperimentService:
         """Danger-zone **partial** cleanup: remove one storage slice without deleting Postgres.
 
         Categories (path segment ``category``):
-            ``experimentArtifacts`` / ``atStepArtifacts`` — both currently invoke the same
-            object-storage bulk delete for the experiment (all experiment-scoped blobs).
+            ``experimentArtifacts`` — tracked blobs only (metadata + listed hashes).
+            ``atStepArtifacts`` — objects in the experiment bucket not referenced by tracked rows.
             ``scalars`` — ClickHouse row delete for this experiment only.
-            ``snapshots`` — not implemented at experiment scope; returns an error entry.
 
         The response bundles parallel ``results`` and ``errors`` lists so the UI can show
         partial success when one backend fails.
@@ -303,9 +306,18 @@ class ExperimentService:
                 )
             else:
                 try:
-                    response = await self.object_storage_client.delete_all_experiment_artifacts(
-                        experiment.project_id, experiment_id
-                    )
+                    if category == "experimentArtifacts":
+                        response = (
+                            await self.object_storage_client.delete_tracked_experiment_artifacts(
+                                experiment.project_id, experiment_id
+                            )
+                        )
+                    else:
+                        response = (
+                            await self.object_storage_client.delete_untracked_experiment_blobs(
+                                experiment.project_id, experiment_id
+                            )
+                        )
                     results.append(
                         CategoryCleanupResultEntryDTO(
                             category=category,
@@ -334,18 +346,12 @@ class ExperimentService:
                 errors.append(
                     CategoryCleanupErrorEntryDTO(category=category, error=str(exc))
                 )
-        elif category == "snapshots":
-            errors.append(
-                CategoryCleanupErrorEntryDTO(
-                    category=category,
-                    error="Experiment-level snapshot cleanup is not attributable yet",
-                )
-            )
         else:
             raise ValueError(f"Unknown cleanup category: {category}")
         return CategoryCleanupResponseDTO(
             success=not errors,
             partial=bool(results and errors),
+            result_count=len(results),
             results=results,
             errors=errors,
         )

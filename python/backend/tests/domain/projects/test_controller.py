@@ -260,7 +260,7 @@ class TestProjectControllerDelete:
         project = _create_project(client1, name="Deletable Project", team_id=team_id)
 
         client2 = auth_client(test_user_2)
-        response = client2.delete(f"/api/v1/projects/{project['id']}")
+        response = client2.delete(f"/api/v1/projects/{project['id']}?detailed=true")
 
         assert response.status_code == 200
         body = response.json()

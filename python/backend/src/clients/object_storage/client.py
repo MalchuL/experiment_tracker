@@ -141,6 +141,13 @@ class ObjectStorageClient:
         "get_project_usage": lambda project_id: f"/project-artifacts/{project_id}/usage",
         "delete_project_artifact": lambda project_id, artifact_hash: f"/project-artifacts/{project_id}/artifacts/{artifact_hash}",
         "delete_project": lambda project_id: f"/project-artifacts/{project_id}",
+        "cleanup_project_cas": lambda project_id: f"/project-artifacts/{project_id}/cleanup-cas",
+        "cleanup_project_snapshots": lambda project_id: (
+            f"/project-artifacts/{project_id}/cleanup-snapshots"
+        ),
+        "cleanup_project_experiment_buckets": lambda project_id: (
+            f"/project-artifacts/{project_id}/cleanup-experiment-buckets"
+        ),
         "list_storage_buckets": "/project-artifacts/admin/storage/buckets",
         "storage_bucket": lambda bucket_id: f"/project-artifacts/admin/storage/buckets/{bucket_id}",
         "storage_only_bucket": "/project-artifacts/admin/storage/buckets/storage-only",
@@ -167,6 +174,12 @@ class ObjectStorageClient:
         ),
         "delete_all_experiment_artifacts": lambda pid, eid: (
             f"/experiment-artifacts/projects/{pid}/experiments/{eid}"
+        ),
+        "cleanup_experiment_tracked": lambda pid, eid: (
+            f"/experiment-artifacts/projects/{pid}/experiments/{eid}/cleanup-tracked"
+        ),
+        "cleanup_experiment_untracked": lambda pid, eid: (
+            f"/experiment-artifacts/projects/{pid}/experiments/{eid}/cleanup-untracked"
         ),
         "get_experiment_usage": lambda pid, eid: (
             f"/experiment-artifacts/projects/{pid}/experiments/{eid}/usage"
@@ -317,6 +330,29 @@ class ObjectStorageClient:
         )
         return DeleteProjectResponseDTO.model_validate(response)
 
+    async def cleanup_project_cas_only(self, project_id: UUID) -> DeleteProjectResponseDTO:
+        response = await self._request(
+            "DELETE", self.ENDPOINTS["cleanup_project_cas"](project_id)
+        )
+        return DeleteProjectResponseDTO.model_validate(response)
+
+    async def cleanup_project_snapshots_only(
+        self, project_id: UUID
+    ) -> DeleteProjectResponseDTO:
+        response = await self._request(
+            "DELETE", self.ENDPOINTS["cleanup_project_snapshots"](project_id)
+        )
+        return DeleteProjectResponseDTO.model_validate(response)
+
+    async def cleanup_project_experiment_buckets_only(
+        self, project_id: UUID
+    ) -> DeleteProjectResponseDTO:
+        response = await self._request(
+            "DELETE",
+            self.ENDPOINTS["cleanup_project_experiment_buckets"](project_id),
+        )
+        return DeleteProjectResponseDTO.model_validate(response)
+
     async def upload_experiment_untracked(
         self,
         project_id: UUID,
@@ -452,6 +488,24 @@ class ObjectStorageClient:
             self.ENDPOINTS["delete_all_experiment_artifacts"](
                 project_id, experiment_id
             ),
+        )
+        return DeleteExperimentArtifactsResponseDTO.model_validate(response)
+
+    async def delete_tracked_experiment_artifacts(
+        self, project_id: UUID, experiment_id: UUID
+    ) -> DeleteExperimentArtifactsResponseDTO:
+        response = await self._request(
+            "DELETE",
+            self.ENDPOINTS["cleanup_experiment_tracked"](project_id, experiment_id),
+        )
+        return DeleteExperimentArtifactsResponseDTO.model_validate(response)
+
+    async def delete_untracked_experiment_blobs(
+        self, project_id: UUID, experiment_id: UUID
+    ) -> DeleteExperimentArtifactsResponseDTO:
+        response = await self._request(
+            "DELETE",
+            self.ENDPOINTS["cleanup_experiment_untracked"](project_id, experiment_id),
         )
         return DeleteExperimentArtifactsResponseDTO.model_validate(response)
 

@@ -414,7 +414,11 @@ class ProjectService:
         )
 
     async def delete_project(
-        self, user: UserProtocol, project_id: UUID_TYPE
+        self,
+        user: UserProtocol,
+        project_id: UUID_TYPE,
+        *,
+        detailed: bool = False,
     ) -> ProjectDeleteResponseDTO:
         try:
             if not await self.permission_checker.can_delete_project(
@@ -441,7 +445,7 @@ class ProjectService:
             append_postgres_deleted(
                 results, category="postgres:project", entity_id=project_id
             )
-            finalized = finalize_deletion_outcome(results, errors)
+            finalized = finalize_deletion_outcome(results, errors, detailed=detailed)
             return ProjectDeleteResponseDTO.model_validate(finalized.model_dump())
         except Exception as e:
             await self.db.rollback()
@@ -488,10 +492,6 @@ class ProjectService:
             experiment_buckets = ProjectUsageExperimentBucketsDTO(
                 count=object_usage.experiment_buckets.count,
                 bytes=object_usage.experiment_buckets.bytes,
-                buckets=[
-                    bucket.model_dump(mode="json", by_alias=False)
-                    for bucket in object_usage.experiment_buckets.buckets
-                ],
             )
         scalars = ProjectUsageScalarsDTO(
             bytes=int(scalar_usage.total_bytes),
@@ -530,9 +530,9 @@ class ProjectService:
         """Danger-zone **partial** cleanup at project scope (does not delete the Postgres project).
 
         Categories:
-            ``projectArtifacts``, ``snapshots``, ``experimentBuckets`` — all currently routed
-            to ``object_storage_client.delete_project``, which removes project-level CAS data,
-            snapshots, and experiment buckets as implemented by the storage service.
+            ``projectArtifacts`` — project CAS blobs only (project bucket metadata + objects).
+            ``snapshots`` — all project snapshots (with proper blob ref cleanup).
+            ``experimentBuckets`` — experiment-scoped buckets and tracked experiment blobs only.
             ``scalars`` — drops the entire ClickHouse table set for the project via
             ``delete_project_table`` (destructive to **all** experiments' time series in
             that project).
@@ -560,9 +560,18 @@ class ProjectService:
                 )
             else:
                 try:
-                    response = await self.object_storage_client.delete_project(
-                        project_id
-                    )
+                    if category == "projectArtifacts":
+                        response = await self.object_storage_client.cleanup_project_cas_only(
+                            project_id
+                        )
+                    elif category == "snapshots":
+                        response = await self.object_storage_client.cleanup_project_snapshots_only(
+                            project_id
+                        )
+                    else:
+                        response = await self.object_storage_client.cleanup_project_experiment_buckets_only(
+                            project_id
+                        )
                     results.append(
                         CategoryCleanupResultEntryDTO(
                             category=category,
@@ -594,6 +603,7 @@ class ProjectService:
         return CategoryCleanupResponseDTO(
             success=not errors,
             partial=bool(results and errors),
+            result_count=len(results),
             results=results,
             errors=errors,
         )

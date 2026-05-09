@@ -503,14 +503,10 @@ class ClickHouseScalarsDBUtils:
         end_time: datetime | None = None,
     ) -> str:
         """Count distinct experiments in the scalars table (optional time bounds)."""
-        where_clauses = self._scalar_table_where_clauses(
-            None, start_time, end_time
-        )
+        where_clauses = self._scalar_table_where_clauses(None, start_time, end_time)
         where_sql = self._scalar_where_sql(where_clauses)
         exp_col = ProjectTableColumns.EXPERIMENT_ID.value
-        return (
-            f"SELECT uniqExact({exp_col}) FROM {table_name}{where_sql}"
-        )
+        return f"SELECT uniqExact({exp_col}) FROM {table_name}{where_sql}"
 
     def build_select_experiment_id_page_statement(
         self,
@@ -521,9 +517,7 @@ class ClickHouseScalarsDBUtils:
         offset: int = 0,
     ) -> str:
         """Distinct experiment IDs ordered, with LIMIT/OFFSET for pagination."""
-        where_clauses = self._scalar_table_where_clauses(
-            None, start_time, end_time
-        )
+        where_clauses = self._scalar_table_where_clauses(None, start_time, end_time)
         where_sql = self._scalar_where_sql(where_clauses)
         exp_col = ProjectTableColumns.EXPERIMENT_ID.value
         lim = int(limit)

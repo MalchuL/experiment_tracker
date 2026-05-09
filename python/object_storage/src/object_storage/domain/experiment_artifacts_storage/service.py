@@ -371,6 +371,52 @@ class ArtifactsStorageService:
         await self._artifacts_repository.commit()
         return self._mapper.delete_artifact_to_response(True)
 
+    async def delete_tracked_experiment_artifacts(
+        self, project_id: UUID, experiment_id: UUID
+    ) -> DeleteExperimentArtifactsResponseDTO:
+        """Remove tracked experiment blobs (DB rows + matching storage objects).
+
+        Does not remove at-step / untracked objects or delete the bucket.
+        """
+
+        hashes = await self._artifacts_repository.list_tracked_artifact_hashes(
+            project_id, experiment_id
+        )
+        await self._artifacts_repository.delete_all_experiment_blobs(
+            project_id, experiment_id
+        )
+        for h in hashes:
+            await self._buckets_service.delete_blob(project_id, experiment_id, h)
+        await self._artifacts_repository.commit()
+        return DeleteExperimentArtifactsResponseDTO(deleted_count=len(hashes))
+
+    async def delete_untracked_experiment_blobs(
+        self, project_id: UUID, experiment_id: UUID
+    ) -> DeleteExperimentArtifactsResponseDTO:
+        """Remove objects in the experiment bucket that are not referenced by tracked rows."""
+
+        tracked = set(
+            await self._artifacts_repository.list_tracked_artifact_hashes(
+                project_id, experiment_id
+            )
+        )
+        bucket_name = await self._buckets_service.get_bucket_name(
+            project_id, experiment_id
+        )
+        removed = 0
+        if bucket_name is not None and self._buckets_service.storage.bucket_exists(
+            bucket_name
+        ):
+            for entry in self._buckets_service.storage.list_blob_entries(bucket_name):
+                if entry.key not in tracked:
+                    deleted = await self._buckets_service.delete_blob(
+                        project_id, experiment_id, entry.key
+                    )
+                    if deleted:
+                        removed += 1
+        await self._artifacts_repository.commit()
+        return DeleteExperimentArtifactsResponseDTO(deleted_count=removed)
+
     async def delete_experiment(
         self, project_id: UUID, experiment_id: UUID
     ) -> DeleteExperimentArtifactsResponseDTO:

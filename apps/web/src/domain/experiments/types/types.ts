@@ -26,6 +26,8 @@ export interface CategoryCleanupErrorEntry {
 export interface CategoryCleanupResponse {
   success: boolean;
   partial: boolean;
+  /** Success-step count; when detailed=false, ``results`` may be empty while this is set. */
+  resultCount: number;
   results: CategoryCleanupResultEntry[];
   errors: CategoryCleanupErrorEntry[];
 }

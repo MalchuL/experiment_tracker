@@ -39,12 +39,20 @@ def append_satellite_step(
 def finalize_deletion_outcome(
     results: list[CategoryCleanupResultEntryDTO],
     errors: list[CategoryCleanupErrorEntryDTO],
+    *,
+    detailed: bool = False,
 ) -> CategoryCleanupResponseDTO:
-    """Same semantics as category cleanup: ``success`` means no error rows."""
+    """Same semantics as category cleanup: ``success`` means no error rows.
+
+    When ``detailed`` is false (default for HTTP hard deletes), ``results`` is empty but
+    ``result_count`` preserves how many success rows were recorded. Errors are always kept.
+    """
+    result_count = len(results)
     return CategoryCleanupResponseDTO(
         success=len(errors) == 0,
         partial=bool(results and errors),
-        results=results,
+        result_count=result_count,
+        results=results if detailed else [],
         errors=errors,
     )
 

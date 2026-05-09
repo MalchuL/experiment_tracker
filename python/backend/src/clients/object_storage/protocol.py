@@ -123,6 +123,16 @@ class ObjectStorageClientProtocol(Protocol):
             The response from the object storage.
         """
 
+    async def cleanup_project_cas_only(self, project_id: UUID) -> DeleteProjectResponseDTO: ...
+
+    async def cleanup_project_snapshots_only(
+        self, project_id: UUID
+    ) -> DeleteProjectResponseDTO: ...
+
+    async def cleanup_project_experiment_buckets_only(
+        self, project_id: UUID
+    ) -> DeleteProjectResponseDTO: ...
+
     async def upload_experiment_untracked(
         self,
         project_id: UUID,
@@ -179,6 +189,14 @@ class ObjectStorageClientProtocol(Protocol):
     ) -> DeleteExperimentArtifactResponseDTO: ...
 
     async def delete_all_experiment_artifacts(
+        self, project_id: UUID, experiment_id: UUID
+    ) -> DeleteExperimentArtifactsResponseDTO: ...
+
+    async def delete_tracked_experiment_artifacts(
+        self, project_id: UUID, experiment_id: UUID
+    ) -> DeleteExperimentArtifactsResponseDTO: ...
+
+    async def delete_untracked_experiment_blobs(
         self, project_id: UUID, experiment_id: UUID
     ) -> DeleteExperimentArtifactsResponseDTO: ...
 

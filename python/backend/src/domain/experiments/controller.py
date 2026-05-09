@@ -153,10 +153,12 @@ async def cleanup_experiment_category(
     _: None = Depends(require_api_token_scopes(ProjectActions.DELETE_EXPERIMENT)),
     experiment_service: ExperimentService = Depends(get_experiment_service),
 ):
-    """Remove a single storage slice (artifacts, scalars rows, …) without deleting the experiment row.
+    """Remove a single storage slice without deleting the experiment row.
 
-    ``category`` matches the string sent by the web danger-zone actions; see
-    ``ExperimentService.cleanup_experiment_category`` for semantics and limitations.
+    Valid ``category`` values: ``experimentArtifacts``, ``atStepArtifacts``, ``scalars``.
+    Project snapshots are not cleaned here — use project-level cleanup for snapshots.
+
+    See ``ExperimentService.cleanup_experiment_category`` for semantics.
     """
     try:
         return await experiment_service.cleanup_experiment_category(
@@ -169,6 +171,13 @@ async def cleanup_experiment_category(
 @router.delete("/{experiment_id}", response_model=ExperimentDeleteResponseDTO)
 async def delete_experiment(
     experiment_id: UUID,
+    detailed: bool = Query(
+        False,
+        description=(
+            "When true, include full per-step ``results`` payloads. "
+            "When false (default), ``results`` is empty and ``resultCount`` counts successes."
+        ),
+    ),
     user: User = Depends(get_current_user_dual),
     _: None = Depends(require_api_token_scopes(ProjectActions.DELETE_EXPERIMENT)),
     experiment_service: ExperimentService = Depends(get_experiment_service),
@@ -179,7 +188,9 @@ async def delete_experiment(
     surface partial failures (e.g. storage down) even when the DB delete succeeded.
     """
     try:
-        return await experiment_service.delete_experiment(user, experiment_id)
+        return await experiment_service.delete_experiment(
+            user, experiment_id, detailed=detailed
+        )
     except Exception as exc:  # noqa: BLE001
         logger.error("Error deleting experiment: %s", exc, stack_info=True)
         _raise_experiment_http_error(exc)

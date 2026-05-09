@@ -304,7 +304,7 @@ class TestProjectService:
             project_id=project.id,
         )
 
-        deleted = await project_service.delete_project(test_user, project.id)
+        deleted = await project_service.delete_project(test_user, project.id, detailed=True)
 
         assert deleted.success is True
         assert deleted.errors == []
@@ -352,7 +352,9 @@ class TestProjectService:
         )
         created = await project_service.create_project(test_user, dto)
 
-        deleted = await project_service.delete_project(test_user_2, created.id)
+        deleted = await project_service.delete_project(
+            test_user_2, created.id, detailed=True
+        )
 
         assert deleted.success is True
         assert deleted.errors == []

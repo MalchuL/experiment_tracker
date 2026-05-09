@@ -193,7 +193,6 @@ class ExperimentBucketsUsageDTO(BaseModel):
 
     count: int = 0
     bytes: int = 0
-    buckets: list[StorageBucketRowDTO] = Field(default_factory=list)
 
 
 class ProjectUsageResponseDTO(BaseModel):
