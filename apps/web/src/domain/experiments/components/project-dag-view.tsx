@@ -9,6 +9,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type MouseEvent,
 } from "react";
@@ -315,6 +316,8 @@ function DagViewCanvas({
 
   const { selectedExperimentId, setSelectedExperimentId } = useSelectedExperimentStore();
   const [searchQuery, setSearchQuery] = useState("");
+  /** Node ids currently mid-drag — avoids syncing layout-derived nodes over RF state (error #015). */
+  const draggingNodeIdsRef = useRef<Set<string>>(new Set());
 
   const layout = useMemo(
     () => calculateDagTreeLayout(experiments, savedPositions),
@@ -376,9 +379,22 @@ function DagViewCanvas({
   const [nodes, setNodes, onNodesChange] = useNodesState<Node<ExperimentNodeData>>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>(layout.edges);
 
-  /** Match third-party experiment-graph: nodes always mirror layout + persisted positions (no merge with RF state). */
+  /**
+   * Keep node data in sync with experiments/search/selection. While a node is being dragged, preserve its
+   * live position from React Flow instead of overwriting from layout (which only updates after drag end).
+   */
   useEffect(() => {
-    setNodes(computedNodes);
+    setNodes((prevNodes) => {
+      const prevById = new Map(prevNodes.map((n) => [n.id, n]));
+      const dragging = draggingNodeIdsRef.current;
+      return computedNodes.map((cn) => {
+        const prev = prevById.get(cn.id);
+        if (prev && dragging.has(cn.id)) {
+          return { ...cn, position: prev.position };
+        }
+        return cn;
+      });
+    });
   }, [computedNodes, setNodes]);
 
   const experimentsStructureKey = useMemo(
@@ -402,7 +418,13 @@ function DagViewCanvas({
       onNodesChange(changes);
       if (!projectId) return;
       for (const change of changes) {
-        if (change.type === "position" && change.position) {
+        if (change.type !== "position" || !change.position) continue;
+        if (change.dragging === true) {
+          draggingNodeIdsRef.current.add(change.id);
+          continue;
+        }
+        if (change.dragging === false) {
+          draggingNodeIdsRef.current.delete(change.id);
           updateNodePosition(projectId, change.id, change.position);
         }
       }
