@@ -6,6 +6,7 @@ import { Experiment } from "../types";
 import { useEffect, useMemo } from "react";
 import { compareExperimentsByCreatedAtDesc } from "../lib/sort-experiments-by-created-at";
 
+/** Flattened infinite-query result plus helpers for project experiment lists (table, kanban, DAG, scalars sidebar). */
 export interface UseExperimentsResult {
     experiments: Experiment[];
     isLoading: boolean;
@@ -23,6 +24,11 @@ export interface UseExperimentsQueryOptions {
     enabled?: boolean;
 }
 
+/**
+ * Infinite list of experiments for a project, sorted newest-first. ``paginationMode`` controls whether
+ * remaining pages auto-fetch (default) or wait for explicit scroll/load-more (experiments table).
+ * Optional ``refetchInterval`` powers live lists (see ``live-refresh`` / ``rates`` constants).
+ */
 export function useExperiments(
     projectId?: string,
     options?: UseExperimentsQueryOptions
@@ -53,7 +59,7 @@ export function useExperiments(
             return allPages.reduce((total, page) => total + page.data.length, 0);
         },
         enabled: !!projectId && (options?.enabled ?? true),
-        staleTime: 30000, // 30 seconds
+        staleTime: 30000, // 30 seconds — refetchInterval still fires per TanStack Query rules
         refetchInterval: options?.refetchInterval,
     });
     useEffect(() => {

@@ -20,6 +20,12 @@ export interface UseScalarsDataModelParams {
   experimentDisplayOrder?: string[] | null;
 }
 
+/**
+ * Derives chart-ready structures from raw experiment scalars + sidebar selection state.
+ *
+ * Produces per-metric arrays of ``ScalarChartPoint`` (step → per-experiment original/smoothed values),
+ * filtered by ``hiddenMetrics``, ``soloMode``, and optional ``experimentDisplayOrder`` for non-scalars UIs.
+ */
 export function useScalarsDataModel({
   experiments,
   scalars,

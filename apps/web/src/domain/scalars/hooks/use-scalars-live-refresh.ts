@@ -14,6 +14,15 @@ interface UseScalarsLiveRefreshParams {
   enabled?: boolean;
 }
 
+/**
+ * Incremental live refresh for **project scalar curves**: polls ``GET .../last_logged/{project}`` for the
+ * watched experiments; when any ``last_modified`` moves forward, fetches only rows after the previous
+ * watermark (``startTime`` + affected ids) and **merges** into the existing infinite-query cache via
+ * ``mergeScalarsPage`` — avoids full refetch of all pages.
+ *
+ * Uses the same ``last_logged`` query key as ``useArtifactsLiveRefresh`` when both are enabled so only
+ * one poll runs per interval.
+ */
 export function useScalarsLiveRefresh({
   projectId,
   experimentIds,
@@ -37,6 +46,10 @@ export function useScalarsLiveRefresh({
     refetchInterval: LAST_LOGGED_POLL_INTERVAL_MS,
   });
 
+  /**
+   * Diff ``last_logged`` against ref; skip first poll (no prior timestamps). Fetch incremental scalar
+   * slice and merge each infinite page in-place with ``setQueryData``.
+   */
   useEffect(() => {
     if (!projectId || !data?.data.length) return;
 

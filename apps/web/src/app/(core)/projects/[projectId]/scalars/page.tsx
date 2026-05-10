@@ -8,7 +8,7 @@ import { AlertCircle, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ListSkeleton } from "@/components/shared/loading-skeleton";
 import { PageHeader } from "@/components/shared/page-header";
-import { useExperiments } from "@/domain/experiments/hooks";
+import { useExperiments, useProjectExperimentsPollSync } from "@/domain/experiments/hooks";
 import { experimentsService } from "@/domain/experiments/services";
 import type { Experiment, UpdateExperiment } from "@/domain/experiments/types";
 import { ExperimentStatus } from "@/domain/experiments/types";
@@ -41,6 +41,7 @@ import type {
 } from "@/domain/scalars/types";
 import { getScalarsDotThreshold, getScalarsMaxPointsPerPlot } from "@/domain/scalars/utils";
 import type { InsertExperiment } from "@/shared/schema";
+import { EXPERIMENTS_LIST_POLL_INTERVAL_MS } from "@/lib/constants/live-refresh";
 import { QUERY_KEYS } from "@/lib/constants/query-keys";
 import { DEFAULT_PAGE_SIZE } from "@/lib/constants/pagination";
 
@@ -100,7 +101,11 @@ export default function Scalars() {
     isFetching: experimentsFetching,
     isFetchingNextPage: experimentsFetchingNextPage,
     refetch: refetchExperiments,
-  } = useExperiments(projectId);
+  } = useExperiments(projectId, {
+    refetchInterval: EXPERIMENTS_LIST_POLL_INTERVAL_MS,
+  });
+
+  useProjectExperimentsPollSync(projectId, experiments);
 
   const sortedExperiments = useMemo(() => {
     return [...experiments].sort((a, b) => {

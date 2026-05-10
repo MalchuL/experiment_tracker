@@ -5,6 +5,7 @@ import { scalarsService } from "../services";
 import type { ScalarsPointsResult } from "../types";
 import { useEffect, useMemo } from "react";
 
+/** Request filters for ``useProjectScalars`` (optional experiment subset, sampling, time bounds). */
 export interface UseProjectScalarsParams {
   projectId?: string;
   experimentIds?: string[];
@@ -14,6 +15,7 @@ export interface UseProjectScalarsParams {
   endTime?: string;
 }
 
+/** Flattened per-experiment scalar series plus the infinite-query ``queryKey`` for cache merges (live refresh). */
 export interface UseProjectScalarsResult {
   scalars: ScalarsPointsResult["data"];
   queryKey: readonly unknown[];
@@ -23,6 +25,12 @@ export interface UseProjectScalarsResult {
   refetch: () => Promise<unknown>;
 }
 
+/**
+ * Infinite query over **project scalar curves** from the main API (→ scalars satellite). Concatenates pages
+ * into ``scalars``; auto-fetches remaining pages like ``useProjectObjects``.
+ *
+ * ``queryKey`` must stay aligned with ``useScalarsLiveRefresh`` when patching cache after ``last_logged``.
+ */
 export function useProjectScalars(
   params: UseProjectScalarsParams
 ): UseProjectScalarsResult {

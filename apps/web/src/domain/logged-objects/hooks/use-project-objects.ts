@@ -5,6 +5,7 @@ import { loggedObjectsService } from "../services";
 import type { ArtifactsInfoResult } from "../types";
 import { useEffect, useMemo } from "react";
 
+/** Filters for listing logged-at-step artifacts (artifacts_info) for ``useProjectObjects``. */
 export interface UseProjectObjectsParams {
   projectId?: string;
   experimentIds?: string[];
@@ -14,6 +15,13 @@ export interface UseProjectObjectsParams {
   endTime?: string;
 }
 
+/**
+ * Infinite query over project **artifacts at step** via the main API; concatenates pages so UI code sees
+ * a flat ``artifacts`` list. An effect eagerly ``fetchNextPage``s until complete.
+ *
+ * Returns ``queryKey`` identical to the infinite query so ``useArtifactsLiveRefresh`` can invalidate or
+ * patch the same cache entry.
+ */
 export function useProjectObjects(params: UseProjectObjectsParams) {
   const { projectId, experimentIds, objectTypes, names, startTime, endTime } = params;
   const stableExperimentIds = [...(experimentIds ?? [])].sort();

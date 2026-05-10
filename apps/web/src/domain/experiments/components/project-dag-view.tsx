@@ -1,5 +1,10 @@
 "use client";
 
+/**
+ * Project DAG view: experiment lineage as a React Flow graph with draggable nodes, persisted layout
+ * (``dag-layout-store``), metric deltas vs parent, search/highlight, and parent reassignment with cycle checks.
+ */
+
 import {
   useCallback,
   useEffect,
@@ -319,6 +324,11 @@ function ExperimentNode({ data }: { data: ExperimentNodeData }) {
 
 const nodeTypes = { experiment: ExperimentNode };
 
+/**
+ * Inner React Flow canvas: merges persisted DAG coordinates from ``useDagLayoutStore`` with
+ * ``calculateDagTreeLayout``, wires metrics onto nodes, parent edits, and keeps RF nodes/edges in sync
+ * with computed layout (see ``experimentsStructureKey`` for edge refresh).
+ */
 function DagViewCanvas({
   projectId,
   project,

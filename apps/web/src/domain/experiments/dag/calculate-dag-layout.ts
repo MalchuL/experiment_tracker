@@ -63,14 +63,23 @@ export function calculateDagTreeLayout(
         (sum, child) => sum + getSubtreeWidth(child) + HORIZONTAL_SPACING,
         -HORIZONTAL_SPACING
       );
-      let currentX = x - totalWidth / 2 + NODE_WIDTH / 2;
+      /** Anchor children under the parent's actual coordinates (critical after drag / persisted layout). */
+      let currentX = position.x - totalWidth / 2 + NODE_WIDTH / 2;
+
+      /**
+       * Incoming ``y`` for each node is still the pre-offset slot (unsaved nodes add
+       * NEW_NODE_BOTTOM_OFFSET). Children must start below this parent's drawn box:
+       * slot_y = parent_top + NODE_HEIGHT + VERTICAL_SPACING - NEW_NODE_BOTTOM_OFFSET.
+       */
+      const childSlotY =
+        position.y + NODE_HEIGHT + VERTICAL_SPACING - NEW_NODE_BOTTOM_OFFSET;
 
       children.forEach((child) => {
         const childWidth = getSubtreeWidth(child);
         layoutTree(
           child,
           currentX + childWidth / 2 - NODE_WIDTH / 2,
-          y + NODE_HEIGHT + VERTICAL_SPACING
+          childSlotY
         );
         currentX += childWidth + HORIZONTAL_SPACING;
       });
