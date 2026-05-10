@@ -130,7 +130,7 @@ Examples:
 
 - From repo root: `pnpm dlx turbo dev` (or your repo’s documented dev task).
 - From `apps/web`: `pnpm run dev`.
-- From `apps/web`: `pnpm run test` runs **Vitest** (unit tests under `src/**/*.test.ts`, e.g. metric display formatting). Metric scalars use **`formatValue`** from `src/lib/metrics/mathjs-metric-format.ts` (mathjs `format`, `notation: 'auto'`; wired through `metric-value-display.ts`). To run only the mathjs sample test and print strings: `pnpm run test:mathjs-format` (or `pnpm exec vitest run src/lib/metrics/mathjs-format.test.ts`).
+- From `apps/web`: `pnpm run test` runs **Vitest** (unit tests under `src/**/*.test.ts`, e.g. metric display formatting). Metric scalars use **`formatValue`** from `src/lib/metrics/mathjs-metric-format.ts` (mathjs `format`, `notation: 'auto'`; wired through `metric-value-display.ts`; defaults in `src/lib/constants/metric-display.ts`). To run only the mathjs sample test and print strings: `pnpm run test:mathjs-format` (or `pnpm exec vitest run src/lib/metrics/mathjs-format.test.ts`). In-app guide to tuning precision and thresholds: **`/docs/reference/metric-display-formatting`** (`apps/web/content/docs/reference/metric-display-formatting.md`).
 
 For local development against the backend, set the web env so the UI and BFF target the API (for example `NEXT_PUBLIC_BASE_URL=http://127.0.0.1:8000`).
 

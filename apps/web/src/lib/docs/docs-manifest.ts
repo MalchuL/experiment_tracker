@@ -59,6 +59,12 @@ export const DOCS_MANIFEST: DocManifestEntry[] = [
     title: "Callouts, details & formatting",
     description: "Live examples: warning, tip, danger, note, info, caution, and collapsible blocks.",
   },
+  {
+    path: "reference/metric-display-formatting",
+    title: "Metric display: precision & thresholds",
+    description:
+      "Tune mathjs auto-format (significant digits, exponent band) and comparison epsilon for tables, DAG, and sidebars.",
+  },
 ];
 
 /** Joins URL segments into the manifest `path` key (`foo/bar`). */
