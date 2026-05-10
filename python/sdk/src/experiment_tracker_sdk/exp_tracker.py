@@ -25,6 +25,7 @@ from experiment_tracker_sdk.client.domain.projects.dto import (
 from experiment_tracker_sdk.config import load_config
 from experiment_tracker_sdk.error import ExpTrackerAPIError, ExpTrackerProgressError
 from experiment_tracker_sdk.utils.content_utils import (
+    _is_existing_file_path,
     image_data_to_png_bytes,
     materialize_content,
 )
@@ -315,11 +316,7 @@ class ExpTracker:
                 resolved_default_content_type = guessed_content_type
             elif isinstance(content, str):
                 resolved_default_content_type = "text/plain"
-            if (
-                isinstance(content, (str, Path))
-                and Path(content).exists()
-                and Path(content).is_file()
-            ):
+            if _is_existing_file_path(content):
                 file_name = Path(content).name
                 filepath = str(Path(content).relative_to(Path.cwd()))
 

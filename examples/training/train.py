@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import importlib.metadata
+import json
 import logging
 import random
 import subprocess
@@ -15,6 +16,7 @@ import numpy as np
 from experiment_tracker_sdk import ExpTracker
 from experiment_tracker_sdk.client import ExperimentStatus
 from experiment_tracker_sdk.config import load_config
+from experiment_tracker_sdk.utils.content_utils import image_data_to_png_bytes
 
 logger = logging.getLogger("training_example")
 
@@ -244,6 +246,44 @@ def main() -> None:
             stored_filepath="final/pip-freeze.txt",
             default_content_type="text/plain",
         )
+        # Named final artifacts: same display name (`tag`), different stored paths.
+        final_demo = np.random.randint(0, 256, size=(128, 128, 3), dtype=np.uint8)
+        tracker.log_final_artifact(
+            "final_demo_image",
+            image_data_to_png_bytes(final_demo),
+            stored_filepath="final/demo_image_primary.png",
+            default_content_type="image/png",
+            default_extension=".png",
+        )
+        tracker.log_final_artifact(
+            "final_demo_image",
+            image_data_to_png_bytes(_smooth_image(final_demo)),
+            stored_filepath="final/demo_image_secondary.png",
+            default_content_type="image/png",
+            default_extension=".png",
+        )
+        summary_payload = {
+            "experiment_id": experiment_id,
+            "planned_steps": steps,
+            "when": "training_start",
+        }
+        tracker.log_final_artifact(
+            "training_summary_json",
+            json.dumps(summary_payload, indent=2),
+            stored_filepath="final/training_summary_primary.json",
+            default_content_type="application/json",
+            default_extension=".json",
+        )
+        tracker.log_final_artifact(
+            "training_summary_json",
+            json.dumps(
+                {**summary_payload, "path_variant": "secondary"},
+                indent=2,
+            ),
+            stored_filepath="final/training_summary_secondary.json",
+            default_content_type="application/json",
+            default_extension=".json",
+        )
         logger.info("final_artifacts_logged", extra={"experiment_id": experiment_id})
 
         accuracy = random.uniform(0.6, 0.99)
@@ -299,6 +339,30 @@ def main() -> None:
                 value=metric_value,
                 label="final",
             )
+
+        summary_payload = {
+            "experiment_id": experiment_id,
+            "steps": steps,
+            "final_metrics": final_metrics,
+        }
+        tracker.log_final_artifact(
+            "training_summary_json",
+            json.dumps(summary_payload, indent=2),
+            stored_filepath="final/training_summary_postrun_primary.json",
+            default_content_type="application/json",
+            default_extension=".json",
+        )
+        tracker.log_final_artifact(
+            "training_summary_json",
+            json.dumps(
+                {**summary_payload, "path_variant": "secondary"},
+                indent=2,
+            ),
+            stored_filepath="final/training_summary_postrun_secondary.json",
+            default_content_type="application/json",
+            default_extension=".json",
+        )
+
         tracker.flush()
         logger.info(
             "training_logged",

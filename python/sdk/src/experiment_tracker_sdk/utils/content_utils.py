@@ -1,9 +1,40 @@
 import io
+import os
 import mimetypes
 from pathlib import Path
 from typing import cast
 
 from experiment_tracker_sdk.error import ExpTrackerAPIError
+
+
+def _max_path_length() -> int:
+    """Upper bound for paths we will pass to ``Path(...).exists()`` (POSIX ``PC_PATH_MAX``)."""
+    try:
+        return int(os.pathconf(".", "PC_PATH_MAX"))
+    except (OSError, ValueError):
+        return 4096
+
+
+def _is_existing_file_path(content: str | Path) -> bool:
+    """True only when ``content`` refers to an existing regular file.
+
+    Long ``str`` values (e.g. JSON or YAML bodies) are never probed with ``stat()``,
+    avoiding ``OSError: [Errno 36] File name too long`` when the whole payload is
+    mistaken for a filesystem path.
+    """
+    if not isinstance(content, (str, Path)):
+        return False
+    try:
+        path_str = os.fspath(content)
+    except (OSError, TypeError, ValueError):
+        return False
+    if len(path_str) > _max_path_length():
+        return False
+    try:
+        path = Path(content)
+        return path.exists() and path.is_file()
+    except (OSError, ValueError):
+        return False
 
 
 def materialize_content(
@@ -45,7 +76,20 @@ def materialize_content(
     # String can be either a filesystem path or plain text payload.
     if isinstance(content, (str, Path)):
         path = Path(content)
-        if path.exists() and path.is_file() or isinstance(content, Path):
+        read_as_file = False
+        if isinstance(content, Path):
+            try:
+                read_as_file = path.is_file()
+            except (OSError, ValueError):
+                read_as_file = False
+            if not read_as_file:
+                raise ExpTrackerAPIError(
+                    "When content is pathlib.Path it must refer to an existing regular file."
+                )
+        else:
+            read_as_file = _is_existing_file_path(content)
+
+        if read_as_file:
             file_name = path.name
             content_bytes = path.read_bytes()
             guessed_type = mimetypes.guess_type(file_name)[0] or default_mime_type
@@ -58,7 +102,7 @@ def materialize_content(
                 file_name,
                 guessed_type,
             )
-        # If the content is a string and not a path, we assume it is a plain text payload.
+        # Plain str payload (not an on-disk file path).
         if default_file_name is None:
             raise ExpTrackerAPIError("file_name is required when content is a string")
         return (
