@@ -13,7 +13,10 @@ type AxisWithUnifiedHoverTitle = NonNullable<Partial<Layout>["xaxis"]> & {
 interface MultiHoverRow {
   experimentName: string;
   step: number;
+  /** Raw logged value shown in the tooltip */
   value: number;
+  /** Smoothed value used only for ordering rows when smoothing is on */
+  sortValue: number;
   color: string;
   displayName: string;
   displayStep: string;
@@ -451,29 +454,30 @@ function buildMultiHoverState(
         return null;
       }
       const [, experimentName, , originalValue, smoothedValue, step, color] = customData;
-      const displayedValue = typeof point.y === "number" ? point.y : Number(point.y);
+      const sortValue = typeof point.y === "number" ? point.y : Number(point.y);
       if (
         typeof experimentName !== "string" ||
         typeof color !== "string" ||
         typeof step !== "number" ||
         typeof originalValue !== "number" ||
         typeof smoothedValue !== "number" ||
-        !Number.isFinite(displayedValue)
+        !Number.isFinite(sortValue)
       ) {
         return null;
       }
       return {
         experimentName,
         step,
-        value: displayedValue,
+        value: originalValue,
+        sortValue,
         color,
         displayName: padColumn(truncateName(experimentName, hoverNameMaxLength), hoverNameMaxLength),
         displayStep: padColumn(String(step), 4, "left"),
-        displayValue: padColumn(formatScalarValue(displayedValue), 8, "left"),
+        displayValue: padColumn(formatScalarValue(originalValue), 8, "left"),
       };
     })
     .filter((row): row is MultiHoverRow => row !== null)
-    .sort((a, b) => b.value - a.value);
+    .sort((a, b) => b.sortValue - a.sortValue);
   if (!rows.length) {
     return null;
   }
