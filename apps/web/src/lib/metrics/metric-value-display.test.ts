@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  MetricValueDisplayFormatter,
   formatMetricScalarForDisplay,
   formatMetricScalarForEditorDraft,
   formatMetricScalarForEditorFull,
@@ -7,24 +8,22 @@ import {
   metricEditorValuesEffectivelyEqual,
   metricIsBetterThanParent,
 } from "./metric-value-display";
-import { METRIC_DISPLAY_EXPONENTIAL_FRACTION_DIGITS } from "@/lib/constants/metric-display";
+
+describe("MetricValueDisplayFormatter", () => {
+  it("uses constructor overrides without affecting default exported functions", () => {
+    const lowPrec = new MetricValueDisplayFormatter({ autoFormatPrecision: 2 });
+    expect(lowPrec.formatScalarForDisplay(12.34)).toBe("12");
+    expect(formatMetricScalarForDisplay(12.34)).toBe("12.34");
+  });
+});
 
 describe("formatMetricScalarForDisplay", () => {
-  it("uses short exponential for long-decimal floats (no 16-digit mantissa)", () => {
+  it("uses mathjs auto format for long decimals (significant digits, not raw exponential)", () => {
     const v = 0.012312312312312312;
-    const s = formatMetricScalarForDisplay(v);
-    expect(s).toMatch(/e[+-]\d+$/i);
-    expect(s.length).toBeLessThanOrEqual(14);
-    expect(s).not.toMatch(/1\.231231231231231/);
-    const lower = s.toLowerCase();
-    const expIdx = lower.indexOf("e");
-    expect(expIdx).toBeGreaterThan(0);
-    const mantissa = s.slice(0, expIdx).replace(/^-/, "");
-    const frac = mantissa.includes(".") ? mantissa.split(".")[1]! : "";
-    expect(frac.length).toBeLessThanOrEqual(METRIC_DISPLAY_EXPONENTIAL_FRACTION_DIGITS);
+    expect(formatMetricScalarForDisplay(v)).toBe("0.01231231");
   });
 
-  it("uses fixed form for compact decimals without padding zeros", () => {
+  it("uses compact plain form for typical magnitudes", () => {
     expect(formatMetricScalarForDisplay(0.05)).toBe("0.05");
     expect(formatMetricScalarForDisplay(1)).toBe("1");
     expect(formatMetricScalarForDisplay(42)).toBe("42");
@@ -42,47 +41,39 @@ describe("formatMetricScalarForDisplay", () => {
     expect(formatMetricScalarForDisplay(0)).toBe("0");
   });
 
-  it("uses exponential for tiny positive where toFixed rounds to zero", () => {
-    const s = formatMetricScalarForDisplay(1e-12);
-    expect(s).toMatch(/e-/);
+  it("uses exponential for tiny magnitudes outside auto exponent band", () => {
+    expect(formatMetricScalarForDisplay(1e-12)).toBe("1e-12");
   });
 });
 
 describe("formatMetricScalarForEditorDraft", () => {
-  it("matches display exponential digit budget (not bare toExponential())", () => {
+  it("matches display auto-format for long decimals", () => {
     const v = 0.012312312312312312;
-    const s = formatMetricScalarForEditorDraft(v);
-    expect(s).toMatch(/e[+-]\d+$/i);
-    expect(s).not.toMatch(/1\.231231231231231/);
-    expect(s.length).toBeLessThanOrEqual(14);
+    expect(formatMetricScalarForEditorDraft(v)).toBe("0.01231231");
   });
 
-  it("preserves sign for negative exponential", () => {
-    const s = formatMetricScalarForEditorDraft(-0.012312312312312312);
-    expect(s.startsWith("-")).toBe(true);
-    expect(s.slice(1)).toMatch(/e[+-]\d+$/i);
+  it("preserves sign for negative values", () => {
+    expect(formatMetricScalarForEditorDraft(-0.012312312312312312)).toBe("-0.01231231");
   });
 
-  it("uses fixed when raw string is short (no trailing zero padding)", () => {
+  it("matches display for compact values", () => {
     expect(formatMetricScalarForEditorDraft(0.05)).toBe("0.05");
     expect(formatMetricScalarForEditorDraft(1)).toBe("1");
   });
 });
 
 describe("formatMetricScalarForEditorFull", () => {
-  it("returns plain String(number) when not in scientific form", () => {
+  it("keeps full double decimal digits (draft may round)", () => {
     const v = 0.012312312312312312;
-    expect(formatMetricScalarForEditorFull(v)).toBe(String(v));
-    expect(formatMetricScalarForEditorFull(v)).not.toMatch(/e[+-]/i);
+    expect(formatMetricScalarForEditorDraft(v)).toBe("0.01231231");
+    expect(formatMetricScalarForEditorFull(v)).toBe("0.012312312312312312");
   });
 
-  it("expands scientific String(number) to decimal when locale can represent it", () => {
+  it("uses plain decimals, not exponential, for tiny magnitudes", () => {
+    expect(formatMetricScalarForEditorDraft(1e-7)).toBe("1e-7");
     expect(formatMetricScalarForEditorFull(1e-7)).toBe("0.0000001");
-  });
-
-  it("keeps scientific notation when expansion would round to zero", () => {
-    const s = formatMetricScalarForEditorFull(1e-21);
-    expect(s).toMatch(/e-/i);
+    expect(formatMetricScalarForEditorDraft(1e-21)).toBe("1e-21");
+    expect(formatMetricScalarForEditorFull(1e-21)).toBe("0.000000000000000000001");
   });
 });
 
@@ -109,11 +100,11 @@ describe("formatMetricSignedDeltaForDisplay", () => {
     expect(formatMetricSignedDeltaForDisplay(5e-11)).toBe("0");
   });
 
-  it("prefixes sign and uses bounded exponential for long decimals", () => {
+  it("prefixes sign and formats magnitude with formatValue", () => {
     const d = 0.012312312312312312 - 0.01;
     const s = formatMetricSignedDeltaForDisplay(d);
     expect(s[0] === "+" || s[0] === "-").toBe(true);
-    expect(s.slice(1)).toMatch(/e[+-]\d+$/i);
+    expect(s).toMatch(/^[+-]0\.002312312$/);
   });
 });
 

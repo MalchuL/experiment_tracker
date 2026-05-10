@@ -1,6 +1,7 @@
 /**
  * Tunables for metric number formatting in the web app (tables, DAG, sidebar, editors).
- * Consumed by `@/lib/metrics/metric-value-display`.
+ * Scalar formatting uses mathjs `format` with `notation: 'auto'` — see
+ * `@/lib/metrics/mathjs-metric-format` (`formatValue`, `METRIC_FORMAT_OPTIONS`).
  */
 
 /**
@@ -13,29 +14,12 @@
 export const METRIC_DISPLAY_TIE_EPSILON = 1e-10;
 
 /**
- * Decimal places used when we render in fixed-point form (`toFixed`).
+ * Significant digits passed to mathjs `format(..., { notation: 'auto', precision })` for metrics.
  */
-export const METRIC_DISPLAY_FIXED_DECIMAL_PLACES = 6;
+export const METRIC_DISPLAY_AUTO_FORMAT_PRECISION = 7;
 
 /**
- * If `String(Math.abs(x))` is **longer** than this, we switch to exponential notation.
- * Many IEEE doubles print as a long decimal (e.g. `0.0123123123123123`); this is a cheap
- * “digit budget” before scientific form.
+ * Symmetric exponent band for `notation: 'auto'`: plain decimals when the scaled exponent is in
+ * `[-bound, bound)` (see mathjs `lowerExp` / `upperExp`).
  */
-export const METRIC_DISPLAY_MAX_RAW_DECIMAL_STRING_LENGTH =
-  METRIC_DISPLAY_FIXED_DECIMAL_PLACES + 6;
-
-/**
- * If the **integer part** of `x.toFixed(METRIC_DISPLAY_FIXED_DECIMAL_PLACES)` has more than
- * this many characters, we switch to exponential so very wide magnitudes do not stretch cells.
- *
- * (Do not use total `toFixed` string length: it always includes fractional digits, so e.g.
- * `100` → `"100.000000"` would falsely exceed a short max-length threshold.)
- */
-export const METRIC_DISPLAY_MAX_INTEGER_DIGITS_FOR_FIXED = 15;
-
-/**
- * Fraction digits passed to `toExponential` when we choose scientific notation
- * (read-only UI and logged-metric editor). Keep small so mantissas stay short.
- */
-export const METRIC_DISPLAY_EXPONENTIAL_FRACTION_DIGITS = 4;
+export const METRIC_DISPLAY_AUTO_FORMAT_EXP_BOUND = 6;

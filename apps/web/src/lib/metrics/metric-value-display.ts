@@ -1,10 +1,15 @@
 import {
-  METRIC_DISPLAY_EXPONENTIAL_FRACTION_DIGITS,
-  METRIC_DISPLAY_FIXED_DECIMAL_PLACES,
-  METRIC_DISPLAY_MAX_INTEGER_DIGITS_FOR_FIXED,
-  METRIC_DISPLAY_MAX_RAW_DECIMAL_STRING_LENGTH,
+  METRIC_DISPLAY_AUTO_FORMAT_EXP_BOUND,
+  METRIC_DISPLAY_AUTO_FORMAT_PRECISION,
   METRIC_DISPLAY_TIE_EPSILON,
 } from "@/lib/constants/metric-display";
+import {
+  formatValue,
+  formatValueNonExponential,
+  type MetricMathjsFormatOverrides,
+} from "@/lib/metrics/mathjs-metric-format";
+
+export { METRIC_FORMAT_OPTIONS, formatValue, formatValueNonExponential } from "@/lib/metrics/mathjs-metric-format";
 
 export type MetricDisplayRow = {
   /** Shown label (e.g. `formatMetricLabel(name, label)` on DAG). */
@@ -17,73 +22,152 @@ export type MetricDisplayRow = {
   isBetter?: boolean | null;
 };
 
-/** Prefer scientific notation based on string length and fixed-point safety. */
-function metricPreferExponential(mag: number, fixed: string): boolean {
-  if (mag > 0 && parseFloat(fixed) === 0) {
-    return true;
-  }
-  if (String(mag).length > METRIC_DISPLAY_MAX_RAW_DECIMAL_STRING_LENGTH) {
-    return true;
-  }
-  const intPart = fixed.split(".")[0] ?? "";
-  if (intPart.length > METRIC_DISPLAY_MAX_INTEGER_DIGITS_FOR_FIXED) {
-    return true;
-  }
-  return false;
+/** Overrides for {@link MetricValueDisplayFormatter}; unset fields use app defaults from `metric-display` constants. */
+export type MetricValueDisplayFormatOptions = {
+  tieEpsilon?: number;
+  autoFormatPrecision?: number;
+  autoFormatExpBound?: number;
+  /** Absolute tolerance in {@link MetricValueDisplayFormatter.areEditorValuesEffectivelyEqual}. */
+  editorEqualAbsoluteTolerance?: number;
+  /** Multiplier on `Number.EPSILON` for relative tolerance in editor equality. */
+  editorEqualRelativeEpsilonMultiplier?: number;
+};
+
+type ResolvedMetricValueDisplayFormatOptions = Required<MetricValueDisplayFormatOptions>;
+
+function resolveMetricValueDisplayFormatOptions(
+  overrides?: MetricValueDisplayFormatOptions
+): ResolvedMetricValueDisplayFormatOptions {
+  return {
+    tieEpsilon: METRIC_DISPLAY_TIE_EPSILON,
+    autoFormatPrecision: METRIC_DISPLAY_AUTO_FORMAT_PRECISION,
+    autoFormatExpBound: METRIC_DISPLAY_AUTO_FORMAT_EXP_BOUND,
+    editorEqualAbsoluteTolerance: 1e-12,
+    editorEqualRelativeEpsilonMultiplier: 16,
+    ...overrides,
+  };
 }
 
-function formatPositiveMagnitudeExponential(mag: number): string {
-  return mag.toExponential(METRIC_DISPLAY_EXPONENTIAL_FRACTION_DIGITS);
-}
+/**
+ * Metric scalar / delta formatting for tables, DAG, sidebar, and logged-metric editors.
+ * Uses {@link formatValue} (mathjs `format`, `notation: 'auto'`).
+ *
+ * Use {@link metricValueDisplayFormatter} for the default app config, or `new MetricValueDisplayFormatter({ ... })` for tests or custom UIs.
+ */
+export class MetricValueDisplayFormatter {
+  private readonly opts: ResolvedMetricValueDisplayFormatOptions;
 
-/** Strip trailing fraction zeros from a `toFixed` string so `1.000000` → `1`, `0.050000` → `0.05`. */
-function trimInsignificantFractionZeros(fixedPoint: string): string {
-  if (!fixedPoint.includes(".")) return fixedPoint;
-  return fixedPoint.replace(/\.?0+$/, "");
-}
-
-function formatPositiveMagnitude(mag: number): string {
-  if (mag === 0) return "0";
-  const fixed = mag.toFixed(METRIC_DISPLAY_FIXED_DECIMAL_PLACES);
-  if (metricPreferExponential(mag, fixed)) {
-    return formatPositiveMagnitudeExponential(mag);
+  constructor(overrides?: MetricValueDisplayFormatOptions) {
+    this.opts = resolveMetricValueDisplayFormatOptions(overrides);
   }
-  return trimInsignificantFractionZeros(fixed);
+
+  private mathjsOverrides(): MetricMathjsFormatOverrides {
+    return {
+      precision: this.opts.autoFormatPrecision,
+      expBound: this.opts.autoFormatExpBound,
+    };
+  }
+
+  /** @see formatMetricScalarForDisplay */
+  formatScalarForDisplay(value: number | null | undefined): string {
+    if (value === null || value === undefined) return "—";
+    if (!Number.isFinite(value)) return "—";
+    if (value === 0) return "0";
+    return formatValue(value, this.mathjsOverrides());
+  }
+
+  /** @see formatMetricScalarForEditorDraft */
+  formatScalarForEditorDraft(value: number): string {
+    if (!Number.isFinite(value)) return String(value);
+    if (value === 0) return "0";
+    return formatValue(value, this.mathjsOverrides());
+  }
+
+  /** @see formatMetricScalarForEditorFull */
+  formatScalarForEditorFull(value: number): string {
+    if (!Number.isFinite(value)) return String(value);
+    if (value === 0) return "0";
+    return formatValueNonExponential(value);
+  }
+
+  /** @see metricEditorValuesEffectivelyEqual */
+  areEditorValuesEffectivelyEqual(parsed: number, previous: number): boolean {
+    if (Object.is(parsed, previous)) return true;
+    if (!Number.isFinite(parsed) || !Number.isFinite(previous)) return false;
+    const d = Math.abs(parsed - previous);
+    const mag = Math.max(Math.abs(parsed), Math.abs(previous));
+    const relativeTol = mag * Number.EPSILON * this.opts.editorEqualRelativeEpsilonMultiplier;
+    const absoluteTol = this.opts.editorEqualAbsoluteTolerance;
+    return d <= Math.max(relativeTol, absoluteTol);
+  }
+
+  /** @see formatMetricSignedDeltaForDisplay */
+  formatSignedDeltaForDisplay(delta: number): string {
+    if (!Number.isFinite(delta)) return "—";
+    if (Math.abs(delta) < this.opts.tieEpsilon) return "0";
+    const sign = delta > 0 ? "+" : "-";
+    return sign + formatValue(Math.abs(delta), this.mathjsOverrides());
+  }
+
+  /** @see metricIsBetterThanParent */
+  isBetterThanParent(
+    value: number | null | undefined,
+    parentValue: number | null | undefined,
+    direction: "maximize" | "minimize"
+  ): boolean | null {
+    if (value == null || parentValue == null) return null;
+    if (!Number.isFinite(value) || !Number.isFinite(parentValue)) return null;
+    const eps = this.opts.tieEpsilon;
+    if (Object.is(value, parentValue) || Math.abs(value - parentValue) < eps) {
+      return null;
+    }
+    if (direction === "maximize") return value > parentValue;
+    return value < parentValue;
+  }
+
+  /** @see toMetricDisplayRow */
+  toDisplayRow(input: {
+    name: string;
+    value: number | null;
+    delta?: number | null;
+    isBetter?: boolean | null;
+  }): MetricDisplayRow {
+    const row: MetricDisplayRow = {
+      name: input.name,
+      value: this.formatScalarForDisplay(input.value),
+    };
+    if (input.delta != null && Number.isFinite(input.delta)) {
+      row.diff = this.formatSignedDeltaForDisplay(input.delta);
+    }
+    if (input.isBetter !== undefined) {
+      row.isBetter = input.isBetter;
+    }
+    return row;
+  }
+}
+
+/** Default formatter (constants from `@/lib/constants/metric-display`). */
+export const metricValueDisplayFormatter = new MetricValueDisplayFormatter();
+
+/** Table cells, DAG nodes, sidebar: null/empty and non-finite → em dash. */
+export function formatMetricScalarForDisplay(value: number | null | undefined): string {
+  return metricValueDisplayFormatter.formatScalarForDisplay(value);
 }
 
 /**
  * Text for logged-metric **value** `<Input>` when syncing from server data (blurred).
- * Uses the same length / `toFixed` rules as read-only display, then drops trailing fraction
- * zeros (`1` not `1.000000`).
+ * Same mathjs auto-format as read-only display.
  */
 export function formatMetricScalarForEditorDraft(value: number): string {
-  if (!Number.isFinite(value)) return String(value);
-  if (value === 0) return "0";
-  const body = formatPositiveMagnitude(Math.abs(value));
-  return value < 0 ? "-" + body : body;
+  return metricValueDisplayFormatter.formatScalarForEditorDraft(value);
 }
 
 /**
- * Full-precision text when the user focuses the metric value field (so they can edit the
- * underlying number, not the shortened exponential / digit-budget draft).
- *
- * Uses `String(number)` when it is already a plain decimal. If the engine uses scientific
- * notation, expands with `toLocaleString` when that does not round away subnormal values;
- * otherwise keeps the scientific string (still exact for the double).
+ * Text for the metric value field on focus — plain decimal via {@link formatValueNonExponential}
+ * (never exponential `e` notation for finite values).
  */
 export function formatMetricScalarForEditorFull(value: number): string {
-  if (!Number.isFinite(value)) return String(value);
-  if (value === 0) return Object.is(value, -0) ? "-0" : "0";
-  const raw = String(value);
-  if (!/[eE]/.test(raw)) return raw;
-  const expanded = value.toLocaleString("en-US", {
-    useGrouping: false,
-    maximumFractionDigits: 20,
-  });
-  if (value !== 0 && (expanded === "0" || expanded === "-0")) {
-    return raw;
-  }
-  return expanded;
+  return metricValueDisplayFormatter.formatScalarForEditorFull(value);
 }
 
 /**
@@ -92,33 +176,15 @@ export function formatMetricScalarForEditorFull(value: number): string {
  * float noise does not trigger saves.
  */
 export function metricEditorValuesEffectivelyEqual(parsed: number, previous: number): boolean {
-  if (Object.is(parsed, previous)) return true;
-  if (!Number.isFinite(parsed) || !Number.isFinite(previous)) return false;
-  const d = Math.abs(parsed - previous);
-  const mag = Math.max(Math.abs(parsed), Math.abs(previous));
-  const relativeTol = mag * Number.EPSILON * 16;
-  const absoluteTol = 1e-12;
-  return d <= Math.max(relativeTol, absoluteTol);
-}
-
-/** Table cells, DAG nodes, sidebar: null/empty and non-finite → em dash. */
-export function formatMetricScalarForDisplay(value: number | null | undefined): string {
-  if (value === null || value === undefined) return "—";
-  if (!Number.isFinite(value)) return "—";
-  if (value === 0) return "0";
-  const sign = value < 0 ? "-" : "";
-  return sign + formatPositiveMagnitude(Math.abs(value));
+  return metricValueDisplayFormatter.areEditorValuesEffectivelyEqual(parsed, previous);
 }
 
 /**
- * Signed delta vs parent for DAG / sidebar. Tie (|delta| < {@link METRIC_DISPLAY_TIE_EPSILON}) → `"0"`.
- * Uses the same length-based exponential rule as {@link formatMetricScalarForDisplay} on |delta|.
+ * Signed delta vs parent for DAG / sidebar. Tie (|delta| below configured tie epsilon) → `"0"`.
+ * Uses {@link formatValue} on |delta| with the same options as scalar display.
  */
 export function formatMetricSignedDeltaForDisplay(delta: number): string {
-  if (!Number.isFinite(delta)) return "—";
-  if (Math.abs(delta) < METRIC_DISPLAY_TIE_EPSILON) return "0";
-  const sign = delta > 0 ? "+" : "-";
-  return sign + formatPositiveMagnitude(Math.abs(delta));
+  return metricValueDisplayFormatter.formatSignedDeltaForDisplay(delta);
 }
 
 /** Same rules as `buildMetricComparisons` in the DAG (tie band, maximize vs minimize). */
@@ -127,13 +193,7 @@ export function metricIsBetterThanParent(
   parentValue: number | null | undefined,
   direction: "maximize" | "minimize"
 ): boolean | null {
-  if (value == null || parentValue == null) return null;
-  if (!Number.isFinite(value) || !Number.isFinite(parentValue)) return null;
-  if (Object.is(value, parentValue) || Math.abs(value - parentValue) < METRIC_DISPLAY_TIE_EPSILON) {
-    return null;
-  }
-  if (direction === "maximize") return value > parentValue;
-  return value < parentValue;
+  return metricValueDisplayFormatter.isBetterThanParent(value, parentValue, direction);
 }
 
 export function toMetricDisplayRow(input: {
@@ -142,15 +202,5 @@ export function toMetricDisplayRow(input: {
   delta?: number | null;
   isBetter?: boolean | null;
 }): MetricDisplayRow {
-  const row: MetricDisplayRow = {
-    name: input.name,
-    value: formatMetricScalarForDisplay(input.value),
-  };
-  if (input.delta != null && Number.isFinite(input.delta)) {
-    row.diff = formatMetricSignedDeltaForDisplay(input.delta);
-  }
-  if (input.isBetter !== undefined) {
-    row.isBetter = input.isBetter;
-  }
-  return row;
+  return metricValueDisplayFormatter.toDisplayRow(input);
 }

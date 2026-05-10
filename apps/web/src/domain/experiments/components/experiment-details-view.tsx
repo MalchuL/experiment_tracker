@@ -71,6 +71,7 @@ import {
   formatMetricScalarForEditorFull,
   metricEditorValuesEffectivelyEqual,
 } from "@/lib/metrics/metric-value-display";
+import { MetricDeltaVsParent } from "@/components/shared/metric-delta-vs-parent";
 import { useToast } from "@/lib/hooks/use-toast";
 import { GitBranch, ChevronDown, X } from "lucide-react";
 import { format, parseISO } from "date-fns";
@@ -79,6 +80,18 @@ import { ExperimentDangerZoneCard } from "@/domain/experiments/components/experi
 import type { InsertExperiment } from "@/shared/schema";
 function formatExperimentParentOption(exp: Pick<Experiment, "name" | "id">): string {
   return `${exp.name} (${exp.id.slice(0, 7)})`;
+}
+
+/**
+ * Strict parse for logged metric value fields. `Number.parseFloat` only reads a prefix and drops
+ * trailing garbage (`parseFloat("1.2x") === 1.2`); `Number(trimmed)` requires the whole string to
+ * be a numeric literal, so typos at the end are rejected instead of truncated.
+ */
+function parseLoggedMetricValueInput(trimmed: string): number | null {
+  if (trimmed === "") return null;
+  const num = Number(trimmed);
+  if (!Number.isFinite(num)) return null;
+  return num;
 }
 
 export function ExperimentDetailsView({ projectId }: { projectId: string }) {
@@ -264,7 +277,8 @@ export function ExperimentDetailsView({ projectId }: { projectId: string }) {
         <CardHeader>
           <CardTitle>Selected metrics</CardTitle>
           <p className="text-sm text-muted-foreground">
-            Values aggregated per project metric configuration (same as experiments table).
+            Values aggregated per project metric configuration (same as experiments table). When an
+            experiment has a parent, the change vs parent is shown like on the DAG.
           </p>
         </CardHeader>
         <CardContent className="overflow-x-auto">
@@ -297,9 +311,28 @@ export function ExperimentDetailsView({ projectId }: { projectId: string }) {
                           { name: pm.name, label: pm.label ?? null }
                         )
                       )?.value;
+                      const parentId = e.parentExperimentId;
+                      const parentValue =
+                        parentId != null
+                          ? aggregatedMetricsByExperiment[parentId]?.find((m) =>
+                              displayMetricKeyEquals(
+                                { name: m.name, label: m.label },
+                                { name: pm.name, label: pm.label ?? null }
+                              )
+                            )?.value
+                          : undefined;
+                      const direction = pm.direction === "minimize" ? "minimize" : "maximize";
                       return (
                         <TableCell key={e.id} className="font-mono text-sm">
-                          {formatMetricScalarForDisplay(value ?? null)}
+                          <div className="flex flex-wrap items-center gap-1 min-w-0">
+                            <span>{formatMetricScalarForDisplay(value ?? null)}</span>
+                            <MetricDeltaVsParent
+                              value={value ?? null}
+                              parentValue={parentValue ?? null}
+                              direction={direction}
+                              textClassName="font-mono text-xs tabular-nums leading-none"
+                            />
+                          </div>
                         </TableCell>
                       );
                     })}
@@ -689,21 +722,21 @@ function LoggedMetricsEditor({
     setAddOpen(true);
   };
 
-  /** Persist value input on blur: skip HTTP if parse fails or number is unchanged (see metricEditorValuesEffectivelyEqual). */
+  /** Persist value input on blur: skip HTTP if parse fails or value is unchanged (exact short draft, or bitwise same double as stored). */
   const flushValue = async (m: Metric) => {
     const raw = draftValues[m.id];
     if (raw === undefined) return;
     const trimmed = raw.trim();
-    const num = Number.parseFloat(trimmed);
-    if (Number.isNaN(num)) {
-      toast({ title: "Invalid number", variant: "destructive" });
+    const num = parseLoggedMetricValueInput(trimmed);
+    if (num === null) {
+      toast({ title: "Value can't be parsed", variant: "destructive" });
       // Revert to the compact display string (not the in-progress invalid text).
       setDraftValues((prev) => ({ ...prev, [m.id]: formatMetricScalarForEditorDraft(m.value) }));
       return;
     }
-    if (metricEditorValuesEffectivelyEqual(num, m.value)) {
-      // No upsert; snap back to short formatted draft after editing full-precision text.
-      setDraftValues((prev) => ({ ...prev, [m.id]: formatMetricScalarForEditorDraft(m.value) }));
+    const short = formatMetricScalarForEditorDraft(m.value);
+    if (trimmed === short || Object.is(num, m.value)) {
+      setDraftValues((prev) => ({ ...prev, [m.id]: short }));
       return;
     }
     await onUpsert({
@@ -740,9 +773,9 @@ function LoggedMetricsEditor({
       toast({ title: "Name is required", variant: "destructive" });
       return;
     }
-    const num = Number.parseFloat(newValue);
-    if (Number.isNaN(num)) {
-      toast({ title: "Invalid value", variant: "destructive" });
+    const num = parseLoggedMetricValueInput(newValue.trim());
+    if (num === null) {
+      toast({ title: "Value can't be parsed", variant: "destructive" });
       return;
     }
     let label: string | null;
@@ -844,9 +877,14 @@ function LoggedMetricsEditor({
                       </TableCell>
                       <TableCell className="py-1.5">
                         {/*
-                          Blurred: short draft (formatMetricScalarForEditorDraft). On focus, swap to
-                          full-precision text once (formatMetricScalarForEditorFull) so refocus mid-edit
-                          does not overwrite the user. Blur runs flushValue (save only if changed).
+                          Blurred: short draft. On focus, swap to full plain-decimal text when the field
+                          still matches the server value: either it is exactly the short draft, or the
+                          parsed number matches `m.value` (see metricEditorValuesEffectivelyEqual). The
+                          short string alone can parse slightly off the stored double, so we must not
+                          rely only on numeric equality for the pristine short case.
+                          Unparseable text: no toast here — only flushValue (onBlur) shows errors / success.
+                          Parsing uses strict full-string `Number(...)` (not parseFloat) so trailing typos
+                          are not silently dropped from the right-hand side of the field.
                         */}
                         <Input
                           className={valueInputClass}
@@ -857,9 +895,16 @@ function LoggedMetricsEditor({
                           onFocus={() =>
                             setDraftValues((prev) => {
                               const short = formatMetricScalarForEditorDraft(m.value);
+                              const full = formatMetricScalarForEditorFull(m.value);
                               const cur = prev[m.id] ?? short;
-                              if (cur !== short) return prev;
-                              return { ...prev, [m.id]: formatMetricScalarForEditorFull(m.value) };
+                              const parsed = parseLoggedMetricValueInput(cur.trim());
+                              if (parsed === null) return prev;
+                              const stillServerValue =
+                                cur === short ||
+                                metricEditorValuesEffectivelyEqual(parsed, m.value);
+                              if (!stillServerValue) return prev;
+                              if (cur === full) return prev;
+                              return { ...prev, [m.id]: full };
                             })
                           }
                           onBlur={() => void flushValue(m)}
