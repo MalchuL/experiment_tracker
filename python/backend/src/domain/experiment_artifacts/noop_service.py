@@ -88,6 +88,15 @@ class NoOpExperimentArtifactsService:
     ) -> DeleteExperimentArtifactsResponseDTO:
         return DeleteExperimentArtifactsResponseDTO(deleted_count=0)
 
+    async def delete_experiment_tracked_artifact(
+        self,
+        user: UserProtocol,
+        experiment_id: UUID,
+        *,
+        filepath: str,
+    ) -> DeleteExperimentArtifactResponseDTO:
+        return DeleteExperimentArtifactResponseDTO(deleted=True)
+
     async def upsert_experiment_artifact(
         self,
         user: UserProtocol,

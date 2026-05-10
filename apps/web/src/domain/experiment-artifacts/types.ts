@@ -12,6 +12,12 @@ export interface NamedExperimentArtifact {
 
 export type NamedArtifactPreview =
   | { status: "ok"; text: string; sizeBytes: number; contentType: string }
+  | {
+      status: "image_ok";
+      dataUrl: string;
+      sizeBytes: number;
+      contentType: string;
+    }
   | { status: "too_large"; message: string; sizeBytes: number; thresholdBytes: number; contentType: string }
   | { status: "binary"; message: string; sizeBytes: number; contentType: string }
   | { status: "decode_error"; message: string; sizeBytes: number; contentType: string };

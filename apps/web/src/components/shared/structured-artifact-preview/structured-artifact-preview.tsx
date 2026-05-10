@@ -136,20 +136,42 @@ function StructuredNode({ nodeKey, value, depth }: StructuredNodeProps) {
 interface StructuredArtifactPreviewProps {
   filepath: string;
   preview: NamedArtifactPreview | undefined;
+  /** Larger scroll areas when shown in fullscreen dialog. */
+  density?: "default" | "relaxed";
 }
 
 export function StructuredArtifactPreview({
   filepath,
   preview,
+  density = "default",
 }: StructuredArtifactPreviewProps) {
   if (!preview) {
     return <p className="text-xs text-muted-foreground">Loading preview...</p>;
   }
 
+  const relaxed = density === "relaxed";
+  const scrollMax = relaxed ? "max-h-[min(85vh,56rem)]" : "max-h-80";
+  const preMax = relaxed ? "max-h-[min(85vh,56rem)]" : "max-h-64";
+  const imgWrap = relaxed ? "max-h-[min(90vh,64rem)]" : "max-h-96";
+
+  if (preview.status === "image_ok") {
+    return (
+      <div
+        className={`flex max-w-full justify-center overflow-auto rounded border border-border bg-muted/30 p-2 ${imgWrap}`}
+      >
+        <img
+          src={preview.dataUrl}
+          alt=""
+          className={`max-w-full object-contain ${relaxed ? "max-h-[min(90vh,64rem)]" : "max-h-96"}`}
+        />
+      </div>
+    );
+  }
+
   if (preview.status === "too_large") {
     return (
       <p className="text-xs text-amber-600">
-        Can&apos;t preview: file is larger than 2MB threshold.
+        Can&apos;t preview: {preview.message}
       </p>
     );
   }
@@ -173,14 +195,18 @@ export function StructuredArtifactPreview({
   const structuredValue = tryParseStructured(filepath, preview.text);
   if (structuredValue !== null) {
     return (
-      <div className="rounded border border-border bg-background/80 p-2 overflow-auto max-h-80">
+      <div
+        className={`rounded border border-border bg-background/80 p-2 overflow-auto ${scrollMax}`}
+      >
         <StructuredNode nodeKey="root" value={structuredValue} depth={0} />
       </div>
     );
   }
 
   return (
-    <pre className="text-xs bg-background/80 border border-border p-2 rounded max-h-64 overflow-auto whitespace-pre-wrap">
+    <pre
+      className={`text-xs bg-background/80 border border-border p-2 rounded overflow-auto whitespace-pre-wrap ${preMax}`}
+    >
       {preview.text}
     </pre>
   );

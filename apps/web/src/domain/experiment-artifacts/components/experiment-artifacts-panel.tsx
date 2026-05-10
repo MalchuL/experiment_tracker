@@ -2,9 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { StructuredArtifactPreview } from "@/components/shared/structured-artifact-preview";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { FinalArtifactCard } from "@/domain/experiment-artifacts/components/final-artifact-card";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -164,38 +162,9 @@ export function ExperimentArtifactsPanel({
           ) : (
             <div className="grid gap-3">
               {filteredArtifacts.map((artifact) => {
-                const downloadUrl = buildNamedArtifactDownloadUrl(
-                  artifact.experimentId,
-                  artifact.name,
-                  artifact.filepath,
-                  "attachment"
-                );
                 const preview = previewsByArtifactId[artifact.id];
                 return (
-                  <Card key={artifact.id}>
-                    <CardContent className="pt-4 space-y-2">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium">{artifact.name}</span>
-                            <Badge variant="outline">{artifact.mimeType}</Badge>
-                          </div>
-                          <p className="text-sm text-muted-foreground">{artifact.filepath}</p>
-                        </div>
-                      </div>
-                      <StructuredArtifactPreview
-                        filepath={artifact.filepath}
-                        preview={preview}
-                      />
-                      <div className="flex items-center gap-2">
-                        <Button asChild size="sm" variant="outline">
-                          <a href={downloadUrl} target="_blank" rel="noreferrer">
-                            Download
-                          </a>
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
+                  <FinalArtifactCard key={artifact.id} artifact={artifact} preview={preview} />
                 );
               })}
             </div>

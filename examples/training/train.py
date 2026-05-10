@@ -228,6 +228,9 @@ def main() -> None:
         steps = 120
         step_seconds = duration_seconds / steps
         start_time = time.time()
+        # Scalar tag "power": magnitude sweep for charting very large → very small values.
+        power_exp_high = 15.0
+        power_exp_low = -15.0
 
         if args.config_path:
             with open(args.config_path, encoding="utf-8") as config_file:
@@ -302,6 +305,12 @@ def main() -> None:
             tracker.add_scalar("accuracy", accuracy, global_step=step)
             tracker.add_scalar("loss", loss, global_step=step)
             tracker.add_scalar("bce_loss", bce_loss, global_step=step)
+            if steps > 1:
+                power_t = (step - 1) / (steps - 1)
+            else:
+                power_t = 0.0
+            power_exponent = power_exp_high + power_t * (power_exp_low - power_exp_high)
+            tracker.add_scalar("power", 10.0**power_exponent, global_step=step)
             tracker.add_scalar(
                 "rng",
                 float("NaN") if step % 3 == 0 else float(random.random()),
@@ -340,6 +349,17 @@ def main() -> None:
                 label="final",
             )
 
+        # Metrics (Postgres): one row per (name, label); log discrete magnitudes like the scalar sweep.
+        power_metric_names: list[str] = []
+        for exp in range(15, -16, -1):
+            name = f"e{exp:+d}"
+            power_metric_names.append(name)
+            tracker.add_metric(
+                name=name,
+                value=float(10**exp),
+                label="power",
+            )
+
         summary_payload = {
             "experiment_id": experiment_id,
             "steps": steps,
@@ -373,8 +393,9 @@ def main() -> None:
                     "accuracy",
                     "loss",
                     "bce_loss",
+                    "power",
                 ],
-                "metric_names": list(final_metrics.keys()),
+                "metric_names": list(final_metrics.keys()) + power_metric_names,
             },
         )
 

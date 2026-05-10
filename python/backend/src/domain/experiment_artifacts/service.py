@@ -618,6 +618,27 @@ class ExperimentArtifactsService:
             project_id, experiment_id, hash
         )
 
+    async def delete_experiment_tracked_artifact(
+        self,
+        user: UserProtocol,
+        experiment_id: UUID,
+        *,
+        filepath: str,
+    ) -> DeleteExperimentArtifactResponseDTO:
+        """Delete one tracked artifact by stored filepath (relative path in object storage)."""
+        project_id = await self._ensure_log_permission(user, experiment_id)
+        tracked_path = self._normalize_filepath(filepath)
+        existing = await self._find_tracked_artifact(
+            project_id, experiment_id, filepath=tracked_path
+        )
+        if existing is None:
+            raise ExperimentArtifactNotFoundError(
+                f"Tracked artifact not found for filepath={filepath!r}"
+            )
+        return await self._object_storage.delete_experiment_artifact(
+            project_id, experiment_id, existing.hash
+        )
+
     async def delete_experiment_all_artifacts(
         self, user: UserProtocol, experiment_id: UUID
     ) -> DeleteExperimentArtifactsResponseDTO:
