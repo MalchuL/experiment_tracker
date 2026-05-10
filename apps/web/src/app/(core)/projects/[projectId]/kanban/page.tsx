@@ -165,9 +165,7 @@ export default function Kanban() {
           experimentId={selectedExperimentId}
           onClose={() => setSelectedExperimentId(null)}
           projectMetrics={filteredMetrics}
-          aggregatedMetrics={
-            aggregatedMetricsByExperiment?.[selectedExperimentId] || undefined
-          }
+          aggregatedMetricsByExperiment={aggregatedMetricsByExperiment}
         />
       ) : null}
     </div>

@@ -138,7 +138,7 @@ export function ProjectMetricsPage() {
           experimentId={selectedExperimentId}
           onClose={() => setSelectedExperimentId(null)}
           projectMetrics={projectMetricsForSidebar}
-          aggregatedMetrics={aggregatedMetricsByExperiment[selectedExperimentId] ?? undefined}
+          aggregatedMetricsByExperiment={aggregatedMetricsByExperiment}
         />
       ) : null}
     </div>

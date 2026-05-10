@@ -130,6 +130,7 @@ Examples:
 
 - From repo root: `pnpm dlx turbo dev` (or your repo’s documented dev task).
 - From `apps/web`: `pnpm run dev`.
+- From `apps/web`: `pnpm run test` runs **Vitest** (unit tests under `src/**/*.test.ts`, e.g. metric display formatting).
 
 For local development against the backend, set the web env so the UI and BFF target the API (for example `NEXT_PUBLIC_BASE_URL=http://127.0.0.1:8000`).
 

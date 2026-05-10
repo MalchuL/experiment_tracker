@@ -41,6 +41,8 @@ import { REFRESH_EXPERIMENT_SIDEBAR_INTERVAL } from "@/lib/constants/rates";
 import { FRONTEND_ROUTES } from "@/lib/constants/frontend-routes";
 import { cn } from "@/lib/utils";
 import { displayMetricKeyEquals, formatMetricLabel, projectMetricKeyString } from "@/lib/metrics/format-metric-label";
+import { formatMetricScalarForDisplay } from "@/lib/metrics/metric-value-display";
+import { MetricDeltaVsParent } from "@/components/shared/metric-delta-vs-parent";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -56,7 +58,8 @@ interface ExperimentSidebarProps {
   experimentId: string | null;
   onClose: () => void;
   projectMetrics?: ProjectMetric[];
-  aggregatedMetrics?: Metric[];
+  /** Per-experiment aggregated display metrics; used for values and parent deltas. */
+  aggregatedMetricsByExperiment?: Record<string, Metric[]>;
   /** `push` = list/kanban (main area shrinks); `overlay` = graph/full-bleed (default). */
   variant?: RightSidebarVariant;
 }
@@ -65,7 +68,7 @@ export function ExperimentSidebar({
   experimentId,
   onClose,
   projectMetrics,
-  aggregatedMetrics,
+  aggregatedMetricsByExperiment,
   variant = "overlay",
 }: ExperimentSidebarProps) {
   const { toast } = useToast();
@@ -222,10 +225,11 @@ export function ExperimentSidebar({
 
   if (!experimentId) return null;
 
-  const formatMetricValue = (value: number | null | undefined): string => {
-    if (value === null || value === undefined) return "NaN";
-    return value.toFixed(4);
-  };
+  const expMetrics = experiment ? aggregatedMetricsByExperiment?.[experiment.id] : undefined;
+  const parentMetrics =
+    experiment?.parentExperimentId != null
+      ? aggregatedMetricsByExperiment?.[experiment.parentExperimentId]
+      : undefined;
 
   return (
     <RightSidebarShell
@@ -484,35 +488,50 @@ export function ExperimentSidebar({
                     <CardContent className="px-3 pb-3 pt-0">
                       <div className="space-y-2">
                         {projectMetrics.map((pm) => {
-                          const value = aggregatedMetrics?.find((m) =>
+                          const value = expMetrics?.find((m) =>
                             displayMetricKeyEquals(
                               { name: m.name, label: m.label },
                               { name: pm.name, label: pm.label ?? null }
                             )
                           )?.value;
+                          const parentValue = parentMetrics?.find((m) =>
+                            displayMetricKeyEquals(
+                              { name: m.name, label: m.label },
+                              { name: pm.name, label: pm.label ?? null }
+                            )
+                          )?.value;
+                          const direction = pm.direction === "minimize" ? "minimize" : "maximize";
                           return (
                             <div
                               key={projectMetricKeyString(pm)}
-                              className="flex items-center justify-between text-sm"
+                              className="flex items-center justify-between gap-2 text-sm"
                               data-testid={`metric-${projectMetricKeyString(pm)}`}
                             >
-                              <div className="flex items-center gap-2">
-                                <span>{formatMetricLabel(pm.name, pm.label ?? null)}</span>
+                              <div className="flex min-w-0 items-center gap-2">
+                                <span className="truncate">{formatMetricLabel(pm.name, pm.label ?? null)}</span>
                                 {pm.direction === "minimize" ? (
-                                  <TrendingDown className="w-3 h-3 text-muted-foreground" />
+                                  <TrendingDown className="h-3 w-3 shrink-0 text-muted-foreground" />
                                 ) : (
-                                  <TrendingUp className="w-3 h-3 text-muted-foreground" />
+                                  <TrendingUp className="h-3 w-3 shrink-0 text-muted-foreground" />
                                 )}
                               </div>
-                              <span
-                                className={`font-mono ${
-                                  value === null || value === undefined
-                                    ? "text-muted-foreground"
-                                    : ""
-                                }`}
-                              >
-                                {formatMetricValue(value)}
-                              </span>
+                              <div className="flex shrink-0 items-center gap-0.5">
+                                <span
+                                  className={`font-mono text-xs tabular-nums ${
+                                    value === null || value === undefined
+                                      ? "text-muted-foreground"
+                                      : ""
+                                  }`}
+                                >
+                                  {formatMetricScalarForDisplay(value)}
+                                </span>
+                                <MetricDeltaVsParent
+                                  value={value ?? null}
+                                  parentValue={parentValue ?? null}
+                                  direction={direction}
+                                  textClassName="font-mono text-xs tabular-nums leading-none"
+                                />
+                              </div>
                             </div>
                           );
                         })}
@@ -550,8 +569,8 @@ export function ExperimentSidebar({
                                 data-testid={`logged-metric-${metric.id}`}
                               >
                                 <span className="truncate pr-2">{metric.name}</span>
-                                <span className="font-mono flex-shrink-0">
-                                  {metric.value.toFixed(4)}
+                                <span className="font-mono flex-shrink-0 text-xs tabular-nums">
+                                  {formatMetricScalarForDisplay(metric.value)}
                                 </span>
                               </div>
                             ))}

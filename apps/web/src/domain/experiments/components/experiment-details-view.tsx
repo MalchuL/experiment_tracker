@@ -65,6 +65,12 @@ import {
   getDisplayedTrackedMetrics,
   projectMetricKeyString,
 } from "@/lib/metrics/format-metric-label";
+import {
+  formatMetricScalarForDisplay,
+  formatMetricScalarForEditorDraft,
+  formatMetricScalarForEditorFull,
+  metricEditorValuesEffectivelyEqual,
+} from "@/lib/metrics/metric-value-display";
 import { useToast } from "@/lib/hooks/use-toast";
 import { GitBranch, ChevronDown, X } from "lucide-react";
 import { format, parseISO } from "date-fns";
@@ -293,7 +299,7 @@ export function ExperimentDetailsView({ projectId }: { projectId: string }) {
                       )?.value;
                       return (
                         <TableCell key={e.id} className="font-mono text-sm">
-                          {value === undefined || value === null ? "—" : value.toFixed(4)}
+                          {formatMetricScalarForDisplay(value ?? null)}
                         </TableCell>
                       );
                     })}
@@ -657,7 +663,7 @@ function LoggedMetricsEditor({
     const nextVal: Record<string, string> = {};
     const nextName: Record<string, string> = {};
     for (const m of metrics) {
-      nextVal[m.id] = String(m.value);
+      nextVal[m.id] = formatMetricScalarForEditorDraft(m.value);
       nextName[m.id] = m.name;
     }
     setDraftValues(nextVal);
@@ -683,15 +689,23 @@ function LoggedMetricsEditor({
     setAddOpen(true);
   };
 
+  /** Persist value input on blur: skip HTTP if parse fails or number is unchanged (see metricEditorValuesEffectivelyEqual). */
   const flushValue = async (m: Metric) => {
     const raw = draftValues[m.id];
     if (raw === undefined) return;
-    const num = Number.parseFloat(raw);
+    const trimmed = raw.trim();
+    const num = Number.parseFloat(trimmed);
     if (Number.isNaN(num)) {
       toast({ title: "Invalid number", variant: "destructive" });
+      // Revert to the compact display string (not the in-progress invalid text).
+      setDraftValues((prev) => ({ ...prev, [m.id]: formatMetricScalarForEditorDraft(m.value) }));
       return;
     }
-    if (num === m.value) return;
+    if (metricEditorValuesEffectivelyEqual(num, m.value)) {
+      // No upsert; snap back to short formatted draft after editing full-precision text.
+      setDraftValues((prev) => ({ ...prev, [m.id]: formatMetricScalarForEditorDraft(m.value) }));
+      return;
+    }
     await onUpsert({
       experimentId,
       name: m.name,
@@ -755,8 +769,13 @@ function LoggedMetricsEditor({
     setNewValue("0");
   };
 
+  /** Metric name field: chrome matches value (no heavy border until hover/focus). */
   const nameInputClass =
     "h-8 min-w-[8rem] max-w-[20rem] font-medium border-transparent bg-transparent px-2 shadow-none hover:border-input focus-visible:border-input focus-visible:ring-1";
+
+  /** Wider monospace value field; same border treatment as name. */
+  const valueInputClass =
+    "h-8 min-w-[12rem] max-w-[24rem] w-full font-mono border-transparent bg-transparent px-2 shadow-none hover:border-input focus-visible:border-input focus-visible:ring-1";
 
   return (
     <Card data-testid={`logged-metrics-${experimentId}`}>
@@ -803,7 +822,7 @@ function LoggedMetricsEditor({
                 <TableHeader>
                   <TableRow>
                     <TableHead>Name</TableHead>
-                    <TableHead className="w-[9rem]">Value</TableHead>
+                    <TableHead className="min-w-[12rem] w-[14rem]">Value</TableHead>
                     <TableHead className="w-12 text-right p-0" />
                   </TableRow>
                 </TableHeader>
@@ -811,6 +830,7 @@ function LoggedMetricsEditor({
                   {group.items.map((m) => (
                     <TableRow key={m.id}>
                       <TableCell className="py-1.5">
+                        {/* Inline edit; blur persists via flushName (recreates row if name changed). */}
                         <Input
                           className={nameInputClass}
                           value={draftNames[m.id] ?? m.name}
@@ -823,11 +843,24 @@ function LoggedMetricsEditor({
                         />
                       </TableCell>
                       <TableCell className="py-1.5">
+                        {/*
+                          Blurred: short draft (formatMetricScalarForEditorDraft). On focus, swap to
+                          full-precision text once (formatMetricScalarForEditorFull) so refocus mid-edit
+                          does not overwrite the user. Blur runs flushValue (save only if changed).
+                        */}
                         <Input
-                          className="w-full max-w-[9rem] font-mono h-8"
-                          value={draftValues[m.id] ?? String(m.value)}
+                          className={valueInputClass}
+                          value={draftValues[m.id] ?? formatMetricScalarForEditorDraft(m.value)}
                           onChange={(e) =>
                             setDraftValues((prev) => ({ ...prev, [m.id]: e.target.value }))
+                          }
+                          onFocus={() =>
+                            setDraftValues((prev) => {
+                              const short = formatMetricScalarForEditorDraft(m.value);
+                              const cur = prev[m.id] ?? short;
+                              if (cur !== short) return prev;
+                              return { ...prev, [m.id]: formatMetricScalarForEditorFull(m.value) };
+                            })
                           }
                           onBlur={() => void flushValue(m)}
                           data-testid={`metric-value-${m.id}`}

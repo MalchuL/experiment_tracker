@@ -50,8 +50,6 @@ import {
   Play,
   CheckCircle2,
   XCircle,
-  TrendingUp,
-  TrendingDown,
   AlertCircle,
   RefreshCw,
   Search,
@@ -75,6 +73,8 @@ import {
   getDisplayedTrackedMetrics,
   projectMetricKeyString,
 } from "@/lib/metrics/format-metric-label";
+import { MetricDeltaVsParent } from "@/components/shared/metric-delta-vs-parent";
+import { formatMetricScalarForDisplay } from "@/lib/metrics/metric-value-display";
 import { cn } from "@/lib/utils";
 import { useQueryClient } from "@tanstack/react-query";
 import { QUERY_KEYS } from "@/lib/constants/query-keys";
@@ -92,7 +92,6 @@ export interface MetricComparison {
   value: number | null;
   parentValue: number | null;
   direction: "maximize" | "minimize";
-  isBetter: boolean | null;
 }
 
 export interface ExperimentNodeData {
@@ -106,40 +105,6 @@ export interface ExperimentNodeData {
   isSelected?: boolean;
   isHighlighted?: boolean;
   [key: string]: unknown;
-}
-
-function formatMetricDiff(value: number, parentValue: number): string {
-  const delta = value - parentValue;
-  if (Math.abs(delta) < 1e-10) return "0";
-  const sign = delta > 0 ? "+" : "";
-  return `${sign}${delta.toFixed(3)}`;
-}
-
-function outcomeColorClass(isBetter: boolean | null): string {
-  return isBetter === true
-    ? "text-green-500"
-    : isBetter === false
-      ? "text-red-500"
-      : "text-muted-foreground";
-}
-
-function DagMetricDeltaSuffix({ metric }: { metric: MetricComparison }) {
-  if (metric.value === null || metric.parentValue === null) return null;
-  const d = metric.value - metric.parentValue;
-  const tie = Math.abs(d) < 1e-10;
-  const ArrowIcon = tie ? null : d > 0 ? TrendingUp : TrendingDown;
-  const oc = outcomeColorClass(metric.isBetter);
-
-  return (
-    <>
-      {ArrowIcon ? (
-        <ArrowIcon className={cn("w-2.5 h-2.5 shrink-0", oc)} />
-      ) : null}
-      <span className={cn("font-mono text-[9px] tabular-nums leading-none", oc)}>
-        {formatMetricDiff(metric.value, metric.parentValue)}
-      </span>
-    </>
-  );
 }
 
 function buildMetricComparisons(
@@ -177,24 +142,12 @@ function buildMetricComparisons(
       )?.value ?? null;
     const direction = pm?.direction || "maximize";
 
-    let isBetter: boolean | null = null;
-    if (value !== null && parentValue !== null) {
-      if (Object.is(value, parentValue) || Math.abs(value - parentValue) < 1e-10) {
-        isBetter = null;
-      } else if (direction === "maximize") {
-        isBetter = value > parentValue;
-      } else {
-        isBetter = value < parentValue;
-      }
-    }
-
     return {
       name: dim.name,
       label: dim.label,
       value,
       parentValue,
       direction,
-      isBetter,
     };
   });
 }
@@ -211,11 +164,6 @@ function ExperimentNode({ data }: { data: ExperimentNodeData }) {
       default:
         return <Clock className="w-3 h-3 shrink-0" />;
     }
-  };
-
-  const formatValue = (v: number | null) => {
-    if (v === null) return "NaN";
-    return v.toFixed(3);
   };
 
   const shownMetrics = data.metrics.slice(0, MAX_METRICS_ON_CARD);
@@ -295,9 +243,13 @@ function ExperimentNode({ data }: { data: ExperimentNodeData }) {
                   </Tooltip>
                   <div className="flex items-center gap-0.5 shrink-0">
                     <span className="font-mono tabular-nums text-[10px]">
-                      {formatValue(metric.value)}
+                      {formatMetricScalarForDisplay(metric.value)}
                     </span>
-                    <DagMetricDeltaSuffix metric={metric} />
+                    <MetricDeltaVsParent
+                      value={metric.value}
+                      parentValue={metric.parentValue}
+                      direction={metric.direction}
+                    />
                   </div>
                 </div>
               );
@@ -657,9 +609,7 @@ function DagViewCanvas({
           experimentId={selectedExperimentId}
           onClose={() => setSelectedExperimentId(null)}
           projectMetrics={filteredMetrics}
-          aggregatedMetrics={
-            aggregatedMetricsByExperiment?.[selectedExperimentId] || undefined
-          }
+          aggregatedMetricsByExperiment={aggregatedMetricsByExperiment}
         />
       ) : null}
     </>
