@@ -73,6 +73,7 @@ export function useProjectObjects(params: UseProjectObjectsParams) {
   );
   return {
     artifacts,
+    queryKey,
     isLoading,
     isFetching,
     isFetchingNextPage,

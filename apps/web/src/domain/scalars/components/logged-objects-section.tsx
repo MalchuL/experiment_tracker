@@ -120,7 +120,7 @@ export function LoggedObjectsSection({
                         const nearestStep = closestStep(targetStep, experimentSteps);
                         const objectAtStep =
                           nearestStep === null ? undefined : experimentStepMap[nearestStep];
-                        const objectSrc =
+                        const baseSrc =
                           objectAtStep && nearestStep !== null
                             ? API_ROUTES.EXPERIMENT_ARTIFACTS.DOWNLOAD_AT_STEP(
                                 experiment.id,
@@ -129,6 +129,11 @@ export function LoggedObjectsSection({
                                 objectType
                               )
                             : "";
+                        /** Bust browser cache when the same step/name logs new bytes (hash in ``path`` changes). */
+                        const objectSrc =
+                          baseSrc && objectAtStep
+                            ? `${baseSrc}&cb=${encodeURIComponent(objectAtStep.path || objectAtStep.timestamp)}`
+                            : baseSrc;
                         const currentOverrideIndex = Math.max(
                           0,
                           experimentSteps.findIndex(

@@ -11,7 +11,8 @@ import { PageHeader } from "@/components/shared/page-header";
 import { useExperiments } from "@/domain/experiments/hooks";
 import { experimentsService } from "@/domain/experiments/services";
 import type { Experiment, UpdateExperiment } from "@/domain/experiments/types";
-import { useProjectObjects } from "@/domain/logged-objects/hooks";
+import { ExperimentStatus } from "@/domain/experiments/types";
+import { useArtifactsLiveRefresh, useProjectObjects } from "@/domain/logged-objects/hooks";
 import { metricsService } from "@/domain/metrics/services";
 import { useCurrentProject } from "@/domain/projects/hooks";
 import {
@@ -121,6 +122,7 @@ export default function Scalars() {
   });
   const {
     artifacts: projectArtifactsAtStep,
+    queryKey: artifactsQueryKey,
     isLoading: objectsLoading,
     isFetching: objectsFetching,
     isFetchingNextPage: objectsFetchingNextPage,
@@ -193,12 +195,31 @@ export default function Scalars() {
     );
   }, [objectGroups]);
 
+  const lastLoggedExperimentIds = useMemo(() => {
+    const byId = new Map(sortedExperiments.map((e) => [e.id, e]));
+    return Array.from(selectedExperimentIds).filter((id) => {
+      const exp = byId.get(id);
+      if (!exp) return false;
+      return (
+        exp.status !== ExperimentStatus.COMPLETE &&
+        exp.status !== ExperimentStatus.FAILED
+      );
+    });
+  }, [sortedExperiments, selectedExperimentIds]);
+
   useScalarsLiveRefresh({
     projectId,
-    experimentIds: Array.from(selectedExperimentIds),
+    experimentIds: lastLoggedExperimentIds,
     scalarsQueryKey,
     maxPoints: maxPointsPerPlot,
     enabled: !scalarsLoading,
+  });
+
+  useArtifactsLiveRefresh({
+    projectId,
+    experimentIds: lastLoggedExperimentIds,
+    artifactsQueryKey,
+    enabled: !objectsLoading,
   });
 
   const handleSmoothingChange = (value: number[]) => {
