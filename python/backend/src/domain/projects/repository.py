@@ -40,6 +40,7 @@ class ProjectRepository(BaseRepository):
         filters = [Project.id.in_(project_ids)]
         return await self.list(
             *filters,
+            order_by=Project.created_at.desc(),
             load=self._load_options(full_load),
             list_options=list_options,
         )
