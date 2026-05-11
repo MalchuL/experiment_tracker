@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { User } from "@/shared/types";
+import type { User } from "@/types";
 import { useAuthStore } from "../store";
 import { authService } from "../services";
 import { LoginPayload, SignUpPayload } from "../types";

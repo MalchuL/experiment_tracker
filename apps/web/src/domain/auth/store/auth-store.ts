@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { User } from "@/shared/types";
+import type { User } from "@/types";
 import { deleteAuthToken, getAuthToken, setAuthToken } from "../utils/token";
 
 

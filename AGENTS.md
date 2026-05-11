@@ -31,7 +31,8 @@ flowchart LR
 
 | Path | Role |
 |------|------|
-| `apps/web/` | Next.js app (pnpm). UI, `src/app/api/*` BFF proxies to backend. |
+| Repo root (`package.json`, `pnpm-workspace.yaml`, `turbo.json`) | pnpm workspace + Turborepo only (no application source here). |
+| `apps/web/` | Next.js app (pnpm). UI, `src/app/api/*` BFF proxies to backend. Shared frontend-only types such as API `User` live under `apps/web/src/types/`. |
 | `python/backend/src/` | FastAPI app: `api/` routes, `domain/*` bounded contexts, `clients/*` HTTP clients, `db/`, `lib/`. |
 | `python/scalars_service/src/` | FastAPI scalars/artifacts_info service. `GET /scalars/get/...` paginates **experiments** first, then loads each metric column with ClickHouse `IS NOT NULL` + per-(experiment, column) uniform `max_points` sampling (`columns_per_query` controls parallel column queries; default 1). Cross-table ClickHouse work (delete experiment rows across scalars + artifacts_info + last_logged, usage, admin table listing) is under **`/projects`** (`projects` domain); compaction stays **`POST /scalars/projects/{id}/compact-columns`**. |
 | `python/object_storage/src/` | FastAPI storage service (buckets, experiment/project artifacts). |
@@ -128,7 +129,7 @@ Do **not** assume a single global `python/backend`-only layout; **scalars_servic
 
 Examples:
 
-- From repo root: `pnpm dlx turbo dev` (or your repo’s documented dev task).
+- From repo root: `pnpm dev` (runs `turbo dev`; install once with `pnpm install` so the local `turbo` package is available).
 - From `apps/web`: `pnpm run dev`.
 - From `apps/web`: `pnpm run test` runs **Vitest** (unit tests under `src/**/*.test.ts`, e.g. metric display formatting). Metric scalars use **`formatValue`** from `src/lib/metrics/mathjs-metric-format.ts` (mathjs `format`, `notation: 'auto'`; wired through `metric-value-display.ts`; defaults in `src/lib/constants/metric-display.ts`). To run only the mathjs sample test and print strings: `pnpm run test:mathjs-format` (or `pnpm exec vitest run src/lib/metrics/mathjs-format.test.ts`). In-app guide to tuning precision and thresholds: **`/docs/reference/metric-display-formatting`** (`apps/web/content/docs/reference/metric-display-formatting.md`).
 

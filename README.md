@@ -5,10 +5,12 @@
 `CREATE DATABASE experiment_tracker WITH OWNER = myuser;`
 `export DATABASE_URL="postgresql://myuser:myuser@localhost:5432/experiment_tracker"` - Create db for specific user
 
-# Run Backend 
+# Run Backend
+`cd python/backend`
 `export DATABASE_URL="postgresql://myuser:myuser@localhost:5432/experiment_tracker"`
-`uv run uvicorn backend.main:app --reload --port 8000`
+`uv run uvicorn api.main:app --reload --port 8000`
 
 # Run Frontend
+`cd apps/web`
 `export NEXT_PUBLIC_BASE_URL=http://localhost:8000`
-`pnpm dlx turbo dev`
+`pnpm run dev`

@@ -2,7 +2,7 @@ import { serviceClients } from "@/lib/api/clients/axios-client";
 import { appendPaginationParams } from "@/lib/api/pagination";
 import { API_ROUTES } from "@/lib/constants/api-routes";
 import { Experiment, ExperimentUsage, CategoryCleanupResponse } from "../types";
-import { InsertExperiment } from "@/shared/schema";
+import type { InsertExperiment } from "@/domain/experiments/types";
 import type { PaginatedResponse, PaginationParams } from "@/lib/types/pagination";
 
 export interface ExperimentsService {
