@@ -2,6 +2,7 @@ import { serviceClients } from "@/lib/api/clients/axios-client";
 import { appendPaginationParams } from "@/lib/api/pagination";
 import { API_ROUTES } from "@/lib/constants/api-routes";
 import type { PaginatedResponse, PaginationParams } from "@/lib/types/pagination";
+import type { CategoryCleanupResponse } from "@/domain/experiments/types";
 import type { Team, TeamListItem, TeamMemberRow, TeamMemberWritePayload } from "../types";
 
 export interface TeamsService {
@@ -10,7 +11,7 @@ export interface TeamsService {
   listMembers: (teamId: string) => Promise<TeamMemberRow[]>;
   create: (data: { name: string; description?: string | null }) => Promise<Team>;
   update: (data: { id: string; name: string; description?: string | null }) => Promise<Team>;
-  delete: (teamId: string) => Promise<void>;
+  delete: (teamId: string) => Promise<CategoryCleanupResponse>;
   addMember: (payload: TeamMemberWritePayload) => Promise<TeamMemberRow>;
   updateMember: (payload: TeamMemberWritePayload) => Promise<TeamMemberRow>;
   removeMember: (userId: string, teamId: string) => Promise<void>;
@@ -43,7 +44,8 @@ export const teamsService: TeamsService = {
     return response.data;
   },
   delete: async (teamId) => {
-    await serviceClients.api.delete(API_ROUTES.TEAMS.BY_ID.DELETE(teamId));
+    const response = await serviceClients.api.delete<CategoryCleanupResponse>(API_ROUTES.TEAMS.BY_ID.DELETE(teamId));
+    return response.data;
   },
   addMember: async (payload) => {
     const response = await serviceClients.api.post<TeamMemberRow>(

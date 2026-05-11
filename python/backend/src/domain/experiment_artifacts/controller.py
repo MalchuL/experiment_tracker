@@ -298,6 +298,27 @@ async def get_experiment_artifact(
         _raise_http_error(exc)
 
 
+@router.delete("/delete")
+async def delete_experiment_tracked_artifact(
+    experiment_id: UUID,
+    filepath: str = Query(..., min_length=1),
+    user: User = Depends(get_current_user_dual),
+    _: None = Depends(require_api_token_scopes(ProjectActions.LOG_ARTIFACT)),
+    service: ExperimentArtifactsServiceProtocol = Depends(
+        get_experiment_artifacts_service
+    ),
+) -> DeleteExperimentArtifactResponseDTO:
+    """Delete one tracked artifact by filepath."""
+    try:
+        return await service.delete_experiment_tracked_artifact(
+            user=user,
+            experiment_id=experiment_id,
+            filepath=filepath,
+        )
+    except Exception as exc:  # noqa: BLE001
+        _raise_http_error(exc)
+
+
 @router.get("/download")
 async def download_experiment_artifact(
     experiment_id: UUID,

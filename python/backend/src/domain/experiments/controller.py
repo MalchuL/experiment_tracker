@@ -1,3 +1,9 @@
+"""HTTP routes under ``/experiments``: CRUD, metrics proxy, usage, scoped cleanup, and delete.
+
+Maps domain errors to status codes via ``_raise_experiment_http_error``. Satellite work
+(object storage, scalars) is orchestrated in ``ExperimentService``.
+"""
+
 from uuid import UUID
 
 from api.routes.service_dependencies import get_experiment_service, get_metric_service
@@ -9,21 +15,29 @@ from api.routes.auth import get_current_user_dual, require_api_token_scopes
 from lib.pagination import MAX_LIST_PAGE_SIZE, ListOptions
 from models import User
 
+from lib.category_cleanup_dto import CategoryCleanupResponseDTO
 from .dto import (
     ExperimentCreateDTO,
     ExperimentDTO,
+    ExperimentDeleteResponseDTO,
     ExperimentListResponseDTO,
     ExperimentReorderDTO,
     ExperimentUpdateDTO,
+    ExperimentUsageDTO,
 )
 from .error import ExperimentNamePatternNotSetError, ExperimentNotAccessibleError
-from .service import ExperimentService
+from .service import ExperimentCleanupCategory, ExperimentService
 from domain.rbac.permissions import ProjectActions
+
+from lib.logger import get_logger
 
 router = APIRouter(prefix="/experiments", tags=["experiments"])
 
+logger = get_logger(__name__)
+
 
 def _raise_experiment_http_error(error: Exception) -> None:
+    """Translate experiment domain errors into ``HTTPException`` responses."""
     if isinstance(error, ExperimentNotAccessibleError):
         raise HTTPException(status_code=404, detail=str(error))
     if isinstance(error, ExperimentNamePatternNotSetError):
@@ -50,6 +64,7 @@ async def get_recent_experiments(
         )
     except Exception as exc:  # noqa: BLE001
         _raise_experiment_http_error(exc)
+
 
 @router.get("/{experiment_id}/metrics", response_model=MetricListResponseDTO)
 async def get_experiment_metrics(
@@ -112,20 +127,73 @@ async def update_experiment(
         _raise_experiment_http_error(exc)
 
 
-@router.delete("/{experiment_id}")
-async def delete_experiment(
+@router.get("/{experiment_id}/usage", response_model=ExperimentUsageDTO)
+async def get_experiment_usage(
     experiment_id: UUID,
+    user: User = Depends(get_current_user_dual),
+    _: None = Depends(require_api_token_scopes(ProjectActions.VIEW_EXPERIMENT)),
+    experiment_service: ExperimentService = Depends(get_experiment_service),
+):
+    """Approximate bytes/rows per storage category for UI (danger zone, billing hints).
+
+    Pulls object-storage and scalars satellites in parallel (best-effort); requires view
+    access to the experiment's project.
+    """
+    try:
+        return await experiment_service.get_experiment_usage(user, experiment_id)
+    except Exception as exc:  # noqa: BLE001
+        _raise_experiment_http_error(exc)
+
+
+@router.post("/{experiment_id}/cleanup/{category}", response_model=CategoryCleanupResponseDTO)
+async def cleanup_experiment_category(
+    experiment_id: UUID,
+    category: ExperimentCleanupCategory,
     user: User = Depends(get_current_user_dual),
     _: None = Depends(require_api_token_scopes(ProjectActions.DELETE_EXPERIMENT)),
     experiment_service: ExperimentService = Depends(get_experiment_service),
 ):
+    """Remove a single storage slice without deleting the experiment row.
+
+    Valid ``category`` values: ``experimentArtifacts``, ``atStepArtifacts``, ``scalars``.
+    Project snapshots are not cleaned here — use project-level cleanup for snapshots.
+
+    See ``ExperimentService.cleanup_experiment_category`` for semantics.
+    """
     try:
-        success = await experiment_service.delete_experiment(user, experiment_id)
+        return await experiment_service.cleanup_experiment_category(
+            user, experiment_id, category
+        )
     except Exception as exc:  # noqa: BLE001
         _raise_experiment_http_error(exc)
-    if not success:
-        raise HTTPException(status_code=404, detail="Experiment not found")
-    return {"success": True}
+
+
+@router.delete("/{experiment_id}", response_model=ExperimentDeleteResponseDTO)
+async def delete_experiment(
+    experiment_id: UUID,
+    detailed: bool = Query(
+        False,
+        description=(
+            "When true, include full per-step ``results`` payloads. "
+            "When false (default), ``results`` is empty and ``resultCount`` counts successes."
+        ),
+    ),
+    user: User = Depends(get_current_user_dual),
+    _: None = Depends(require_api_token_scopes(ProjectActions.DELETE_EXPERIMENT)),
+    experiment_service: ExperimentService = Depends(get_experiment_service),
+):
+    """Hard-delete experiment: satellites first (best-effort), then Postgres row.
+
+    Response includes structured status for object storage and scalars so clients can
+    surface partial failures (e.g. storage down) even when the DB delete succeeded.
+    """
+    try:
+        return await experiment_service.delete_experiment(
+            user, experiment_id, detailed=detailed
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.error("Error deleting experiment: %s", exc, stack_info=True)
+        _raise_experiment_http_error(exc)
 
 
 @router.post("/reorder")

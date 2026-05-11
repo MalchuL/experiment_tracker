@@ -9,12 +9,19 @@ from minio.error import S3Error  # type: ignore[import-not-found]
 from minio.deleteobjects import DeleteObject  # type: ignore[import-not-found]
 
 from object_storage.config import get_settings
+from object_storage.storage.dto import BlobListEntry
 
 
 def _blob_key(blob_hash: str) -> str:
-    """Build the MinIO object key for a CAS blob hash."""
+    """Build the MinIO object key for a CAS blob hash.
 
-    return f"blobs/{blob_hash[:2]}/{blob_hash[2:]}"
+    Keys are stored with a lowercase hex hash; callers may pass mixed case.
+    """
+
+    h = blob_hash.strip().lower()
+    if len(h) < 2:
+        return f"blobs/{h}"
+    return f"blobs/{h[:2]}/{h[2:]}"
 
 
 @dataclass
@@ -66,7 +73,14 @@ class MinioStorage:
     def get_blob(self, bucket_name: str, blob_hash: str):
         """Fetch a blob stream from MinIO by its content hash."""
 
-        return self.client.get_object(bucket_name, _blob_key(blob_hash))
+        try:
+            return self.client.get_object(bucket_name, _blob_key(blob_hash))
+        except S3Error as exc:
+            if getattr(exc, "code", "") == "NoSuchKey":
+                raise ValueError(
+                    f"Blob not found for hash {blob_hash.strip()!r} in bucket {bucket_name!r}"
+                ) from exc
+            raise
 
     def delete_blob(self, bucket_name: str, blob_hash: str) -> bool:
         """Delete one blob by hash from MinIO."""
@@ -76,15 +90,32 @@ class MinioStorage:
         self.client.remove_object(bucket_name, _blob_key(blob_hash))
         return True
 
+    def list_blob_entries(
+        self, bucket_name: str, prefix: str = ""
+    ) -> list[BlobListEntry]:
+        """List objects with sizes from MinIO listing (no per-object stat)."""
+
+        entries: list[BlobListEntry] = []
+        for obj in self.client.list_objects(
+            bucket_name, prefix=prefix, recursive=True
+        ):
+            if obj is None or not getattr(obj, "object_name", None):
+                continue
+            entries.append(
+                BlobListEntry(
+                    key=obj.object_name,
+                    size=int(getattr(obj, "size", 0) or 0),
+                )
+            )
+        return entries
+
     def list_blobs(self, bucket_name: str, prefix: str = "") -> list[str]:
         """List object keys from MinIO with optional prefix."""
 
-        return [
-            obj.object_name
-            for obj in self.client.list_objects(
-                bucket_name, prefix=prefix, recursive=True
-            )
-        ]
+        return [e.key for e in self.list_blob_entries(bucket_name, prefix)]
+
+    def list_bucket_names(self) -> list[str]:
+        return sorted(b.name for b in self.client.list_buckets())
 
     def delete_blobs(self, bucket_name: str, keys: list[str]) -> int:
         """Delete many object keys from MinIO and return deleted count."""

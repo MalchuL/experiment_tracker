@@ -1,3 +1,5 @@
+"""HTTP routes under ``/users/me/api-tokens``: create, list, update, revoke personal API tokens."""
+
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -21,6 +23,7 @@ router = APIRouter(prefix="/users/me/api-tokens", tags=["api-tokens"])
 
 
 def _raise_api_token_http_error(error: Exception) -> None:
+    """Map API token errors (e.g. not found) to HTTP responses."""
     if isinstance(error, ApiTokenNotFoundError):
         raise HTTPException(status_code=404, detail=str(error))
     raise HTTPException(status_code=400, detail=str(error))

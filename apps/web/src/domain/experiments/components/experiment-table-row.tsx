@@ -10,6 +10,7 @@ import { ProjectMetric } from "@/domain/projects/types";
 import { format, parseISO } from "date-fns";
 import { Metric } from "@/domain/metrics/types";
 import { displayMetricKeyEquals, projectMetricKeyString } from "@/lib/metrics/format-metric-label";
+import { formatMetricScalarForDisplay } from "@/lib/metrics/metric-value-display";
 import { getExperimentSelectionSurfaceStyle } from "../experiment-selection-style";
 import { ExperimentTruncatedText } from "./experiment-truncated-text";
 
@@ -44,11 +45,6 @@ export function ExperimentTableRow({
         transition,
         opacity: isDragging ? 0.5 : 1,
         ...(isSelected ? getExperimentSelectionSurfaceStyle(experiment.color) : {}),
-    };
-
-    const formatMetricValue = (value: number | null | undefined): string => {
-        if (value === null || value === undefined) return "NaN";
-        return value.toFixed(4);
     };
 
     return (
@@ -99,7 +95,7 @@ export function ExperimentTableRow({
             </TableCell>
             {projectMetrics?.map((metric) => (
                 <TableCell key={projectMetricKeyString(metric)} className="text-right font-mono text-sm">
-                    {formatMetricValue(
+                    {formatMetricScalarForDisplay(
                         expMetrics?.find((m) =>
                             displayMetricKeyEquals(
                                 { name: m.name, label: m.label },

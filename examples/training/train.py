@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import importlib.metadata
+import json
 import logging
 import random
 import subprocess
@@ -15,6 +16,7 @@ import numpy as np
 from experiment_tracker_sdk import ExpTracker
 from experiment_tracker_sdk.client import ExperimentStatus
 from experiment_tracker_sdk.config import load_config
+from experiment_tracker_sdk.utils.content_utils import image_data_to_png_bytes
 
 logger = logging.getLogger("training_example")
 
@@ -226,6 +228,9 @@ def main() -> None:
         steps = 120
         step_seconds = duration_seconds / steps
         start_time = time.time()
+        # Scalar tag "power": magnitude sweep for charting very large → very small values.
+        power_exp_high = 15.0
+        power_exp_low = -15.0
 
         if args.config_path:
             with open(args.config_path, encoding="utf-8") as config_file:
@@ -243,6 +248,44 @@ def main() -> None:
             _capture_installed_packages(),
             stored_filepath="final/pip-freeze.txt",
             default_content_type="text/plain",
+        )
+        # Named final artifacts: same display name (`tag`), different stored paths.
+        final_demo = np.random.randint(0, 256, size=(128, 128, 3), dtype=np.uint8)
+        tracker.log_final_artifact(
+            "final_demo_image",
+            image_data_to_png_bytes(final_demo),
+            stored_filepath="final/demo_image_primary.png",
+            default_content_type="image/png",
+            default_extension=".png",
+        )
+        tracker.log_final_artifact(
+            "final_demo_image",
+            image_data_to_png_bytes(_smooth_image(final_demo)),
+            stored_filepath="final/demo_image_secondary.png",
+            default_content_type="image/png",
+            default_extension=".png",
+        )
+        summary_payload = {
+            "experiment_id": experiment_id,
+            "planned_steps": steps,
+            "when": "training_start",
+        }
+        tracker.log_final_artifact(
+            "training_summary_json",
+            json.dumps(summary_payload, indent=2),
+            stored_filepath="final/training_summary_primary.json",
+            default_content_type="application/json",
+            default_extension=".json",
+        )
+        tracker.log_final_artifact(
+            "training_summary_json",
+            json.dumps(
+                {**summary_payload, "path_variant": "secondary"},
+                indent=2,
+            ),
+            stored_filepath="final/training_summary_secondary.json",
+            default_content_type="application/json",
+            default_extension=".json",
         )
         logger.info("final_artifacts_logged", extra={"experiment_id": experiment_id})
 
@@ -262,6 +305,12 @@ def main() -> None:
             tracker.add_scalar("accuracy", accuracy, global_step=step)
             tracker.add_scalar("loss", loss, global_step=step)
             tracker.add_scalar("bce_loss", bce_loss, global_step=step)
+            if steps > 1:
+                power_t = (step - 1) / (steps - 1)
+            else:
+                power_t = 0.0
+            power_exponent = power_exp_high + power_t * (power_exp_low - power_exp_high)
+            tracker.add_scalar("power", 10.0**power_exponent, global_step=step)
             tracker.add_scalar(
                 "rng",
                 float("NaN") if step % 3 == 0 else float(random.random()),
@@ -299,6 +348,41 @@ def main() -> None:
                 value=metric_value,
                 label="final",
             )
+
+        # Metrics (Postgres): one row per (name, label); log discrete magnitudes like the scalar sweep.
+        power_metric_names: list[str] = []
+        for exp in range(15, -16, -1):
+            name = f"e{exp:+d}"
+            power_metric_names.append(name)
+            tracker.add_metric(
+                name=name,
+                value=float(10**exp),
+                label="power",
+            )
+
+        summary_payload = {
+            "experiment_id": experiment_id,
+            "steps": steps,
+            "final_metrics": final_metrics,
+        }
+        tracker.log_final_artifact(
+            "training_summary_json",
+            json.dumps(summary_payload, indent=2),
+            stored_filepath="final/training_summary_postrun_primary.json",
+            default_content_type="application/json",
+            default_extension=".json",
+        )
+        tracker.log_final_artifact(
+            "training_summary_json",
+            json.dumps(
+                {**summary_payload, "path_variant": "secondary"},
+                indent=2,
+            ),
+            stored_filepath="final/training_summary_postrun_secondary.json",
+            default_content_type="application/json",
+            default_extension=".json",
+        )
+
         tracker.flush()
         logger.info(
             "training_logged",
@@ -309,8 +393,9 @@ def main() -> None:
                     "accuracy",
                     "loss",
                     "bce_loss",
+                    "power",
                 ],
-                "metric_names": list(final_metrics.keys()),
+                "metric_names": list(final_metrics.keys()) + power_metric_names,
             },
         )
 

@@ -1,5 +1,5 @@
 import { cookies } from "next/headers";
-import { env } from "@/lib/env";
+import { getServerApiBaseUrl } from "@/lib/env";
 
 export async function GET(request: Request) {
   const token = (await cookies()).get("auth_token")?.value;
@@ -19,7 +19,7 @@ export async function GET(request: Request) {
     );
   }
 
-  const targetUrl = new URL(`${env.BASE_URL}/api/experiment-artifacts/download`);
+  const targetUrl = new URL(`${getServerApiBaseUrl()}/api/experiment-artifacts/download`);
   targetUrl.searchParams.set("experiment_id", experimentId);
   if (filepath) targetUrl.searchParams.set("filepath", filepath);
   if (blobId) targetUrl.searchParams.set("blob_id", blobId);

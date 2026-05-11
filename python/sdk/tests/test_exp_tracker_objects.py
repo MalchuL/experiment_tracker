@@ -65,3 +65,25 @@ def test_log_final_artifact_uploads_without_step_suffix() -> None:
     assert filename == "config.yaml"
     assert content == b"learning_rate: 0.01"
     assert content_type == "text/plain"
+
+
+def test_log_final_artifact_long_json_string_not_treated_as_path() -> None:
+    """Regression: huge str payloads must not be passed to Path(...).exists() (ENAMETOOLONG)."""
+    api = _FakeAPI()
+    tracker = ExpTracker("exp-id", "proj-id", api)  # type: ignore[arg-type]
+
+    payload = '{"k": "%s"}' % ("x" * 5000)
+    tracker.log_final_artifact(
+        "training_summary_json",
+        payload,
+        stored_filepath="final/summary.json",
+        default_content_type="application/json",
+        default_extension=".json",
+    )
+
+    assert len(api.final_uploaded) == 1
+    name, filepath, filename, content, content_type = api.final_uploaded[0]
+    assert name == "training_summary_json"
+    assert filepath == "final/summary.json"
+    assert content == payload.encode("utf-8")
+    assert content_type == "application/json"

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from urllib.parse import urlparse
+from uuid import uuid4
 
 import pytest
 from clickhouse_connect import get_async_client
@@ -34,6 +35,15 @@ async def ensure_mapping_table(clickhouse_url: str) -> None:
         await client.command(SCALARS_DB_UTILS.build_create_mapping_table_statement())
     finally:
         await client.close()
+
+
+@pytest.fixture
+async def project_with_tables(clickhouse_url: str, http_client: AsyncClient) -> tuple:
+    """Create ClickHouse project tables and return ``(project_id, experiment_id)``."""
+    project_id = uuid4()
+    experiment_id = uuid4()
+    await http_client.post("/api/projects", json={"project_id": str(project_id)})
+    return project_id, experiment_id
 
 
 @pytest.fixture

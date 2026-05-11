@@ -2,24 +2,16 @@
 
 import Link from "next/link";
 import { format, parseISO } from "date-fns";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { FolderKanban, FlaskConical, Lightbulb, MoreVertical, Calendar } from "lucide-react";
+import { FolderKanban, FlaskConical, Lightbulb, Calendar } from "lucide-react";
 import type { Project } from "@/domain/projects/types";
 import { FRONTEND_ROUTES } from "@/lib/constants/frontend-routes";
 
 interface ProjectCardProps {
   project: Project;
-  onDelete: (id: string) => void;
 }
 
-export function ProjectCard({ project, onDelete }: ProjectCardProps) {
+export function ProjectCard({ project }: ProjectCardProps) {
   return (
     <Link href={FRONTEND_ROUTES.PROJECT_PAGES.OVERVIEW(project.id)}>
       <Card
@@ -34,28 +26,11 @@ export function ProjectCard({ project, onDelete }: ProjectCardProps) {
               </div>
               <div className="min-w-0">
                 <h3 className="font-medium truncate">{project.name}</h3>
-                <p className="text-xs text-muted-foreground">{project.owner.displayName}</p>
+                <p className="text-xs text-muted-foreground">
+                  {project.owner?.displayName ?? project.owner?.email ?? "No owner"}
+                </p>
               </div>
             </div>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild onClick={(e) => e.preventDefault()}>
-                <Button variant="ghost" size="icon" className="h-8 w-8">
-                  <MoreVertical className="w-4 h-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem
-                  className="text-destructive"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    onDelete(project.id);
-                  }}
-                  data-testid={`button-delete-project-${project.id}`}
-                >
-                  Delete
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
           </div>
 
           {project.description && (

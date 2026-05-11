@@ -13,6 +13,7 @@ from domain.team.teams.errors import (
 from lib.db.error import DBNotFoundError
 from .dto import (
     TeamCreateDTO,
+    TeamDeleteResponseDTO,
     TeamListItemDTO,
     TeamMemberDeleteDTO,
     TeamMemberReadDTO,
@@ -26,20 +27,42 @@ from .dto import (
 from .mapper import TeamMapper, CreateDTOToSchemaProps
 from lib.pagination import ListOptions, Page, paginate_sequence
 from models import Role, User
+from clients.object_storage import ObjectStorageClientProtocol
+from domain.projects.repository import ProjectRepository
+from domain.scalars.service import NoOpScalarsService, ScalarsServiceProtocol
+from lib.category_cleanup_dto import CategoryCleanupErrorEntryDTO, CategoryCleanupResultEntryDTO
+from lib.deletion_outcome import (
+    append_postgres_deleted,
+    finalize_deletion_outcome,
+    outcome_lists_from_project_teardown,
+)
+from domain.projects.satellite_teardown import teardown_project_for_delete
 
 
 class TeamService:
+    """Teams and membership: create/update teams, manage members, delete team and owned projects.
+
+    Team deletion walks projects under the team and runs the same satellite cleanup as
+    project deletion (object storage + scalars) before removing rows.
+    """
+
     def __init__(
         self,
         db: AsyncSession,
         team_repository: TeamRepository,
         permission_checker: PermissionChecker,
         permission_service: PermissionService,
+        project_repository: ProjectRepository | None = None,
+        scalars_service: ScalarsServiceProtocol | None = None,
+        object_storage_client: ObjectStorageClientProtocol | None = None,
     ):
         self.db = db
         self.team_repository = team_repository
         self.permission_service = permission_service
         self.permission_checker = permission_checker
+        self.project_repository = project_repository
+        self.scalars_service = scalars_service or NoOpScalarsService()
+        self.object_storage_client = object_storage_client
         self.team_mapper = TeamMapper()
 
     async def _get_user_role(self, user_id: UUID, team_id: UUID) -> Role | None:
@@ -117,15 +140,49 @@ class TeamService:
         await self.db.commit()
         return self.team_mapper.team_schema_to_dto(team)
 
-    async def delete_team(self, user_id: UUID, team_id: UUID) -> None:
+    async def delete_team(
+        self, user_id: UUID, team_id: UUID, *, detailed: bool = False
+    ) -> TeamDeleteResponseDTO:
+        """Delete the team after removing every team-owned project and satellite data.
+
+        For each project: same sequence as ``ProjectService.delete_project`` — per
+        experiment object-storage + scalars deletes, project-level object storage delete,
+        scalars ``delete_project_table``, expunge ORM graphs, then delete the project row.
+        Finally deletes the team row. Requires team manage permission.
+        """
         if not await self.permission_checker.can_manage_team(user_id, team_id):
             raise TeamAccessDeniedError("You do not have permission to delete a team")
         try:
             await self.team_repository.get_by_id(team_id)
         except DBNotFoundError:
             raise TeamNotFoundError("Team not found")
+        results: list[CategoryCleanupResultEntryDTO] = []
+        errors: list[CategoryCleanupErrorEntryDTO] = []
+        if self.project_repository is not None:
+            projects = await self.project_repository.get_projects_by_team(team_id)
+            for project in projects:
+                experiment_ids = [e.id for e in list(project.experiments or [])]
+                teardown = await teardown_project_for_delete(
+                    project.id,
+                    experiment_ids,
+                    self.object_storage_client,
+                    self.scalars_service,
+                )
+                r, e = outcome_lists_from_project_teardown(teardown)
+                results.extend(r)
+                errors.extend(e)
+                for experiment in list(project.experiments or []):
+                    self.project_repository.expunge(experiment)
+                self.project_repository.expunge(project)
+                await self.project_repository.delete(project.id)
+                append_postgres_deleted(
+                    results, category="postgres:project", entity_id=project.id
+                )
         await self.team_repository.delete(team_id)
         await self.db.commit()
+        append_postgres_deleted(results, category="postgres:team", entity_id=team_id)
+        finalized = finalize_deletion_outcome(results, errors, detailed=detailed)
+        return TeamDeleteResponseDTO.model_validate(finalized.model_dump())
 
     async def list_teams(
         self, user_id: UUID, list_options: ListOptions
@@ -166,17 +223,18 @@ class TeamService:
         members = await self.team_repository.list_team_members_with_users(team_id)
         owner = team.owner
         out: list[TeamMemberWithUserDTO] = []
-        out.append(
-            TeamMemberWithUserDTO(
-                member_id=None,
-                user_id=team.owner_id,
-                team_id=team_id,
-                role=Role.OWNER,
-                email=owner.email,
-                display_name=owner.display_name,
-                is_team_owner=True,
+        if team.owner_id is not None and owner is not None:
+            out.append(
+                TeamMemberWithUserDTO(
+                    member_id=None,
+                    user_id=team.owner_id,
+                    team_id=team_id,
+                    role=Role.OWNER,
+                    email=owner.email,
+                    display_name=owner.display_name,
+                    is_team_owner=True,
+                )
             )
-        )
         owner_in_members = False
         for tm in members:
             if tm.user_id == team.owner_id:

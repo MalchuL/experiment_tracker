@@ -1,3 +1,5 @@
+"""HTTP routes under ``/hypotheses``: CRUD and listing for project hypotheses."""
+
 from uuid import UUID
 
 from api.routes.service_dependencies import get_hypothesis_service
@@ -21,6 +23,7 @@ router = APIRouter(prefix="/hypotheses", tags=["hypotheses"])
 
 
 def _raise_hypothesis_http_error(error: Exception) -> None:
+    """Map hypothesis domain errors to HTTP status codes."""
     if isinstance(error, HypothesisNotAccessibleError):
         raise HTTPException(status_code=403, detail=str(error))
     if isinstance(error, HypothesisNotFoundError):

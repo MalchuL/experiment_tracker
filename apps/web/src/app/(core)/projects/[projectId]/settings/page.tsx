@@ -11,6 +11,7 @@ import {
   DisplayMetricsForm,
   MetricsManagement,
   ProjectMembersPanel,
+  ProjectDangerZone,
 } from "@/domain/projects/components";
 import { BasicInfoFormData } from "@/domain/projects/schemas";
 import { ProjectDisplayMetric, ProjectMetric, ProjectSettingType } from "@/domain/projects/types";
@@ -326,6 +327,8 @@ export default function ProjectSettings() {
             />
           </CardContent>
         </Card>
+
+        <ProjectDangerZone projectId={projectId} />
       </div>
     </div>
   );

@@ -232,9 +232,14 @@ class TestExperimentService:
             project_id=project.id,
         )
 
-        deleted = await experiment_service.delete_experiment(test_user, experiment.id)
+        deleted = await experiment_service.delete_experiment(
+            test_user, experiment.id, detailed=True
+        )
 
-        assert deleted is True
+        assert deleted.success is True
+        assert deleted.errors == []
+        categories = {r.category for r in deleted.results}
+        assert "postgres:experiment" in categories
         assert await db_session.get(Experiment, experiment.id) is None
 
     async def test_reorder_experiments_updates_order(

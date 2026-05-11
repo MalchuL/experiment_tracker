@@ -50,6 +50,8 @@ def _as_uuid(value: UUID | str) -> UUID:
 
 
 class ExperimentArtifactsService:
+    """Experiment-scoped files: tracked/named blobs and step-logged artifacts (object storage + artifacts_info)."""
+
     def __init__(
         self,
         object_storage_client: ObjectStorageClientProtocol,
@@ -100,11 +102,14 @@ class ExperimentArtifactsService:
         return out
 
     def _normalize_filepath(self, filepath: str) -> str:
-        """
-        Normalize a filepath to a relative path.
-        Removes any .., :, characters, replaces \ with / and ensures the path is relative.
+        """Normalize a filepath to a relative path.
+
+        Removes any ``..``, ``:``, unsafe characters, replaces backslashes with ``/``,
+        and ensures the path is relative.
+
         Args:
             filepath: The filepath to normalize.
+
         Returns:
             The normalized filepath.
         """
@@ -611,6 +616,27 @@ class ExperimentArtifactsService:
         project_id = await self._ensure_log_permission(user, experiment_id)
         return await self._object_storage.delete_experiment_artifact(
             project_id, experiment_id, hash
+        )
+
+    async def delete_experiment_tracked_artifact(
+        self,
+        user: UserProtocol,
+        experiment_id: UUID,
+        *,
+        filepath: str,
+    ) -> DeleteExperimentArtifactResponseDTO:
+        """Delete one tracked artifact by stored filepath (relative path in object storage)."""
+        project_id = await self._ensure_log_permission(user, experiment_id)
+        tracked_path = self._normalize_filepath(filepath)
+        existing = await self._find_tracked_artifact(
+            project_id, experiment_id, filepath=tracked_path
+        )
+        if existing is None:
+            raise ExperimentArtifactNotFoundError(
+                f"Tracked artifact not found for filepath={filepath!r}"
+            )
+        return await self._object_storage.delete_experiment_artifact(
+            project_id, experiment_id, existing.hash
         )
 
     async def delete_experiment_all_artifacts(

@@ -109,11 +109,29 @@ async def get_experiment_service(
     experiment_repository: ExperimentRepository = Depends(get_experiment_repository),
     permission_checker: PermissionChecker = Depends(get_permission_checker),
 ) -> ExperimentService:
-    return ExperimentService(
+    settings = get_settings()
+    scalars_service: ScalarsServiceProtocol
+    if settings.scalars_service_url:
+        scalars_service = ScalarsService(
+            ScalarsServiceClient(settings.scalars_service_url),
+            permission_checker,
+            experiment_repository,
+        )
+    else:
+        scalars_service = NoOpScalarsService()
+    object_storage_client = (
+        ObjectStorageClient(settings.object_storage_service_url)
+        if settings.object_storage_service_url
+        else None
+    )
+    service = ExperimentService(
         db=session,
         experiment_repository=experiment_repository,
         permission_checker=permission_checker,
     )
+    service.scalars_service = scalars_service
+    service.object_storage_client = object_storage_client
+    return service
 
 
 async def get_scalars_service(
@@ -224,13 +242,25 @@ async def get_team_service(
     team_repository: TeamRepository = Depends(get_team_repository),
     permission_checker: PermissionChecker = Depends(get_permission_checker),
     permission_service: PermissionService = Depends(get_permission_service),
+    project_repository: ProjectRepository = Depends(get_project_repository),
+    scalars_service: ScalarsServiceProtocol = Depends(get_scalars_service),
 ) -> TeamService:
-    return TeamService(
+    settings = get_settings()
+    object_storage_client = (
+        ObjectStorageClient(settings.object_storage_service_url)
+        if settings.object_storage_service_url
+        else None
+    )
+    service = TeamService(
         session,
         team_repository=team_repository,
         permission_checker=permission_checker,
         permission_service=permission_service,
     )
+    service.project_repository = project_repository
+    service.scalars_service = scalars_service
+    service.object_storage_client = object_storage_client
+    return service
 
 
 # Project Service Dependencies
@@ -244,7 +274,13 @@ async def get_project_service(
     team_repository: TeamRepository = Depends(get_team_repository),
     scalars_service: ScalarsServiceProtocol = Depends(get_scalars_service),
 ) -> ProjectService:
-    return ProjectService(
+    settings = get_settings()
+    object_storage_client = (
+        ObjectStorageClient(settings.object_storage_service_url)
+        if settings.object_storage_service_url
+        else None
+    )
+    service = ProjectService(
         session,
         permission_checker=permission_checker,
         permission_service=permission_service,
@@ -252,6 +288,8 @@ async def get_project_service(
         team_repository=team_repository,
         scalars_service=scalars_service,
     )
+    service.object_storage_client = object_storage_client
+    return service
 
 
 async def get_project_members_service(

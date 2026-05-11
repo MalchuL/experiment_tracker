@@ -260,10 +260,13 @@ class TestProjectControllerDelete:
         project = _create_project(client1, name="Deletable Project", team_id=team_id)
 
         client2 = auth_client(test_user_2)
-        response = client2.delete(f"/api/v1/projects/{project['id']}")
+        response = client2.delete(f"/api/v1/projects/{project['id']}?detailed=true")
 
         assert response.status_code == 200
-        assert response.json()["success"] is True
+        body = response.json()
+        assert body["success"] is True
+        assert body["errors"] == []
+        assert any(r["category"] == "postgres:project" for r in body["results"])
 
     async def test_delete_project_denied_without_permission(
         self, auth_client, test_user: User, test_user_2: User

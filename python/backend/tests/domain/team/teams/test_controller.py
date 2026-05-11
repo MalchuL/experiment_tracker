@@ -218,10 +218,13 @@ class TestTeamControllerDelete:
         team_id = create_response.json()["id"]
 
         # Delete team
-        delete_response = client.delete(f"/api/v1/teams/{team_id}")
+        delete_response = client.delete(f"/api/v1/teams/{team_id}?detailed=true")
 
         assert delete_response.status_code == 200
-        assert delete_response.json()["success"] is True
+        body = delete_response.json()
+        assert body["success"] is True
+        assert body["errors"] == []
+        assert any(r["category"] == "postgres:team" for r in body["results"])
 
     async def test_delete_nonexistent_team(self, client: TestClient):
         """Test deleting a non-existent team returns 403 (permission check happens first)."""

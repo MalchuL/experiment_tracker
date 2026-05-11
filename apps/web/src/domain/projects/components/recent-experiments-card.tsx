@@ -1,21 +1,24 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusBadge } from "@/components/shared/status-badge";
+import { FRONTEND_ROUTES } from "@/lib/constants/frontend-routes";
 import { FlaskConical } from "lucide-react";
 import Link from "next/link";
 import type { Experiment } from "@/domain/experiments/types";
 
 interface RecentExperimentsCardProps {
   experiments: Experiment[] | undefined;
+  projectId: string;
 }
 
 export function RecentExperimentsCard({
   experiments,
+  projectId,
 }: RecentExperimentsCardProps) {
   return (
     <Card className="lg:col-span-4">
       <CardHeader className="flex flex-row items-center justify-between gap-2">
         <CardTitle className="text-lg font-medium">Recent Experiments</CardTitle>
-        <Link href="/experiments">
+        <Link href={FRONTEND_ROUTES.PROJECT_PAGES.EXPERIMENTS(projectId)}>
           <span className="text-sm text-muted-foreground hover:text-foreground transition-colors cursor-pointer">
             View all
           </span>
@@ -29,7 +32,13 @@ export function RecentExperimentsCard({
             </p>
           ) : (
             experiments.slice(0, 5).map((experiment) => (
-              <Link key={experiment.id} href={`/experiments/${experiment.id}`}>
+              <Link
+                key={experiment.id}
+                href={FRONTEND_ROUTES.PROJECT_PAGES.EXPERIMENT_DETAILS(
+                  experiment.projectId,
+                  [experiment.id]
+                )}
+              >
                 <div
                   className="flex items-center justify-between gap-4 p-3 rounded-md hover-elevate active-elevate-2 cursor-pointer"
                   data-testid={`experiment-row-${experiment.id}`}

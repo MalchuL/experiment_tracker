@@ -10,9 +10,28 @@ This module is the single source of truth for:
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 import pendulum
+
+
+def utc_naive_for_clickhouse_insert(dt: datetime) -> datetime:
+    """Return a UTC-aware datetime for ``clickhouse-connect`` binary inserts.
+
+    The driver encodes ``DateTime64`` using ``datetime.timestamp()``; **naive** values are
+    interpreted as *local* civil time. Values that are UTC wall clock by convention (naive)
+    must be tagged as UTC-aware so the encoded POSIX instant matches
+    ``toDateTime64(..., 'UTC')`` SQL literals.
+
+    Args:
+        dt: Naive UTC wall clock or any aware instant.
+
+    Returns:
+        Timezone-aware ``datetime`` in UTC (same instant as ``dt``).
+    """
+    if dt.tzinfo is not None:
+        return dt.astimezone(timezone.utc)
+    return dt.replace(tzinfo=timezone.utc)
 
 
 def utc_now_naive() -> datetime:

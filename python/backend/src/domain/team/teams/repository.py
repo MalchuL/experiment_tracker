@@ -29,9 +29,6 @@ class TeamRepository(BaseRepository[Team]):
             setattr(existing_obj, key, value)
         return await self.advanced_alchemy_repository.update(existing_obj)
 
-    async def delete(self, id: str | UUID) -> None:
-        return await self.advanced_alchemy_repository.delete(id)
-
     async def add_team_member(self, member: TeamMember) -> TeamMember:
         return await self.team_member_repository.add(member, auto_refresh=True)
 
@@ -64,8 +61,10 @@ class TeamRepository(BaseRepository[Team]):
         member_team_ids = select(TeamMember.team_id).where(TeamMember.user_id == user_id)
         stmt = (
             select(Team)
-            .where(or_(Team.owner_id == user_id, Team.id.in_(member_team_ids)))
-            .order_by(Team.name.asc())
+            .where(
+                or_(Team.owner_id == user_id, Team.id.in_(member_team_ids)),
+            )
+            .order_by(Team.created_at.desc())
         )
         result = await self.db.execute(stmt)
         return list(result.scalars().unique().all())
@@ -94,7 +93,9 @@ class TeamRepository(BaseRepository[Team]):
     async def get_teams_by_ids(self, team_ids: List[UUID_TYPE]) -> List[Team]:
         if not team_ids:
             return []
-        return await self.advanced_alchemy_repository.list(Team.id.in_(team_ids))
+        return await self.advanced_alchemy_repository.list(
+            Team.id.in_(team_ids),
+        )
 
     async def get_team_member_if_accessible(
         self, user_id: UUID_TYPE, team_id: UUID_TYPE

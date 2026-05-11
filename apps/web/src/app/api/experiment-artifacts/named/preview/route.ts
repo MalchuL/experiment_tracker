@@ -1,12 +1,25 @@
+import { Buffer } from "node:buffer";
 import { cookies } from "next/headers";
-import { env } from "@/lib/env";
+import { getServerApiBaseUrl } from "@/lib/env";
 
 const DEFAULT_MAX_BYTES = 2 * 1024 * 1024;
 const TEXT_EXTENSIONS = new Set(["txt", "yaml", "yml", "json", "toml", "md", "log", "csv", "ini", "cfg"]);
 
 type PreviewResponse =
   | { status: "ok"; text: string; sizeBytes: number; contentType: string }
-  | { status: "too_large"; message: string; sizeBytes: number; thresholdBytes: number; contentType: string }
+  | {
+      status: "image_ok";
+      dataUrl: string;
+      sizeBytes: number;
+      contentType: string;
+    }
+  | {
+      status: "too_large";
+      message: string;
+      sizeBytes: number;
+      thresholdBytes: number;
+      contentType: string;
+    }
   | { status: "binary"; message: string; sizeBytes: number; contentType: string }
   | { status: "decode_error"; message: string; sizeBytes: number; contentType: string };
 
@@ -16,10 +29,18 @@ function isTextByExtension(filepath: string): boolean {
 }
 
 function isTextByContentType(contentType: string): boolean {
-  return contentType.startsWith("text/") || contentType.includes("json") || contentType.includes("yaml") || contentType.includes("toml");
+  return (
+    contentType.startsWith("text/") ||
+    contentType.includes("json") ||
+    contentType.includes("yaml") ||
+    contentType.includes("toml")
+  );
 }
 
-async function readUpTo(response: Response, maxBytes: number): Promise<{ bytes: Uint8Array; exceeded: boolean }> {
+async function readUpTo(
+  response: Response,
+  maxBytes: number
+): Promise<{ bytes: Uint8Array; exceeded: boolean }> {
   if (!response.body) {
     return { bytes: new Uint8Array(), exceeded: false };
   }
@@ -54,6 +75,11 @@ async function readUpTo(response: Response, maxBytes: number): Promise<{ bytes: 
   return { bytes: merged, exceeded: false };
 }
 
+function bytesToDataUrl(bytes: Uint8Array, contentType: string): string {
+  const b64 = Buffer.from(bytes).toString("base64");
+  return `data:${contentType};base64,${b64}`;
+}
+
 export async function GET(request: Request) {
   const token = (await cookies()).get("auth_token")?.value;
   const requestUrl = new URL(request.url);
@@ -66,12 +92,17 @@ export async function GET(request: Request) {
 
   if (!experimentId || (!filepath && !blobId && !artifactHash)) {
     return Response.json(
-      { status: "decode_error", message: "Missing required query parameters", sizeBytes: 0, contentType: "application/octet-stream" } satisfies PreviewResponse,
+      {
+        status: "decode_error",
+        message: "Missing required query parameters",
+        sizeBytes: 0,
+        contentType: "application/octet-stream",
+      } satisfies PreviewResponse,
       { status: 400 }
     );
   }
 
-  const targetUrl = new URL(`${env.BASE_URL}/api/experiment-artifacts/download`);
+  const targetUrl = new URL(`${getServerApiBaseUrl()}/api/experiment-artifacts/download`);
   targetUrl.searchParams.set("experiment_id", experimentId);
   if (filepath) targetUrl.searchParams.set("filepath", filepath);
   if (blobId) targetUrl.searchParams.set("blob_id", blobId);
@@ -85,7 +116,12 @@ export async function GET(request: Request) {
 
   if (!response.ok) {
     return Response.json(
-      { status: "decode_error", message: `Backend returned ${response.status}`, sizeBytes: 0, contentType: "application/octet-stream" } satisfies PreviewResponse,
+      {
+        status: "decode_error",
+        message: `Backend returned ${response.status}`,
+        sizeBytes: 0,
+        contentType: "application/octet-stream",
+      } satisfies PreviewResponse,
       { status: response.status }
     );
   }
@@ -93,6 +129,36 @@ export async function GET(request: Request) {
   const contentType = response.headers.get("content-type") ?? "application/octet-stream";
   const contentLength = Number(response.headers.get("content-length") ?? NaN);
   const declaredSize = Number.isFinite(contentLength) && contentLength >= 0 ? contentLength : 0;
+
+  if (contentType.startsWith("image/")) {
+    if (declaredSize > maxBytes) {
+      return Response.json({
+        status: "too_large",
+        message: "Image is larger than the in-browser preview limit.",
+        sizeBytes: declaredSize,
+        thresholdBytes: maxBytes,
+        contentType,
+      } satisfies PreviewResponse);
+    }
+
+    const { bytes, exceeded } = await readUpTo(response, maxBytes);
+    if (exceeded) {
+      return Response.json({
+        status: "too_large",
+        message: "Image is larger than the in-browser preview limit.",
+        sizeBytes: maxBytes + 1,
+        thresholdBytes: maxBytes,
+        contentType,
+      } satisfies PreviewResponse);
+    }
+
+    return Response.json({
+      status: "image_ok",
+      dataUrl: bytesToDataUrl(bytes, contentType),
+      sizeBytes: bytes.byteLength,
+      contentType,
+    } satisfies PreviewResponse);
+  }
 
   if (!isTextByExtension(filepath ?? "") && !isTextByContentType(contentType)) {
     return Response.json({
@@ -141,4 +207,3 @@ export async function GET(request: Request) {
     } satisfies PreviewResponse);
   }
 }
-

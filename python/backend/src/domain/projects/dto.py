@@ -7,6 +7,8 @@ from pydantic import BaseModel, Field, field_validator
 from lib.datetime_types import ApiDateTime
 from lib.dto_config import model_config
 from lib.pagination import PaginatedResponse
+from lib.satellite_step_dto import SatelliteStepDTO
+from lib.category_cleanup_dto import CategoryCleanupResponseDTO
 from models import MetricAggregation, MetricDirection
 
 
@@ -89,7 +91,7 @@ class ProjectBaseDTO(BaseModel):
 
 class ProjectDTO(ProjectBaseDTO):
     id: UUID
-    owner: ProjectOwnerDTO
+    owner: Optional[ProjectOwnerDTO] = None
     created_at: ApiDateTime
     experiment_count: int = 0
     hypothesis_count: int = 0
@@ -105,7 +107,7 @@ class ProjectListResponseDTO(PaginatedResponse[ProjectDTO]):
 class ProjectDataDTO(ProjectBaseDTO):
     id: UUID
     team_id: Optional[UUID] = None
-    owner_id: UUID
+    owner_id: Optional[UUID] = None
 
 
 class ProjectUpdateDTO(BaseModel):
@@ -125,5 +127,93 @@ class ProjectCreateDTO(ProjectBaseDTO):
 
 class ProjectSettingValueUpdateDTO(BaseModel):
     value: Any
+
+    model_config = model_config()
+
+
+class UsageBytesCountDTO(BaseModel):
+    """Simple usage block reused across project usage sections."""
+
+    count: int = 0
+    bytes: int = 0
+
+    model_config = model_config()
+
+
+class ProjectUsageScalarTableDTO(BaseModel):
+    """One ClickHouse table row in the scalars section of project usage."""
+
+    table: str
+    exists: bool
+    rows: int
+    columns: int
+    bytes: int
+
+    model_config = model_config()
+
+
+class ProjectUsageScalarsDTO(BaseModel):
+    """Scalars-service usage section in project usage responses."""
+
+    bytes: int = 0
+    tables: list[ProjectUsageScalarTableDTO] = Field(default_factory=list)
+
+    model_config = model_config()
+
+
+class ProjectUsageExperimentBucketsDTO(BaseModel):
+    """Experiment-buckets section in project usage responses."""
+
+    count: int = 0
+    bytes: int = 0
+
+    model_config = model_config()
+
+
+class ProjectUsageTotalDTO(BaseModel):
+    """Total project usage aggregate."""
+
+    bytes: int = 0
+
+    model_config = model_config()
+
+
+class ProjectUsageDTO(BaseModel):
+    """Project usage API response (object storage + scalars)."""
+
+    project_id: str
+    project_artifacts: UsageBytesCountDTO
+    snapshots: UsageBytesCountDTO
+    experiment_buckets: ProjectUsageExperimentBucketsDTO
+    scalars: ProjectUsageScalarsDTO
+    total: ProjectUsageTotalDTO
+
+    model_config = model_config()
+
+
+class ExperimentSatelliteTeardownDTO(BaseModel):
+    """Per-experiment object storage + scalars outcomes during project teardown."""
+
+    experiment_id: UUID
+    object_storage: SatelliteStepDTO
+    scalars: SatelliteStepDTO
+
+    model_config = model_config()
+
+
+class ProjectSatelliteTeardownDTO(BaseModel):
+    """All satellite steps for one project before its Postgres row is removed."""
+
+    project_id: UUID
+    experiments: list[ExperimentSatelliteTeardownDTO] = Field(default_factory=list)
+    project_object_storage: SatelliteStepDTO
+    project_scalars: SatelliteStepDTO
+    satellites_ok: bool
+
+    model_config = model_config()
+
+
+class ProjectDeleteResponseDTO(CategoryCleanupResponseDTO):
+    """Outcome of DELETE ``/projects/{id}`` (cleanup-shaped)."""
 
     model_config = model_config()

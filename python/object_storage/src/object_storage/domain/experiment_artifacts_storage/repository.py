@@ -134,6 +134,31 @@ class ExperimentArtifactsRepository:
             )
         )
 
+    async def list_tracked_artifact_hashes(
+        self, project_id: UUID, experiment_id: UUID
+    ) -> list[str]:
+        """Return distinct artifact hashes referenced by tracked rows."""
+
+        result = await self._session.execute(
+            select(ExperimentBlob.artifact_hash).where(
+                ExperimentBlob.project_id == project_id,
+                ExperimentBlob.experiment_id == experiment_id,
+            )
+        )
+        return [row[0] for row in result.all()]
+
+    async def get_experiment_blob_usage(
+        self, project_id: UUID, experiment_id: UUID
+    ) -> dict:
+        result = await self._session.execute(
+            select(func.count(), func.coalesce(func.sum(ExperimentBlob.size), 0)).where(
+                ExperimentBlob.project_id == project_id,
+                ExperimentBlob.experiment_id == experiment_id,
+            )
+        )
+        count, size = result.one()
+        return {"count": int(count or 0), "bytes": int(size or 0)}
+
     async def commit(self) -> None:
         await self._session.commit()
 

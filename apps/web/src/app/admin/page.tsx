@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { env } from "@/lib/env";
 import { API_ROUTES } from "@/lib/constants/api-routes";
 import { Button } from "@/components/ui/button";
+import Link from "next/link";
 import { Input } from "@/components/ui/input";
 import {
   Table,
@@ -14,10 +15,13 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import type { CategoryCleanupResponse } from "@/domain/experiments/types";
+import { formatDeletionOutcomeDescription } from "@/lib/format-satellite-toast";
+import { useToast } from "@/lib/hooks/use-toast";
 
 const STORAGE_KEY = "experiment_tracker_admin_panel_key";
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE_OPTIONS = [10, 20, 50] as const;
 
 type AdminUserRow = {
   id: string;
@@ -32,8 +36,15 @@ type AdminTeamRow = {
   id: string;
   name: string;
   description: string | null;
-  ownerId: string;
+  ownerId: string | null;
   createdAt: string | null;
+};
+
+type AdminPaginated<T> = {
+  items: T[];
+  total: number;
+  limit: number;
+  offset: number;
 };
 
 function adminBaseUrl() {
@@ -77,14 +88,19 @@ async function probeAdminKey(adminKey: string): Promise<boolean> {
 }
 
 export default function AdminPage() {
+  const { toast } = useToast();
   const [keyInput, setKeyInput] = useState("");
   const [unlocked, setUnlocked] = useState(false);
   const [search, setSearch] = useState("");
   const [teamSearch, setTeamSearch] = useState("");
+  const [userPageSize, setUserPageSize] = useState<(typeof PAGE_SIZE_OPTIONS)[number]>(20);
+  const [teamPageSize, setTeamPageSize] = useState<(typeof PAGE_SIZE_OPTIONS)[number]>(20);
   const [userOffset, setUserOffset] = useState(0);
   const [teamOffset, setTeamOffset] = useState(0);
   const [users, setUsers] = useState<AdminUserRow[]>([]);
   const [teams, setTeams] = useState<AdminTeamRow[]>([]);
+  const [userTotal, setUserTotal] = useState(0);
+  const [teamTotal, setTeamTotal] = useState(0);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [resetResult, setResetResult] = useState<{ email: string; password: string } | null>(null);
   const [unlockError, setUnlockError] = useState<string | null>(null);
@@ -116,6 +132,8 @@ export default function AdminPage() {
     setTeams([]);
     setUserOffset(0);
     setTeamOffset(0);
+    setUserTotal(0);
+    setTeamTotal(0);
     setResetResult(null);
     setLoadError(null);
     setUnlockError(message);
@@ -148,15 +166,17 @@ export default function AdminPage() {
     setTeams([]);
     setUserOffset(0);
     setTeamOffset(0);
+    setUserTotal(0);
+    setTeamTotal(0);
     setResetResult(null);
     setUnlockError(null);
     setLoadError(null);
   };
 
   const loadTeams = useCallback(
-    async (q: string, offset: number) => {
+    async (q: string, offset: number, limit: number) => {
       const qs = new URLSearchParams();
-      qs.set("limit", String(PAGE_SIZE));
+      qs.set("limit", String(limit));
       qs.set("offset", String(offset));
       if (q.trim()) qs.set("q", q.trim());
       const r = await adminFetch(`${API_ROUTES.ADMIN.TEAMS}?${qs.toString()}`);
@@ -169,15 +189,17 @@ export default function AdminPage() {
         return;
       }
       setLoadError(null);
-      setTeams(await r.json());
+      const body = (await r.json()) as AdminPaginated<AdminTeamRow>;
+      setTeams(body.items ?? []);
+      setTeamTotal(body.total ?? 0);
     },
     [invalidateAdminSession],
   );
 
   const loadUsers = useCallback(
-    async (q: string, offset: number) => {
+    async (q: string, offset: number, limit: number) => {
       const qs = new URLSearchParams();
-      qs.set("limit", String(PAGE_SIZE));
+      qs.set("limit", String(limit));
       qs.set("offset", String(offset));
       if (q.trim()) qs.set("q", q.trim());
       const r = await adminFetch(`${API_ROUTES.ADMIN.USERS}?${qs.toString()}`);
@@ -190,7 +212,9 @@ export default function AdminPage() {
         return;
       }
       setLoadError(null);
-      setUsers(await r.json());
+      const body = (await r.json()) as AdminPaginated<AdminUserRow>;
+      setUsers(body.items ?? []);
+      setUserTotal(body.total ?? 0);
     },
     [invalidateAdminSession],
   );
@@ -199,48 +223,48 @@ export default function AdminPage() {
     if (!unlocked) return;
     const t = setTimeout(() => {
       setUserOffset(0);
-      void loadUsers(search, 0);
+      void loadUsers(search, 0, userPageSize);
     }, 300);
     return () => clearTimeout(t);
-  }, [unlocked, search, loadUsers]);
+  }, [unlocked, search, loadUsers, userPageSize]);
 
   useEffect(() => {
     if (!unlocked) return;
     const t = setTimeout(() => {
       setTeamOffset(0);
-      void loadTeams(teamSearch, 0);
+      void loadTeams(teamSearch, 0, teamPageSize);
     }, 300);
     return () => clearTimeout(t);
-  }, [unlocked, teamSearch, loadTeams]);
+  }, [unlocked, teamSearch, loadTeams, teamPageSize]);
 
   const userHasPrev = userOffset > 0;
-  const userHasNext = users.length >= PAGE_SIZE;
+  const userHasNext = userOffset + users.length < userTotal;
 
   const teamHasPrev = teamOffset > 0;
-  const teamHasNext = teams.length >= PAGE_SIZE;
+  const teamHasNext = teamOffset + teams.length < teamTotal;
 
   const goPrevUsers = () => {
-    const nextOffset = Math.max(0, userOffset - PAGE_SIZE);
+    const nextOffset = Math.max(0, userOffset - userPageSize);
     setUserOffset(nextOffset);
-    void loadUsers(search, nextOffset);
+    void loadUsers(search, nextOffset, userPageSize);
   };
 
   const goNextUsers = () => {
-    const nextOffset = userOffset + PAGE_SIZE;
+    const nextOffset = userOffset + userPageSize;
     setUserOffset(nextOffset);
-    void loadUsers(search, nextOffset);
+    void loadUsers(search, nextOffset, userPageSize);
   };
 
   const goPrevTeams = () => {
-    const nextOffset = Math.max(0, teamOffset - PAGE_SIZE);
+    const nextOffset = Math.max(0, teamOffset - teamPageSize);
     setTeamOffset(nextOffset);
-    void loadTeams(teamSearch, nextOffset);
+    void loadTeams(teamSearch, nextOffset, teamPageSize);
   };
 
   const goNextTeams = () => {
-    const nextOffset = teamOffset + PAGE_SIZE;
+    const nextOffset = teamOffset + teamPageSize;
     setTeamOffset(nextOffset);
-    void loadTeams(teamSearch, nextOffset);
+    void loadTeams(teamSearch, nextOffset, teamPageSize);
   };
 
   const onReset = async (userId: string, email: string) => {
@@ -256,7 +280,37 @@ export default function AdminPage() {
     }
     const body = (await r.json()) as { temporaryPassword: string };
     setResetResult({ email, password: body.temporaryPassword });
-    void loadUsers(search, userOffset);
+    void loadUsers(search, userOffset, userPageSize);
+  };
+
+  const onSetUserActive = async (userId: string, active: boolean) => {
+    const route = active
+      ? API_ROUTES.ADMIN.REACTIVATE_USER(userId)
+      : API_ROUTES.ADMIN.DEACTIVATE_USER(userId);
+    const r = await adminFetch(route, { method: "POST" });
+    if (!r.ok) {
+      setLoadError(await r.text());
+      return;
+    }
+    void loadUsers(search, userOffset, userPageSize);
+  };
+
+  const onDeleteUser = async (userId: string) => {
+    if (!window.confirm("Delete this inactive user and personal projects?")) return;
+    const r = await adminFetch(API_ROUTES.ADMIN.DELETE_USER(userId), { method: "DELETE" });
+    if (!r.ok) {
+      setLoadError(await r.text());
+      return;
+    }
+    const body = (await r.json()) as CategoryCleanupResponse;
+    toast({
+      title: body.success ? "User deleted" : "User deleted (warnings)",
+      description: body.success
+        ? "No errors reported for personal projects."
+        : formatDeletionOutcomeDescription(body),
+      variant: body.success ? "default" : "destructive",
+    });
+    void loadUsers(search, userOffset, userPageSize);
   };
 
   const hint = useMemo(
@@ -316,6 +370,9 @@ export default function AdminPage() {
         <Button variant="outline" onClick={lock}>
           Lock / clear key
         </Button>
+        <Button asChild variant="outline">
+          <Link href="/admin/storage">Storage Management</Link>
+        </Button>
       </div>
 
       {loadError && (
@@ -344,16 +401,37 @@ export default function AdminPage() {
         <CardHeader>
           <CardTitle>Users</CardTitle>
           <CardDescription>
-            Search by email, display name, or user UUID (full or partial). Loads {PAGE_SIZE} rows per
-            request.
+            Search by email, display name, or user UUID (partial match). Server-side pagination with total
+            count.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <Input
-            placeholder="Search by email, name, or UUID…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
+          <div className="flex flex-wrap items-center gap-3">
+            <Input
+              className="max-w-md flex-1"
+              placeholder="Search by email, name, or UUID…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+            <label className="flex items-center gap-2 text-sm text-muted-foreground">
+              <span>Page size</span>
+              <select
+                className="border-input bg-background h-9 rounded-md border px-2"
+                value={userPageSize}
+                onChange={(e) => {
+                  const v = Number(e.target.value) as (typeof PAGE_SIZE_OPTIONS)[number];
+                  setUserPageSize(v);
+                  setUserOffset(0);
+                }}
+              >
+                {PAGE_SIZE_OPTIONS.map((n) => (
+                  <option key={n} value={n}>
+                    {n}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
           <Table>
             <TableHeader>
               <TableRow>
@@ -373,7 +451,7 @@ export default function AdminPage() {
                   <TableCell>{u.email}</TableCell>
                   <TableCell>{u.displayName ?? "—"}</TableCell>
                   <TableCell>{u.isActive ? "yes" : "no"}</TableCell>
-                  <TableCell>
+                  <TableCell className="space-x-2">
                     <Button
                       type="button"
                       variant="secondary"
@@ -382,6 +460,23 @@ export default function AdminPage() {
                     >
                       Reset password
                     </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => void onSetUserActive(u.id, !u.isActive)}
+                    >
+                      {u.isActive ? "Deactivate" : "Reactivate"}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      size="sm"
+                      disabled={u.isActive}
+                      onClick={() => void onDeleteUser(u.id)}
+                    >
+                      Delete
+                    </Button>
                   </TableCell>
                 </TableRow>
               ))}
@@ -389,8 +484,9 @@ export default function AdminPage() {
           </Table>
           <div className="flex flex-col gap-2 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-xs text-muted-foreground">
-              Offset {userOffset}
-              {users.length > 0 ? ` · ${users.length} row${users.length === 1 ? "" : "s"} on this page` : ""}
+              {userTotal === 0
+                ? "No users match"
+                : `Showing ${userOffset + 1}–${userOffset + users.length} of ${userTotal}`}
             </p>
             <div className="flex gap-2">
               <Button type="button" variant="outline" size="sm" disabled={!userHasPrev} onClick={goPrevUsers}>
@@ -408,15 +504,36 @@ export default function AdminPage() {
         <CardHeader>
           <CardTitle>Teams</CardTitle>
           <CardDescription>
-            Search by team name or description. Loads {PAGE_SIZE} rows per request (read-only).
+            Search by team name or description. Server-side pagination (read-only).
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <Input
-            placeholder="Search teams…"
-            value={teamSearch}
-            onChange={(e) => setTeamSearch(e.target.value)}
-          />
+          <div className="flex flex-wrap items-center gap-3">
+            <Input
+              className="max-w-md flex-1"
+              placeholder="Search teams…"
+              value={teamSearch}
+              onChange={(e) => setTeamSearch(e.target.value)}
+            />
+            <label className="flex items-center gap-2 text-sm text-muted-foreground">
+              <span>Page size</span>
+              <select
+                className="border-input bg-background h-9 rounded-md border px-2"
+                value={teamPageSize}
+                onChange={(e) => {
+                  const v = Number(e.target.value) as (typeof PAGE_SIZE_OPTIONS)[number];
+                  setTeamPageSize(v);
+                  setTeamOffset(0);
+                }}
+              >
+                {PAGE_SIZE_OPTIONS.map((n) => (
+                  <option key={n} value={n}>
+                    {n}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
           <Table>
             <TableHeader>
               <TableRow>
@@ -429,7 +546,7 @@ export default function AdminPage() {
               {teams.map((t) => (
                 <TableRow key={t.id}>
                   <TableCell>{t.name}</TableCell>
-                  <TableCell className="font-mono text-xs">{t.ownerId}</TableCell>
+                  <TableCell className="font-mono text-xs">{t.ownerId ?? "—"}</TableCell>
                   <TableCell className="max-w-md truncate">{t.description ?? "—"}</TableCell>
                 </TableRow>
               ))}
@@ -437,8 +554,9 @@ export default function AdminPage() {
           </Table>
           <div className="flex flex-col gap-2 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-xs text-muted-foreground">
-              Offset {teamOffset}
-              {teams.length > 0 ? ` · ${teams.length} row${teams.length === 1 ? "" : "s"} on this page` : ""}
+              {teamTotal === 0
+                ? "No teams match"
+                : `Showing ${teamOffset + 1}–${teamOffset + teams.length} of ${teamTotal}`}
             </p>
             <div className="flex gap-2">
               <Button type="button" variant="outline" size="sm" disabled={!teamHasPrev} onClick={goPrevTeams}>

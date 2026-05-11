@@ -6,6 +6,7 @@ from typing import BinaryIO, Protocol, cast
 from uuid import UUID
 
 from object_storage.config import get_settings
+from object_storage.storage.dto import BlobListEntry
 from object_storage.storage.minio_client import MinioStorage, get_minio_storage
 from object_storage.storage.s3_client import S3Storage, get_s3_storage
 
@@ -42,8 +43,16 @@ class StorageBackend(Protocol):
     def list_blobs(self, bucket_name: str, prefix: str = "") -> list[str]:
         """List object keys for a bucket and prefix."""
 
+    def list_blob_entries(
+        self, bucket_name: str, prefix: str = ""
+    ) -> list[BlobListEntry]:
+        """List objects (key + size) as reported by the object store list API."""
+
     def delete_blobs(self, bucket_name: str, keys: list[str]) -> int:
         """Delete many objects from a bucket and return deleted count."""
+
+    def list_bucket_names(self) -> list[str]:
+        """List all bucket names in the object store account."""
 
 
 def get_storage() -> StorageBackend:
@@ -57,6 +66,7 @@ def get_storage() -> StorageBackend:
 
 
 __all__ = [
+    "BlobListEntry",
     "StorageBackend",
     "MinioStorage",
     "S3Storage",

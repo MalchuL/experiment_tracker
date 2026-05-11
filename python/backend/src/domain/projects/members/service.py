@@ -30,6 +30,8 @@ from models import Permission, Project, Role, User
 
 
 class ProjectMembersService:
+    """Project membership: lookup users, invite by email, override roles, remove overrides."""
+
     def __init__(
         self,
         db: AsyncSession,

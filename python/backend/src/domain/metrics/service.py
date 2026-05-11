@@ -26,6 +26,8 @@ from .repository import MetricRepository
 
 
 class MetricService:
+    """Metric definitions and aggregations stored in Postgres, gated by project permissions."""
+
     def __init__(
         self,
         db: AsyncSession,

@@ -134,6 +134,10 @@ class ClickHouseScalarsDBUtils:
     def _escape_sql_literal(self, value: str) -> str:
         return value.replace("\\", "\\\\").replace("'", "\\'")
 
+    def escape_sql_literal(self, value: str) -> str:
+        """Escape a value for embedding in a single-quoted SQL literal."""
+        return self._escape_sql_literal(value)
+
     def _format_datetime_literal(self, value: datetime) -> str:
         if value.tzinfo is not None:
             value = value.astimezone(timezone.utc).replace(tzinfo=None)
@@ -297,7 +301,7 @@ class ClickHouseScalarsDBUtils:
         experiment_uuid = self._format_uuid_literal(experiment_id)
         return (
             f"INSERT INTO {table_name} (experiment_id, last_modified) VALUES "
-            f"('{experiment_uuid}', toDateTime64('{last_modified_value}', 3))"
+            f"('{experiment_uuid}', toDateTime64('{last_modified_value}', 3, 'UTC'))"
         )
 
     def build_select_last_logged_statement(
@@ -345,6 +349,39 @@ class ClickHouseScalarsDBUtils:
             for col in scalar_columns
         ]
         return f"ALTER TABLE {table_name} {', '.join(alters)}"
+
+    def build_alter_table_drop_column_if_exists_statement(
+        self, table_name: str, column_name: str
+    ) -> str:
+        """Build ``ALTER TABLE … DROP COLUMN IF EXISTS`` for one validated scalar storage column."""
+        col = self.validate_scalar_storage_column_name(column_name)
+        return f"ALTER TABLE {table_name} DROP COLUMN IF EXISTS {col}"
+
+    def build_alter_delete_experiment_rows_statement(
+        self,
+        table_name: str,
+        experiment_id: UUID,
+        experiment_id_column: str,
+    ) -> str:
+        """Build async delete mutation matching one experiment id.
+
+        Args:
+            table_name: Physical table name (from ``safe_*_table_name`` helpers).
+            experiment_id: Experiment to remove rows for.
+            experiment_id_column: Column holding the experiment UUID: ``__experiment_id__`` for
+                scalars and artifacts_info tables, ``experiment_id`` for last-logged tables.
+        """
+        allowed = (
+            ProjectTableColumns.EXPERIMENT_ID.value,
+            ArtifactsInfoTableColumns.EXPERIMENT_ID.value,
+            "experiment_id",
+        )
+        if experiment_id_column not in allowed:
+            raise ValueError(
+                f"experiment_id_column must be one of {allowed!r}, got {experiment_id_column!r}"
+            )
+        lit = self._format_uuid_literal(experiment_id)
+        return f"ALTER TABLE {table_name} DELETE WHERE {experiment_id_column} = '{lit}'"
 
     def build_drop_table_statement(self, table_name: str) -> str:
         """Build the DROP TABLE statement.
@@ -402,12 +439,12 @@ class ClickHouseScalarsDBUtils:
         if start_time is not None:
             where_clauses.append(
                 f"{ProjectTableColumns.TIMESTAMP.value} >= "
-                f"toDateTime64('{self._format_datetime_literal(start_time)}', 3)"
+                f"toDateTime64('{self._format_datetime_literal(start_time)}', 3, 'UTC')"
             )
         if end_time is not None:
             where_clauses.append(
                 f"{ProjectTableColumns.TIMESTAMP.value} <= "
-                f"toDateTime64('{self._format_datetime_literal(end_time)}', 3)"
+                f"toDateTime64('{self._format_datetime_literal(end_time)}', 3, 'UTC')"
             )
         if extra:
             where_clauses.extend(extra)
@@ -466,14 +503,10 @@ class ClickHouseScalarsDBUtils:
         end_time: datetime | None = None,
     ) -> str:
         """Count distinct experiments in the scalars table (optional time bounds)."""
-        where_clauses = self._scalar_table_where_clauses(
-            None, start_time, end_time
-        )
+        where_clauses = self._scalar_table_where_clauses(None, start_time, end_time)
         where_sql = self._scalar_where_sql(where_clauses)
         exp_col = ProjectTableColumns.EXPERIMENT_ID.value
-        return (
-            f"SELECT uniqExact({exp_col}) FROM {table_name}{where_sql}"
-        )
+        return f"SELECT uniqExact({exp_col}) FROM {table_name}{where_sql}"
 
     def build_select_experiment_id_page_statement(
         self,
@@ -484,9 +517,7 @@ class ClickHouseScalarsDBUtils:
         offset: int = 0,
     ) -> str:
         """Distinct experiment IDs ordered, with LIMIT/OFFSET for pagination."""
-        where_clauses = self._scalar_table_where_clauses(
-            None, start_time, end_time
-        )
+        where_clauses = self._scalar_table_where_clauses(None, start_time, end_time)
         where_sql = self._scalar_where_sql(where_clauses)
         exp_col = ProjectTableColumns.EXPERIMENT_ID.value
         lim = int(limit)
@@ -600,12 +631,12 @@ class ClickHouseScalarsDBUtils:
         if start_time is not None:
             where_clauses.append(
                 f"{ArtifactsInfoTableColumns.TIMESTAMP.value} >= "
-                f"toDateTime64('{self._format_datetime_literal(start_time)}', 3)"
+                f"toDateTime64('{self._format_datetime_literal(start_time)}', 3, 'UTC')"
             )
         if end_time is not None:
             where_clauses.append(
                 f"{ArtifactsInfoTableColumns.TIMESTAMP.value} <= "
-                f"toDateTime64('{self._format_datetime_literal(end_time)}', 3)"
+                f"toDateTime64('{self._format_datetime_literal(end_time)}', 3, 'UTC')"
             )
         if where_clauses:
             select += f" WHERE {' AND '.join(where_clauses)}"

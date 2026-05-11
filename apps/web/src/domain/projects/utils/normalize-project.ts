@@ -4,12 +4,14 @@ import type { Project, ProjectOwner } from "../types";
 export function normalizeProject(raw: unknown): Project {
   const r = raw as Record<string, unknown>;
   const team = r.team as { id?: string; name?: string | null } | null | undefined;
-  const ownerRaw = r.owner as Record<string, unknown> | undefined;
-  const owner: ProjectOwner = {
-    id: String(ownerRaw?.id ?? ""),
-    email: String(ownerRaw?.email ?? ""),
-    displayName: (ownerRaw?.displayName as string | null | undefined) ?? null,
-  };
+  const ownerRaw = r.owner as Record<string, unknown> | null | undefined;
+  const owner: ProjectOwner | null = ownerRaw
+    ? {
+        id: String(ownerRaw.id ?? ""),
+        email: String(ownerRaw.email ?? ""),
+        displayName: (ownerRaw.displayName as string | null | undefined) ?? null,
+      }
+    : null;
   const teamId: string | null = team?.id ?? null;
   const teamName: string | null = team?.name ?? null;
   return {

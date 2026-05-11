@@ -6,16 +6,26 @@ import re
 import tempfile
 import zipfile
 from pathlib import PurePosixPath
+from typing import Any, BinaryIO
 from uuid import UUID
 
 import anyio
 from fastapi import HTTPException, UploadFile
 from sqlalchemy.exc import IntegrityError
 
-from . import mapper
+from .mapper import ProjectArtifactsStorageMapper
 from .dto import (
+    BucketListResponseDTO,
+    ClearStorageBucketResponseDTO,
+    DeleteProjectSnapshotResponseDTO,
+    DeleteStorageBucketResponseDTO,
     BlobCheckResponseDTO,
     DeleteBlobResponseDTO,
+    ExperimentBucketsUsageDTO,
+    ProjectArtifactsUsageItemDTO,
+    ProjectSnapshotsUsageDTO,
+    ProjectUsageResponseDTO,
+    ReconcileStorageBucketResponseDTO,
     SnapshotCreateRequestDTO,
     SnapshotCreateResponseDTO,
     UploadBlobResponseDTO,
@@ -24,6 +34,9 @@ from .repository import ObjectStorageRepository
 from object_storage.domain.buckets.service import (
     BucketRegistryService,
     project_experiment_bucket_name,
+)
+from object_storage.domain.experiment_artifacts_storage.repository import (
+    ExperimentArtifactsRepository,
 )
 
 
@@ -37,14 +50,24 @@ class ObjectStorageService:
         self,
         repository: ObjectStorageRepository,
         buckets_service: BucketRegistryService,
+        experiment_artifacts_repository: ExperimentArtifactsRepository,
     ) -> None:
         """Initialize with metadata repository and project-scoped bucket registry."""
 
         self._repository = repository
         self._buckets_service = buckets_service
+        self._experiment_artifacts_repository = experiment_artifacts_repository
+        self._mapper = ProjectArtifactsStorageMapper()
 
     async def delete_project(self, project_id: UUID) -> bool:
-        """Delete a project and all its blobs."""
+        """Delete all object-storage records and buckets for a project.
+
+        Args:
+            project_id: Project UUID whose blobs, snapshots, and buckets are removed.
+
+        Returns:
+            Always ``True`` after the deletion flow completes.
+        """
 
         await self._buckets_service.delete_all_project_buckets(project_id)
         await self._repository.delete_all_blobs(project_id)
@@ -52,14 +75,59 @@ class ObjectStorageService:
         await self._repository.commit()
         return True
 
+    async def cleanup_project_cas_only(self, project_id: UUID) -> bool:
+        """Remove project CAS metadata and blob objects; keep snapshots and experiment buckets."""
+
+        hashes = await self._repository.list_project_blob_hashes(project_id)
+        await self._repository.delete_all_blobs(project_id)
+        for h in hashes:
+            await self._buckets_service.delete_blob(project_id, None, h)
+        await self._repository.commit()
+        return True
+
+    async def cleanup_project_snapshots_only(self, project_id: UUID) -> bool:
+        """Remove all project snapshots and unreferenced CAS blobs; keep other data."""
+
+        ids = await self._repository.list_snapshot_ids_for_project(project_id)
+        for sid in ids:
+            await self.delete_project_snapshot(project_id, sid)
+        return True
+
+    async def cleanup_project_experiment_buckets_only(self, project_id: UUID) -> bool:
+        """Remove experiment-scoped buckets and tracked experiment blobs; keep project CAS."""
+
+        bucket_result = await self._buckets_service.list_buckets(
+            project_id=project_id,
+            limit=None,
+            offset=0,
+        )
+        for row in bucket_result.rows:
+            if row.experiment_id is None:
+                continue
+            eid = UUID(row.experiment_id)
+            await self._experiment_artifacts_repository.delete_all_experiment_blobs(
+                project_id, eid
+            )
+            await self._buckets_service.delete_bucket(project_id, eid)
+        await self._repository.commit()
+        return True
+
     async def check_project_blobs(
         self, project_id: UUID, hashes: list[str]
     ) -> BlobCheckResponseDTO:
-        """Return hashes that are missing from CAS metadata storage."""
+        """Return which requested hashes are missing from project CAS metadata.
+
+        Args:
+            project_id: Project UUID used for blob lookup.
+            hashes: Candidate blob hashes to validate.
+
+        Returns:
+            A DTO listing normalized hashes that are absent in metadata storage.
+        """
 
         await self._buckets_service.ensure_bucket(project_id, None)
         if not hashes:
-            return mapper.missing_hashes_to_response([])
+            return self._mapper.missing_hashes_to_response([])
         normalized_hashes = [self._normalize_hash(blob_hash) for blob_hash in hashes]
         existing = await self._repository.fetch_existing_blob_hashes(
             project_id, normalized_hashes
@@ -67,17 +135,29 @@ class ObjectStorageService:
         missing = [
             blob_hash for blob_hash in normalized_hashes if blob_hash not in existing
         ]
-        return mapper.missing_hashes_to_response(missing)
+        return self._mapper.missing_hashes_to_response(missing)
 
     async def upload_project_blob(
         self, project_id: UUID, blob_hash: str, upload: UploadFile
     ) -> UploadBlobResponseDTO:
-        """Upload a blob into CAS storage after verifying its hash."""
+        """Upload one project-scoped CAS blob after SHA-256 verification.
+
+        Args:
+            project_id: Project UUID that owns the CAS bucket.
+            blob_hash: Expected SHA-256 hash string (hex).
+            upload: Incoming upload stream from FastAPI.
+
+        Returns:
+            Upload status DTO (``ok`` or ``exists``).
+
+        Raises:
+            HTTPException: If hash validation fails or metadata persistence fails.
+        """
 
         blob_hash = self._normalize_hash(blob_hash)
         existing = await self._repository.fetch_blob(project_id, blob_hash)
         if existing:
-            return mapper.upload_status_to_response("exists")
+            return self._mapper.upload_status_to_response("exists")
 
         await self._buckets_service.ensure_bucket(project_id, None)
         try:
@@ -105,12 +185,22 @@ class ObjectStorageService:
             raise HTTPException(
                 status_code=500, detail="Failed to add blob to repository"
             )
-        return mapper.upload_status_to_response("ok")
+        return self._mapper.upload_status_to_response("ok")
 
     async def create_project_snapshot(
         self, payload: SnapshotCreateRequestDTO
     ) -> SnapshotCreateResponseDTO:
-        """Create a snapshot that points to existing CAS blob hashes."""
+        """Create a snapshot manifest that references existing project CAS blobs.
+
+        Args:
+            payload: Snapshot creation request with project id and manifest entries.
+
+        Returns:
+            DTO containing the created snapshot identifier.
+
+        Raises:
+            HTTPException: If any path is invalid or referenced blobs are missing.
+        """
 
         normalized_files = [
             entry.model_copy(
@@ -140,21 +230,34 @@ class ObjectStorageService:
                     status_code=400, detail=f"Missing blobs: {', '.join(missing)}"
                 )
 
-        manifest = mapper.snapshot_files_to_manifest(normalized_files)
+        manifest = self._mapper.snapshot_files_to_manifest(normalized_files)
         snapshot = await self._repository.create_snapshot(payload.project_id, manifest)
         if hashes:
             await self._repository.increment_blob_ref_counts(payload.project_id, hashes)
         await self._repository.commit()
         await self._repository.refresh(snapshot)
-        return mapper.snapshot_id_to_response(snapshot.id)
+        return self._mapper.snapshot_id_to_response(snapshot.id)
 
     async def delete_project_snapshot(
         self, project_id: UUID, snapshot_id: UUID
-    ) -> list[str]:
-        """Delete a snapshot and all its blobs."""
+    ) -> DeleteProjectSnapshotResponseDTO:
+        """Delete one snapshot and orphaned blobs referenced only by that snapshot.
+
+        Args:
+            project_id: Project UUID owning the snapshot.
+            snapshot_id: Snapshot UUID to delete.
+
+        Returns:
+            DTO indicating deletion success and hashes of physically removed blobs.
+
+        Raises:
+            HTTPException: If snapshot does not exist for the project.
+        """
 
         snapshot = await self._repository.fetch_snapshot(snapshot_id)
         if snapshot is None:
+            raise HTTPException(status_code=404, detail="Snapshot not found")
+        if snapshot.project_id != project_id:
             raise HTTPException(status_code=404, detail="Snapshot not found")
         snapshot_hashes = [entry["hash"] for entry in snapshot.manifest]
         await self._repository.decrement_blob_ref_counts(project_id, snapshot_hashes)
@@ -167,12 +270,206 @@ class ObjectStorageService:
                 deleted_blobs.append(hash)
         await self._repository.delete_snapshot(snapshot_id)
         await self._repository.commit()
-        return deleted_blobs
+        return DeleteProjectSnapshotResponseDTO(
+            deleted=True,
+            deleted_blobs=deleted_blobs,
+        )
+
+    async def get_project_usage(self, project_id: UUID) -> ProjectUsageResponseDTO:
+        """Return combined project usage across CAS, snapshots, and experiment buckets.
+
+        Args:
+            project_id: Project UUID whose usage should be aggregated.
+
+        Returns:
+            Typed usage payload with per-category totals and overall byte usage.
+        """
+
+        blob_usage = await self._repository.get_project_blob_usage(project_id)
+        bucket_result = await self._buckets_service.list_buckets(
+            project_id=project_id,
+            limit=None,
+            offset=0,
+        )
+        buckets = bucket_result.rows
+        experiment_buckets = [
+            bucket for bucket in buckets if bucket.experiment_id is not None
+        ]
+        experiment_bucket_bytes = sum(int(bucket.size) for bucket in experiment_buckets)
+        project_bucket = next(
+            (bucket for bucket in buckets if bucket.experiment_id is None),
+            None,
+        )
+        total = (
+            int(blob_usage["projectArtifacts"]["bytes"])
+            + experiment_bucket_bytes
+        )
+        return ProjectUsageResponseDTO(
+            project_id=str(project_id),
+            project_artifacts=ProjectArtifactsUsageItemDTO(
+                count=int(blob_usage["projectArtifacts"]["count"]),
+                bytes=int(blob_usage["projectArtifacts"]["bytes"]),
+            ),
+            snapshots=ProjectSnapshotsUsageDTO(
+                count=int(blob_usage["snapshots"]["count"]),
+                referenced_blob_count=int(blob_usage["snapshots"]["referencedBlobCount"]),
+                bytes=int(blob_usage["snapshots"]["bytes"]),
+            ),
+            experiment_buckets=ExperimentBucketsUsageDTO(
+                count=len(experiment_buckets),
+                bytes=experiment_bucket_bytes,
+            ),
+            project_bucket=(
+                self._mapper.bucket_row_data_to_response(project_bucket)
+                if project_bucket is not None
+                else None
+            ),
+            total_bytes=total,
+        )
+
+    async def list_buckets(
+        self,
+        project_id: UUID | None = None,
+        experiment_id: UUID | None = None,
+        reconcile: bool = False,
+        q: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> BucketListResponseDTO:
+        """List buckets visible to storage admin views.
+
+        Args:
+            project_id: Optional project filter.
+            experiment_id: Optional experiment filter.
+            reconcile: Whether to compute storage-side byte totals.
+            q: Optional partial-name filter.
+            limit: Maximum number of buckets to return.
+            offset: Pagination offset.
+
+        Returns:
+            Paginated bucket listing payload.
+        """
+
+        bucket_result = await self._buckets_service.list_buckets_merged(
+            project_id=project_id,
+            experiment_id=experiment_id,
+            reconcile=reconcile,
+            name_contains=q,
+            limit=limit,
+            offset=offset,
+        )
+        return BucketListResponseDTO(
+            buckets=[
+                self._mapper.bucket_row_data_to_response(row)
+                for row in bucket_result.rows
+            ],
+            total=bucket_result.total,
+            limit=limit,
+            offset=offset,
+        )
+
+    async def delete_storage_only_bucket(
+        self, name: str
+    ) -> DeleteStorageBucketResponseDTO:
+        """Delete orphan bucket from object storage only.
+
+        Args:
+            name: Bucket name to delete when not registered in metadata DB.
+
+        Returns:
+            DTO indicating whether the bucket was deleted.
+        """
+
+        deleted = await self._buckets_service.delete_storage_only_bucket(name.strip())
+        return DeleteStorageBucketResponseDTO(deleted=deleted)
+
+    async def delete_bucket(self, bucket_id: UUID) -> DeleteStorageBucketResponseDTO:
+        """Delete a registered bucket by id.
+
+        Args:
+            bucket_id: Registry bucket UUID.
+
+        Returns:
+            DTO indicating whether the bucket existed and was deleted.
+        """
+
+        deleted = await self._buckets_service.delete_bucket_by_id(bucket_id)
+        await self._repository.commit()
+        return DeleteStorageBucketResponseDTO(deleted=deleted)
+
+    async def reconcile_bucket(
+        self, bucket_id: UUID
+    ) -> ReconcileStorageBucketResponseDTO:
+        """Recompute a registered bucket size and object count from storage.
+
+        Args:
+            bucket_id: Registry bucket UUID.
+
+        Returns:
+            Reconciliation result for the bucket.
+        """
+
+        result = await self._buckets_service.reconcile_bucket_by_id(bucket_id)
+        await self._repository.commit()
+        return ReconcileStorageBucketResponseDTO(
+            found=result.found,
+            size=result.size,
+            object_count=result.object_count,
+        )
+
+    async def clear_bucket(self, bucket_id: UUID) -> ClearStorageBucketResponseDTO:
+        """Empty one registered bucket and clear associated object-storage metadata.
+
+        Args:
+            bucket_id: Registry bucket UUID.
+
+        Returns:
+            DTO indicating whether the bucket existed and was cleared.
+        """
+
+        bucket = await self._buckets_service.empty_bucket_storage_reset_size(bucket_id)
+        if bucket is None:
+            return ClearStorageBucketResponseDTO(cleared=False)
+        if bucket.experiment_id is None:
+            await self._repository.delete_all_snapshots(bucket.project_id)
+            await self._repository.delete_all_blobs(bucket.project_id)
+        else:
+            await self._experiment_artifacts_repository.delete_all_experiment_blobs(
+                bucket.project_id, bucket.experiment_id
+            )
+        await self._repository.commit()
+        return ClearStorageBucketResponseDTO(cleared=True)
+
+    async def clear_storage_only_bucket(
+        self, name: str
+    ) -> ClearStorageBucketResponseDTO:
+        """Remove all objects from an orphan bucket while keeping the bucket itself.
+
+        Args:
+            name: Storage bucket name expected to have no registry row.
+
+        Returns:
+            DTO indicating whether the orphan bucket was cleared.
+        """
+
+        cleared = await self._buckets_service.empty_orphan_bucket_storage(name)
+        return ClearStorageBucketResponseDTO(cleared=cleared)
 
     async def prepare_project_snapshot_download(
         self, project_id: UUID, snapshot_id: UUID
     ) -> tuple[str, str]:
-        """Create a ZIP archive for a snapshot and return its path and filename."""
+        """Build a temporary ZIP archive for a snapshot download response.
+
+        Args:
+            project_id: Project UUID owning the snapshot.
+            snapshot_id: Snapshot UUID to export.
+
+        Returns:
+            A tuple ``(zip_path, filename)`` where ``zip_path`` is a temporary file path.
+
+        Raises:
+            HTTPException: If the snapshot does not exist.
+        """
 
         snapshot = await self._repository.fetch_snapshot(snapshot_id)
         if snapshot is None:
@@ -187,8 +484,21 @@ class ObjectStorageService:
         filename = f"snapshot-{snapshot_id}.zip"
         return zip_path, filename
 
-    async def get_project_blob_stream(self, project_id: UUID, blob_hash: str):
-        """Return a streaming handle for a CAS blob by hash."""
+    async def get_project_blob_stream(
+        self, project_id: UUID, blob_hash: str
+    ) -> BinaryIO:
+        """Return streaming storage response for a project CAS blob.
+
+        Args:
+            project_id: Project UUID owning the blob.
+            blob_hash: SHA-256 blob hash.
+
+        Returns:
+            Storage backend stream object for iterating blob bytes.
+
+        Raises:
+            HTTPException: If blob metadata is missing.
+        """
 
         blob_hash = self._normalize_hash(blob_hash)
         blob = await self._repository.fetch_blob(project_id, blob_hash)
@@ -216,7 +526,7 @@ class ObjectStorageService:
         )
         if deleted_metadata or deleted_storage:
             await self._repository.commit()
-        return mapper.delete_blob_to_response(deleted_metadata or deleted_storage)
+        return self._mapper.delete_blob_to_response(deleted_metadata or deleted_storage)
 
     def _normalize_hash(self, blob_hash: str) -> str:
         """Validate SHA-256 hex format and normalize to lowercase."""
@@ -251,9 +561,18 @@ class ObjectStorageService:
         return True
 
     def _build_zip(
-        self, storage, project_id: UUID, manifest: list[dict]
+        self, storage: Any, project_id: UUID, manifest: list[dict[str, str]]
     ) -> str:
-        """Materialize a snapshot manifest into a ZIP file using CAS blobs."""
+        """Materialize a snapshot manifest into a ZIP file using CAS blobs.
+
+        Args:
+            storage: Storage backend instance that supports blob checks and reads.
+            project_id: Project UUID to resolve the CAS bucket.
+            manifest: Snapshot manifest entries with ``path`` and ``hash`` keys.
+
+        Returns:
+            Path to the temporary ZIP file.
+        """
 
         tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".zip")
         tmp_path = tmp.name

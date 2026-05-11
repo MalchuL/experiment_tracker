@@ -1,3 +1,5 @@
+"""HTTP routes under ``/teams``: team CRUD, members, invites, and lookup."""
+
 from uuid import UUID
 
 from api.routes.service_dependencies import get_team_service
@@ -10,6 +12,7 @@ from domain.rbac.permissions.team import TeamActions
 
 from .dto import (
     TeamCreateDTO,
+    TeamDeleteResponseDTO,
     TeamListItemDTO,
     TeamMemberCreateDTO,
     TeamMemberDeleteDTO,
@@ -32,6 +35,7 @@ router = APIRouter(prefix="/teams", tags=["teams"])
 
 
 def _raise_team_http_error(error: Exception) -> None:
+    """Translate team domain errors (access, duplicates, not found) into HTTP exceptions."""
     if isinstance(error, TeamAccessDeniedError):
         raise HTTPException(status_code=403, detail=str(error))
     if isinstance(error, (TeamNotFoundError, TeamMemberNotFoundError)):
@@ -165,15 +169,21 @@ async def remove_team_member(
     return {"success": True}
 
 
-@router.delete("/{team_id}")
+@router.delete("/{team_id}", response_model=TeamDeleteResponseDTO)
 async def delete_team(
     team_id: UUID,
+    detailed: bool = Query(
+        False,
+        description=(
+            "When true, include full per-step ``results``. "
+            "When false (default), ``results`` is empty and ``resultCount`` counts successes."
+        ),
+    ),
     user: User = Depends(get_current_user_dual),
     _: None = Depends(require_api_token_scopes(TeamActions.DELETE_TEAM)),
     team_service: TeamService = Depends(get_team_service),
 ):
     try:
-        await team_service.delete_team(user.id, team_id)
+        return await team_service.delete_team(user.id, team_id, detailed=detailed)
     except Exception as exc:  # noqa: BLE001
         _raise_team_http_error(exc)
-    return {"success": True}

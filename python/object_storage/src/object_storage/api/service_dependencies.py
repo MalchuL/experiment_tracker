@@ -34,6 +34,9 @@ async def get_project_artifacts_service(
 ) -> "ObjectStorageService":
     from object_storage.domain.buckets.repository import BucketsRepository
     from object_storage.domain.buckets.service import BucketRegistryService
+    from object_storage.domain.experiment_artifacts_storage.repository import (
+        ExperimentArtifactsRepository,
+    )
     from object_storage.domain.project_artifacts_storage.repository import (
         ObjectStorageRepository,
     )
@@ -43,7 +46,8 @@ async def get_project_artifacts_service(
 
     buckets_service = BucketRegistryService(BucketsRepository(session), storage)
     repository = ObjectStorageRepository(session)
-    return ObjectStorageService(repository, buckets_service)
+    experiment_repository = ExperimentArtifactsRepository(session)
+    return ObjectStorageService(repository, buckets_service, experiment_repository)
 
 
 async def get_experiment_artifacts_service(

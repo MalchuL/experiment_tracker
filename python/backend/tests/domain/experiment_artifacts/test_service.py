@@ -357,6 +357,29 @@ class FakeObjectStorageClient:
         self.tracked.pop(key, None)
         return DeleteExperimentArtifactsResponseDTO(deleted_count=0)
 
+    async def delete_tracked_experiment_artifacts(
+        self, project_id: UUID, experiment_id: UUID
+    ):
+        key = (project_id, experiment_id)
+        rows = list(self.tracked.pop(key, []))
+        for r in rows:
+            self.blobs.pop((project_id, experiment_id, r.hash), None)
+        return DeleteExperimentArtifactsResponseDTO(deleted_count=len(rows))
+
+    async def delete_untracked_experiment_blobs(
+        self, project_id: UUID, experiment_id: UUID
+    ):
+        key = (project_id, experiment_id)
+        tracked_hashes = {r.hash for r in self.tracked.get(key, [])}
+        to_remove = [
+            hk
+            for hk in list(self.blobs.keys())
+            if hk[0] == project_id and hk[1] == experiment_id and hk[2] not in tracked_hashes
+        ]
+        for hk in to_remove:
+            self.blobs.pop(hk, None)
+        return DeleteExperimentArtifactsResponseDTO(deleted_count=len(to_remove))
+
 
 @pytest.mark.asyncio
 async def test_upsert_artifact_replaces_previous_storage_object() -> None:

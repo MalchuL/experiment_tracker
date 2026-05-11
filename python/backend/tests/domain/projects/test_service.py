@@ -1,6 +1,5 @@
 from uuid import uuid4
 
-from lib.db.error import DBNotFoundError
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -272,13 +271,12 @@ class TestProjectService:
         )
 
         assert allowed is True
-        with pytest.raises(DBNotFoundError):
-            assert (
-                await project_service.is_user_accessible_project(
-                    test_user, uuid4(), actions=ProjectActions.VIEW_PROJECT
-                )
-                is False
+        assert (
+            await project_service.is_user_accessible_project(
+                test_user, uuid4(), actions=ProjectActions.VIEW_PROJECT
             )
+            is False
+        )
 
     async def test_delete_project_permission_denied(
         self,
@@ -306,9 +304,11 @@ class TestProjectService:
             project_id=project.id,
         )
 
-        deleted = await project_service.delete_project(test_user, project.id)
+        deleted = await project_service.delete_project(test_user, project.id, detailed=True)
 
-        assert deleted is True
+        assert deleted.success is True
+        assert deleted.errors == []
+        assert any(r.category == "postgres:project" for r in deleted.results)
         assert await db_session.get(Project, project.id) is None
 
     async def test_team_service_owner_can_create_team_project(
@@ -352,9 +352,13 @@ class TestProjectService:
         )
         created = await project_service.create_project(test_user, dto)
 
-        deleted = await project_service.delete_project(test_user_2, created.id)
+        deleted = await project_service.delete_project(
+            test_user_2, created.id, detailed=True
+        )
 
-        assert deleted is True
+        assert deleted.success is True
+        assert deleted.errors == []
+        assert any(r.category == "postgres:project" for r in deleted.results)
         assert await db_session.get(Project, created.id) is None
 
     async def test_team_service_member_can_view_team_projects(

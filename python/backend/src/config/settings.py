@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     app_name: str = "Experiment Tracker"
     allowed_origins: str = "*"
     scalars_service_url: str = "http://127.0.0.1:8001/api"
-    object_storage_service_url: str = "http://127.0.0.1:8010/api"
+    object_storage_service_url: str = "http://127.0.0.1:8002/api"
     log_level: str = "INFO"
     log_stacktrace: bool = True
     #: Shared secret for HTTP admin routes (header ``X-Admin-Key``). Env: ``ADMIN_PANEL_KEY``.

@@ -31,9 +31,10 @@ flowchart LR
 
 | Path | Role |
 |------|------|
-| `apps/web/` | Next.js app (pnpm). UI, `src/app/api/*` BFF proxies to backend. |
+| Repo root (`package.json`, `pnpm-workspace.yaml`, `turbo.json`) | pnpm workspace + Turborepo only (no application source here). |
+| `apps/web/` | Next.js app (pnpm). UI, `src/app/api/*` BFF proxies to backend. Shared frontend-only types such as API `User` live under `apps/web/src/types/`. |
 | `python/backend/src/` | FastAPI app: `api/` routes, `domain/*` bounded contexts, `clients/*` HTTP clients, `db/`, `lib/`. |
-| `python/scalars_service/src/` | FastAPI scalars/artifacts_info service. `GET /scalars/get/...` paginates **experiments** first, then loads each metric column with ClickHouse `IS NOT NULL` + per-(experiment, column) uniform `max_points` sampling (`columns_per_query` controls parallel column queries; default 1). |
+| `python/scalars_service/src/` | FastAPI scalars/artifacts_info service. `GET /scalars/get/...` paginates **experiments** first, then loads each metric column with ClickHouse `IS NOT NULL` + per-(experiment, column) uniform `max_points` sampling (`columns_per_query` controls parallel column queries; default 1). Cross-table ClickHouse work (delete experiment rows across scalars + artifacts_info + last_logged, usage, admin table listing) is under **`/projects`** (`projects` domain); compaction stays **`POST /scalars/projects/{id}/compact-columns`**. |
 | `python/object_storage/src/` | FastAPI storage service (buckets, experiment/project artifacts). |
 | `python/sdk/src/experiment_tracker_sdk/` | Public Python SDK for the tracker API. |
 | `python/shared/` | Shared package (`experiment-tracker-shared`). |
@@ -128,10 +129,13 @@ Do **not** assume a single global `python/backend`-only layout; **scalars_servic
 
 Examples:
 
-- From repo root: `pnpm dlx turbo dev` (or your repo’s documented dev task).
+- From repo root: `pnpm dev` (runs `turbo dev`; install once with `pnpm install` so the local `turbo` package is available).
 - From `apps/web`: `pnpm run dev`.
+- From `apps/web`: `pnpm run test` runs **Vitest** (unit tests under `src/**/*.test.ts`, e.g. metric display formatting). Metric scalars use **`formatValue`** from `src/lib/metrics/mathjs-metric-format.ts` (mathjs `format`, `notation: 'auto'`; wired through `metric-value-display.ts`; defaults in `src/lib/constants/metric-display.ts`). To run only the mathjs sample test and print strings: `pnpm run test:mathjs-format` (or `pnpm exec vitest run src/lib/metrics/mathjs-format.test.ts`). In-app guide to tuning precision and thresholds: **`/docs/reference/metric-display-formatting`** (`apps/web/content/docs/reference/metric-display-formatting.md`).
 
-For local development against the backend, set the web env so the UI and BFF target the API (for example `NEXT_PUBLIC_BASE_URL=http://127.0.0.1:8000`).
+For a **single public UI origin** without editing a root `.env`, run **`./scripts/docker-up-public.sh`** from the repository root (see root **`README.md`** → *Custom URL or domain* → *One command without a `.env` file*).
+
+For local development against the backend, set the web env so the UI and BFF target the API (for example `NEXT_PUBLIC_BASE_URL=http://127.0.0.1:8000`). In Docker Compose, the **`web`** service sets **`SERVER_API_BASE_URL=http://backend:8000`** so server-side Route Handlers proxy to the API over the Compose network; **`NEXT_PUBLIC_BASE_URL`** should stay a URL the **browser** can use (typically `http://127.0.0.1:8000` or `http://localhost:8000` on the host port you published for `backend`). For a **custom public URL** (real hostname or HTTPS, not only localhost), set **`NEXT_PUBLIC_BASE_URL`** to that API origin, set **`ALLOWED_ORIGINS`** / **`OBJECT_STORAGE_ALLOWED_ORIGINS`** to your UI origin(s), rebuild **`web`**, and recreate **`backend`** / **`object-storage`** — see the root **`README.md`** section **Custom URL or domain**.
 
 ## Backend (main API) quick reference
 
@@ -152,12 +156,16 @@ The HTTP API is mounted with a configurable prefix (see `config/settings.py` / `
 ### Admin panel and passwords (main API)
 
 - **`ADMIN_PANEL_KEY`**: Defaults to insecure `admin` for local dev. On startup the backend logs a **warning** when the key is still `admin`, and an **info** line (without revealing the value) when a custom key was loaded from `ADMIN_PANEL_KEY`.
-- **Admin HTTP API** (no JWT; header **`X-Admin-Key`** must match the configured key): `GET /admin/users?q=&limit=` (default **20**) **`&offset=`** (`q` filters email, display name, and user UUID substring), `GET /admin/teams?q=&limit=` (default **20**) **`&offset=`** (`q` filters team name and description), `POST /admin/users/{user_id}/reset-password` → JSON includes **`temporaryPassword`** once.
+- **Admin HTTP API** (no JWT; header **`X-Admin-Key`** must match the configured key): `GET /admin/users?q=&limit=` (default **20**) **`&offset=`** → JSON **`{ items, total, limit, offset }`** (`q` filters email, display name, and user UUID substring), `GET /admin/teams?q=&limit=` **`&offset=`** → same shape (`q` filters team name and description), `POST /admin/users/{user_id}/reset-password` → JSON includes **`temporaryPassword`** once. Storage admin: `GET /admin/storage/buckets` and `GET /admin/storage/scalars` accept **`limit`**, **`offset`**, and optional **`q`** (bucket name / scalar table name filter); responses include **`total`** alongside **`buckets`** or **`tables`**.
 - **User password change** (JWT or session cookie auth, not PAT): `POST /users/me/change-password` with JSON **`currentPassword`** and **`newPassword`** (min 8). Web UI: **`/profile`** (collapsible section); legacy **`/profile/password`** redirects there. Bootstrap admin UI: **`/admin`** (stores key in `sessionStorage`).
 
 ## Cross-service configuration
 
 Running the full stack locally requires the backend plus whatever URLs you configure for **scalars** and **object storage** services (and their databases/ClickHouse). Those are typically set via environment variables consumed by `python/backend`’s settings and the respective services’ configs—check each package’s `config` or `README` when wiring a new environment.
+
+### Local dev: file descriptors (`Too many open files`)
+
+Canonical write-up (in-app docs): **`/docs/getting-started/file-descriptors`** — source `apps/web/content/docs/getting-started/file-descriptors.md` (errno 24 / 16, `/proc` checks, `run_local_stack.sh` / `uvicorn --reload` when developing, backend/scalars client paths, mitigations).
 
 ## Documentation policy for agents
 

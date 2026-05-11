@@ -3,6 +3,7 @@ from typing import Optional
 
 from pydantic import BaseModel
 
+from lib.category_cleanup_dto import CategoryCleanupResponseDTO
 from lib.datetime_types import ApiDateTime
 from lib.dto_config import model_config
 from models import Role
@@ -18,7 +19,7 @@ class TeamBase(BaseModel):
 class TeamReadDTO(TeamBase):
     id: uuid.UUID
     created_at: ApiDateTime
-    owner_id: uuid.UUID
+    owner_id: uuid.UUID | None = None
 
 
 class TeamCreateDTO(TeamBase):
@@ -82,5 +83,11 @@ class TeamMemberWithUserDTO(BaseModel):
     email: str | None = None
     display_name: str | None = None
     is_team_owner: bool = False
+
+    model_config = model_config()
+
+
+class TeamDeleteResponseDTO(CategoryCleanupResponseDTO):
+    """Outcome of DELETE ``/teams/{id}`` (cleanup-shaped)."""
 
     model_config = model_config()

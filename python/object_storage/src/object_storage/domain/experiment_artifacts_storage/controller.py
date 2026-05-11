@@ -13,6 +13,7 @@ from object_storage.api.service_dependencies import get_experiment_artifacts_ser
 from .dto import (
     DeleteArtifactResponseDTO,
     DeleteExperimentArtifactsResponseDTO,
+    ExperimentArtifactsUsageResponseDTO,
     TrackedArtifactsListResponseDTO,
     TrackedArtifactInfoResponseDTO,
     TrackedUploadArtifactResponseDTO,
@@ -186,6 +187,18 @@ async def get_tracked_artifact_info(
 
 
 @router.get(
+    "/projects/{project_id}/experiments/{experiment_id}/usage",
+    response_model=ExperimentArtifactsUsageResponseDTO,
+)
+async def get_experiment_artifacts_usage(
+    project_id: UUID,
+    experiment_id: UUID,
+    service: ArtifactsStorageService = Depends(get_experiment_artifacts_service),
+):
+    return await service.get_experiment_usage(project_id, experiment_id)
+
+
+@router.get(
     "/projects/{project_id}/experiments/{experiment_id}/artifacts/{artifact_hash}"
 )
 async def download_artifact(
@@ -255,6 +268,34 @@ async def delete_artifact(
     """
 
     return await service.delete_artifact(project_id, experiment_id, artifact_hash)
+
+
+@router.delete(
+    "/projects/{project_id}/experiments/{experiment_id}/cleanup-tracked",
+    response_model=DeleteExperimentArtifactsResponseDTO,
+)
+async def cleanup_tracked_experiment_artifacts(
+    project_id: UUID,
+    experiment_id: UUID,
+    service: ArtifactsStorageService = Depends(get_experiment_artifacts_service),
+) -> DeleteExperimentArtifactsResponseDTO:
+    """Delete tracked experiment artifacts only (metadata + those blob keys)."""
+
+    return await service.delete_tracked_experiment_artifacts(project_id, experiment_id)
+
+
+@router.delete(
+    "/projects/{project_id}/experiments/{experiment_id}/cleanup-untracked",
+    response_model=DeleteExperimentArtifactsResponseDTO,
+)
+async def cleanup_untracked_experiment_blobs(
+    project_id: UUID,
+    experiment_id: UUID,
+    service: ArtifactsStorageService = Depends(get_experiment_artifacts_service),
+) -> DeleteExperimentArtifactsResponseDTO:
+    """Delete storage objects not referenced by tracked experiment artifact rows."""
+
+    return await service.delete_untracked_experiment_blobs(project_id, experiment_id)
 
 
 @router.delete(

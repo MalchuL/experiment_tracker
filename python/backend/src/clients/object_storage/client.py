@@ -10,16 +10,22 @@ import httpx
 from fastapi import UploadFile
 
 from .dto import (
+    StorageBucketListResponseDTO,
+    StorageBucketClearResponseDTO,
+    StorageBucketDeleteResponseDTO,
+    StorageBucketReconcileResponseDTO,
     CheckProjectArtifactsResponseDTO,
     DeleteExperimentArtifactResponseDTO,
     DeleteExperimentArtifactsResponseDTO,
     DeleteProjectArtifactResponseDTO,
+    DeleteProjectSnapshotResponseDTO,
     DeleteProjectResponseDTO,
+    ExperimentArtifactsUsageResponseDTO,
     ExperimentTrackedArtifactListDTO,
-    ExperimentTrackedArtifactItemDTO,
     ExperimentTrackedArtifactInfoDTO,
     ExperimentTrackedUploadResponseDTO,
     ExperimentUntrackedUploadResponseDTO,
+    ProjectUsageResponseDTO,
     SnapshotCreateRequestDTO,
     SnapshotCreateResponseDTO,
     UploadProjectArtifactResponseDTO,
@@ -124,14 +130,30 @@ class ObjectStorageClient:
         base_url: The base URL of the object storage service.
     """
 
+    # Endpoint map grouped by operation names used in this client.
     ENDPOINTS: dict[str, Any] = {
         "check_project_artifacts": lambda project_id: f"/project-artifacts/{project_id}/check",
         "upload_project_artifact": lambda project_id: f"/project-artifacts/{project_id}/upload",
         "download_project_artifact": lambda project_id, artifact_hash: f"/project-artifacts/{project_id}/artifacts/{artifact_hash}",
         "create_project_snapshot": lambda project_id: f"/project-artifacts/{project_id}/snapshots",
         "download_project_snapshot": lambda project_id, snapshot_id: f"/project-artifacts/{project_id}/snapshots/{snapshot_id}/download",
+        "delete_project_snapshot": lambda project_id, snapshot_id: f"/project-artifacts/{project_id}/snapshots/{snapshot_id}",
+        "get_project_usage": lambda project_id: f"/project-artifacts/{project_id}/usage",
         "delete_project_artifact": lambda project_id, artifact_hash: f"/project-artifacts/{project_id}/artifacts/{artifact_hash}",
         "delete_project": lambda project_id: f"/project-artifacts/{project_id}",
+        "cleanup_project_cas": lambda project_id: f"/project-artifacts/{project_id}/cleanup-cas",
+        "cleanup_project_snapshots": lambda project_id: (
+            f"/project-artifacts/{project_id}/cleanup-snapshots"
+        ),
+        "cleanup_project_experiment_buckets": lambda project_id: (
+            f"/project-artifacts/{project_id}/cleanup-experiment-buckets"
+        ),
+        "list_storage_buckets": "/project-artifacts/admin/storage/buckets",
+        "storage_bucket": lambda bucket_id: f"/project-artifacts/admin/storage/buckets/{bucket_id}",
+        "storage_only_bucket": "/project-artifacts/admin/storage/buckets/storage-only",
+        "clear_storage_only_bucket": "/project-artifacts/admin/storage/buckets/storage-only/clear",
+        "reconcile_storage_bucket": lambda bucket_id: f"/project-artifacts/admin/storage/buckets/{bucket_id}/reconcile",
+        "clear_storage_bucket": lambda bucket_id: f"/project-artifacts/admin/storage/buckets/{bucket_id}/clear",
         "upload_experiment_untracked": lambda pid, eid: (
             f"/experiment-artifacts/projects/{pid}/experiments/{eid}/upload-untracked"
         ),
@@ -152,6 +174,15 @@ class ObjectStorageClient:
         ),
         "delete_all_experiment_artifacts": lambda pid, eid: (
             f"/experiment-artifacts/projects/{pid}/experiments/{eid}"
+        ),
+        "cleanup_experiment_tracked": lambda pid, eid: (
+            f"/experiment-artifacts/projects/{pid}/experiments/{eid}/cleanup-tracked"
+        ),
+        "cleanup_experiment_untracked": lambda pid, eid: (
+            f"/experiment-artifacts/projects/{pid}/experiments/{eid}/cleanup-untracked"
+        ),
+        "get_experiment_usage": lambda pid, eid: (
+            f"/experiment-artifacts/projects/{pid}/experiments/{eid}/usage"
         ),
     }
 
@@ -260,6 +291,22 @@ class ObjectStorageClient:
         )
         return cast(httpx.Response, response)
 
+    async def delete_project_snapshot(
+        self, project_id: UUID, snapshot_id: UUID
+    ) -> DeleteProjectSnapshotResponseDTO:
+        response = await self._request(
+            "DELETE",
+            self.ENDPOINTS["delete_project_snapshot"](project_id, snapshot_id),
+        )
+        return DeleteProjectSnapshotResponseDTO.model_validate(response)
+
+    async def get_project_usage(self, project_id: UUID) -> ProjectUsageResponseDTO:
+        """GET aggregated byte/count stats for project-scoped buckets and CAS artifacts."""
+        response = await self._request(
+            "GET", self.ENDPOINTS["get_project_usage"](project_id)
+        )
+        return ProjectUsageResponseDTO.model_validate(response)
+
     async def delete_project_artifact(
         self, project_id: UUID, artifact_hash: str
     ) -> DeleteProjectArtifactResponseDTO:
@@ -280,6 +327,29 @@ class ObjectStorageClient:
         """
         response = await self._request(
             "DELETE", self.ENDPOINTS["delete_project"](project_id)
+        )
+        return DeleteProjectResponseDTO.model_validate(response)
+
+    async def cleanup_project_cas_only(self, project_id: UUID) -> DeleteProjectResponseDTO:
+        response = await self._request(
+            "DELETE", self.ENDPOINTS["cleanup_project_cas"](project_id)
+        )
+        return DeleteProjectResponseDTO.model_validate(response)
+
+    async def cleanup_project_snapshots_only(
+        self, project_id: UUID
+    ) -> DeleteProjectResponseDTO:
+        response = await self._request(
+            "DELETE", self.ENDPOINTS["cleanup_project_snapshots"](project_id)
+        )
+        return DeleteProjectResponseDTO.model_validate(response)
+
+    async def cleanup_project_experiment_buckets_only(
+        self, project_id: UUID
+    ) -> DeleteProjectResponseDTO:
+        response = await self._request(
+            "DELETE",
+            self.ENDPOINTS["cleanup_project_experiment_buckets"](project_id),
         )
         return DeleteProjectResponseDTO.model_validate(response)
 
@@ -420,6 +490,91 @@ class ObjectStorageClient:
             ),
         )
         return DeleteExperimentArtifactsResponseDTO.model_validate(response)
+
+    async def delete_tracked_experiment_artifacts(
+        self, project_id: UUID, experiment_id: UUID
+    ) -> DeleteExperimentArtifactsResponseDTO:
+        response = await self._request(
+            "DELETE",
+            self.ENDPOINTS["cleanup_experiment_tracked"](project_id, experiment_id),
+        )
+        return DeleteExperimentArtifactsResponseDTO.model_validate(response)
+
+    async def delete_untracked_experiment_blobs(
+        self, project_id: UUID, experiment_id: UUID
+    ) -> DeleteExperimentArtifactsResponseDTO:
+        response = await self._request(
+            "DELETE",
+            self.ENDPOINTS["cleanup_experiment_untracked"](project_id, experiment_id),
+        )
+        return DeleteExperimentArtifactsResponseDTO.model_validate(response)
+
+    async def get_experiment_usage(
+        self, project_id: UUID, experiment_id: UUID
+    ) -> ExperimentArtifactsUsageResponseDTO:
+        """GET JSON usage payload for one experiment's blobs (tracked + at-step groupings)."""
+        response = await self._request(
+            "GET", self.ENDPOINTS["get_experiment_usage"](project_id, experiment_id)
+        )
+        return ExperimentArtifactsUsageResponseDTO.model_validate(response)
+
+    async def list_buckets(
+        self,
+        project_id: UUID | None = None,
+        experiment_id: UUID | None = None,
+        reconcile: bool = False,
+        *,
+        q: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> StorageBucketListResponseDTO:
+        params: dict[str, Any] = {
+            "reconcile": reconcile,
+            "limit": limit,
+            "offset": offset,
+        }
+        if project_id is not None:
+            params["project_id"] = str(project_id)
+        if experiment_id is not None:
+            params["experiment_id"] = str(experiment_id)
+        if q is not None and q.strip():
+            params["q"] = q.strip()
+        response = await self._request(
+            "GET", self.ENDPOINTS["list_storage_buckets"], params=params
+        )
+        return StorageBucketListResponseDTO.model_validate(response)
+
+    async def delete_bucket(self, bucket_id: UUID) -> StorageBucketDeleteResponseDTO:
+        response = await self._request("DELETE", self.ENDPOINTS["storage_bucket"](bucket_id))
+        return StorageBucketDeleteResponseDTO.model_validate(response)
+
+    async def delete_storage_only_bucket(self, name: str) -> StorageBucketDeleteResponseDTO:
+        response = await self._request(
+            "DELETE",
+            self.ENDPOINTS["storage_only_bucket"],
+            params={"name": name},
+        )
+        return StorageBucketDeleteResponseDTO.model_validate(response)
+
+    async def clear_storage_only_bucket(self, name: str) -> StorageBucketClearResponseDTO:
+        response = await self._request(
+            "POST",
+            self.ENDPOINTS["clear_storage_only_bucket"],
+            params={"name": name},
+        )
+        return StorageBucketClearResponseDTO.model_validate(response)
+
+    async def clear_bucket(self, bucket_id: UUID) -> StorageBucketClearResponseDTO:
+        response = await self._request(
+            "POST", self.ENDPOINTS["clear_storage_bucket"](bucket_id)
+        )
+        return StorageBucketClearResponseDTO.model_validate(response)
+
+    async def reconcile_bucket(self, bucket_id: UUID) -> StorageBucketReconcileResponseDTO:
+        response = await self._request(
+            "POST", self.ENDPOINTS["reconcile_storage_bucket"](bucket_id)
+        )
+        return StorageBucketReconcileResponseDTO.model_validate(response)
 
     async def _request(
         self,

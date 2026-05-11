@@ -52,3 +52,37 @@ def clickhouse_url(isolated_test_environment, pytestconfig: pytest.Config) -> st
     url = pytestconfig.cache.get("scalars_service/test_clickhouse_url", "")
     assert url, "isolated_test_environment should set clickhouse URL"
     return url
+
+
+@pytest.fixture
+async def integration_clickhouse_client(clickhouse_url: str):
+    """Async ClickHouse client against ``clickhouse_url`` (isolated testcontainer).
+
+    Ensures the scalar mapping table exists (same as app lifespan / controller tests).
+    """
+    from urllib.parse import urlparse
+
+    from clickhouse_connect import get_async_client
+
+    from app.domain.utils.scalars_db_utils import SCALARS_DB_UTILS  # type: ignore
+
+    parsed = urlparse(clickhouse_url)
+    host = parsed.hostname or "localhost"
+    port = int(parsed.port or 8123)
+    user = parsed.username or "default"
+    password = parsed.password or ""
+    database = parsed.path.lstrip("/") or "default"
+
+    client = await get_async_client(
+        host=host,
+        port=port,
+        username=user,
+        password=password,
+        database=database,
+        secure=False,
+    )
+    try:
+        await client.command(SCALARS_DB_UTILS.build_create_mapping_table_statement())
+        yield client
+    finally:
+        await client.close()

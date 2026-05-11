@@ -214,7 +214,7 @@ export function MetricValueCell({
         }
       }}
       className={cn(
-        "text-right font-mono text-sm rounded px-0.5 -mx-0.5",
+        "text-right font-mono text-sm tabular-nums px-0.5 -mx-0.5",
         "cursor-pointer outline-offset-1 hover:ring-1 hover:ring-border",
         isBold && "font-bold",
         tint != null ? METRIC_CELL_TINTS[tint] : ""

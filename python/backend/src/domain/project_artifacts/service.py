@@ -22,6 +22,8 @@ from .error import ProjectArtifactsNotAccessibleError
 
 
 class ProjectArtifactsService:
+    """CAS project blobs via object storage only (check hash, upload, snapshots, delete)."""
+
     def __init__(
         self,
         object_storage_client: ObjectStorageClientProtocol,

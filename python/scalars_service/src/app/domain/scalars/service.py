@@ -1,13 +1,23 @@
 import asyncio
+import logging
+import re
 from collections import defaultdict
 from datetime import datetime
 from typing import Literal, Sequence, cast
 from uuid import UUID, uuid4
 
-from experiment_tracker_shared import utc_now_naive
+from experiment_tracker_shared import utc_naive_for_clickhouse_insert, utc_now_naive
 from experiment_tracker_shared.datetime_utc import to_json_utc_z
 
+from app.domain.projects.dto import (  # type: ignore
+    ClickhouseTableUsageStats,
+    ExperimentClickhouseUsageResponseDTO,
+    ListStorageTablesResponseDTO,
+    StorageTableRowDTO,
+    ProjectClickhouseUsageResponseDTO,
+)
 from app.domain.scalars.dto import (  # type: ignore
+    CompactProjectColumnsResponseDTO,
     ExperimentsScalarsPointsResultDTO,
     LogScalarRequestDTO,
     LogScalarsRequestDTO,
@@ -22,7 +32,10 @@ from app.domain.utils.scalars_db_utils import (  # type: ignore
     SCALARS_DB_UTILS,
     ProjectTableColumns,
 )
+from app.domain.utils.scalars_select_sql import SCALARS_SELECT_SQL  # type: ignore
 from app.infrastructure.cache.cache import Cache  # type: ignore
+
+logger = logging.getLogger(__name__)
 
 
 def _sampling_cache_fragment(sampling: ScalarsSampling | Literal["*"]) -> str:
@@ -45,8 +58,6 @@ def _build_scalars_cache_key(
     experiment_id: UUID | None,
     max_points: int | None | Literal["*"],
     return_tags: bool | Literal["*"],
-    start_time: datetime | None | Literal["*"],
-    end_time: datetime | None | Literal["*"],
     sampling: ScalarsSampling | Literal["*"],
     columns_per_query: int | Literal["*"],
     limit: int | Literal["*"],
@@ -54,18 +65,18 @@ def _build_scalars_cache_key(
 ) -> str:
     """Build a single-line cache key for ``get_scalars`` GET responses.
 
-    Keys distinguish project, experiment scope, query knobs (``max_points``, time range,
+    Only **unbounded** queries (no ``start_time`` / ``end_time``) use the cache; callers must
+    skip cache read/write when time bounds are set.
+
+    Keys distinguish project, experiment scope, query knobs (``max_points``,
     ``columns_per_query``, pagination), and sampling. Passing ``"*"`` for tunable fields
     produces glob-friendly segments so ``Cache.invalidate`` can drop every variant after a log.
 
     Args:
         project_id: Project whose scalars table is queried.
-        experiment_id: One experiment UUID for per-experiment cache entries, or ``None`` for
-            the project-wide paginated response cache.
+        experiment_id: One experiment UUID for per-experiment cache entries.
         max_points: Per-metric cap passed to ClickHouse, or ``"*"`` for pattern match.
         return_tags: Whether tags were included in the response, or ``"*"``.
-        start_time: Lower bound filter (serialized ISO) or ``"*"`` / sentinel ``"none"``.
-        end_time: Upper bound filter (serialized ISO) or ``"*"`` / ``"none"``.
         sampling: Sampling enum or ``"*"``.
         columns_per_query: Parallel column batch size, or ``"*"``.
         limit: Experiment page size (or ``-1`` when omitted from per-experiment keys), or ``"*"``.
@@ -74,16 +85,10 @@ def _build_scalars_cache_key(
     Returns:
         A unique string suitable for ``Cache.get`` / ``Cache.set`` / ``Cache.invalidate`` matching.
     """
-    start_time_key = (
-        "*" if start_time == "*" else to_json_utc_z(start_time) if start_time else "none"
-    )
-    end_time_key = (
-        "*" if end_time == "*" else to_json_utc_z(end_time) if end_time else "none"
-    )
     sampling_key = _sampling_cache_fragment(sampling)
     return (
         f"scalars:project:{project_id}:experiment:{experiment_id}:max_points:{max_points}:"
-        f"sampling:{sampling_key}:return_tags:{return_tags}:start_time:{start_time_key}:end_time:{end_time_key}"
+        f"sampling:{sampling_key}:return_tags:{return_tags}"
         f":columns_per_query:{columns_per_query}:limit:{limit}:offset:{offset}"
     )
 
@@ -104,7 +109,6 @@ def clean_scalar_name(name: str) -> str:
     return name.strip().replace(" ", "_")
 
 
-# TODO: Add cache invalidation when scalar is logged (for case when we get all elements from cache (when experiment_id is None)))
 class ScalarsService:
     def __init__(self, client, cache: Cache | None = None, last_logged_service=None):
         self.client = client
@@ -157,14 +161,12 @@ class ScalarsService:
         columns = SCALARS_DB_UTILS.get_base_columns() + list(mapped_columns.values())
         logged_at = utc_now_naive()
         row = [
-            logged_at,
+            utc_naive_for_clickhouse_insert(logged_at),
             experiment_id,
             request.step,
             request.tags or [],
         ] + [filtered_scalars[name] for name in mapped_columns.keys()]
-        await self.client.insert(
-            table=table_name, data=[row], column_names=columns
-        )
+        await self.client.insert(table=table_name, data=[row], column_names=columns)
         if self.last_logged_service:
             await self.last_logged_service.touch(
                 project_id=project_id,
@@ -220,9 +222,10 @@ class ScalarsService:
         columns = SCALARS_DB_UTILS.get_base_columns() + list(mapped_columns.values())
         rows = []
         last_modified = utc_now_naive()
+        wire_ts = utc_naive_for_clickhouse_insert(last_modified)
         for item in filtered_items:
             row = [
-                last_modified,
+                wire_ts,
                 experiment_id,
                 item.step,
                 # Arrays can't be nullable in clickhouse, so we use empty list if tags are None.
@@ -230,9 +233,7 @@ class ScalarsService:
             ] + [item.scalars.get(name, None) for name in mapped_columns.keys()]
             rows.append(row)
         if rows:
-            await self.client.insert(
-                table=table_name, data=rows, column_names=columns
-            )
+            await self.client.insert(table=table_name, data=rows, column_names=columns)
             if self.last_logged_service:
                 await self.last_logged_service.touch(
                     project_id=project_id,
@@ -299,7 +300,6 @@ class ScalarsService:
 
     async def _get_scalars_try_cache(
         self,
-        browse_all: bool,
         project_id: UUID,
         page_ids: list[UUID],
         total_experiments: int,
@@ -317,22 +317,8 @@ class ScalarsService:
         """Return a fully cached response, or partial per-experiment hits for the current page."""
         if self.cache is None:
             return None, {}
-
-        if browse_all:
-            key = _build_scalars_cache_key(
-                project_id=project_id,
-                experiment_id=None,
-                max_points=max_points,
-                return_tags=return_tags,
-                start_time=start_time,
-                end_time=end_time,
-                sampling=sampling,
-                columns_per_query=columns_per_query,
-                limit=limit,
-                offset=offset,
-            )
-            hit = await self.cache.get(key=key)
-            return (hit, {}) if hit is not None else (None, {})
+        if start_time is not None or end_time is not None:
+            return None, {}
 
         cached_by_exp: dict[UUID, ExperimentsScalarsPointsResultDTO] = {}
         for exp_id in page_ids:
@@ -341,8 +327,6 @@ class ScalarsService:
                 experiment_id=exp_id,
                 max_points=max_points,
                 return_tags=return_tags,
-                start_time=start_time,
-                end_time=end_time,
                 sampling=sampling,
                 columns_per_query=columns_per_query,
                 limit=-1,
@@ -456,10 +440,8 @@ class ScalarsService:
 
     async def _store_get_scalars_cache(
         self,
-        browse_all: bool,
         project_id: UUID,
         merged: list[ExperimentsScalarsPointsResultDTO],
-        response: ScalarsPointsResultDTO,
         skip_experiment_ids: frozenset[UUID],
         max_points: int,
         return_tags: bool,
@@ -467,11 +449,11 @@ class ScalarsService:
         end_time: datetime | None,
         sampling: ScalarsSampling,
         columns_per_query: int,
-        limit: int,
-        offset: int,
     ) -> None:
-        """Persist per-experiment payloads and optionally the full project page response."""
+        """Persist per-experiment payloads for full-range (unbounded) queries only."""
         if self.cache is None:
+            return
+        if start_time is not None or end_time is not None:
             return
         for item in merged:
             if item.experiment_id in skip_experiment_ids:
@@ -481,28 +463,12 @@ class ScalarsService:
                 experiment_id=item.experiment_id,
                 max_points=max_points,
                 return_tags=return_tags,
-                start_time=start_time,
-                end_time=end_time,
                 sampling=sampling,
                 columns_per_query=columns_per_query,
                 limit=-1,
                 offset=-1,
             )
             await self.cache.set(key=ck, value=item)
-        if browse_all:
-            ck = _build_scalars_cache_key(
-                project_id=project_id,
-                experiment_id=None,
-                max_points=max_points,
-                return_tags=return_tags,
-                start_time=start_time,
-                end_time=end_time,
-                sampling=sampling,
-                columns_per_query=columns_per_query,
-                limit=limit,
-                offset=offset,
-            )
-            await self.cache.set(key=ck, value=response)
 
     async def get_scalars(
         self,
@@ -545,18 +511,47 @@ class ScalarsService:
 
         requested_ids, browse_all = self._normalize_experiment_id_filter(experiment_id)
 
-        # Step A — experiment pagination (explicit list is sliced here; project-wide uses CH below).
-        total_experiments = 0
-        page_ids: list[UUID] = []
-        if not browse_all:
+        table_name = SCALARS_DB_UTILS.safe_scalars_table_name(project_id=project_id)
+        if not await self._table_exists(table_name=table_name):
+            if browse_all:
+                return ScalarsPointsResultDTO(data=[], has_next=False, size=0, total=0)
+            assert requested_ids is not None
+            total_experiments, page_ids = self._explicit_experiment_page_slice(
+                requested_ids=requested_ids, limit=limit, offset=offset
+            )
+            return ScalarsPointsResultDTO(
+                data=[],
+                has_next=False,
+                size=0,
+                total=total_experiments,
+            )
+
+        if browse_all:
+            total_experiments, page_ids = (
+                await self._clickhouse_distinct_experiment_page(
+                    table_name=table_name,
+                    start_time=start_time,
+                    end_time=end_time,
+                    limit=limit,
+                    offset=offset,
+                )
+            )
+        else:
             assert requested_ids is not None
             total_experiments, page_ids = self._explicit_experiment_page_slice(
                 requested_ids=requested_ids, limit=limit, offset=offset
             )
 
-        # Step B — cache: whole project page, or every experiment on an explicit page.
+        if start_time is not None or end_time is not None:
+            logger.debug(
+                "get_scalars bounded query project_id=%s page_experiment_ids=%s start_time=%s end_time=%s",
+                project_id,
+                [str(eid) for eid in page_ids],
+                to_json_utc_z(start_time) if start_time else None,
+                to_json_utc_z(end_time) if end_time else None,
+            )
+
         cached_full, cached_by_exp = await self._get_scalars_try_cache(
-            browse_all=browse_all,
             project_id=project_id,
             page_ids=page_ids,
             total_experiments=total_experiments,
@@ -572,30 +567,7 @@ class ScalarsService:
         if cached_full is not None:
             return cached_full
 
-        table_name = SCALARS_DB_UTILS.safe_scalars_table_name(project_id=project_id)
-        if not await self._table_exists(table_name=table_name):
-            if not browse_all:
-                return ScalarsPointsResultDTO(
-                    data=[],
-                    has_next=False,
-                    size=0,
-                    total=total_experiments,
-                )
-            return ScalarsPointsResultDTO(data=[], has_next=False, size=0, total=0)
-
-        # Step C — project-wide: total count + page of experiment UUIDs from ClickHouse.
-        if browse_all:
-            total_experiments, page_ids = (
-                await self._clickhouse_distinct_experiment_page(
-                    table_name=table_name,
-                    start_time=start_time,
-                    end_time=end_time,
-                    limit=limit,
-                    offset=offset,
-                )
-            )
-
-        # Step D — load CH only for experiments on this page that were not cache hits.
+        # Load ClickHouse only for experiments on this page that were not cache hits.
         ids_to_fetch = [eid for eid in page_ids if eid not in cached_by_exp]
 
         scalar_columns = await self._get_scalar_columns(table_name=table_name)
@@ -633,10 +605,8 @@ class ScalarsService:
         )
 
         await self._store_get_scalars_cache(
-            browse_all=browse_all,
             project_id=project_id,
             merged=merged,
-            response=response,
             skip_experiment_ids=frozenset(cached_by_exp),
             max_points=max_points,
             return_tags=return_tags,
@@ -644,10 +614,240 @@ class ScalarsService:
             end_time=end_time,
             sampling=sampling,
             columns_per_query=columns_per_query,
-            limit=limit,
-            offset=offset,
         )
         return response
+
+    async def compact_project_columns(
+        self, project_id: UUID
+    ) -> CompactProjectColumnsResponseDTO:
+        """Drop empty metric columns from the project scalars table and trim the mapping.
+
+        For each mapped scalar column, if no row has a non-null value, runs
+        ``ALTER TABLE … DROP COLUMN`` on that storage column, then saves the mapping
+        with those scalar names removed. Base columns (timestamp, experiment, step, tags)
+        are unchanged.
+        """
+
+        table_name = SCALARS_DB_UTILS.safe_scalars_table_name(project_id=project_id)
+        if not await self._table_exists(table_name):
+            return CompactProjectColumnsResponseDTO(dropped_columns=[])
+        mapping = await self._get_or_create_scalar_mapping(project_id)
+        dropped: list[str] = []
+        kept_mapping = dict(mapping)
+        for scalar_name, column_name in list(mapping.items()):
+            safe_column = SCALARS_DB_UTILS.validate_scalar_storage_column_name(
+                column_name
+            )
+            result = await self.client.query(
+                SCALARS_SELECT_SQL.count_non_null_column(table_name, safe_column)
+            )
+            count = int(result.result_rows[0][0]) if result.result_rows else 0
+            if count == 0:
+                await self.client.command(
+                    SCALARS_DB_UTILS.build_alter_table_drop_column_if_exists_statement(
+                        table_name, safe_column
+                    )
+                )
+                kept_mapping.pop(scalar_name, None)
+                dropped.append(safe_column)
+        if dropped:
+            await self._save_scalar_mapping(project_id=project_id, mapping=kept_mapping)
+        return CompactProjectColumnsResponseDTO(dropped_columns=dropped)
+
+    async def invalidate_cache_for_experiment(
+        self, project_id: UUID, experiment_id: UUID
+    ) -> None:
+        """Clear ``get_scalars`` cache after writes that affect this experiment (orchestration hook)."""
+        await self._invalidate_cache(project_id=project_id, experiment_id=experiment_id)
+
+    async def create_clickhouse_table(self, project_id: UUID) -> str:
+        """Run DDL for this project's scalars table (base columns only)."""
+        table_name = SCALARS_DB_UTILS.safe_scalars_table_name(project_id=project_id)
+        ddl = SCALARS_DB_UTILS.build_create_scalars_table_statement(
+            table_name=table_name
+        )
+        await self.client.command(ddl)
+        return table_name
+
+    async def get_scalars_table_existence(self, project_id: UUID) -> tuple[str, bool]:
+        table_name = SCALARS_DB_UTILS.safe_scalars_table_name(project_id=project_id)
+        exists = await self._table_exists(table_name=table_name)
+        return table_name, exists
+
+    async def list_experiment_ids_for_project(self, project_id: UUID) -> list[dict]:
+        table_name = SCALARS_DB_UTILS.safe_scalars_table_name(project_id=project_id)
+        query = SCALARS_DB_UTILS.build_experiments_ids_statement(table_name)
+        result = await self.client.query(query)
+        return [{"experiment_id": row[0]} for row in result.result_rows]
+
+    async def delete_scalar_mapping_for_project(self, project_id: UUID) -> None:
+        await self.client.command(
+            SCALARS_DB_UTILS.build_delete_mapping_statement(project_id)
+        )
+
+    async def drop_clickhouse_table(self, project_id: UUID) -> str:
+        table_name = SCALARS_DB_UTILS.safe_scalars_table_name(project_id=project_id)
+        await self.client.command(
+            SCALARS_DB_UTILS.build_drop_table_statement(table_name)
+        )
+        return table_name
+
+    async def delete_experiment_rows_if_table_exists(
+        self, project_id: UUID, experiment_id: UUID
+    ) -> None:
+        table_name = SCALARS_DB_UTILS.safe_scalars_table_name(project_id=project_id)
+        if not await self._table_exists(table_name=table_name):
+            return
+        await self.client.command(
+            SCALARS_DB_UTILS.build_alter_delete_experiment_rows_statement(
+                table_name=table_name,
+                experiment_id=experiment_id,
+                experiment_id_column=ProjectTableColumns.EXPERIMENT_ID.value,
+            )
+        )
+
+    async def get_clickhouse_table_usage_stats(
+        self, project_id: UUID
+    ) -> ClickhouseTableUsageStats:
+        table_name = SCALARS_DB_UTILS.safe_scalars_table_name(project_id=project_id)
+        if not await self._table_exists(table_name=table_name):
+            return ClickhouseTableUsageStats(
+                table=table_name,
+                exists=False,
+                rows=0,
+                columns=0,
+                bytes=0,
+            )
+        rows_result = await self.client.query(
+            SCALARS_SELECT_SQL.count_all_rows(table_name)
+        )
+        rows = int(rows_result.result_rows[0][0]) if rows_result.result_rows else 0
+        columns_result = await self.client.query(
+            SCALARS_DB_UTILS.build_describe_table_statement(table_name)
+        )
+        columns = len(columns_result.result_rows)
+        bytes_result = await self.client.query(
+            SCALARS_SELECT_SQL.sum_bytes_on_disk_active_parts(
+                SCALARS_DB_UTILS.escape_sql_literal(table_name)
+            )
+        )
+        bytes_on_disk = (
+            int(bytes_result.result_rows[0][0]) if bytes_result.result_rows else 0
+        )
+        return ClickhouseTableUsageStats(
+            table=table_name,
+            exists=True,
+            rows=rows,
+            columns=columns,
+            bytes=bytes_on_disk,
+        )
+
+    async def get_experiment_usage_estimate(
+        self,
+        project_id: UUID,
+        experiment_id: UUID,
+        project_table_stats: (
+            Sequence[ClickhouseTableUsageStats] | ProjectClickhouseUsageResponseDTO
+        ),
+    ) -> ExperimentClickhouseUsageResponseDTO:
+        if isinstance(project_table_stats, ProjectClickhouseUsageResponseDTO):
+            table_rows = [
+                ClickhouseTableUsageStats(
+                    table=t.table,
+                    exists=t.exists,
+                    rows=t.rows,
+                    columns=t.columns,
+                    bytes=t.bytes,
+                )
+                for t in project_table_stats.tables
+            ]
+        else:
+            table_rows = list(project_table_stats)
+        scalars_table = SCALARS_DB_UTILS.safe_scalars_table_name(project_id)
+        if not await self._table_exists(table_name=scalars_table):
+            return ExperimentClickhouseUsageResponseDTO(
+                project_id=project_id,
+                experiment_id=experiment_id,
+                rows=0,
+                bytes=0,
+            )
+        total_rows_result = await self.client.query(
+            SCALARS_SELECT_SQL.count_all_rows(scalars_table)
+        )
+        exp_rows_result = await self.client.query(
+            SCALARS_SELECT_SQL.count_rows_for_experiment(
+                scalars_table,
+                ProjectTableColumns.EXPERIMENT_ID.value,
+                str(experiment_id),
+            )
+        )
+        total_rows = (
+            int(total_rows_result.result_rows[0][0])
+            if total_rows_result.result_rows
+            else 0
+        )
+        exp_rows = (
+            int(exp_rows_result.result_rows[0][0]) if exp_rows_result.result_rows else 0
+        )
+        table_bytes = next(
+            (row.bytes for row in table_rows if row.table == scalars_table),
+            0,
+        )
+        estimated_bytes = (
+            int(table_bytes * (exp_rows / total_rows)) if total_rows else 0
+        )
+        return ExperimentClickhouseUsageResponseDTO(
+            project_id=project_id,
+            experiment_id=experiment_id,
+            rows=exp_rows,
+            bytes=estimated_bytes,
+        )
+
+    async def list_admin_storage_tables(
+        self,
+        q: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> ListStorageTablesResponseDTO:
+        extra = ""
+        if q and q.strip():
+            needle = re.sub(r"[^a-zA-Z0-9_.\-]", "", q.strip())[:200]
+            if needle:
+                safe = needle.replace("'", "''")
+                extra = f" AND positionCaseInsensitive(name, '{safe}') > 0"
+        lim = max(1, min(int(limit), 200))
+        off = max(0, int(offset))
+        count_result = await self.client.query(
+            SCALARS_SELECT_SQL.list_tables_count(extra)
+        )
+        total = int(count_result.result_rows[0][0]) if count_result.result_rows else 0
+        result = await self.client.query(
+            SCALARS_SELECT_SQL.list_tables_page(
+                extra_predicate=extra, limit=lim, offset=off
+            )
+        )
+        return ListStorageTablesResponseDTO(
+            tables=[
+                StorageTableRowDTO(
+                    name=row[0],
+                    rows=int(row[1] or 0),
+                    bytes=int(row[2] or 0),
+                )
+                for row in result.result_rows
+            ],
+            total=total,
+            limit=lim,
+            offset=off,
+        )
+
+    async def drop_managed_table_by_name(self, table_name: str) -> None:
+        if not table_name.startswith("scalars_"):
+            raise ValueError("Only scalar-service managed tables can be dropped")
+        if not table_name.replace("_", "").isalnum():
+            raise ValueError("Invalid table name")
+        await self.client.command(
+            SCALARS_DB_UTILS.build_drop_table_statement(table_name)
+        )
 
     async def _fetch_uniform_sampled_column(
         self,
@@ -772,16 +972,12 @@ class ScalarsService:
             bool: True if the table exists, False otherwise.
         """
         # Query returns count of rows > 0 if table exists.
-        query = SCALARS_DB_UTILS.build_table_existence_statement(
-            table_name=table_name
-        )
+        query = SCALARS_DB_UTILS.build_table_existence_statement(table_name=table_name)
         result = await self.client.query(query)
         return bool(result.result_rows[0][0])
 
     async def _get_table_columns(self, table_name: str) -> list[str]:
-        query = SCALARS_DB_UTILS.build_describe_table_statement(
-            table_name=table_name
-        )
+        query = SCALARS_DB_UTILS.build_describe_table_statement(table_name=table_name)
         result = await self.client.query(query)
         return [row[0] for row in result.result_rows]
 
@@ -849,9 +1045,7 @@ class ScalarsService:
             None if mapping is not found or is empty.
         """
         # Build statement to select the mapping for a given project ID.
-        query = SCALARS_DB_UTILS.build_select_mapping_statement(
-            project_id=project_id
-        )
+        query = SCALARS_DB_UTILS.build_select_mapping_statement(project_id=project_id)
         result = await self.client.query(query)
         # If no mapping is found, return None.
         if not result.result_rows:
@@ -880,7 +1074,13 @@ class ScalarsService:
         payload = {str(k): str(v) for k, v in mapping.items()}
         await self.client.insert(
             table=SCALARS_DB_UTILS.get_mapping_table_name(),
-            data=[[project_id, payload, utc_now_naive()]],
+            data=[
+                [
+                    project_id,
+                    payload,
+                    utc_naive_for_clickhouse_insert(utc_now_naive()),
+                ]
+            ],
             column_names=["project_id", "mapping", "updated_at"],
         )
 
@@ -937,43 +1137,14 @@ class ScalarsService:
                 return candidate
 
     async def _invalidate_cache(self, project_id: UUID, experiment_id: UUID) -> None:
-        """Remove all cached ``get_scalars`` entries affected by a new log for ``experiment_id``.
-
-        Invalidates keys scoped to that experiment and keys for the project-wide listing
-        (experiment segment ``None``), using glob patterns so every combination of
-        ``max_points``, time bounds, pagination, and ``columns_per_query`` is cleared.
-
-        Args:
-            project_id: Project whose cache entries should be dropped.
-            experiment_id: Experiment that received a log (scalar data changed).
-
-        Returns:
-            None. No-op when this service was constructed without a cache.
-        """
+        """Remove cached ``get_scalars`` entries for this experiment (per-experiment keys only)."""
         if self.cache is None:
             return
-        # Invalidate cache for the experiment
         cache_key_pattern = _build_scalars_cache_key(
             project_id=project_id,
             experiment_id=experiment_id,
             max_points="*",
             return_tags="*",
-            start_time="*",
-            end_time="*",
-            sampling="*",
-            columns_per_query="*",
-            limit="*",
-            offset="*",
-        )
-        await self.cache.invalidate(pattern=cache_key_pattern)
-        # Invalidate cache for all scalars (no experiment id)
-        cache_key_pattern = _build_scalars_cache_key(
-            project_id=project_id,
-            experiment_id=None,
-            max_points="*",
-            return_tags="*",
-            start_time="*",
-            end_time="*",
             sampling="*",
             columns_per_query="*",
             limit="*",

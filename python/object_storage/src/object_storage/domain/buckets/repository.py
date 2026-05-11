@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from sqlalchemy import delete, select, update
+from sqlalchemy import and_, delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from object_storage.db.models import Bucket
@@ -26,6 +26,48 @@ class BucketsRepository:
             select(Bucket).where(_bucket_scope_filter(project_id, experiment_id))
         )
         return result.scalar_one_or_none()
+
+    async def get_bucket_by_id(self, bucket_id: UUID) -> Bucket | None:
+        result = await self._session.execute(select(Bucket).where(Bucket.id == bucket_id))
+        return result.scalar_one_or_none()
+
+    async def get_bucket_by_name(self, name: str) -> Bucket | None:
+        result = await self._session.execute(select(Bucket).where(Bucket.name == name))
+        return result.scalar_one_or_none()
+
+    async def list_all_buckets(self) -> list[Bucket]:
+        result = await self._session.execute(select(Bucket).order_by(Bucket.name))
+        return list(result.scalars().all())
+
+    async def list_buckets(
+        self,
+        project_id: UUID | None = None,
+        experiment_id: UUID | None = None,
+        *,
+        name_contains: str | None = None,
+        limit: int | None = None,
+        offset: int = 0,
+    ) -> tuple[list[Bucket], int]:
+        clauses = []
+        if project_id is not None:
+            clauses.append(Bucket.project_id == project_id)
+        if experiment_id is not None:
+            clauses.append(Bucket.experiment_id == experiment_id)
+        if name_contains and name_contains.strip():
+            clauses.append(Bucket.name.ilike(f"%{name_contains.strip()}%"))
+        where = and_(*clauses) if clauses else None
+        count_stmt = select(func.count()).select_from(Bucket)
+        data_stmt = select(Bucket).order_by(Bucket.created_at.desc())
+        if where is not None:
+            count_stmt = count_stmt.where(where)
+            data_stmt = data_stmt.where(where)
+        total = int((await self._session.execute(count_stmt)).scalar_one())
+        if limit is not None:
+            data_stmt = data_stmt.limit(limit).offset(offset)
+        elif offset:
+            data_stmt = data_stmt.offset(offset)
+        result = await self._session.execute(data_stmt)
+        return list(result.scalars().all()), total
 
     async def create_bucket(self, bucket: Bucket) -> Bucket:
         self._session.add(bucket)
@@ -72,6 +114,9 @@ class BucketsRepository:
         await self._session.execute(
             delete(Bucket).where(_bucket_scope_filter(project_id, experiment_id))
         )
+
+    async def delete_bucket_by_id(self, bucket_id: UUID) -> None:
+        await self._session.execute(delete(Bucket).where(Bucket.id == bucket_id))
 
     async def delete_all_project_buckets(self, project_id: UUID) -> None:
         await self._session.execute(

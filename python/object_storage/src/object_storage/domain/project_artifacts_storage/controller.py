@@ -5,15 +5,21 @@ from __future__ import annotations
 import os
 from uuid import UUID
 
-from fastapi import APIRouter, Body, Depends, File, Query, UploadFile
+from fastapi import APIRouter, Body, Depends, File, HTTPException, Query, UploadFile
 from starlette.background import BackgroundTask
 from starlette.responses import StreamingResponse
 
 from object_storage.api.service_dependencies import get_project_artifacts_service
 from .dto import (
+    BucketListResponseDTO,
     BlobCheckResponseDTO,
+    ClearStorageBucketResponseDTO,
+    DeleteProjectSnapshotResponseDTO,
+    DeleteStorageBucketResponseDTO,
     DeleteBlobResponseDTO,
     DeleteProjectResponseDTO,
+    ProjectUsageResponseDTO,
+    ReconcileStorageBucketResponseDTO,
     SnapshotCreateRequestDTO,
     SnapshotCreateResponseDTO,
     UploadBlobResponseDTO,
@@ -102,7 +108,152 @@ async def download_project_snapshot(
     )
 
 
-# TODO: Add delete snapshot endpoint
+@router.delete(
+    "/{project_id}/snapshots/{snapshot_id}",
+    response_model=DeleteProjectSnapshotResponseDTO,
+)
+async def delete_project_snapshot(
+    project_id: UUID,
+    snapshot_id: UUID,
+    service: ObjectStorageService = Depends(get_project_artifacts_service),
+):
+    return await service.delete_project_snapshot(project_id, snapshot_id)
+
+
+@router.get("/{project_id}/usage", response_model=ProjectUsageResponseDTO)
+async def get_project_usage(
+    project_id: UUID,
+    service: ObjectStorageService = Depends(get_project_artifacts_service),
+):
+    return await service.get_project_usage(project_id)
+
+
+@router.get("/admin/storage/buckets", response_model=BucketListResponseDTO)
+async def list_storage_buckets(
+    project_id: UUID | None = Query(default=None),
+    experiment_id: UUID | None = Query(default=None),
+    reconcile: bool = Query(
+        default=False,
+        description=(
+            "When true, each row includes storage_size (sum of object sizes from S3/MinIO). "
+            "Does not update the registry size column; use POST .../buckets/{bucket_id}/reconcile to persist."
+        ),
+    ),
+    q: str | None = Query(default=None, max_length=200),
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+    service: ObjectStorageService = Depends(get_project_artifacts_service),
+):
+    return await service.list_buckets(
+        project_id, experiment_id, reconcile, q=q, limit=limit, offset=offset
+    )
+
+
+@router.delete(
+    "/admin/storage/buckets/storage-only",
+    response_model=DeleteStorageBucketResponseDTO,
+)
+async def delete_storage_only_bucket(
+    name: str = Query(..., min_length=1, max_length=255),
+    service: ObjectStorageService = Depends(get_project_artifacts_service),
+):
+    """Remove a bucket from object storage only when it has no metadata row."""
+
+    return await service.delete_storage_only_bucket(name)
+
+
+@router.post(
+    "/admin/storage/buckets/storage-only/clear",
+    response_model=ClearStorageBucketResponseDTO,
+)
+async def clear_storage_only_bucket(
+    name: str = Query(..., min_length=1, max_length=255),
+    service: ObjectStorageService = Depends(get_project_artifacts_service),
+):
+    """Delete all objects in a bucket that has no registry row (keep empty bucket)."""
+
+    result = await service.clear_storage_only_bucket(name)
+    if not result.cleared:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Could not clear: bucket missing, or a registry row exists "
+                "(use Clear on the registered bucket instead)."
+            ),
+        )
+    return result
+
+
+@router.delete(
+    "/admin/storage/buckets/{bucket_id}",
+    response_model=DeleteStorageBucketResponseDTO,
+)
+async def delete_storage_bucket(
+    bucket_id: UUID,
+    service: ObjectStorageService = Depends(get_project_artifacts_service),
+):
+    return await service.delete_bucket(bucket_id)
+
+
+@router.post(
+    "/admin/storage/buckets/{bucket_id}/clear",
+    response_model=ClearStorageBucketResponseDTO,
+)
+async def clear_storage_bucket(
+    bucket_id: UUID,
+    service: ObjectStorageService = Depends(get_project_artifacts_service),
+):
+    result = await service.clear_bucket(bucket_id)
+    if not result.cleared:
+        raise HTTPException(status_code=404, detail="Bucket not found")
+    return result
+
+
+@router.post(
+    "/admin/storage/buckets/{bucket_id}/reconcile",
+    response_model=ReconcileStorageBucketResponseDTO,
+)
+async def reconcile_storage_bucket(
+    bucket_id: UUID,
+    service: ObjectStorageService = Depends(get_project_artifacts_service),
+):
+    return await service.reconcile_bucket(bucket_id)
+
+
+@router.delete("/{project_id}/cleanup-cas", response_model=DeleteProjectResponseDTO)
+async def cleanup_project_cas_only(
+    project_id: UUID,
+    service: ObjectStorageService = Depends(get_project_artifacts_service),
+):
+    """Delete project CAS blobs only (shared artifacts metadata + objects)."""
+
+    await service.cleanup_project_cas_only(project_id)
+    return DeleteProjectResponseDTO(deleted=True)
+
+
+@router.delete("/{project_id}/cleanup-snapshots", response_model=DeleteProjectResponseDTO)
+async def cleanup_project_snapshots_only(
+    project_id: UUID,
+    service: ObjectStorageService = Depends(get_project_artifacts_service),
+):
+    """Delete all project snapshots (and snapshot-only blob refs); keeps CAS rows used elsewhere."""
+
+    await service.cleanup_project_snapshots_only(project_id)
+    return DeleteProjectResponseDTO(deleted=True)
+
+
+@router.delete(
+    "/{project_id}/cleanup-experiment-buckets",
+    response_model=DeleteProjectResponseDTO,
+)
+async def cleanup_project_experiment_buckets_only(
+    project_id: UUID,
+    service: ObjectStorageService = Depends(get_project_artifacts_service),
+):
+    """Delete experiment-scoped buckets and tracked experiment artifact rows only."""
+
+    await service.cleanup_project_experiment_buckets_only(project_id)
+    return DeleteProjectResponseDTO(deleted=True)
 
 
 @router.delete("/{project_id}", response_model=DeleteProjectResponseDTO)

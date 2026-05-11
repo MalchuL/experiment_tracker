@@ -24,6 +24,7 @@ Authors can use **callouts** (warnings, tips, …) and **expandable sections** i
 
 - [Workspace & navigation](/docs/getting-started/workspace) — sidebar, header, and docs layout.
 - [Projects](/docs/getting-started/projects) — creating and working inside a project.
+- [File descriptors & local services](/docs/getting-started/file-descriptors) — `Too many open files`, local `uvicorn --reload`, and where to look in the repo when scalars or the backend exhaust FDs.
 - [Callouts, details & formatting](/docs/reference/doc-features) — warning boxes and collapsible Markdown blocks.
 - [Common documentation patterns](/docs/examples/common-patterns) — practical recipes for authors.
 - [Adding documentation pages](/docs/contributing/adding-pages) — how authors and agents add new `/docs` pages.

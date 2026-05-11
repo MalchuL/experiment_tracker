@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState, type ReactNode } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { PageHeader } from "@/components/shared/page-header";
@@ -11,27 +11,65 @@ import { ProjectCard } from "@/domain/projects/components/project-card";
 import { ListSkeleton } from "@/components/shared/loading-skeleton";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/lib/hooks/use-toast";
-import { Plus, FolderKanban, AlertCircle, Users } from "lucide-react";
+import { Plus, FolderKanban, AlertCircle, Users, ChevronDown } from "lucide-react";
 import type { InsertProject, Project } from "@/domain/projects/types";
 import { insertProjectSchema } from "@/domain/projects/schemas";
 import { useProjects } from "@/domain/projects/hooks";
 import { useAuth } from "@/domain/auth/hooks";
 import { useTeams } from "@/domain/teams/hooks";
 import { CreateTeamModal } from "@/domain/teams/components";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 
-function ProjectGrid({
-  projects,
-  onDelete,
-}: {
-  projects: Project[];
-  onDelete: (id: string) => void;
-}) {
+/** Newest-first within a bucket (matches API ordering after backend sort). */
+function sortProjectsNewestFirst(projects: Project[]): Project[] {
+  return [...projects].sort((a, b) => {
+    const tb = new Date(b.createdAt).getTime();
+    const ta = new Date(a.createdAt).getTime();
+    return tb - ta;
+  });
+}
+
+function ProjectGrid({ projects }: { projects: Project[] }) {
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
       {projects.map((project) => (
-        <ProjectCard key={project.id} project={project} onDelete={onDelete} />
+        <ProjectCard key={project.id} project={project} />
       ))}
     </div>
+  );
+}
+
+function CollapsibleProjectBucket({
+  title,
+  description,
+  children,
+}: {
+  title: ReactNode;
+  description?: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <Collapsible defaultOpen className="space-y-3">
+      <CollapsibleTrigger asChild>
+        <button
+          type="button"
+          className="group flex w-full items-center justify-between gap-3 rounded-md py-1 text-left outline-none transition-colors hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <div className="min-w-0 flex-1 space-y-1">
+            <div className="text-lg font-semibold tracking-tight">{title}</div>
+            {description ? (
+              <div className="text-sm font-normal text-muted-foreground">{description}</div>
+            ) : null}
+          </div>
+          <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 group-data-[state=open]:rotate-180" />
+        </button>
+      </CollapsibleTrigger>
+      <CollapsibleContent className="overflow-hidden space-y-3">{children}</CollapsibleContent>
+    </Collapsible>
   );
 }
 
@@ -47,7 +85,6 @@ export default function Projects() {
     isLoading,
     isFetchingNextPage,
     createProject,
-    deleteProject,
     creationIsPending,
     error,
   } = useProjects();
@@ -79,22 +116,43 @@ export default function Projects() {
         const list = map.get(p.teamId) ?? [];
         list.push(p);
         map.set(p.teamId, list);
-      } else if (p.owner.id === uid) {
+      } else if (p.owner?.id === uid) {
         pers.push(p);
       } else {
         shr.push(p);
       }
     }
-    return { byTeamId: map, personal: pers, shared: shr };
+    for (const [tid, list] of map.entries()) {
+      map.set(tid, sortProjectsNewestFirst(list));
+    }
+    return {
+      byTeamId: map,
+      personal: sortProjectsNewestFirst(pers),
+      shared: sortProjectsNewestFirst(shr),
+    };
   }, [projects, user?.id]);
 
+  const teamCreatedAtMsById = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const t of teamsList?.data ?? []) {
+      m.set(t.id, new Date(t.createdAt).getTime());
+    }
+    return m;
+  }, [teamsList]);
+
+  /** Team buckets: newest-created teams first (aligned with GET /teams ordering). */
   const sortedTeamIds = useMemo(() => {
     return Array.from(byTeamId.keys()).sort((a, b) => {
+      const ta = teamCreatedAtMsById.get(a);
+      const tb = teamCreatedAtMsById.get(b);
+      if (ta != null && tb != null && tb !== ta) return tb - ta;
+      if (ta != null && tb == null) return -1;
+      if (ta == null && tb != null) return 1;
       const na = teamNameById.get(a) ?? a;
       const nb = teamNameById.get(b) ?? b;
       return na.localeCompare(nb);
     });
-  }, [byTeamId, teamNameById]);
+  }, [byTeamId, teamCreatedAtMsById, teamNameById]);
 
   const createMutation = useCallback(
     (data: InsertProject) => {
@@ -117,27 +175,6 @@ export default function Projects() {
       });
     },
     [createProject, form, toast],
-  );
-
-  const deleteMutation = useCallback(
-    (id: string) => {
-      deleteProject(id, {
-        onSuccess: () => {
-          toast({
-            title: "Project deleted",
-            description: "The project has been deleted successfully.",
-          });
-        },
-        onError: () => {
-          toast({
-            title: "Error",
-            description: "Failed to delete project. Please try again.",
-            variant: "destructive",
-          });
-        },
-      });
-    },
-    [deleteProject, toast],
   );
 
   const onSubmit = useCallback(
@@ -224,29 +261,28 @@ export default function Projects() {
             if (list.length === 0) return null;
             const title = teamNameById.get(tid) ?? "Team";
             return (
-              <section key={tid} className="space-y-3">
-                <h2 className="text-lg font-semibold tracking-tight">{title}</h2>
-                <ProjectGrid projects={list} onDelete={deleteMutation} />
-              </section>
+              <CollapsibleProjectBucket key={tid} title={title}>
+                <ProjectGrid projects={list} />
+              </CollapsibleProjectBucket>
             );
           })}
 
           {personal.length > 0 && (
-            <section className="space-y-3">
-              <h2 className="text-lg font-semibold tracking-tight">Personal</h2>
-              <p className="text-sm text-muted-foreground">Projects without a team that you own.</p>
-              <ProjectGrid projects={personal} onDelete={deleteMutation} />
-            </section>
+            <CollapsibleProjectBucket
+              title="Personal"
+              description="Projects without a team that you own."
+            >
+              <ProjectGrid projects={personal} />
+            </CollapsibleProjectBucket>
           )}
 
           {shared.length > 0 && (
-            <section className="space-y-3">
-              <h2 className="text-lg font-semibold tracking-tight">Shared with you</h2>
-              <p className="text-sm text-muted-foreground">
-                Personal projects from others where you were granted access.
-              </p>
-              <ProjectGrid projects={shared} onDelete={deleteMutation} />
-            </section>
+            <CollapsibleProjectBucket
+              title="Shared with you"
+              description="Personal projects from others where you were granted access."
+            >
+              <ProjectGrid projects={shared} />
+            </CollapsibleProjectBucket>
           )}
 
           {isFetchingNextPage && (

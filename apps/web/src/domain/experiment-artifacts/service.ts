@@ -88,5 +88,9 @@ export const experimentArtifactsService = {
     const data = (await response.json()) as NamedArtifactPreview;
     return data;
   },
+  deleteTrackedArtifact: async (experimentId: string, filepath: string): Promise<void> => {
+    const path = API_ROUTES.EXPERIMENT_ARTIFACTS.DELETE(experimentId, filepath);
+    await serviceClients.api.delete(path);
+  },
 };
 

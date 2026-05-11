@@ -45,8 +45,10 @@ async def get_artifacts_info_service(
 
 
 async def get_projects_service(
-    client=Depends(get_clickhouse_client),
+    scalars_service: "ScalarsService" = Depends(get_scalars_service),
+    artifacts_info_service: "ArtifactsInfoService" = Depends(get_artifacts_info_service),
+    last_logged_service: "LastLoggedService" = Depends(get_last_logged_service),
 ) -> "ProjectsService":
     from app.domain.projects.service import ProjectsService
 
-    return ProjectsService(client)
+    return ProjectsService(scalars_service, artifacts_info_service, last_logged_service)

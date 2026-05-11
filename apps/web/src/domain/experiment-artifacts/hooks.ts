@@ -103,10 +103,7 @@ export function useCompareFinalArtifacts(experimentIds: string[]) {
   };
 }
 
-export function useFinalArtifactPreviews(
-  artifacts: NamedExperimentArtifact[],
-  maxBytes = 2 * 1024 * 1024
-) {
+export function useFinalArtifactPreviews(artifacts: NamedExperimentArtifact[]) {
   const stableArtifacts = useMemo(
     () =>
       [...artifacts].sort((a, b) => {
@@ -117,23 +114,28 @@ export function useFinalArtifactPreviews(
   );
 
   const previewQueries = useQueries({
-    queries: stableArtifacts.map((artifact) => ({
-      queryKey: [
-        QUERY_KEYS.ARTIFACTS.NAMED_BY_EXPERIMENT(artifact.experimentId),
-        "preview",
-        artifact.name,
-        artifact.filepath,
-        maxBytes,
-      ],
-      queryFn: () =>
-        experimentArtifactsService.previewNamedArtifact(
-          artifact.experimentId,
+    queries: stableArtifacts.map((artifact) => {
+      const maxBytes = artifact.mimeType.startsWith("image/")
+        ? 10 * 1024 * 1024
+        : 2 * 1024 * 1024;
+      return {
+        queryKey: [
+          QUERY_KEYS.ARTIFACTS.NAMED_BY_EXPERIMENT(artifact.experimentId),
+          "preview",
           artifact.name,
           artifact.filepath,
-          maxBytes
-        ),
-      enabled: !!artifact.experimentId,
-    })),
+          maxBytes,
+        ],
+        queryFn: () =>
+          experimentArtifactsService.previewNamedArtifact(
+            artifact.experimentId,
+            artifact.name,
+            artifact.filepath,
+            maxBytes
+          ),
+        enabled: !!artifact.experimentId,
+      };
+    }),
   });
 
   const previewsByArtifactId = stableArtifacts.reduce<

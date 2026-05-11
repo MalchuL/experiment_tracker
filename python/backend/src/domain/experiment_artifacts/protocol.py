@@ -77,6 +77,14 @@ class ExperimentArtifactsServiceProtocol(Protocol):
         self, user: UserProtocol, experiment_id: UUID
     ) -> DeleteExperimentArtifactsResponseDTO: ...
 
+    async def delete_experiment_tracked_artifact(
+        self,
+        user: UserProtocol,
+        experiment_id: UUID,
+        *,
+        filepath: str,
+    ) -> DeleteExperimentArtifactResponseDTO: ...
+
     async def upsert_experiment_artifact(
         self,
         user: UserProtocol,

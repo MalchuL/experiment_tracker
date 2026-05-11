@@ -1,4 +1,5 @@
 export * from "./experiments-hook";
+export * from "./use-project-experiments-poll-sync";
 export * from "./use-missing-parent-experiment-names";
 export * from "./create-experiment-hook";
 export * from "./use-reorder-experiments";

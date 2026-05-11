@@ -18,10 +18,13 @@ class ExperimentRepository(BaseRepository[Experiment]):
         super().__init__(db, Experiment)
 
     async def get_user_experiments(
-        self, user: UserProtocol, list_options: ListOptions | None = None
+        self,
+        user: UserProtocol,
+        list_options: ListOptions | None = None,
     ) -> Page[Experiment]:
+        filters = [Experiment.started_by == user.id]
         return await self.list(
-            Experiment.started_by == user.id,
+            *filters,
             order_by=Experiment.created_at.desc(),
             list_options=list_options,
         )
@@ -31,8 +34,9 @@ class ExperimentRepository(BaseRepository[Experiment]):
         project_id: UUID_TYPE,
         list_options: ListOptions = ListOptions(limit=10, offset=0),
     ) -> Page[Experiment]:
+        filters = [Experiment.project_id == project_id]
         return await self.list(
-            Experiment.project_id == project_id,
+            *filters,
             order_by=Experiment.created_at.desc(),
             list_options=list_options,
         )
@@ -49,8 +53,9 @@ class ExperimentRepository(BaseRepository[Experiment]):
             load = [selectinload(Experiment.project), selectinload(Experiment.metrics)]
         else:
             load = []
+        filters = [Experiment.project_id == project_id]
         return await self.list(
-            Experiment.project_id == project_id,
+            *filters,
             order_by=[Experiment.created_at.desc(), Experiment.id.desc()],
             load=load,
             list_options=list_options,
@@ -61,9 +66,10 @@ class ExperimentRepository(BaseRepository[Experiment]):
     ) -> List[Experiment]:
         if not experiment_ids:
             return []
+        filters = [Experiment.id.in_(experiment_ids)]
         experiments = list(
             await self.advanced_alchemy_repository.list(
-                Experiment.id.in_(experiment_ids),
+                *filters,
             )
         )
         return experiments
