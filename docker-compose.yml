@@ -1,0 +1,188 @@
+# `docker compose up --build` from repo root. Optional compose overrides: root `.env.example` → `.env`; per-package `.env.example` for local uv/pnpm.
+name: experiment-tracker
+
+services:
+  postgres-backend:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-tracker}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-tracker}
+      POSTGRES_DB: ${POSTGRES_DB:-experiment_tracker}
+    ports:
+      - "${POSTGRES_BACKEND_PORT:-5435}:5432"
+    volumes:
+      - ./storage/postgres-backend:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tracker -d experiment_tracker"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  postgres-object-storage:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_OBJECT_STORAGE_USER:-tracker}
+      POSTGRES_PASSWORD: ${POSTGRES_OBJECT_STORAGE_PASSWORD:-tracker}
+      POSTGRES_DB: ${POSTGRES_OBJECT_STORAGE_DB:-object_storage}
+    ports:
+      - "${POSTGRES_OBJECT_STORAGE_PORT:-5434}:5432"
+    volumes:
+      - ./storage/postgres-object-storage:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tracker -d object_storage"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "${REDIS_PORT:-6380}:6379"
+    volumes:
+      - ./storage/redis:/data
+    command: ["redis-server", "--appendonly", "yes"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:24.8
+    environment:
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER:-default}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-yourpass}
+      CLICKHOUSE_DB: ${CLICKHOUSE_DB:-default}
+    ports:
+      - "${CLICKHOUSE_HTTP_PORT:-8123}:8123"
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    volumes:
+      - ./storage/clickhouse:/var/lib/clickhouse
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget -qO- http://localhost:8123/ping | grep -q Ok",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 15
+      start_period: 20s
+
+  minio:
+    image: minio/minio:latest
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-admin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-password}
+    ports:
+      - "${MINIO_API_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+    volumes:
+      - ./storage/minio:/data
+    command: ["server", "/data", "--console-address", ":9001"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-admin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-password}
+      S3_BUCKET: ${S3_BUCKET:-ml-blobs}
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        mc alias set local http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD" \
+          && mc mb "local/$$S3_BUCKET" --ignore-existing
+
+  object-storage:
+    build:
+      context: .
+      dockerfile: python/object_storage/Dockerfile
+    environment:
+      APP_NAME: ${OBJECT_STORAGE_APP_NAME:-ML Experiment Object Storage}
+      API_PREFIX: ${OBJECT_STORAGE_API_PREFIX:-/api}
+      ALLOWED_ORIGINS: ${OBJECT_STORAGE_ALLOWED_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
+      DATABASE_URL: ${OBJECT_STORAGE_DATABASE_URL:-postgresql+asyncpg://tracker:tracker@postgres-object-storage:5432/object_storage}
+      S3_ENDPOINT_URL: ${S3_ENDPOINT_URL:-http://minio:9000}
+      S3_REGION: ${S3_REGION:-us-east-1}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-admin}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-password}
+      S3_BUCKET: ${S3_BUCKET:-ml-blobs}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    ports:
+      - "${OBJECT_STORAGE_PORT:-8002}:8002"
+    depends_on:
+      postgres-object-storage:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+
+  scalars:
+    build:
+      context: .
+      dockerfile: python/scalars_service/Dockerfile
+    environment:
+      CLICKHOUSE_URL: ${CLICKHOUSE_URL:-http://default:yourpass@clickhouse:8123/default}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    ports:
+      - "${SCALARS_PORT:-8001}:8001"
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  backend:
+    build:
+      context: .
+      dockerfile: python/backend/Dockerfile
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://tracker:tracker@postgres-backend:5432/experiment_tracker}
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-docker-env}
+      APP_NAME: ${APP_NAME:-Experiment Tracker}
+      API_PREFIX: ${API_PREFIX:-/api}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
+      SCALARS_SERVICE_URL: ${SCALARS_SERVICE_URL:-http://scalars:8001/api}
+      OBJECT_STORAGE_SERVICE_URL: ${OBJECT_STORAGE_SERVICE_URL:-http://object-storage:8002/api}
+      ADMIN_PANEL_KEY: ${ADMIN_PANEL_KEY:-admin}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    depends_on:
+      postgres-backend:
+        condition: service_healthy
+      scalars:
+        condition: service_healthy
+      object-storage:
+        condition: service_healthy
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        NEXT_PUBLIC_BASE_URL: ${NEXT_PUBLIC_BASE_URL:-http://127.0.0.1:8000}
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      HOSTNAME: "0.0.0.0"
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+    depends_on:
+      backend:
+        condition: service_healthy

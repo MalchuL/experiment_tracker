@@ -26,6 +26,15 @@ class Base(DeclarativeBase):
     pass
 
 
+class DbMetadata(Base):
+    """Single-row schema marker (``id`` is always ``1``)."""
+
+    __tablename__ = "db_metadata"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    version: Mapped[str] = mapped_column(String(100), nullable=False)
+
+
 class UUIDBase(Base, AdvancedUUIDBase):
     __abstract__ = True
     id: Mapped[uuid.UUID] = mapped_column(

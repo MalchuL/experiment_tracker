@@ -1,6 +1,4 @@
-import os
 from typing import AsyncGenerator
-from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
 
 from config.settings import get_settings
 from fastapi import Depends
@@ -10,7 +8,25 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from models import Base, User
 from db.utils import build_async_database_url
 
+# Bump when the ORM schema in ``models.py`` changes in a breaking way.
+APPLICATION_SCHEMA_VERSION = "1"
+
 DATABASE_URL = build_async_database_url(get_settings().database_url)
+
+
+def _ensure_db_metadata_row(connection) -> None:
+    """Ensure ``db_metadata`` has the canonical row (``id = 1``)."""
+    from sqlalchemy import inspect, text
+
+    insp = inspect(connection)
+    if "db_metadata" not in insp.get_table_names():
+        return
+    if connection.execute(text("SELECT 1 FROM db_metadata WHERE id = 1")).first() is not None:
+        return
+    connection.execute(
+        text("INSERT INTO db_metadata (id, version) VALUES (1, :version)"),
+        {"version": APPLICATION_SCHEMA_VERSION},
+    )
 
 try:
     engine = create_async_engine(DATABASE_URL, pool_pre_ping=True)
@@ -23,9 +39,9 @@ except Exception as e:
 
 
 async def create_db_and_tables():
-    if engine:
-        async with engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+        await conn.run_sync(_ensure_db_metadata_row)
 
 
 async def get_async_session() -> AsyncGenerator[AsyncSession, None]:
