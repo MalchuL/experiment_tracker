@@ -64,7 +64,7 @@ class TeamRepository(BaseRepository[Team]):
             .where(
                 or_(Team.owner_id == user_id, Team.id.in_(member_team_ids)),
             )
-            .order_by(Team.name.asc())
+            .order_by(Team.created_at.desc())
         )
         result = await self.db.execute(stmt)
         return list(result.scalars().unique().all())
