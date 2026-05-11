@@ -23,6 +23,7 @@ import {
   BarChart3,
   LayoutDashboard,
   LineChart,
+  FileText,
 } from "lucide-react";
 import { FRONTEND_ROUTES } from "@/lib/constants/frontend-routes";
 import { useCurrentProject } from '@/domain/projects/hooks/project-provider';
@@ -44,6 +45,11 @@ const getProjectItems = (projectId: string) => [
     title: "Metrics",
     url: FRONTEND_ROUTES.PROJECT_PAGES.METRICS(projectId),
     icon: LineChart,
+  },
+  {
+    title: "Reports",
+    url: FRONTEND_ROUTES.PROJECT_PAGES.REPORTS(projectId),
+    icon: FileText,
   },
   {
     title: "Hypotheses",

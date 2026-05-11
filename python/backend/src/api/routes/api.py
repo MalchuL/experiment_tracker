@@ -6,6 +6,7 @@ from config.settings import get_settings
 from domain.api_tokens.controller import router as api_tokens_router
 from domain.experiments.controller import router as experiments_router
 from domain.hypotheses.controller import router as hypotheses_router
+from domain.project_reports.controller import router as project_reports_router
 from domain.metrics.controller import router as metrics_router
 from domain.scalars.controller import router as scalars_router
 from domain.projects.controller import router as projects_router
@@ -21,6 +22,7 @@ API_PREFIX = get_settings().api_prefix
 router.include_router(projects_router)
 router.include_router(experiments_router)
 router.include_router(hypotheses_router)
+router.include_router(project_reports_router)
 router.include_router(metrics_router)
 router.include_router(scalars_router)
 router.include_router(teams_router)
