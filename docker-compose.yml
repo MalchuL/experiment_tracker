@@ -181,6 +181,8 @@ services:
       NODE_ENV: production
       PORT: "3000"
       HOSTNAME: "0.0.0.0"
+      # Route Handlers must reach the API by Compose DNS, not 127.0.0.1 inside this container.
+      SERVER_API_BASE_URL: ${SERVER_API_BASE_URL:-http://backend:8000}
     ports:
       - "${WEB_PORT:-3000}:3000"
     depends_on:

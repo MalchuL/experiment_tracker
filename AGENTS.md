@@ -133,7 +133,7 @@ Examples:
 - From `apps/web`: `pnpm run dev`.
 - From `apps/web`: `pnpm run test` runs **Vitest** (unit tests under `src/**/*.test.ts`, e.g. metric display formatting). Metric scalars use **`formatValue`** from `src/lib/metrics/mathjs-metric-format.ts` (mathjs `format`, `notation: 'auto'`; wired through `metric-value-display.ts`; defaults in `src/lib/constants/metric-display.ts`). To run only the mathjs sample test and print strings: `pnpm run test:mathjs-format` (or `pnpm exec vitest run src/lib/metrics/mathjs-format.test.ts`). In-app guide to tuning precision and thresholds: **`/docs/reference/metric-display-formatting`** (`apps/web/content/docs/reference/metric-display-formatting.md`).
 
-For local development against the backend, set the web env so the UI and BFF target the API (for example `NEXT_PUBLIC_BASE_URL=http://127.0.0.1:8000`).
+For local development against the backend, set the web env so the UI and BFF target the API (for example `NEXT_PUBLIC_BASE_URL=http://127.0.0.1:8000`). In Docker Compose, the **`web`** service sets **`SERVER_API_BASE_URL=http://backend:8000`** so server-side Route Handlers proxy to the API over the Compose network; **`NEXT_PUBLIC_BASE_URL`** should stay a URL the **browser** can use (typically `http://127.0.0.1:8000` or `http://localhost:8000` on the host port you published for `backend`).
 
 ## Backend (main API) quick reference
 

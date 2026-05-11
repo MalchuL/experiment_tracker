@@ -1,5 +1,5 @@
 import { cookies } from "next/headers";
-import { env } from "@/lib/env";
+import { getServerApiBaseUrl } from "@/lib/env";
 
 export async function GET(
   request: Request,
@@ -20,7 +20,7 @@ export async function GET(
   }
 
   const targetUrl = new URL(
-    `${env.BASE_URL}/api/experiment-artifacts/${encodeURIComponent(experimentId)}/download-at-step`
+    `${getServerApiBaseUrl()}/api/experiment-artifacts/${encodeURIComponent(experimentId)}/download-at-step`
   );
   targetUrl.searchParams.set("step", String(step));
   targetUrl.searchParams.set("name", name);
