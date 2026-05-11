@@ -4,6 +4,7 @@ RUN corepack enable && corepack prepare pnpm@10.0.0 --activate
 WORKDIR /app
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/web ./apps/web
+# Browser-reachable main API (rebuild image when this changes). Compose passes build-arg from root `.env`.
 ARG NEXT_PUBLIC_BASE_URL=http://127.0.0.1:8000
 ENV NEXT_PUBLIC_BASE_URL=${NEXT_PUBLIC_BASE_URL}
 RUN pnpm install --frozen-lockfile

@@ -1,4 +1,9 @@
 # `docker compose up --build` from repo root. Optional compose overrides: root `.env.example` → `.env`; per-package `.env.example` for local uv/pnpm.
+# Alternative: `./scripts/docker-up-public.sh <PUBLIC_URL>` sets CORS + NEXT_PUBLIC_* without a root `.env` (see README).
+#
+# Public hostname / HTTPS (not localhost): in root `.env` set NEXT_PUBLIC_BASE_URL (API URL for the browser),
+# ALLOWED_ORIGINS, OBJECT_STORAGE_ALLOWED_ORIGINS (UI origins), then rebuild `web` and recreate backend/object-storage.
+# See README.md → "Custom URL or domain".
 name: experiment-tracker
 
 services:
@@ -113,6 +118,7 @@ services:
     environment:
       APP_NAME: ${OBJECT_STORAGE_APP_NAME:-ML Experiment Object Storage}
       API_PREFIX: ${OBJECT_STORAGE_API_PREFIX:-/api}
+      # CORS: browser origins allowed to call object-storage (match your UI URL).
       ALLOWED_ORIGINS: ${OBJECT_STORAGE_ALLOWED_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
       DATABASE_URL: ${OBJECT_STORAGE_DATABASE_URL:-postgresql+asyncpg://tracker:tracker@postgres-object-storage:5432/object_storage}
       S3_ENDPOINT_URL: ${S3_ENDPOINT_URL:-http://minio:9000}
@@ -156,6 +162,7 @@ services:
       JWT_SECRET: ${JWT_SECRET:-change-me-in-docker-env}
       APP_NAME: ${APP_NAME:-Experiment Tracker}
       API_PREFIX: ${API_PREFIX:-/api}
+      # Comma-separated browser origins for CORS (must include your real UI URL if not localhost).
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
       SCALARS_SERVICE_URL: ${SCALARS_SERVICE_URL:-http://scalars:8001/api}
       OBJECT_STORAGE_SERVICE_URL: ${OBJECT_STORAGE_SERVICE_URL:-http://object-storage:8002/api}
@@ -176,6 +183,7 @@ services:
       context: .
       dockerfile: apps/web/Dockerfile
       args:
+        # Browser-reachable API base URL (rebuild web after changing). See README → "Custom URL or domain".
         NEXT_PUBLIC_BASE_URL: ${NEXT_PUBLIC_BASE_URL:-http://127.0.0.1:8000}
     environment:
       NODE_ENV: production
