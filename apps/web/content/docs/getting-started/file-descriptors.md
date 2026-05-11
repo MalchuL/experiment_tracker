@@ -29,9 +29,11 @@ Use the **worker** PID — the process that actually holds your HTTP port (for s
 
 `ulimit -n` in your **current shell** may differ from the limit **inherited by the server** you started from a terminal or IDE; **`/proc/PID/limits`** is authoritative for a running process.
 
-## `run_local_stack.sh` and `uvicorn --reload`
+## `run_local_stack_prod.sh` and `uvicorn --reload`
 
-The script at the repo root starts several services with **`uvicorn ... --reload`**. Reload mode uses a **parent** process plus a **spawned worker child** that runs the FastAPI app. You may see a process command line containing **`multiprocessing.spawn`** / **`spawn_main`** — that is **expected** for the reload worker, not extra logic added by this product’s app code.
+The repo root script **`run_local_stack_prod.sh`** starts the Python services with **`uvicorn` without `--reload`** (production-like processes) and runs the web app via **`pnpm run build`** then **`pnpm run start`**. That avoids the reload parent/worker split for local stack runs.
+
+If you start services manually with **`uvicorn ... --reload`** (see **`LOCAL_RUN.md`**), reload mode uses a **parent** process plus a **spawned worker child** that runs the FastAPI app. You may see a process command line containing **`multiprocessing.spawn`** / **`spawn_main`** — that is **expected** for the reload worker, not extra logic added by this product’s app code.
 
 **Reload does not stack old workers’ FDs on one process:** when files change, the **old child exits** and a **new child** starts with a **fresh** FD table. If FD counts **rise over time without** constantly saving files, treat that as **request load / connection patterns** (or a leak), not as “reload keeps opening FDs forever.”
 

@@ -163,7 +163,7 @@ Running the full stack locally requires the backend plus whatever URLs you confi
 
 ### Local dev: file descriptors (`Too many open files`)
 
-Canonical write-up (in-app docs): **`/docs/getting-started/file-descriptors`** — source `apps/web/content/docs/getting-started/file-descriptors.md` (errno 24 / 16, `/proc` checks, `run_local_stack.sh` + `uvicorn --reload`, backend/scalars client paths, mitigations).
+Canonical write-up (in-app docs): **`/docs/getting-started/file-descriptors`** — source `apps/web/content/docs/getting-started/file-descriptors.md` (errno 24 / 16, `/proc` checks, `run_local_stack.sh` / `uvicorn --reload` when developing, backend/scalars client paths, mitigations).
 
 ## Documentation policy for agents
 
