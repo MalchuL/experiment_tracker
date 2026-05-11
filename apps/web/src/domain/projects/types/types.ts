@@ -1,5 +1,5 @@
 import { MetricDirectionType, MetricAggregationType } from "@/domain/metrics/types";
-import { User } from "@/shared/types/user";
+import type { User } from "@/types/user";
 
 export interface ProjectMetric {
   name: string;

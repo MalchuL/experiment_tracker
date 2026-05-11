@@ -83,7 +83,7 @@ import { useToast } from "@/lib/hooks/use-toast";
 import { calculateDagTreeLayout } from "@/domain/experiments/dag/calculate-dag-layout";
 import { wouldCreateCycle } from "@/domain/experiments/dag/dag-parent-utils";
 import { ListSkeleton } from "@/components/shared/loading-skeleton";
-import type { InsertExperiment } from "@/shared/schema";
+import type { InsertExperiment } from "@/domain/experiments/types";
 
 const MAX_METRICS_ON_CARD = 3;
 

@@ -3,7 +3,7 @@
 import { createContext, useContext, type ReactNode } from "react";
 import { LoginPayload, SignUpPayload } from "../types";
 import { useAuthService } from "./auth-hook";
-import { User } from "@/shared/types";
+import type { User } from "@/types";
 
 interface AuthProviderOptions {
   onSuccess?: () => void;

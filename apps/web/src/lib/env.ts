@@ -15,6 +15,9 @@ const envSchema = z.object({
       "Base URL (e.g., https://yourdomain.com or http://localhost:3000)"
     ),
 
+  /** When set (e.g. Docker: `http://backend:8000`), server-side BFF routes use this instead of BASE_URL. */
+  SERVER_API_BASE_URL: z.url().optional(),
+
   NODE_ENV: z
     .enum(["development", "production", "test"], {
       message: "NODE_ENV must be one of: development, production, test",
@@ -28,9 +31,12 @@ const envSchema = z.object({
  */
 function validateEnvironment(): z.infer<typeof envSchema> {
   try {
+    const serverApi = process.env.SERVER_API_BASE_URL?.trim();
     const envVariables = {
-      // Base URL
+      // Base URL (browser + default server; use host-reachable URL in Docker for client bundles)
       BASE_URL: process.env.NEXT_PUBLIC_BASE_URL,
+      SERVER_API_BASE_URL:
+        serverApi && serverApi.length > 0 ? serverApi : undefined,
       // Node
       NODE_ENV: process.env.NODE_ENV,
     };
@@ -81,6 +87,11 @@ function validateEnvironment(): z.infer<typeof envSchema> {
  * Validated environment variables with type safety
  */
 export const env = validateEnvironment();
+
+/** Backend origin for Route Handlers and other server-only `fetch` (Compose service DNS, etc.). */
+export function getServerApiBaseUrl(): string {
+  return env.SERVER_API_BASE_URL ?? env.BASE_URL;
+}
 
 /**
  * Type-safe environment variable access

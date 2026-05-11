@@ -1,0 +1,25 @@
+# Build context is always the repository root (see docker-compose.yml).
+.git
+.github
+.cursor
+.history
+.turbo
+**/.venv
+**/node_modules
+**/__pycache__
+**/.pytest_cache
+**/.mypy_cache
+**/.ruff_cache
+*.pyc
+third-party
+.stuff
+.env
+.env.*
+!.env.example
+pnpm-store
+python/sdk
+examples
+docs
+storage
+apps/web/.next
+apps/web/node_modules

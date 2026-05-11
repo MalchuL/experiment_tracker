@@ -7,6 +7,9 @@ name = "experiment-tracker-sdk"
 version = "0.5.15"
 description = "Python SDK for Experiment Tracker"
 readme = "README.md"
+authors = [
+  { name = "Maintainer", email = "email@mail.com" },
+]
 requires-python = ">=3.10"
 dependencies = [
   "httpx>=0.27.0",

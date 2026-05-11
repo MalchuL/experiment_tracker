@@ -77,7 +77,7 @@ import { GitBranch, ChevronDown, X } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { experimentsService } from "@/domain/experiments/services";
 import { ExperimentDangerZoneCard } from "@/domain/experiments/components/experiment-danger-zone-card";
-import type { InsertExperiment } from "@/shared/schema";
+import type { InsertExperiment } from "@/domain/experiments/types";
 function formatExperimentParentOption(exp: Pick<Experiment, "name" | "id">): string {
   return `${exp.name} (${exp.id.slice(0, 7)})`;
 }

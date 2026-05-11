@@ -41,3 +41,17 @@ cd apps/web/
 export NEXT_PUBLIC_BASE_URL=http://127.0.0.1:8000
 pnpm run dev
 ```
+
+## Docker Compose (all services)
+
+From the repository root (see `docker-compose.yml`; Dockerfiles live under `python/*/Dockerfile` and `apps/web/Dockerfile`). A **step-by-step** guide (build/rebuild, `storage/`, UI URL, `down`, network) is in the README under **Docker (full stack) → Full stack: step by step**.
+
+Quick start:
+
+```bash
+docker compose up -d --build
+```
+
+Optional root `.env` (see `.env.example`) overrides compose defaults; package-level `.env.example` files document local `uv` / `pnpm` runs.
+
+To **force a clean rebuild**, see README **Docker → Force rebuild**. For **hybrid Postgres** setups and extra shutdown detail, see **Docker → Dependencies, startup order, and hybrid setups**.

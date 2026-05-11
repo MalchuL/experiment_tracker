@@ -40,7 +40,7 @@ import type {
   SyncMode,
 } from "@/domain/scalars/types";
 import { getScalarsDotThreshold, getScalarsMaxPointsPerPlot } from "@/domain/scalars/utils";
-import type { InsertExperiment } from "@/shared/schema";
+import type { InsertExperiment } from "@/domain/experiments/types";
 import { EXPERIMENTS_LIST_POLL_INTERVAL_MS } from "@/lib/constants/live-refresh";
 import { QUERY_KEYS } from "@/lib/constants/query-keys";
 import { DEFAULT_PAGE_SIZE } from "@/lib/constants/pagination";
