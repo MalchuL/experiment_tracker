@@ -7,6 +7,10 @@
 #   PUBLIC_URL=<ui-origin> ./scripts/docker-up-public.sh [PUBLIC_API_URL] [-- docker compose args...]
 #   ./scripts/docker-up-public.sh <ui-origin> [public-api-base] [-- docker compose args...]
 #
+# If `docker compose` only works with sudo, put sudo immediately before this script path.
+# Prefer URL args so env is not lost:   sudo ./scripts/docker-up-public.sh http://192.168.1.247
+# Or preserve env:   sudo -E env PUBLIC_URL=http://192.168.1.247 ./scripts/docker-up-public.sh
+#
 # Examples:
 #   PUBLIC_URL=https://dashboard.example.com ./scripts/docker-up-public.sh
 #   ./scripts/docker-up-public.sh https://dashboard.example.com https://api.example.com

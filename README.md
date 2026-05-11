@@ -65,7 +65,7 @@ Run **all** services from `docker-compose.yml` (Postgres ×2, Redis, ClickHouse,
    docker compose stop
    ```
 
-9. **Stop and remove containers and the Compose project network.** This is the usual full teardown; **bind-mounted data under `./storage/` remains** on the host:
+9. **Stop and remove containers and the Compose project network.** This is the usual full teardown; **bind-mounted data under `./storage/` remains** on the host (see **Docker: stop, remove containers, and reset for a new run** below for removing data, images, and `sudo` notes):
 
    ```bash
    docker compose down
@@ -80,6 +80,63 @@ Run **all** services from `docker-compose.yml` (Postgres ×2, Redis, ClickHouse,
     ```
 
     To wipe databases completely, stop the stack and delete the `storage/` directory yourself (destructive). `docker compose down` does not remove built images; use `docker image rm …` or `docker compose images` if you want to prune them.
+
+## Docker: stop, remove containers, and reset for a new run
+
+Typical order when you want the stack **gone** and then a **clean start** next time:
+
+1. **Stop containers** (keeps containers and volumes; fastest pause):
+
+   ```bash
+   docker compose stop
+   ```
+
+2. **Stop and remove containers and the Compose project network** (usual teardown; **data under `./storage/` stays** unless you delete it separately):
+
+   ```bash
+   docker compose down
+   ```
+
+   Add **`--remove-orphans`** if you changed service names and old containers remain. Add **`-v`** only if you use **named Docker volumes** in this project and want them removed too (this compose file mainly uses **bind mounts** to `./storage`, so `-v` often does nothing for data persistence).
+
+3. **Remove persisted data** (optional, destructive — empty databases and blobs next `up`):
+
+   ```bash
+   rm -rf storage/
+   ```
+
+4. **Remove built images** (optional — next `docker compose up --build` will rebuild):
+
+   ```bash
+   docker compose down --rmi local
+   ```
+
+   Or remove specific images with `docker image rm …` / `docker image prune`.
+
+5. **Start again** from the [Full stack: step by step](#full-stack-step-by-step) section (e.g. `docker compose up -d --build` or `./scripts/docker-up-public.sh …`).
+
+### Do you need `sudo`?
+
+- **`docker compose …`** and **`./scripts/docker-up-public.sh`** (it ends with `docker compose …`): normally **no `sudo`** if your user can talk to the Docker daemon (Linux: user is in the **`docker`** group, or Docker Desktop on Mac/Windows). If you see *permission denied* on the Docker socket, you can run Compose **with** `sudo` until permissions are fixed (not ideal long-term).
+- **Where to put `sudo` for `docker-up-public.sh`:** put it **immediately before the script path** (not before `PUBLIC_URL=…` on the same line, or the variable may not reach the script under `sudo`).
+
+  **Recommended if you must use `sudo`:** pass URLs as arguments so nothing depends on the caller environment:
+
+  ```bash
+  sudo ./scripts/docker-up-public.sh http://192.168.1.247
+  sudo ./scripts/docker-up-public.sh http://192.168.1.247 http://192.168.1.247:8000
+  ```
+
+  **If you rely on `PUBLIC_URL=…` (or `WEB_PORT=…`) in the environment**, preserve the environment into the elevated process:
+
+  ```bash
+  sudo -E env PUBLIC_URL=http://192.168.1.247 WEB_PORT=3000 ./scripts/docker-up-public.sh
+  ```
+
+  Running the script as root can create **root-owned files** under `./storage/`; prefer adding your user to the **`docker`** group and running **without** `sudo`.
+
+- **`rm -rf storage/`**: usually **no `sudo`** if files are owned by your user. If containers ran as root and created root-owned files under `./storage`, removal may fail until you run **`sudo rm -rf storage/`** once (then prefer running Docker with a user mapping or fix ownership with `sudo chown -R "$USER:$USER" storage/` if you want to avoid root-owned bind mounts).
+- **Installing Docker or changing groups** is a one-time admin task and may require `sudo` or an administrator account on your OS.
 
 ## Layout (no central `docker/` folder)
 
@@ -198,6 +255,8 @@ The script sets **`ALLOWED_ORIGINS`** and **`OBJECT_STORAGE_ALLOWED_ORIGINS`** (
 
 Override the in-container BFF target only if needed:  
 `SERVER_API_BASE_URL=http://other:8000 PUBLIC_URL=... ./scripts/docker-up-public.sh`
+
+**If `docker compose` only works with `sudo`:** put **`sudo`** right before the script (see **Docker: stop, remove…** → *Do you need `sudo`?*), e.g. `sudo ./scripts/docker-up-public.sh http://192.168.1.247` or `sudo -E env PUBLIC_URL=http://192.168.1.247 ./scripts/docker-up-public.sh`.
 
 ## Dependencies, startup order, and hybrid setups
 
