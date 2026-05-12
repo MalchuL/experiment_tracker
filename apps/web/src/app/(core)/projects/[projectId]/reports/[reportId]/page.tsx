@@ -7,7 +7,6 @@ import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { SimpleReportEditor } from "@/domain/reports/components/simple-report-editor";
 import { reportsService } from "@/domain/reports";
 import type { ReportDocumentJSON } from "@/domain/reports/types";
@@ -105,16 +104,21 @@ export default function ProjectReportEditorPage() {
         <PageHeader title="Edit report" description="Rich text is stored as JSON on the server." />
       </div>
 
-      <div className="flex max-w-3xl flex-col gap-3">
-        <label className="text-sm font-medium" htmlFor="report-title">
-          Title
-        </label>
-        <Input
-          id="report-title"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          maxLength={200}
-        />
+      <div className="flex max-w-3xl flex-col gap-1">
+        <h1 className="m-0 p-0 text-3xl font-semibold leading-tight tracking-normal text-foreground">
+          <label htmlFor="report-title" className="sr-only">
+            Report title
+          </label>
+          <input
+            id="report-title"
+            type="text"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            maxLength={200}
+            placeholder="Untitled report"
+            className="w-full min-h-[1.2em] border-0 bg-transparent p-0 text-3xl font-semibold leading-tight tracking-normal text-foreground shadow-none outline-none ring-0 placeholder:text-muted-foreground/60 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
+          />
+        </h1>
       </div>
 
       <div className="min-h-0 flex-1 max-w-3xl w-full">

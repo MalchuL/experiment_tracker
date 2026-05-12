@@ -1,4 +1,6 @@
-export type ReportDocumentJSON = Record<string, unknown>;
+import type { JSONContent } from "@tiptap/react";
+
+export type ReportDocumentJSON = JSONContent;
 
 export interface ProjectReportSummary {
   id: string;
