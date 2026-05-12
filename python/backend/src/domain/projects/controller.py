@@ -7,12 +7,14 @@ from typing import Any, Dict, List
 from uuid import UUID
 
 from domain.hypotheses.dto import HypothesisListResponseDTO
+from domain.project_reports.dto import ProjectReportListResponseDTO
 from domain.experiments.dto import (
     ExperimentBatchLookupDTO,
     ExperimentListResponseDTO,
 )
 from domain.experiments.service import ExperimentService
 from domain.hypotheses.service import HypothesisService
+from domain.project_reports.service import ProjectReportService
 from domain.metrics.dto import (
     MetricLabelsResponseDTO,
     MetricListResponseDTO,
@@ -50,11 +52,12 @@ from .errors import ProjectNotAccessibleError, ProjectPermissionError
 from .service import ProjectCleanupCategory, ProjectService
 from api.routes.service_dependencies import (
     get_experiment_service,
+    get_hypothesis_service,
     get_metric_service,
     get_project_members_service,
+    get_project_report_service,
     get_project_service,
 )
-from api.routes.service_dependencies import get_hypothesis_service
 from domain.projects.members.dto import (
     ProjectMemberInviteDTO,
     ProjectMemberRemoveDTO,
@@ -179,6 +182,25 @@ async def get_project_hypotheses(
 ):
     try:
         return await hypothesis_service.get_hypotheses_by_project(
+            user,
+            project_id,
+            ListOptions(limit=limit, offset=offset),
+        )
+    except Exception as exc:  # noqa: BLE001
+        _raise_project_http_error(exc)
+
+
+@router.get("/{project_id}/reports", response_model=ProjectReportListResponseDTO)
+async def get_project_reports(
+    project_id: UUID,
+    limit: int = Query(default=MAX_LIST_PAGE_SIZE, ge=1, le=MAX_LIST_PAGE_SIZE),
+    offset: int = Query(default=0, ge=0),
+    user: User = Depends(get_current_user_dual),
+    _: None = Depends(require_api_token_scopes(ProjectActions.VIEW_REPORT)),
+    report_service: ProjectReportService = Depends(get_project_report_service),
+):
+    try:
+        return await report_service.get_reports_by_project(
             user,
             project_id,
             ListOptions(limit=limit, offset=offset),

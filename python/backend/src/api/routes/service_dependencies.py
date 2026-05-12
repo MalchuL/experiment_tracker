@@ -33,6 +33,9 @@ from domain.experiments.service import ExperimentService
 from domain.hypotheses.repository import HypothesisRepository
 from domain.hypotheses.service import HypothesisService
 
+from domain.project_reports.repository import ProjectReportRepository
+from domain.project_reports.service import ProjectReportService
+
 from domain.metrics.repository import MetricRepository
 from domain.metrics.service import MetricService
 
@@ -201,6 +204,24 @@ async def get_hypothesis_service(
     return HypothesisService(
         db=session,
         hypothesis_repository=hypothesis_repository,
+        permission_checker=permission_checker,
+    )
+
+
+async def get_project_report_repository(
+    session: AsyncSession = Depends(get_async_session),
+) -> ProjectReportRepository:
+    return ProjectReportRepository(db=session)
+
+
+async def get_project_report_service(
+    session: AsyncSession = Depends(get_async_session),
+    report_repository: ProjectReportRepository = Depends(get_project_report_repository),
+    permission_checker: PermissionChecker = Depends(get_permission_checker),
+) -> ProjectReportService:
+    return ProjectReportService(
+        db=session,
+        report_repository=report_repository,
         permission_checker=permission_checker,
     )
 
