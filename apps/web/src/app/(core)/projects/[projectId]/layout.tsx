@@ -28,9 +28,9 @@ export default function ProjectLayout({
   const isScalarsPage = pathname?.endsWith("/scalars");
 
   const containerClassName = isDagPage
-    ? "w-full max-w-none p-0 h-full flex flex-col"
+    ? "flex h-full min-h-0 w-full max-w-none flex-col p-0"
     : isMetricsPage || isExperimentsPage || isKanbanPage || isScalarsPage
-      ? "w-full max-w-none p-0 h-full min-h-0"
+      ? "flex h-full min-h-0 w-full max-w-none flex-col p-0"
       : "container max-w-screen-2xl mx-auto p-6";
 
   return (
@@ -49,7 +49,7 @@ export default function ProjectLayout({
                 <UserMenu />
               </div>
             </header>
-            <main className="flex-1 overflow-auto">
+            <main className="min-h-0 flex-1 overflow-auto">
               <div className={containerClassName}>{children}</div>
             </main>
           </SidebarInset>

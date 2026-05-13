@@ -34,10 +34,10 @@ export function RightSidebarShell({
   return (
     <div
       className={cn(
-        "flex h-full min-h-0 flex-col bg-background border-l",
+        "flex min-h-0 flex-col bg-background border-l",
         isPush
-          ? "w-full shrink-0 shadow-sm md:max-w-[400px] md:w-[400px]"
-          : cn("fixed right-0 top-0 z-50 shadow-lg", widthClassName),
+          ? "h-full w-full shrink-0 self-stretch shadow-sm md:max-w-[400px] md:w-[400px]"
+          : cn("fixed inset-y-0 right-0 z-50 shadow-lg", widthClassName),
         className
       )}
       data-testid={testId}

@@ -89,7 +89,7 @@ export function ProjectMetricsPage() {
   }
 
   return (
-    <div className="flex h-[calc(100vh-8rem)] w-full min-w-0 gap-0">
+    <div className="flex h-full min-h-0 w-full min-w-0 gap-0">
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden px-6 pt-6 pb-6">
         <div className="box-border flex min-h-0 flex-1 flex-col gap-4 lg:flex-row lg:items-stretch">
           <ProjectMetricsControlPanel
