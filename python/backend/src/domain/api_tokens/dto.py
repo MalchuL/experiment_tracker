@@ -1,6 +1,10 @@
 from typing import List, Optional
 from uuid import UUID
 
+from experiment_tracker_shared.limits import (
+    ENTITY_DESCRIPTION_MAX_LEN,
+    ENTITY_NAME_MAX_LEN,
+)
 from pydantic import BaseModel, Field
 
 from lib.datetime_types import ApiDateTime, ApiOptionalDateTime
@@ -9,8 +13,10 @@ from lib.pagination import PaginatedResponse
 
 
 class ApiTokenCreateDTO(BaseModel):
-    name: str = Field(..., min_length=1, max_length=255)
-    description: Optional[str] = Field(default=None, max_length=1000)
+    name: str = Field(..., min_length=1, max_length=ENTITY_NAME_MAX_LEN)
+    description: Optional[str] = Field(
+        default=None, max_length=ENTITY_DESCRIPTION_MAX_LEN
+    )
     scopes: List[str] = Field(default_factory=list)
     expires_in_days: Optional[int] = Field(default=None, gt=0, le=3650)
 
@@ -44,8 +50,12 @@ class ApiTokenListResponseDTO(PaginatedResponse[ApiTokenListItemDTO]):
 
 
 class ApiTokenUpdateDTO(BaseModel):
-    name: Optional[str] = Field(default=None, min_length=1, max_length=255)
-    description: Optional[str] = Field(default=None, max_length=1000)
+    name: Optional[str] = Field(
+        default=None, min_length=1, max_length=ENTITY_NAME_MAX_LEN
+    )
+    description: Optional[str] = Field(
+        default=None, max_length=ENTITY_DESCRIPTION_MAX_LEN
+    )
     scopes: Optional[List[str]] = None
     expires_in_days: Optional[int] = Field(default=None, gt=0, le=3650)
 

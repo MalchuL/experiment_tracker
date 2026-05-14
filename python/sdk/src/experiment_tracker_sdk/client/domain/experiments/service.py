@@ -9,6 +9,7 @@ from .dto import (
     SuccessResponse,
     ExperimentUpdateRequest,
 )
+from .limits import truncate_experiment_description, truncate_experiment_name
 from ...constants import UNSET, Unset
 from ...request_types import ApiRequestSpec
 
@@ -38,6 +39,8 @@ class ExperimentRequestSpecFactory:
         if isinstance(project_id, UUID):
             project_id = str(project_id)
         endpoint: str = cast(str, self.ENDPOINTS["create_experiment"])
+        t_name = truncate_experiment_name(name)
+        t_description = truncate_experiment_description(description)
         kwargs: dict[str, Any] = {}
         if color is not UNSET:
             kwargs["color"] = color
@@ -51,8 +54,8 @@ class ExperimentRequestSpecFactory:
             kwargs["tags"] = tags
         payload = ExperimentCreateRequest(
             projectId=project_id,
-            name=name,
-            description=description,
+            name=t_name,
+            description=t_description,
             status=status,
             **kwargs,
         )
@@ -83,9 +86,9 @@ class ExperimentRequestSpecFactory:
         )
         kwargs: dict[str, Any] = {}
         if name is not UNSET:
-            kwargs["name"] = name
+            kwargs["name"] = truncate_experiment_name(name)
         if description is not UNSET:
-            kwargs["description"] = description
+            kwargs["description"] = truncate_experiment_description(description)
         if color is not UNSET:
             kwargs["color"] = color
         if parent_experiment_id is not UNSET:
@@ -108,7 +111,9 @@ class ExperimentRequestSpecFactory:
             response_model=ExperimentResponse,
         )
 
-    def get_experiment(self, experiment_id: str | UUID) -> ApiRequestSpec[ExperimentResponse]:
+    def get_experiment(
+        self, experiment_id: str | UUID
+    ) -> ApiRequestSpec[ExperimentResponse]:
         if isinstance(experiment_id, UUID):
             experiment_id = str(experiment_id)
         endpoint: str = cast(Callable[[Any], str], self.ENDPOINTS["get_experiment"])(
@@ -164,7 +169,9 @@ class ExperimentRequestSpecFactory:
             query_params=query_params,
         )
 
-    def delete_experiment(self, experiment_id: str | UUID) -> ApiRequestSpec[SuccessResponse]:
+    def delete_experiment(
+        self, experiment_id: str | UUID
+    ) -> ApiRequestSpec[SuccessResponse]:
         if isinstance(experiment_id, UUID):
             experiment_id = str(experiment_id)
         endpoint: str = cast(Callable[[Any], str], self.ENDPOINTS["delete_experiment"])(

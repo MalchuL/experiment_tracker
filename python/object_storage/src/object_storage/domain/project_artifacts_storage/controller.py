@@ -5,7 +5,8 @@ from __future__ import annotations
 import os
 from uuid import UUID
 
-from fastapi import APIRouter, Body, Depends, File, HTTPException, Query, UploadFile
+from experiment_tracker_shared.limits import ENTITY_NAME_MAX_LEN
+from fastapi import APIRouter, Body, Depends, File, HTTPException, Path, Query, UploadFile
 from starlette.background import BackgroundTask
 from starlette.responses import StreamingResponse
 
@@ -27,6 +28,8 @@ from .dto import (
 from .service import ObjectStorageService
 
 router = APIRouter(prefix="/project-artifacts")
+
+_ARTIFACT_HASH_HEX_MAX_LEN = 64
 
 
 @router.post("/{project_id}/check", response_model=BlobCheckResponseDTO)
@@ -54,8 +57,10 @@ async def upload_project_artifact(
 
 @router.get("/{project_id}/artifacts/{artifact_hash}")
 async def download_project_artifact(
-    artifact_hash: str,
     project_id: UUID,
+    artifact_hash: str = Path(
+        ..., min_length=1, max_length=_ARTIFACT_HASH_HEX_MAX_LEN
+    ),
     service: ObjectStorageService = Depends(get_project_artifacts_service),
 ):
     """Stream a single artifact from object storage by content hash."""
@@ -139,7 +144,7 @@ async def list_storage_buckets(
             "Does not update the registry size column; use POST .../buckets/{bucket_id}/reconcile to persist."
         ),
     ),
-    q: str | None = Query(default=None, max_length=200),
+    q: str | None = Query(default=None, max_length=ENTITY_NAME_MAX_LEN),
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
     service: ObjectStorageService = Depends(get_project_artifacts_service),
@@ -154,7 +159,7 @@ async def list_storage_buckets(
     response_model=DeleteStorageBucketResponseDTO,
 )
 async def delete_storage_only_bucket(
-    name: str = Query(..., min_length=1, max_length=255),
+    name: str = Query(..., min_length=1, max_length=ENTITY_NAME_MAX_LEN),
     service: ObjectStorageService = Depends(get_project_artifacts_service),
 ):
     """Remove a bucket from object storage only when it has no metadata row."""
@@ -167,7 +172,7 @@ async def delete_storage_only_bucket(
     response_model=ClearStorageBucketResponseDTO,
 )
 async def clear_storage_only_bucket(
-    name: str = Query(..., min_length=1, max_length=255),
+    name: str = Query(..., min_length=1, max_length=ENTITY_NAME_MAX_LEN),
     service: ObjectStorageService = Depends(get_project_artifacts_service),
 ):
     """Delete all objects in a bucket that has no registry row (keep empty bucket)."""
@@ -271,8 +276,10 @@ async def delete_project(
     "/{project_id}/artifacts/{artifact_hash}", response_model=DeleteBlobResponseDTO
 )
 async def delete_project_artifact(
-    artifact_hash: str,
     project_id: UUID,
+    artifact_hash: str = Path(
+        ..., min_length=1, max_length=_ARTIFACT_HASH_HEX_MAX_LEN
+    ),
     service: ObjectStorageService = Depends(get_project_artifacts_service),
 ):
     """Delete one artifact from CAS storage and tracked metadata."""

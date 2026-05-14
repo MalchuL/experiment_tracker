@@ -16,6 +16,10 @@ import { ChevronDown } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from "@/lib/hooks/use-toast";
 import { formatLocalDateTime } from "@/lib/format-local-datetime";
+import {
+  ENTITY_DESCRIPTION_MAX_LEN,
+  ENTITY_NAME_MAX_LEN,
+} from "@/lib/validation/entity-limits";
 import { apiTokensService } from "@/domain/api-tokens/services";
 import type { ApiTokenCreateResponse, ApiTokenListItem } from "@/domain/api-tokens/types";
 
@@ -238,6 +242,7 @@ export default function ApiTokensPage() {
                     value={name}
                     onChange={(event) => setName(event.target.value)}
                     placeholder="Training cluster token"
+                    maxLength={ENTITY_NAME_MAX_LEN}
                   />
                 </div>
                 <div className="space-y-2">
@@ -257,6 +262,7 @@ export default function ApiTokensPage() {
                   value={description}
                   onChange={(event) => setDescription(event.target.value)}
                   placeholder="Optional description"
+                  maxLength={ENTITY_DESCRIPTION_MAX_LEN}
                 />
               </div>
               <div className="space-y-2">
@@ -278,7 +284,7 @@ export default function ApiTokensPage() {
                   ))}
                 </div>
               </div>
-              <Button onClick={handleCreateToken} disabled={isSubmitting}>
+              <Button onClick={handleCreateToken} disabled={isSubmitting || !name.trim()}>
                 {isSubmitting ? "Creating..." : "Create token"}
               </Button>
             </CardContent>

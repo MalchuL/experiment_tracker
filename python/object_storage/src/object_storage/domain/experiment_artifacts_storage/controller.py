@@ -6,7 +6,7 @@ import json
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Path, Query, UploadFile
 from starlette.responses import StreamingResponse
 
 from object_storage.api.service_dependencies import get_experiment_artifacts_service
@@ -22,6 +22,9 @@ from .dto import (
 from .service import ArtifactsStorageService
 
 router = APIRouter(prefix="/experiment-artifacts")
+
+_EXPERIMENT_TRACKED_FILE_PATH_MAX_LEN = 1024
+_ARTIFACT_HASH_HEX_MAX_LEN = 64
 
 
 def _parse_metadata_query(raw: str | None) -> dict[str, Any] | None:
@@ -46,7 +49,9 @@ async def upload_artifact_untracked(
     project_id: UUID,
     experiment_id: UUID,
     file: UploadFile = File(...),
-    artifact_hash: str | None = Query(default=None),
+    artifact_hash: str | None = Query(
+        default=None, max_length=_ARTIFACT_HASH_HEX_MAX_LEN
+    ),
     service: ArtifactsStorageService = Depends(get_experiment_artifacts_service),
 ) -> UntrackedUploadArtifactResponseDTO:
     """
@@ -86,8 +91,12 @@ async def upload_artifact_tracked(
             "content type, then application/octet-stream."
         ),
     ),
-    artifact_hash: str | None = Query(default=None),
-    file_path: str | None = Query(default=None),
+    artifact_hash: str | None = Query(
+        default=None, max_length=_ARTIFACT_HASH_HEX_MAX_LEN
+    ),
+    file_path: str | None = Query(
+        default=None, max_length=_EXPERIMENT_TRACKED_FILE_PATH_MAX_LEN
+    ),
     metadata: str | None = Query(
         default=None,
         description=(
@@ -166,9 +175,13 @@ async def list_tracked_artifacts(
 async def get_tracked_artifact_info(
     project_id: UUID,
     experiment_id: UUID,
-    file_path: str | None = Query(default=None),
+    file_path: str | None = Query(
+        default=None, max_length=_EXPERIMENT_TRACKED_FILE_PATH_MAX_LEN
+    ),
     blob_id: UUID | None = Query(default=None),
-    artifact_hash: str | None = Query(default=None),
+    artifact_hash: str | None = Query(
+        default=None, max_length=_ARTIFACT_HASH_HEX_MAX_LEN
+    ),
     service: ArtifactsStorageService = Depends(get_experiment_artifacts_service),
 ) -> TrackedArtifactInfoResponseDTO:
     """Return tracked artifact DB metadata by filepath, row id, or artifact hash."""
@@ -204,7 +217,9 @@ async def get_experiment_artifacts_usage(
 async def download_artifact(
     project_id: UUID,
     experiment_id: UUID,
-    artifact_hash: str,
+    artifact_hash: str = Path(
+        ..., min_length=1, max_length=_ARTIFACT_HASH_HEX_MAX_LEN
+    ),
     tracked: bool = Query(default=False),
     service: ArtifactsStorageService = Depends(get_experiment_artifacts_service),
 ) -> StreamingResponse:
@@ -253,7 +268,9 @@ async def download_artifact(
 async def delete_artifact(
     project_id: UUID,
     experiment_id: UUID,
-    artifact_hash: str,
+    artifact_hash: str = Path(
+        ..., min_length=1, max_length=_ARTIFACT_HASH_HEX_MAX_LEN
+    ),
     service: ArtifactsStorageService = Depends(get_experiment_artifacts_service),
 ) -> DeleteArtifactResponseDTO:
     """Delete one artifact for an experiment.

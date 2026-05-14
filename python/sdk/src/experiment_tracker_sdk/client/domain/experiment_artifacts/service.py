@@ -16,6 +16,10 @@ from .dto import (
     DeleteExperimentArtifactsAtStepResponse,
     LogArtifactAtStepResponse,
 )
+from .limits import (
+    truncate_artifact_logical_name,
+    truncate_experiment_tags_json,
+)
 from ...request_types import ApiRequestSpec, FileUploadSpec
 
 
@@ -106,14 +110,14 @@ class ExperimentArtifactsRequestSpecFactory:
             self.ENDPOINTS["upload_and_log_experiment_artifact_at_step"](experiment_id),
         )
         form_data: dict[str, str] = {
-            "name": name,
+            "name": truncate_artifact_logical_name(name),
             "artifact_type": artifact_type,
             "step": str(step),
         }
         if metadata is not None:
             form_data["metadata"] = json.dumps(metadata)
         if tags is not None:
-            form_data["tags"] = json.dumps(tags)
+            form_data["tags"] = truncate_experiment_tags_json(tags) or "[]"
         return ApiRequestSpec(
             method="POST",
             endpoint=endpoint,
@@ -134,7 +138,10 @@ class ExperimentArtifactsRequestSpecFactory:
         endpoint = cast(
             str, self.ENDPOINTS["download_experiment_artifact_at_step"](experiment_id)
         )
-        params: dict[str, object] = {"step": step, "name": name}
+        params: dict[str, object] = {
+            "step": step,
+            "name": truncate_artifact_logical_name(name),
+        }
         if artifact_type is not None:
             params["artifact_type"] = artifact_type
         return ApiRequestSpec(
@@ -237,7 +244,7 @@ class ExperimentArtifactsRequestSpecFactory:
             "filepath": filepath,
         }
         if name is not None:
-            form_data["name"] = name
+            form_data["name"] = truncate_artifact_logical_name(name)
         return ApiRequestSpec(
             method="POST",
             endpoint=cast(str, self.ENDPOINTS["upsert_named_experiment_artifact"]),
@@ -282,7 +289,10 @@ class ExperimentArtifactsRequestSpecFactory:
             endpoint=cast(
                 str, self.ENDPOINTS["download_named_experiment_artifacts_archive"]
             ),
-            query_params={"experiment_id": experiment_id, "name": name},
+            query_params={
+                "experiment_id": experiment_id,
+                "name": truncate_artifact_logical_name(name),
+            },
         )
 
     def delete_named_experiment_artifacts(

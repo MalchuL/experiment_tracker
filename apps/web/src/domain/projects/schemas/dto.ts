@@ -1,4 +1,8 @@
 import { z } from "zod";
+import {
+  ENTITY_DESCRIPTION_MAX_LEN,
+  ENTITY_NAME_MAX_LEN,
+} from "@/lib/validation/entity-limits";
 import { InsertProject, ProjectMetrics, ProjectSetting } from "../types";
 import type { ProjectMetric, ProjectDisplayMetric } from "../types";
 
@@ -23,15 +27,15 @@ export const projectMetricsSchema = z.object({
 }) satisfies z.ZodType<ProjectMetrics>;
 
 export const projectSettingSchema = z.object({
-    name: z.string().min(1).max(255),
+    name: z.string().min(1),
     description: z.string().default(""),
     type: z.enum(["int", "float", "string", "boolean", "json"]),
     value: z.unknown(),
 }) satisfies z.ZodType<ProjectSetting>;
 
 export const insertProjectSchema = z.object({
-    name: z.string().min(1, "Name is required").max(100),
-    description: z.string().max(500).default(""),
+    name: z.string().min(1, "Name is required").max(ENTITY_NAME_MAX_LEN),
+    description: z.string().max(ENTITY_DESCRIPTION_MAX_LEN).default(""),
     metrics: projectMetricsSchema.default({
         trackedMetrics: [],
         displayMetrics: [],

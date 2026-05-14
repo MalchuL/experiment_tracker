@@ -6,6 +6,9 @@ from pydantic import BaseModel, Field
 
 from object_storage.lib.dto_config import model_config
 
+# Matches ``ExperimentBlob.file_path`` / tracked-artifact relative path storage.
+_ARTIFACT_FILE_PATH_MAX_LEN = 1024
+
 
 class BlobCheckResponseDTO(BaseModel):
     """Response DTO listing hashes that are missing from CAS storage."""
@@ -16,8 +19,8 @@ class BlobCheckResponseDTO(BaseModel):
 class SnapshotFileEntryDTO(BaseModel):
     """DTO describing one file in a snapshot manifest."""
 
-    path: str
-    hash: str
+    path: str = Field(..., min_length=1, max_length=_ARTIFACT_FILE_PATH_MAX_LEN)
+    hash: str = Field(..., min_length=64, max_length=64)
 
 
 class SnapshotCreateRequestDTO(BaseModel):

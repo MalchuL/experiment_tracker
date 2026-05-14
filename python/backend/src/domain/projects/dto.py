@@ -2,6 +2,10 @@ from enum import Enum
 from typing import Any, List, Optional
 from uuid import UUID
 
+from experiment_tracker_shared.limits import (
+    ENTITY_DESCRIPTION_MAX_LEN,
+    ENTITY_NAME_MAX_LEN,
+)
 from pydantic import BaseModel, Field, field_validator
 
 from lib.datetime_types import ApiDateTime
@@ -28,19 +32,33 @@ class ProjectTeamDTO(BaseModel):
 
 
 class ProjectMetricDTO(BaseModel):
-    name: str
+    name: str = Field(..., min_length=1)
     direction: MetricDirection
     aggregation: MetricAggregation
-    label: str | None = None
+    label: str | None = Field(default=None)
 
     model_config = model_config()
+
+    @field_validator("label", mode="before")
+    @classmethod
+    def empty_string_label_is_none(cls, v: object) -> str | None:
+        if v == "":
+            return None
+        return v  # type: ignore[return-value]
 
 
 class ProjectMetricKeyDTO(BaseModel):
-    name: str
-    label: str | None = None
+    name: str = Field(..., min_length=1)
+    label: str | None = Field(default=None)
 
     model_config = model_config()
+
+    @field_validator("label", mode="before")
+    @classmethod
+    def empty_string_label_is_none(cls, v: object) -> str | None:
+        if v == "":
+            return None
+        return v  # type: ignore[return-value]
 
 
 class ProjectMetricsDTO(BaseModel):
@@ -72,8 +90,8 @@ class ProjectSettingType(str, Enum):
 
 
 class ProjectSettingDTO(BaseModel):
-    name: str = Field(..., min_length=1, max_length=255)
-    description: str = ""
+    name: str = Field(..., min_length=1)
+    description: str = Field(default="")
     type: ProjectSettingType
     value: Any
 
@@ -81,8 +99,8 @@ class ProjectSettingDTO(BaseModel):
 
 
 class ProjectBaseDTO(BaseModel):
-    name: str = Field(..., min_length=1, max_length=100)
-    description: str = Field(default="", max_length=500)
+    name: str = Field(..., min_length=1, max_length=ENTITY_NAME_MAX_LEN)
+    description: str = Field(default="", max_length=ENTITY_DESCRIPTION_MAX_LEN)
     metrics: ProjectMetricsDTO = ProjectMetricsDTO()
     settings: List[ProjectSettingDTO] = []
 
@@ -111,8 +129,8 @@ class ProjectDataDTO(ProjectBaseDTO):
 
 
 class ProjectUpdateDTO(BaseModel):
-    name: Optional[str] = Field(None, min_length=1, max_length=100)
-    description: Optional[str] = Field(None, max_length=500)
+    name: Optional[str] = Field(None, min_length=1, max_length=ENTITY_NAME_MAX_LEN)
+    description: Optional[str] = Field(None, max_length=ENTITY_DESCRIPTION_MAX_LEN)
     metrics: Optional[ProjectMetricsDTO] = None
     settings: Optional[List[ProjectSettingDTO]] = None
 

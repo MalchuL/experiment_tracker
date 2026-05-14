@@ -10,6 +10,7 @@ from .dto import (
     ProjectUpdateRequest,
     SuccessResponse,
 )
+from .limits import truncate_project_description, truncate_project_name
 from ...request_types import ApiRequestSpec
 
 
@@ -60,8 +61,8 @@ class ProjectRequestSpecFactory:
     ) -> ApiRequestSpec[ProjectResponse]:
         endpoint = cast(str, self.ENDPOINTS["create_project"])
         payload = ProjectCreateRequest(
-            name=name,
-            description=description,
+            name=truncate_project_name(name),
+            description=truncate_project_description(description),
             metrics=metrics or ProjectMetricsResponse(),
             settings=settings or [],
             teamId=team_id,
@@ -86,12 +87,16 @@ class ProjectRequestSpecFactory:
         endpoint = cast(Callable[[Any], str], self.ENDPOINTS["update_project"])(
             project_id
         )
-        payload = ProjectUpdateRequest(
-            name=name,
-            description=description,
-            metrics=metrics,
-            settings=settings,
-        )
+        payload_kwargs: dict[str, Any] = {}
+        if name is not None:
+            payload_kwargs["name"] = truncate_project_name(name)
+        if description is not None:
+            payload_kwargs["description"] = truncate_project_description(description)
+        if metrics is not None:
+            payload_kwargs["metrics"] = metrics
+        if settings is not None:
+            payload_kwargs["settings"] = settings
+        payload = ProjectUpdateRequest(**payload_kwargs)
         return ApiRequestSpec(
             method="PATCH",
             endpoint=endpoint,

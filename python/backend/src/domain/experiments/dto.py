@@ -1,5 +1,10 @@
 import re
 from uuid import UUID
+
+from experiment_tracker_shared.limits import (
+    ENTITY_DESCRIPTION_MAX_LEN,
+    ENTITY_NAME_MAX_LEN,
+)
 from lib.types import UUID_TYPE
 from pydantic import BaseModel, Field, field_validator
 from typing import List, Optional, Dict, Any
@@ -13,8 +18,10 @@ from lib.category_cleanup_dto import CategoryCleanupResponseDTO
 
 class ExperimentBaseDTO(BaseModel):
     project_id: UUID
-    name: str = Field(..., min_length=1, max_length=100)
-    description: str = Field(default="", max_length=1000)
+    name: str = Field(..., min_length=1, max_length=ENTITY_NAME_MAX_LEN)
+    description: str = Field(
+        default="", max_length=ENTITY_DESCRIPTION_MAX_LEN
+    )
     status: ExperimentStatus = ExperimentStatus.PLANNED
     parent_experiment_id: Optional[UUID_TYPE] = None
     features: Dict[str, Any] = {}
@@ -38,8 +45,8 @@ class ExperimentCreateDTO(ExperimentBaseDTO):
 
 
 class ExperimentUpdateDTO(BaseModel):
-    name: Optional[str] = Field(None, min_length=1, max_length=100)
-    description: Optional[str] = Field(None, max_length=1000)
+    name: Optional[str] = Field(None, min_length=1, max_length=ENTITY_NAME_MAX_LEN)
+    description: Optional[str] = Field(None, max_length=ENTITY_DESCRIPTION_MAX_LEN)
     parent_experiment_id: Optional[UUID_TYPE] = None
     color: Optional[str] = None
     status: Optional[ExperimentStatus] = None
@@ -50,6 +57,13 @@ class ExperimentUpdateDTO(BaseModel):
     tags: Optional[List[str]] = None
 
     model_config = model_config()
+
+    @field_validator("color")
+    @classmethod
+    def validate_color(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and not re.match(r"^#[0-9a-fA-F]{6,8}$", v):
+            raise ValueError("Invalid color")
+        return v
 
 
 class ExperimentDTO(ExperimentBaseDTO):

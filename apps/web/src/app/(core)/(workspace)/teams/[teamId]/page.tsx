@@ -6,6 +6,10 @@ import { useParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import {
+  ENTITY_DESCRIPTION_MAX_LEN,
+  ENTITY_NAME_MAX_LEN,
+} from "@/lib/validation/entity-limits";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -53,8 +57,8 @@ import { ListSkeleton } from "@/components/shared/loading-skeleton";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 const settingsSchema = z.object({
-  name: z.string().min(1).max(100),
-  description: z.string().max(500).optional().default(""),
+  name: z.string().min(1).max(ENTITY_NAME_MAX_LEN),
+  description: z.string().max(ENTITY_DESCRIPTION_MAX_LEN).optional().default(""),
 });
 
 type SettingsForm = z.infer<typeof settingsSchema>;
