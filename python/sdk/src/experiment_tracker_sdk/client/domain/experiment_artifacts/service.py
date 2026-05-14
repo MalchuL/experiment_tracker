@@ -112,7 +112,9 @@ class ExperimentArtifactsRequestSpecFactory:
         form_data: dict[str, str] = {
             "name": truncate_artifact_logical_name(name),
             "artifact_type": artifact_type,
-            "step": str(step),
+            "step": str(
+                step
+            ),  # in multipart form, step must be a string, on the backend it is parsed as an int
         }
         if metadata is not None:
             form_data["metadata"] = json.dumps(metadata)
