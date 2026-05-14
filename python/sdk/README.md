@@ -72,6 +72,22 @@ experiment-tracker ping
 experiment-tracker whoami
 ```
 
+## Run a training script (`experiment-tracker run`)
+
+For **simple experiments** (single-process or lightly threaded scripts), you can
+launch a Python file so it runs as `__name__ == "__main__"`, with wrapper
+options consumed before your script starts. Put arguments meant for your
+script after `--`:
+
+```
+uv run experiment-tracker run --project mnist --offline train.py -- --epochs 10 --lr 1e-3
+```
+
+This mode uses `runpy` in the **current** process: bootstrap behavior and
+`sys` changes persist. It is **not** a general-purpose launcher for distributed
+or multiprocessing-heavy training. Use `experiment-tracker run --help` for the
+full epilog.
+
 ## Use in code
 
 Create a client and log metrics:

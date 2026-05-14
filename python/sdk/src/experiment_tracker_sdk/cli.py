@@ -1,17 +1,16 @@
 import argparse
 import json
-from typing import Optional
+import sys
 
 import httpx
 
 from .config import compose_base_url, load_config, save_config
 
-
 DEFAULT_BASE_URL = "http://127.0.0.1:8000"
 DEFAULT_API_PREFIX = "/api"
 
 
-def _get_value(value: Optional[str], prompt: str, secret: bool = False) -> str:
+def _get_value(value: str | None, prompt: str, secret: bool = False) -> str:
     """Return provided value or prompt the user for input.
 
     Args:
@@ -79,7 +78,9 @@ def cmd_ping(args: argparse.Namespace) -> None:
     config = load_config()
     if config is None:
         raise SystemExit("Config not found. Run `experiment-tracker init`.")
-    with httpx.Client(base_url=compose_base_url(config.base_url, config.api_prefix)) as client:
+    with httpx.Client(
+        base_url=compose_base_url(config.base_url, config.api_prefix),
+    ) as client:
         response = client.get("/")
         print(f"Status: {response.status_code}")
 
@@ -88,9 +89,23 @@ def main() -> None:
     """CLI entrypoint for experiment-tracker commands.
 
     Example:
-        experiment-tracker init --base-url http://127.0.0.1:8000 --api-prefix /api --api-token <TOKEN>
+        experiment-tracker init --base-url URL --api-prefix /api --api-token <TOKEN>
     """
-    parser = argparse.ArgumentParser(prog="experiment-tracker")
+    argv = sys.argv[1:]
+    if argv and argv[0] == "run":
+        from experiment_tracker_sdk.console.run import execute_run_cli
+
+        execute_run_cli(sys.argv)
+        return
+
+    parser = argparse.ArgumentParser(
+        prog="experiment-tracker",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=(
+            "The `run` subcommand executes a training script in-process (simple "
+            "experiments only). See `experiment-tracker run --help`."
+        ),
+    )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     init_parser = subparsers.add_parser("init", help="Save SDK configuration")
@@ -107,3 +122,7 @@ def main() -> None:
 
     args = parser.parse_args()
     args.func(args)
+
+
+if __name__ == "__main__":
+    main()
