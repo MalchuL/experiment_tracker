@@ -481,7 +481,7 @@ class ExperimentArtifactsService:
             name: The name of the artifact.
             artifact_type: The type of the artifact.
             step: The step of the artifact.
-            metadata: The metadata of the artifact.
+            metadata: The metadata of the artifact (only strings supported).
             tags: The tags of the artifact.
         Returns:
             The ArtifactsInfoLogArtifactResponseDTO object representing the logged artifact.

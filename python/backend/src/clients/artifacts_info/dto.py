@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -15,7 +15,7 @@ class LogArtifactRequestDTO(BaseModel):
     artifact_type: ArtifactType
     path: str
     step: int
-    metadata: dict[str, str] | None = None
+    metadata: dict[str, str] | None = None  # Only strings supported in clickhouse
     tags: list[str] | None = None
 
 
@@ -30,7 +30,9 @@ class ArtifactInfoEntryDTO(BaseModel):
     name: str
     artifact_type: ArtifactType
     path: str
-    metadata: dict[str, str] = Field(default_factory=dict)
+    metadata: dict[str, str] = Field(
+        default_factory=dict  # Only strings supported in clickhouse
+    )
     tags: list[str] = Field(default_factory=list)
 
 

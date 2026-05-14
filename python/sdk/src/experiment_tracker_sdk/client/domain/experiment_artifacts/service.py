@@ -109,12 +109,10 @@ class ExperimentArtifactsRequestSpecFactory:
             str,
             self.ENDPOINTS["upload_and_log_experiment_artifact_at_step"](experiment_id),
         )
-        form_data: dict[str, str] = {
+        form_data: dict[str, Any] = {
             "name": truncate_artifact_logical_name(name),
             "artifact_type": artifact_type,
-            "step": str(
-                step
-            ),  # in multipart form, step must be a string, on the backend it is parsed as an int
+            "step": step,
         }
         if metadata is not None:
             form_data["metadata"] = json.dumps(metadata)
