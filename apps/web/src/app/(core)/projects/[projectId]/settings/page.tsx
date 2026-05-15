@@ -97,16 +97,20 @@ export default function ProjectSettings() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const handleUpdateSuccess = useCallback(() => {
+  const invalidateProjectCaches = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.PROJECTS.LIST] });
     if (projectId) {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.PROJECTS.GET_BY_ID(projectId)] });
     }
+  }, [projectId, queryClient]);
+
+  const handleUpdateSuccess = useCallback(() => {
+    invalidateProjectCaches();
     toast({
       title: "Settings saved",
       description: "Project settings have been updated successfully.",
     });
-  }, [projectId, queryClient, toast]);
+  }, [invalidateProjectCaches, toast]);
 
   const handleUpdateError = useCallback(() => {
     toast({
@@ -127,7 +131,7 @@ export default function ProjectSettings() {
     [projectId, updateProject, handleUpdateSuccess, handleUpdateError]
   );
 
-  const handleSettingsSubmit = useCallback(
+  const handleDisplayMetricsChange = useCallback(
     async (displayMetrics: ProjectDisplayMetric[]) => {
       if (!projectId || !project) return;
       try {
@@ -272,13 +276,14 @@ export default function ProjectSettings() {
               Display Metrics
             </CardTitle>
             <CardDescription>
-              Choose which metrics to show by default on the Scalars page.
+              Choose which metrics to show by default on the Scalars page. Order applies to experiment tables
+              and related views; drag rows to reorder. Changes save automatically.
             </CardDescription>
           </CardHeader>
           <CardContent>
             <DisplayMetricsForm
               project={project}
-              onSubmit={handleSettingsSubmit}
+              onDisplayMetricsChange={handleDisplayMetricsChange}
               isPending={updateIsPending}
             />
           </CardContent>

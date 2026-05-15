@@ -51,7 +51,7 @@ export function projectMetricKeyString(m: { name: string; label?: string | null 
   return `${m.name}::${m.label ?? ""}`;
 }
 
-/** Tracked columns shown on Experiments / Kanban / DAG. Empty `display` ⇒ none. */
+/** Tracked columns shown on Experiments / Kanban / DAG. Empty `display` ⇒ none. Order follows `display`. */
 export function getDisplayedTrackedMetrics(
   tracked: ProjectMetric[],
   display: ProjectDisplayMetric[]
@@ -59,9 +59,16 @@ export function getDisplayedTrackedMetrics(
   if (display.length === 0) {
     return [];
   }
-  return tracked.filter((m) =>
-    isExplicitlyInDisplayList({ name: m.name, label: m.label }, display)
-  );
+  const trackedByKey = new Map(tracked.map((m) => [projectMetricKeyString(m), m]));
+  const out: ProjectMetric[] = [];
+  for (const d of display) {
+    const n = normalizeDisplayMetric(d);
+    const m = trackedByKey.get(projectMetricKeyString(n));
+    if (m) {
+      out.push(m);
+    }
+  }
+  return out;
 }
 
 /** How a tracked row is stored in `displayMetrics` (legacy string = name only). */
