@@ -148,7 +148,7 @@ export default function ProjectReportsPage() {
                   href={FRONTEND_ROUTES.PROJECT_PAGES.REPORT_BY_ID(projectId, r.id)}
                   className="flex min-w-0 flex-1 flex-col gap-1 px-4 py-3 transition-colors hover:bg-muted/60"
                 >
-                  <span className="font-medium">{r.title}</span>
+                  <span className="font-medium truncate">{r.title}</span>
                   <span className="text-xs text-muted-foreground">
                     Updated{" "}
                     {formatDistanceToNow(new Date(r.updatedAt), { addSuffix: true })}

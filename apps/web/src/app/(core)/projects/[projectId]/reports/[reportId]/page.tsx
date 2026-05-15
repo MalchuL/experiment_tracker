@@ -13,6 +13,7 @@ import type { ReportDocumentJSON } from "@/domain/reports/types";
 import { FRONTEND_ROUTES } from "@/lib/constants/frontend-routes";
 import { QUERY_KEYS } from "@/lib/constants/query-keys";
 import { useToast } from "@/lib/hooks/use-toast";
+import { ENTITY_NAME_MAX_LEN } from "@/lib/validation/entity-limits";
 
 export default function ProjectReportEditorPage() {
   const params = useParams<{ projectId: string; reportId: string }>();
@@ -114,7 +115,7 @@ export default function ProjectReportEditorPage() {
             type="text"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            maxLength={200}
+            maxLength={ENTITY_NAME_MAX_LEN}
             placeholder="Untitled report"
             className="w-full min-h-[1.2em] border-0 bg-transparent p-0 text-3xl font-semibold leading-tight tracking-normal text-foreground shadow-none outline-none ring-0 placeholder:text-muted-foreground/60 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
           />

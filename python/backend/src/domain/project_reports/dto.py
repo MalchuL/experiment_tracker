@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any, Optional
 from uuid import UUID
 
+from experiment_tracker_shared.limits import ENTITY_NAME_MAX_LEN
 from pydantic import BaseModel, Field
 
 from lib.datetime_types import ApiDateTime
@@ -35,14 +36,14 @@ class ProjectReportDTO(BaseModel):
 
 class ProjectReportCreateDTO(BaseModel):
     project_id: UUID
-    title: str = Field(..., min_length=1, max_length=200)
+    title: str = Field(..., min_length=1, max_length=ENTITY_NAME_MAX_LEN)
     content: Optional[dict[str, Any]] = None
 
     model_config = model_config()
 
 
 class ProjectReportUpdateDTO(BaseModel):
-    title: Optional[str] = Field(None, min_length=1, max_length=200)
+    title: Optional[str] = Field(None, min_length=1, max_length=ENTITY_NAME_MAX_LEN)
     content: Optional[dict[str, Any]] = None
 
     model_config = model_config()

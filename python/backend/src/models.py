@@ -328,7 +328,7 @@ class ProjectReport(UUIDBase):
         ForeignKey("projects.id", ondelete="CASCADE"),
         nullable=False,
     )
-    title: Mapped[str] = mapped_column(String(200), nullable=False)
+    title: Mapped[str] = mapped_column(String(512), nullable=False)
     content: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
     created_at: Mapped[datetime] = mapped_column(
         UtcNaiveDateTime, default=utc_now_naive
