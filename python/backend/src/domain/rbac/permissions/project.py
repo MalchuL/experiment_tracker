@@ -20,6 +20,11 @@ class ProjectActions:
     EDIT_HYPOTHESIS = "hypotheses.edit"
     DELETE_HYPOTHESIS = "hypotheses.delete"
     VIEW_HYPOTHESIS = "hypotheses.view"
+    # Reports
+    CREATE_REPORT = "reports.create"
+    EDIT_REPORT = "reports.edit"
+    DELETE_REPORT = "reports.delete"
+    VIEW_REPORT = "reports.view"
     # Metrics
     CREATE_METRIC = "metrics.create"
     EDIT_METRIC = "metrics.edit"
@@ -45,6 +50,10 @@ PROJECT_ACTIONS = (
     ProjectActions.EDIT_HYPOTHESIS,
     ProjectActions.DELETE_HYPOTHESIS,
     ProjectActions.VIEW_HYPOTHESIS,
+    ProjectActions.CREATE_REPORT,
+    ProjectActions.EDIT_REPORT,
+    ProjectActions.DELETE_REPORT,
+    ProjectActions.VIEW_REPORT,
     ProjectActions.CREATE_METRIC,
     ProjectActions.EDIT_METRIC,
     ProjectActions.DELETE_METRIC,
@@ -80,6 +89,7 @@ def role_to_project_permissions(role: Role) -> Dict[str, bool]:
                 ProjectActions.VIEW_PROJECT,
                 ProjectActions.VIEW_EXPERIMENT,
                 ProjectActions.VIEW_HYPOTHESIS,
+                ProjectActions.VIEW_REPORT,
                 ProjectActions.VIEW_METRIC,
                 ProjectActions.VIEW_SCALAR,
                 ProjectActions.VIEW_ARTIFACT,

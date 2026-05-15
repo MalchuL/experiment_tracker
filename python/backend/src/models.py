@@ -224,6 +224,12 @@ class Project(UUIDBase):
         cascade="all, delete-orphan",
         lazy="raise",
     )
+    reports: Mapped[List["ProjectReport"]] = relationship(
+        "ProjectReport",
+        back_populates="project",
+        cascade="all, delete-orphan",
+        lazy="raise",
+    )
 
 
 class Experiment(UUIDBase):
@@ -309,6 +315,30 @@ class Hypothesis(UUIDBase):
 
     project: Mapped["Project"] = relationship(
         "Project", back_populates="hypotheses", lazy="raise"
+    )
+
+
+class ProjectReport(UUIDBase):
+    """Rich-text experiment report (Tiptap JSON document) scoped to a project."""
+
+    __tablename__ = "project_reports"
+
+    project_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("projects.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    title: Mapped[str] = mapped_column(String(200), nullable=False)
+    content: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
+    created_at: Mapped[datetime] = mapped_column(
+        UtcNaiveDateTime, default=utc_now_naive
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        UtcNaiveDateTime, default=utc_now_naive, onupdate=utc_now_naive
+    )
+
+    project: Mapped["Project"] = relationship(
+        "Project", back_populates="reports", lazy="raise"
     )
 
 

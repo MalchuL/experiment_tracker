@@ -55,6 +55,6 @@ export default function ProjectLayout({
           </SidebarInset>
         </ProjectProvider>
       </div>
-    </SidebarProvider >
+    </SidebarProvider>
   );
 }

@@ -29,6 +29,9 @@ export const FRONTEND_ROUTES = {
     HYPOTHESIS_BY_ID: (projectId: string, hypothesisId: string) => `/projects/${projectId}/hypotheses/${hypothesisId}`,
     KANBAN: (projectId: string) => `/projects/${projectId}/kanban`,
     SCALARS: (projectId: string) => `/projects/${projectId}/scalars`,
+    REPORTS: (projectId: string) => `/projects/${projectId}/reports`,
+    REPORT_BY_ID: (projectId: string, reportId: string) =>
+      `/projects/${projectId}/reports/${reportId}`,
     DAG: (projectId: string) => `/projects/${projectId}/dag`,
     SETTINGS: (projectId: string) => `/projects/${projectId}/settings`,
   },

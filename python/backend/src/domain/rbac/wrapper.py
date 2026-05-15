@@ -122,6 +122,46 @@ class PermissionChecker:
             actions=ProjectActions.VIEW_HYPOTHESIS,
         )
 
+    async def can_create_report(self, user_id: UUID, project_id: UUID) -> bool:
+        """Return whether the user can create reports in a project."""
+        if project_id is None or user_id is None:
+            return False
+        return await self.permission_service.has_permission(
+            user_id=user_id,
+            project_id=project_id,
+            actions=ProjectActions.CREATE_REPORT,
+        )
+
+    async def can_edit_report(self, user_id: UUID, project_id: UUID) -> bool:
+        """Return whether the user can edit reports in a project."""
+        if project_id is None or user_id is None:
+            return False
+        return await self.permission_service.has_permission(
+            user_id=user_id,
+            project_id=project_id,
+            actions=ProjectActions.EDIT_REPORT,
+        )
+
+    async def can_delete_report(self, user_id: UUID, project_id: UUID) -> bool:
+        """Return whether the user can delete reports in a project."""
+        if project_id is None or user_id is None:
+            return False
+        return await self.permission_service.has_permission(
+            user_id=user_id,
+            project_id=project_id,
+            actions=ProjectActions.DELETE_REPORT,
+        )
+
+    async def can_view_report(self, user_id: UUID, project_id: UUID) -> bool:
+        """Return whether the user can view reports in a project."""
+        if project_id is None or user_id is None:
+            return False
+        return await self.permission_service.has_permission(
+            user_id=user_id,
+            project_id=project_id,
+            actions=ProjectActions.VIEW_REPORT,
+        )
+
     async def can_create_metric(self, user_id: UUID, project_id: UUID) -> bool:
         """Return whether the user can create metrics in a project."""
         if project_id is None or user_id is None:
