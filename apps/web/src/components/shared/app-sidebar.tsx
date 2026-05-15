@@ -12,12 +12,11 @@ import {
   SidebarMenuItem,
   SidebarFooter,
 } from "@/components/ui/sidebar";
-import { 
-  FlaskConical, 
-  Lightbulb, 
+import {
+  FlaskConical,
+  Lightbulb,
   KanbanSquare,
   GitBranch,
-  Beaker,
   Settings,
   Home,
   BarChart3,
@@ -28,6 +27,7 @@ import {
 import { FRONTEND_ROUTES } from "@/lib/constants/frontend-routes";
 import { useCurrentProject } from '@/domain/projects/hooks/project-provider';
 import { Skeleton } from '../ui/skeleton';
+import { AppLogoMark } from "@/components/shared/app-logo-mark";
 
 
 const getProjectItems = (projectId: string) => [
@@ -98,22 +98,34 @@ export function AppSidebar() {
   return (
     <Sidebar>
       <SidebarHeader className="p-4 border-b border-sidebar-border">
-        <Link href={FRONTEND_ROUTES.PROJECTS}>
-          <div className="flex items-center gap-2 hover-elevate active-elevate-2 rounded-md px-2 py-1.5 cursor-pointer">
-            <div className="flex items-center justify-center w-8 h-8 rounded-md bg-primary text-primary-foreground">
-              <Beaker className="w-4 h-4" />
-            </div>
-            <div className="flex flex-col flex-1 min-w-0">
-              <span className="font-semibold text-sm tracking-tight truncate">
-                ResearchTrack
+        <div className="flex items-center gap-2 rounded-md px-2 py-1.5">
+          <Link
+            href={
+              project
+                ? FRONTEND_ROUTES.PROJECT_PAGES.OVERVIEW(project.id)
+                : FRONTEND_ROUTES.PROJECTS
+            }
+            className="flex min-w-0 flex-1 items-center gap-2 rounded-md px-0 py-0 hover-elevate active-elevate-2 cursor-pointer"
+          >
+            <AppLogoMark />
+            <div className="flex min-w-0 flex-1 flex-col">
+              <span className="truncate text-sm font-semibold tracking-tight">
+                Experiment Tracker
               </span>
-              <span className="text-xs text-muted-foreground truncate">
+              <span className="truncate text-xs text-muted-foreground">
                 {!isLoading ? (project?.name ?? "—") : "Loading..."}
               </span>
             </div>
-            <Home className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-          </div>
-        </Link>
+          </Link>
+          <Link
+            href={FRONTEND_ROUTES.PROJECTS}
+            className="hover-elevate active-elevate-2 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md text-muted-foreground"
+            aria-label="All projects"
+            title="All projects"
+          >
+            <Home className="h-4 w-4" />
+          </Link>
+        </div>
       </SidebarHeader>
       <SidebarContent>
         {!isLoading && project && (

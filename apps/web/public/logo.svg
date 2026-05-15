@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="folderTop" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#6D5BFF"/>
+      <stop offset="1" stop-color="#4B46FF"/>
+    </linearGradient>
+    <linearGradient id="folderMid" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#7B92FF"/>
+      <stop offset="1" stop-color="#5B72FF"/>
+    </linearGradient>
+    <linearGradient id="folderTeal" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#59D9D2"/>
+      <stop offset="1" stop-color="#44C7C1"/>
+    </linearGradient>
+    <linearGradient id="folderBottom" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#B06CFF"/>
+      <stop offset="1" stop-color="#8A4DFF"/>
+    </linearGradient>
+  </defs>
+  <ellipse style="stroke: rgb(0, 0, 0); fill: rgb(255, 255, 255);" cx="255.042" cy="256.225" rx="255.68" ry="255.68"/>
+  <g transform="matrix(0.855968, 0, 0, 0.855968, 6.250968, 29.841908)" style="">
+    <path d="M140 80 H320 M140 80 V430 H320 M140 255 H320 M230 255 V340 H320" stroke="#1E225B" stroke-width="54" stroke-linecap="round" stroke-linejoin="round"/>
+    <g transform="matrix(1, 0, 0, 1, 300, 15.456766)">
+      <path d="M18 20 H72 L88 36 H150 Q162 36 162 48 V102 Q162 114 150 114 H18 Q6 114 6 102 V32 Q6 20 18 20Z" fill="url(#folderTop)"/>
+    </g>
+    <g transform="matrix(1, 0, 0, 1, 300, 189.692444)">
+      <path d="M18 20 H72 L88 36 H150 Q162 36 162 48 V102 Q162 114 150 114 H18 Q6 114 6 102 V32 Q6 20 18 20Z" fill="url(#folderMid)"/>
+    </g>
+    <g transform="matrix(0.82, 0, 0, 0.82, 301.079987, 289.328156)">
+      <path d="M18 20 H72 L88 36 H150 Q162 36 162 48 V102 Q162 114 150 114 H18 Q6 114 6 102 V32 Q6 20 18 20Z" fill="url(#folderTeal)"/>
+    </g>
+    <g transform="matrix(1, 0, 0, 1, 300, 365.456757)">
+      <path d="M18 20 H72 L88 36 H150 Q162 36 162 48 V102 Q162 114 150 114 H18 Q6 114 6 102 V32 Q6 20 18 20Z" fill="url(#folderBottom)"/>
+    </g>
+  </g>
+</svg>
