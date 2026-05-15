@@ -64,3 +64,7 @@ Does not change how one number is printed. It changes **delta** and **vs parent*
 :::note
 This page is only **display**. Logged-metric **typing**, parsing, and when blur skips a save are handled in `experiment-details-view.tsx`.
 :::
+
+## Related
+
+- [DAG view: metrics on nodes](/docs/reference/dag-view) — how many metric rows appear on each experiment card in the lineage graph (`DAG_NODE_MAX_DISPLAY_METRICS`).

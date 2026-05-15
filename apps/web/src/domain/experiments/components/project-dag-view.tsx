@@ -66,6 +66,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { DAG_NODE_MAX_DISPLAY_METRICS, DAG_NODE_WIDTH_PX } from "@/lib/constants/dag";
 import { REFRESH_EXPERIMENTS_LIST_INTERVAL } from "@/lib/constants/rates";
 import { Metric } from "@/domain/metrics/types";
 import {
@@ -84,8 +85,6 @@ import { calculateDagTreeLayout } from "@/domain/experiments/dag/calculate-dag-l
 import { wouldCreateCycle } from "@/domain/experiments/dag/dag-parent-utils";
 import { ListSkeleton } from "@/components/shared/loading-skeleton";
 import type { InsertExperiment } from "@/domain/experiments/types";
-
-const MAX_METRICS_ON_CARD = 3;
 
 export interface MetricComparison {
   name: string;
@@ -167,7 +166,7 @@ function ExperimentNode({ data }: { data: ExperimentNodeData }) {
     }
   };
 
-  const shownMetrics = data.metrics.slice(0, MAX_METRICS_ON_CARD);
+  const shownMetrics = data.metrics.slice(0, DAG_NODE_MAX_DISPLAY_METRICS);
   const restCount = data.metrics.length - shownMetrics.length;
 
   const highlightOpacity =
@@ -178,10 +177,11 @@ function ExperimentNode({ data }: { data: ExperimentNodeData }) {
       <Handle type="target" position={Position.Top} className="w-2 h-2" />
       <div
         className={cn(
-          "w-[200px] px-2 py-1.5 rounded-md border bg-card shadow-sm cursor-pointer hover-elevate transition-all",
+          "min-w-0 shrink-0 px-2 py-1.5 rounded-md border bg-card shadow-sm cursor-pointer hover-elevate transition-all",
           data.isSelected && "ring-2 ring-primary ring-offset-2 ring-offset-background"
         )}
         style={{
+          width: DAG_NODE_WIDTH_PX,
           borderLeftColor: data.color,
           borderLeftWidth: "4px",
           ...highlightOpacity,

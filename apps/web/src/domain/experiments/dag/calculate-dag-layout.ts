@@ -1,5 +1,6 @@
 import type { Edge } from "@xyflow/react";
 import { MarkerType } from "@xyflow/react";
+import { DAG_NODE_HEIGHT_PX, DAG_NODE_WIDTH_PX } from "@/lib/constants/dag";
 import type { Experiment } from "../types";
 
 export type SavedPositions = Record<string, { x: number; y: number }>;
@@ -9,8 +10,6 @@ export interface DagLayoutComputed {
   edges: Edge[];
 }
 
-const NODE_WIDTH = 220;
-const NODE_HEIGHT = 100;
 const HORIZONTAL_SPACING = 36;
 const VERTICAL_SPACING = 72;
 
@@ -45,7 +44,7 @@ export function calculateDagTreeLayout(
 
   function getSubtreeWidth(exp: Experiment): number {
     const children = childrenMap.get(exp.id) ?? [];
-    if (children.length === 0) return NODE_WIDTH;
+    if (children.length === 0) return DAG_NODE_WIDTH_PX;
     return children.reduce(
       (sum, child) => sum + getSubtreeWidth(child) + HORIZONTAL_SPACING,
       -HORIZONTAL_SPACING
@@ -64,21 +63,21 @@ export function calculateDagTreeLayout(
         -HORIZONTAL_SPACING
       );
       /** Anchor children under the parent's actual coordinates (critical after drag / persisted layout). */
-      let currentX = position.x - totalWidth / 2 + NODE_WIDTH / 2;
+      let currentX = position.x - totalWidth / 2 + DAG_NODE_WIDTH_PX / 2;
 
       /**
        * Incoming ``y`` for each node is still the pre-offset slot (unsaved nodes add
        * NEW_NODE_BOTTOM_OFFSET). Children must start below this parent's drawn box:
-       * slot_y = parent_top + NODE_HEIGHT + VERTICAL_SPACING - NEW_NODE_BOTTOM_OFFSET.
+       * slot_y = parent_top + DAG_NODE_HEIGHT_PX + VERTICAL_SPACING - NEW_NODE_BOTTOM_OFFSET.
        */
       const childSlotY =
-        position.y + NODE_HEIGHT + VERTICAL_SPACING - NEW_NODE_BOTTOM_OFFSET;
+        position.y + DAG_NODE_HEIGHT_PX + VERTICAL_SPACING - NEW_NODE_BOTTOM_OFFSET;
 
       children.forEach((child) => {
         const childWidth = getSubtreeWidth(child);
         layoutTree(
           child,
-          currentX + childWidth / 2 - NODE_WIDTH / 2,
+          currentX + childWidth / 2 - DAG_NODE_WIDTH_PX / 2,
           childSlotY
         );
         currentX += childWidth + HORIZONTAL_SPACING;
