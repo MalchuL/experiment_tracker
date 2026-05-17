@@ -15,6 +15,9 @@ export function appendPaginationParams(
   if (params?.offset !== undefined) {
     searchParams.set("offset", String(params.offset));
   }
+  if (params?.search !== undefined && params.search.trim() !== "") {
+    searchParams.set("search", params.search.trim());
+  }
 
   const query = searchParams.toString();
   if (!query) {

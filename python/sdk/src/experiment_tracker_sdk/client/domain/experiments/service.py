@@ -130,17 +130,20 @@ class ExperimentRequestSpecFactory:
         project_id: str | UUID,
         limit: int | None = None,
         offset: int | None = None,
+        search: str | None = None,
     ) -> ApiRequestSpec[ExperimentListResponse]:
         if isinstance(project_id, UUID):
             project_id = str(project_id)
         endpoint: str = cast(
             Callable[[Any], str], self.ENDPOINTS["get_experiments_by_project"]
         )(project_id)
-        query_params: dict[str, int] = {}
+        query_params: dict[str, str | int] = {}
         if limit is not None:
             query_params["limit"] = limit
         if offset is not None:
             query_params["offset"] = offset
+        if search is not None and search.strip() != "":
+            query_params["search"] = search.strip()
         return ApiRequestSpec(
             method="GET",
             endpoint=endpoint,

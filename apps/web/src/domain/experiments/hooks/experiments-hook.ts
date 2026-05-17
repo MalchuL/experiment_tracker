@@ -9,6 +9,8 @@ import { compareExperimentsByCreatedAtDesc } from "../lib/sort-experiments-by-cr
 /** Flattened infinite-query result plus helpers for project experiment lists (table, kanban, DAG, scalars sidebar). */
 export interface UseExperimentsResult {
     experiments: Experiment[];
+    /** Total rows matching the current query (same on every page); from the list API `total` field. */
+    total: number;
     isLoading: boolean;
     isFetching: boolean;
     isFetchingNextPage: boolean;
@@ -22,6 +24,11 @@ export interface UseExperimentsQueryOptions {
     paginationMode?: "auto" | "scroll";
     /** When false, the query does not run (e.g. open a menu first). Default true. */
     enabled?: boolean;
+    /**
+     * Server-side filter on GET /projects/:id/experiments: case-insensitive substring on id, name,
+     * and description. Pagination applies to matching rows project-wide (not only the client cache).
+     */
+    search?: string;
 }
 
 /**
@@ -34,6 +41,11 @@ export function useExperiments(
     options?: UseExperimentsQueryOptions
 ): UseExperimentsResult {
     const paginationMode = options?.paginationMode ?? "auto";
+    const searchParam =
+        options?.search !== undefined && options.search.trim() !== ""
+            ? options.search.trim()
+            : undefined;
+
     const {
         data,
         isLoading,
@@ -44,12 +56,16 @@ export function useExperiments(
         refetch,
     } = useInfiniteQuery({
         queryKey: projectId
-            ? [QUERY_KEYS.EXPERIMENTS.BY_PROJECT(projectId), { limit: DEFAULT_PAGE_SIZE, mode: paginationMode }]
+            ? [
+                  QUERY_KEYS.EXPERIMENTS.BY_PROJECT(projectId),
+                  { limit: DEFAULT_PAGE_SIZE, mode: paginationMode, search: searchParam },
+              ]
             : [],
         queryFn: ({ pageParam }) =>
             experimentsService.getByProject(projectId!, {
                 limit: DEFAULT_PAGE_SIZE,
                 offset: pageParam,
+                ...(searchParam ? { search: searchParam } : {}),
             }),
         initialPageParam: 0,
         getNextPageParam: (lastPage, allPages) => {
@@ -79,8 +95,11 @@ export function useExperiments(
         return [...flat].sort(compareExperimentsByCreatedAtDesc);
     }, [data]);
 
+    const total = data?.pages[0]?.total ?? 0;
+
     return {
         experiments,
+        total,
         isLoading,
         isFetching,
         isFetchingNextPage,

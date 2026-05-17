@@ -84,10 +84,14 @@ interface ExperimentsTableProps {
   /** Used to persist column widths per project. */
   projectId: string | undefined;
   experiments: Experiment[];
+  /** When true, drag-to-reorder is disabled (e.g. while the list is filtered by search). */
+  reorderDisabled?: boolean;
   projectMetrics?: ProjectMetric[];
   aggregatedMetrics?: Record<string, Metric[]>;
-  /** Parent names for ids not present in `experiments` (fetched separately). */
+  /** Parent names for ids not present in the loaded experiment pages (batch-fetched). */
   parentNamesById?: Record<string, string>;
+  /** Names for all experiments currently in the infinite-query cache (for parent column when rows are filtered). */
+  loadedExperimentNameById?: Record<string, string>;
   selectedExperimentId?: string | null;
   onExperimentClick: (experimentId: string) => void;
   onReorder: (experimentIds: string[]) => void;
@@ -96,9 +100,11 @@ interface ExperimentsTableProps {
 export function ExperimentsTable({
   projectId,
   experiments,
+  reorderDisabled = false,
   projectMetrics,
   aggregatedMetrics,
   parentNamesById,
+  loadedExperimentNameById,
   selectedExperimentId,
   onExperimentClick,
   onReorder,
@@ -122,6 +128,7 @@ export function ExperimentsTable({
     experimentTableResolvedColumnWidths[columnId] ?? experimentsTableColumnWidthFallback(columnId);
 
   const handleDragEnd = (event: DragEndEvent) => {
+    if (reorderDisabled) return;
     const { active, over } = event;
     if (!over || active.id === over.id) return;
 
@@ -162,7 +169,9 @@ export function ExperimentsTable({
                   maxWidth: experimentTableGripColumnWidthPxResolved,
                 }}
                 aria-label="Reorder"
-                title="Reorder"
+                title={
+                  reorderDisabled ? "Clear the search filter to reorder experiments" : "Reorder"
+                }
               />
               <TableHead
                 className={cn(
@@ -265,14 +274,18 @@ export function ExperimentsTable({
           >
             <TableBody>
               {experiments.map((experiment) => {
-                const parent = experiments.find((e) => e.id === experiment.parentExperimentId);
                 const pid = experiment.parentExperimentId;
-                const parentName = parent?.name ?? (pid ? parentNamesById?.[pid] : undefined);
+                const parentInTable = experiments.find((e) => e.id === pid);
+                const parentName =
+                  parentInTable?.name ??
+                  (pid && loadedExperimentNameById ? loadedExperimentNameById[pid] : undefined) ??
+                  (pid ? parentNamesById?.[pid] : undefined);
                 return (
                   <ExperimentTableRow
                     key={experiment.id}
                     experiment={experiment}
                     isSelected={selectedExperimentId === experiment.id}
+                    reorderDisabled={reorderDisabled}
                     onClick={() => onExperimentClick(experiment.id)}
                     projectMetrics={filteredMetrics}
                     expMetrics={aggregatedMetrics?.[experiment.id]}

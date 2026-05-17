@@ -34,6 +34,8 @@ interface ExperimentTableRowProps {
   experiment: Experiment;
   onClick: () => void;
   isSelected?: boolean;
+  /** When true, row is not draggable (e.g. list is search-filtered; reorder must use full list). */
+  reorderDisabled?: boolean;
   projectMetrics?: ProjectMetric[];
   expMetrics?: Metric[];
   parentName?: string;
@@ -45,6 +47,7 @@ export function ExperimentTableRow({
   experiment,
   onClick,
   isSelected,
+  reorderDisabled = false,
   projectMetrics,
   expMetrics,
   parentName,
@@ -53,6 +56,7 @@ export function ExperimentTableRow({
 }: ExperimentTableRowProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: experiment.id,
+    disabled: reorderDisabled,
   });
 
   const transformStr = transform ? CSS.Transform.toString(transform) : undefined;
@@ -98,9 +102,14 @@ export function ExperimentTableRow({
         }}
       >
         <div
-          className="cursor-grab active:cursor-grabbing p-1"
+          className={
+            reorderDisabled
+              ? "cursor-not-allowed p-1 opacity-40"
+              : "cursor-grab p-1 active:cursor-grabbing"
+          }
+          title={reorderDisabled ? "Clear the search filter to reorder experiments" : undefined}
           {...attributes}
-          {...listeners}
+          {...(reorderDisabled ? {} : listeners)}
           onClick={(e) => e.stopPropagation()}
         >
           <GripVertical className="h-4 w-4 text-muted-foreground" />

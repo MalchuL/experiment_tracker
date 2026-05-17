@@ -1,18 +1,20 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
 import { ListSkeleton } from "@/components/shared/loading-skeleton";
 import { ExperimentSidebar } from "@/components/shared/experiment-sidebar";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { useCurrentProject } from "@/domain/projects/hooks";
 import { Plus, FlaskConical, AlertCircle, RefreshCw } from "lucide-react";
 import {
-    useExperiments,
-    useReorderExperiments,
-    useAggregatedMetrics,
-    useMissingParentExperimentNames,
+  useExperiments,
+  useReorderExperiments,
+  useAggregatedMetrics,
+  useMissingParentExperimentNames,
 } from "@/domain/experiments/hooks";
 import { CreateExperimentDialog, ExperimentsTable } from "@/domain/experiments/components";
 import { useSelectedExperimentStore } from "@/domain/experiments/store";
@@ -23,8 +25,12 @@ export default function Experiments() {
   const { project, isLoading: projectLoading } = useCurrentProject();
   const projectId = project?.id;
   const { selectedExperimentId, setSelectedExperimentId } = useSelectedExperimentStore();
+  const [searchQuery, setSearchQuery] = useState("");
+  const [experimentsListReady, setExperimentsListReady] = useState(false);
+
   const {
     experiments,
+    total,
     isLoading: experimentsLoading,
     isFetching: experimentsFetching,
     isFetchingNextPage: experimentsFetchingNextPage,
@@ -34,7 +40,18 @@ export default function Experiments() {
   } = useExperiments(projectId, {
     paginationMode: "scroll",
     refetchInterval: REFRESH_EXPERIMENTS_LIST_INTERVAL,
+    search: searchQuery,
   });
+
+  useEffect(() => {
+    setExperimentsListReady(false);
+  }, [projectId]);
+
+  useEffect(() => {
+    if (projectId && !experimentsLoading) {
+      setExperimentsListReady(true);
+    }
+  }, [projectId, experimentsLoading]);
   const {
     aggregatedMetricsByExperiment,
     isFetching: metricsFetching,
@@ -56,7 +73,22 @@ export default function Experiments() {
 
   const parentNamesById = useMissingParentExperimentNames(projectId, experiments);
 
-  const isLoading = projectLoading || experimentsLoading || metricsLoading;
+  const loadedExperimentNameById = useMemo(() => {
+    const out: Record<string, string> = {};
+    for (const e of experiments) {
+      out[e.id] = e.name;
+    }
+    return out;
+  }, [experiments]);
+
+  const searchTrimmed = searchQuery.trim();
+  const reorderDisabled = searchTrimmed.length > 0;
+
+  const showInitialPageSkeleton =
+    projectLoading ||
+    metricsLoading ||
+    (Boolean(projectId) && !experimentsListReady && experimentsLoading);
+
   const isRefreshing = experimentsFetching || metricsFetching;
   const handleRefresh = () => {
     void Promise.all([refetchExperiments(), refetchMetrics()]);
@@ -99,7 +131,7 @@ export default function Experiments() {
     );
   }
 
-  if (isLoading) {
+  if (showInitialPageSkeleton) {
     return (
       <div className="space-y-6 px-6 pt-6">
         <PageHeader title="Experiments" description="Loading..." />
@@ -107,6 +139,10 @@ export default function Experiments() {
       </div>
     );
   }
+
+  const showEmptyProject = !searchTrimmed && experiments.length === 0;
+  const showNoSearchMatches =
+    Boolean(searchTrimmed) && !experimentsFetching && experiments.length === 0;
 
   return (
     <div className="flex h-full min-h-0 w-full min-w-0 gap-0">
@@ -137,8 +173,19 @@ export default function Experiments() {
             }
           />
 
+          <div className="max-w-md space-y-1.5">
+            <Label htmlFor="experiments-search">Search id, name, or description</Label>
+            <Input
+              id="experiments-search"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="e.g. uuid fragment, baseline, notes…"
+              data-testid="input-experiments-search"
+            />
+          </div>
+
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-            {!experiments.length ? (
+            {showEmptyProject ? (
               <EmptyState
                 icon={FlaskConical}
                 title="No experiments yet"
@@ -158,6 +205,17 @@ export default function Experiments() {
                   ) : null
                 }
               />
+            ) : showNoSearchMatches ? (
+              <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 rounded-lg border border-border bg-card px-6 py-12 text-center">
+                <p className="text-sm font-medium text-foreground">No experiments match this search</p>
+                <p className="max-w-sm text-sm text-muted-foreground">
+                  Search runs on the server across the whole project (id, name, description). Try another
+                  substring or clear the field to see all experiments.
+                </p>
+                <Button variant="outline" size="sm" type="button" onClick={() => setSearchQuery("")}>
+                  Clear search
+                </Button>
+              </div>
             ) : (
               <div
                 ref={experimentsListScrollRef}
@@ -166,19 +224,38 @@ export default function Experiments() {
                 <ExperimentsTable
                   projectId={projectId}
                   experiments={experiments}
+                  reorderDisabled={reorderDisabled}
                   projectMetrics={filteredMetrics}
                   aggregatedMetrics={aggregatedMetricsByExperiment}
                   parentNamesById={parentNamesById}
+                  loadedExperimentNameById={loadedExperimentNameById}
                   selectedExperimentId={selectedExperimentId}
                   onExperimentClick={setSelectedExperimentId}
                   onReorder={reorderExperiments}
                 />
                 <div ref={loadMoreRef} className="h-4 shrink-0" aria-hidden="true" />
+                <p className="shrink-0 px-4 pb-1 text-xs text-muted-foreground">
+                  {searchTrimmed ? (
+                    <>
+                      Showing {experiments.length} of {total} matching experiment{total === 1 ? "" : "s"} in this
+                      project
+                      {" · "}
+                      drag-to-reorder is off while searching
+                    </>
+                  ) : (
+                    <>
+                      Showing {experiments.length} of {total} experiment{total === 1 ? "" : "s"} in this project
+                      {experiments.length < total ? " (paginated)" : ""}
+                    </>
+                  )}
+                </p>
                 {(experimentsFetchingNextPage || hasNextPage) && (
                   <p className="shrink-0 px-4 pb-3 text-sm text-muted-foreground">
                     {experimentsFetchingNextPage
                       ? "Loading more experiments..."
-                      : "Scroll down to load more experiments."}
+                      : searchTrimmed
+                        ? "Scroll down to load more matching experiments."
+                        : "Scroll down to load more experiments."}
                   </p>
                 )}
               </div>

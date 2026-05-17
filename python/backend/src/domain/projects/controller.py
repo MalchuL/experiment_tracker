@@ -135,6 +135,11 @@ async def get_project_experiments(
     project_id: UUID,
     limit: int = Query(default=MAX_LIST_PAGE_SIZE, ge=1, le=MAX_LIST_PAGE_SIZE),
     offset: int = Query(default=0, ge=0),
+    search: str | None = Query(
+        default=None,
+        max_length=200,
+        description="Optional case-insensitive substring on experiment id, name, or description.",
+    ),
     user: User = Depends(get_current_user_dual),
     _: None = Depends(require_api_token_scopes(ProjectActions.VIEW_EXPERIMENT)),
     experiment_service: ExperimentService = Depends(get_experiment_service),
@@ -144,8 +149,16 @@ async def get_project_experiments(
             user,
             project_id,
             ListOptions(limit=limit, offset=offset),
+            search=search,
         )
     except Exception as exc:  # noqa: BLE001
+        logger.exception(
+            "get_project_experiments failed project_id=%s limit=%s offset=%s search=%r",
+            project_id,
+            limit,
+            offset,
+            search,
+        )
         _raise_project_http_error(exc)
 
 
@@ -429,7 +442,9 @@ async def get_project_usage(
         _raise_project_http_error(exc)
 
 
-@router.post("/{project_id}/cleanup/{category}", response_model=CategoryCleanupResponseDTO)
+@router.post(
+    "/{project_id}/cleanup/{category}", response_model=CategoryCleanupResponseDTO
+)
 async def cleanup_project_category(
     project_id: UUID,
     category: ProjectCleanupCategory,

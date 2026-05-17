@@ -389,6 +389,8 @@ class ExperimentService:
         user: UserProtocol,
         project_id: UUID_TYPE,
         list_options: ListOptions = ListOptions(),
+        *,
+        search: str | None = None,
     ) -> ExperimentListResponseDTO:
         if not await self.permission_checker.can_view_experiment(user.id, project_id):
             raise ExperimentNotAccessibleError(
@@ -397,6 +399,7 @@ class ExperimentService:
         experiments_page = await self.experiment_repository.get_experiments_by_project(
             project_id,
             list_options=list_options,
+            search=search,
         )
         return ExperimentListResponseDTO.from_page(
             experiments_page.map(self.experiment_mapper.experiment_schema_to_dto)
