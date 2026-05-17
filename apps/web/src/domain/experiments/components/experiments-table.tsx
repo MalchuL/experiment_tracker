@@ -162,6 +162,7 @@ export function ExperimentsTable({
                   maxWidth: experimentTableGripColumnWidthPxResolved,
                 }}
                 aria-label="Reorder"
+                title="Reorder"
               />
               <TableHead
                 className={cn(
@@ -174,6 +175,7 @@ export function ExperimentsTable({
                   maxWidth: experimentNameColumnWidthPx,
                   left: experimentTableGripColumnWidthPxResolved,
                 }}
+                title="Experiment"
               >
                 Experiment
                 <HeaderResizeHandle
@@ -188,6 +190,7 @@ export function ExperimentsTable({
                   minWidth: getExperimentTableColumnWidth(EXPERIMENTS_TABLE_COLUMN.status),
                   maxWidth: getExperimentTableColumnWidth(EXPERIMENTS_TABLE_COLUMN.status),
                 }}
+                title="Status"
               >
                 Status
                 <HeaderResizeHandle
@@ -202,6 +205,7 @@ export function ExperimentsTable({
                   minWidth: getExperimentTableColumnWidth(EXPERIMENTS_TABLE_COLUMN.parent),
                   maxWidth: getExperimentTableColumnWidth(EXPERIMENTS_TABLE_COLUMN.parent),
                 }}
+                title="Parent"
               >
                 Parent
                 <HeaderResizeHandle
@@ -212,6 +216,7 @@ export function ExperimentsTable({
               {filteredMetrics.map((metric) => {
                 const metricColumnIdValue = metricColumnId(metric);
                 const metricColumnWidthPx = getExperimentTableColumnWidth(metricColumnIdValue);
+                const metricHeaderFullLabel = formatMetricLabel(metric.name, metric.label ?? null);
                 return (
                   <TableHead
                     key={metricColumnIdValue}
@@ -221,10 +226,11 @@ export function ExperimentsTable({
                       minWidth: metricColumnWidthPx,
                       maxWidth: metricColumnWidthPx,
                     }}
+                    title={metricHeaderFullLabel}
                   >
                     <div className="flex min-w-0 items-center justify-end gap-1">
-                      <span className="min-w-0 truncate">
-                        {formatMetricLabel(metric.name, metric.label ?? null)}
+                      <span className="min-w-0 truncate" title={metricHeaderFullLabel}>
+                        {metricHeaderFullLabel}
                       </span>
                       {metric.direction === "minimize" ? (
                         <TrendingDown className="h-3 w-3 shrink-0" />
@@ -243,6 +249,7 @@ export function ExperimentsTable({
                   minWidth: getExperimentTableColumnWidth(EXPERIMENTS_TABLE_COLUMN.created),
                   maxWidth: getExperimentTableColumnWidth(EXPERIMENTS_TABLE_COLUMN.created),
                 }}
+                title="Created"
               >
                 Created
                 <HeaderResizeHandle
