@@ -85,12 +85,20 @@ export function displayMetricsForApiSave(
   formDisplay: ProjectDisplayMetric[]
 ): ProjectDisplayMetric[] {
   if (formDisplay.length === 0) return [];
+  const trackedByKey = new Map(tracked.map((m) => [projectMetricKeyString(m), m]));
+  const canonicalDisplay = formDisplay.flatMap((entry) => {
+    const normalized = normalizeDisplayMetric(entry);
+    const trackedMetric = trackedByKey.get(projectMetricKeyString(normalized));
+    if (!trackedMetric) return [];
+    return [trackedToDisplayKey(trackedMetric)];
+  });
   if (
     tracked.length > 0 &&
-    formDisplay.length === tracked.length &&
-    tracked.every((m) => isExplicitlyInDisplayList({ name: m.name, label: m.label }, formDisplay))
+    canonicalDisplay.length === tracked.length &&
+    tracked.every((m) => isExplicitlyInDisplayList({ name: m.name, label: m.label }, canonicalDisplay))
   ) {
-    return tracked.map(trackedToDisplayKey);
+    // Keep the UI drag-and-drop order while still persisting a canonical explicit full list.
+    return canonicalDisplay;
   }
   return formDisplay;
 }
