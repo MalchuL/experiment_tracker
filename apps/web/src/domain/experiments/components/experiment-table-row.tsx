@@ -10,7 +10,10 @@ import { ProjectMetric } from "@/domain/projects/types";
 import { format, parseISO } from "date-fns";
 import { Metric } from "@/domain/metrics/types";
 import { displayMetricKeyEquals, projectMetricKeyString } from "@/lib/metrics/format-metric-label";
-import { formatMetricScalarForDisplay } from "@/lib/metrics/metric-value-display";
+import {
+  formatMetricScalarForDisplay,
+  formatMetricScalarTooltipFull,
+} from "@/lib/metrics/metric-value-display";
 import { getExperimentSelectionSurfaceStyle } from "../experiment-selection-style";
 import { ExperimentTruncatedText } from "./experiment-truncated-text";
 
@@ -90,21 +93,36 @@ export function ExperimentTableRow({
             <TableCell>
                 <StatusBadge status={experiment.status} />
             </TableCell>
-            <TableCell className="text-muted-foreground text-sm">
-                {parentName || "-"}
+            <TableCell className="min-w-0 max-w-[10rem] w-[10rem] text-muted-foreground text-sm sm:max-w-[14rem] sm:w-[14rem]">
+                {parentName ? (
+                    <ExperimentTruncatedText
+                        text={parentName}
+                        as="span"
+                        showTooltip="always"
+                        lineClamp={1}
+                    />
+                ) : (
+                    "-"
+                )}
             </TableCell>
-            {projectMetrics?.map((metric) => (
-                <TableCell key={projectMetricKeyString(metric)} className="text-right font-mono text-sm">
-                    {formatMetricScalarForDisplay(
-                        expMetrics?.find((m) =>
-                            displayMetricKeyEquals(
-                                { name: m.name, label: m.label },
-                                { name: metric.name, label: metric.label ?? null }
-                            )
-                        )?.value
-                    )}
-                </TableCell>
-            ))}
+            {projectMetrics?.map((metric) => {
+                const raw = expMetrics?.find((m) =>
+                    displayMetricKeyEquals(
+                        { name: m.name, label: m.label },
+                        { name: metric.name, label: metric.label ?? null }
+                    )
+                )?.value;
+                return (
+                    <TableCell key={projectMetricKeyString(metric)} className="text-right font-mono text-sm">
+                        <span
+                            className="inline-block min-w-0 max-w-full cursor-default text-right tabular-nums"
+                            title={formatMetricScalarTooltipFull(raw)}
+                        >
+                            {formatMetricScalarForDisplay(raw)}
+                        </span>
+                    </TableCell>
+                );
+            })}
             <TableCell className="text-muted-foreground text-sm whitespace-nowrap tabular-nums">
                 {format(parseISO(experiment.createdAt), "MMM d, yyyy, HH:mm")}
             </TableCell>

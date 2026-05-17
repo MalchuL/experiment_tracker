@@ -1,11 +1,12 @@
-import { TrendingDown, TrendingUp } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+import { TrendingDown, TrendingUp, Equal } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
+  formatMetricScalarForEditorFull,
   formatMetricSignedDeltaForDisplay,
   metricIsBetterThanParent,
+  metricSignedDeltaIsDisplayTie,
 } from "@/lib/metrics/metric-value-display";
-
-const TIE_EPS = 1e-10;
 
 export function metricDeltaOutcomeColorClass(isBetter: boolean | null): string {
   return isBetter === true
@@ -15,12 +16,43 @@ export function metricDeltaOutcomeColorClass(isBetter: boolean | null): string {
       : "text-muted-foreground";
 }
 
+/** Shared numbers for inline and table-split delta rendering. */
+export type MetricDeltaSplitModel = {
+  delta: number;
+  tie: boolean;
+  DeltaIcon: LucideIcon;
+  outcomeClass: string;
+  signedDisplay: string;
+  fullDeltaText: string;
+};
+
+export function metricDeltaSplitModel(
+  value: number | null,
+  parentValue: number | null,
+  direction: "maximize" | "minimize"
+): MetricDeltaSplitModel | null {
+  if (value === null || parentValue === null) return null;
+  const delta = value - parentValue;
+  const tie = metricSignedDeltaIsDisplayTie(delta);
+  const DeltaIcon = tie ? Equal : delta > 0 ? TrendingUp : TrendingDown;
+  const isBetter = metricIsBetterThanParent(value, parentValue, direction);
+  const outcomeClass = metricDeltaOutcomeColorClass(isBetter);
+  const signedDisplay = formatMetricSignedDeltaForDisplay(delta);
+  const fullDeltaText = Number.isFinite(delta) ? formatMetricScalarForEditorFull(delta) : "—";
+  return { delta, tie, DeltaIcon, outcomeClass, signedDisplay, fullDeltaText };
+}
+
 export function MetricDeltaVsParent({
   value,
   parentValue,
   direction,
   textClassName = "font-mono text-[9px] tabular-nums leading-none",
   iconClassName = "w-2.5 h-2.5 shrink-0",
+  /**
+   * `false` (default): signed Δ then outcome icon (e.g. diff-first: … | signed | icon | value).
+   * `true`: icon then signed Δ (use with value-first: value | icon | signed).
+   */
+  iconFirst = false,
 }: {
   value: number | null;
   parentValue: number | null;
@@ -28,18 +60,30 @@ export function MetricDeltaVsParent({
   /** Tailwind text size; sidebar can pass e.g. `text-xs`. */
   textClassName?: string;
   iconClassName?: string;
+  iconFirst?: boolean;
 }) {
-  if (value === null || parentValue === null) return null;
-  const delta = value - parentValue;
-  const tie = Math.abs(delta) < TIE_EPS;
-  const ArrowIcon = tie ? null : delta > 0 ? TrendingUp : TrendingDown;
-  const isBetter = metricIsBetterThanParent(value, parentValue, direction);
-  const oc = metricDeltaOutcomeColorClass(isBetter);
+  const model = metricDeltaSplitModel(value, parentValue, direction);
+  if (!model) return null;
+  const { DeltaIcon, outcomeClass, signedDisplay, fullDeltaText } = model;
+  const signed = <span className={cn(textClassName, outcomeClass)}>{signedDisplay}</span>;
+  const icon = <DeltaIcon className={cn(iconClassName, outcomeClass)} aria-hidden />;
 
   return (
-    <>
-      {ArrowIcon ? <ArrowIcon className={cn(iconClassName, oc)} /> : null}
-      <span className={cn(textClassName, oc)}>{formatMetricSignedDeltaForDisplay(delta)}</span>
-    </>
+    <span
+      title={fullDeltaText}
+      className="inline-flex cursor-default touch-manipulation items-center gap-0.5"
+    >
+      {iconFirst ? (
+        <>
+          {icon}
+          {signed}
+        </>
+      ) : (
+        <>
+          {signed}
+          {icon}
+        </>
+      )}
+    </span>
   );
 }

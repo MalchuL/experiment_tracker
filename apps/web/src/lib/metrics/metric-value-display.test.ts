@@ -4,9 +4,11 @@ import {
   formatMetricScalarForDisplay,
   formatMetricScalarForEditorDraft,
   formatMetricScalarForEditorFull,
+  formatMetricScalarTooltipFull,
   formatMetricSignedDeltaForDisplay,
   metricEditorValuesEffectivelyEqual,
   metricIsBetterThanParent,
+  metricSignedDeltaIsDisplayTie,
 } from "./metric-value-display";
 
 describe("MetricValueDisplayFormatter", () => {
@@ -77,6 +79,19 @@ describe("formatMetricScalarForEditorFull", () => {
   });
 });
 
+describe("formatMetricScalarTooltipFull", () => {
+  it("matches editor full for finite numbers", () => {
+    const v = 0.012312312312312312;
+    expect(formatMetricScalarTooltipFull(v)).toBe(formatMetricScalarForEditorFull(v));
+  });
+
+  it("returns em dash for nullish or non-finite", () => {
+    expect(formatMetricScalarTooltipFull(null)).toBe("—");
+    expect(formatMetricScalarTooltipFull(undefined)).toBe("—");
+    expect(formatMetricScalarTooltipFull(Number.NaN)).toBe("—");
+  });
+});
+
 describe("metricEditorValuesEffectivelyEqual", () => {
   it("treats identical and bitwise-equal as unchanged", () => {
     expect(metricEditorValuesEffectivelyEqual(1.5, 1.5)).toBe(true);
@@ -95,9 +110,9 @@ describe("metricEditorValuesEffectivelyEqual", () => {
 });
 
 describe("formatMetricSignedDeltaForDisplay", () => {
-  it("returns 0 for tie band", () => {
-    expect(formatMetricSignedDeltaForDisplay(0)).toBe("0");
-    expect(formatMetricSignedDeltaForDisplay(5e-11)).toBe("0");
+  it("returns +0 for tie band", () => {
+    expect(formatMetricSignedDeltaForDisplay(0)).toBe("+0");
+    expect(formatMetricSignedDeltaForDisplay(5e-11)).toBe("+0");
   });
 
   it("prefixes sign and formats magnitude with formatValue", () => {
@@ -105,6 +120,21 @@ describe("formatMetricSignedDeltaForDisplay", () => {
     const s = formatMetricSignedDeltaForDisplay(d);
     expect(s[0] === "+" || s[0] === "-").toBe(true);
     expect(s).toMatch(/^[+-]0\.002312312$/);
+  });
+});
+
+describe("metricSignedDeltaIsDisplayTie", () => {
+  it("matches the tie band used for +0 deltas", () => {
+    expect(metricSignedDeltaIsDisplayTie(0)).toBe(true);
+    expect(metricSignedDeltaIsDisplayTie(5e-11)).toBe(true);
+    expect(metricSignedDeltaIsDisplayTie(5e-9)).toBe(false);
+  });
+
+  it("follows formatter tieEpsilon overrides", () => {
+    const f = new MetricValueDisplayFormatter({ tieEpsilon: 1e-6 });
+    expect(f.signedDeltaIsDisplayTie(1e-7)).toBe(true);
+    expect(f.formatSignedDeltaForDisplay(1e-7)).toBe("+0");
+    expect(metricSignedDeltaIsDisplayTie(1e-7)).toBe(false);
   });
 });
 

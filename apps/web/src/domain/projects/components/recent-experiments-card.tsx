@@ -43,9 +43,9 @@ export function RecentExperimentsCard({
                   className="flex items-center justify-between gap-4 p-3 rounded-md hover-elevate active-elevate-2 cursor-pointer"
                   data-testid={`experiment-row-${experiment.id}`}
                 >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="flex items-center justify-center w-8 h-8 rounded-md bg-accent">
-                      <FlaskConical className="w-4 h-4 text-accent-foreground" />
+                  <div className="flex min-w-0 flex-1 items-center gap-3">
+                    <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-accent">
+                      <FlaskConical className="size-4 shrink-0 text-accent-foreground" aria-hidden />
                     </div>
                     <div className="min-w-0">
                       <p className="text-sm font-medium truncate">

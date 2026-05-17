@@ -82,7 +82,9 @@ export function ExperimentsTable({
                             <TableHead className="w-[40px]"></TableHead>
                             <TableHead className="w-[200px]">Experiment</TableHead>
                             <TableHead>Status</TableHead>
-                            <TableHead>Parent</TableHead>
+                            <TableHead className="min-w-0 max-w-[10rem] w-[10rem] sm:max-w-[14rem] sm:w-[14rem]">
+                                Parent
+                            </TableHead>
                             {filteredMetrics.map((metric) => (
                                 <TableHead key={projectMetricKeyString(metric)} className="text-right">
                                     <div className="flex items-center justify-end gap-1">

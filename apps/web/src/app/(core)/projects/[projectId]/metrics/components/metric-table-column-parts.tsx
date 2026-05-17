@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import type { MetricsTableRow } from "../lib/types";
 import { formatMetricTableCellValue } from "../lib/format";
 import { METRIC_CELL_TINTS, metricCellStyleKey } from "../lib/constants";
+import { formatMetricScalarTooltipFull } from "@/lib/metrics/metric-value-display";
 
 export function flipIdInSet(id: string, set: Set<string>): Set<string> {
   const s = new Set(set);
@@ -206,6 +207,7 @@ export function MetricValueCell({
     <div
       role="button"
       tabIndex={0}
+      title={formatMetricScalarTooltipFull(v)}
       onClick={() => cycleCellTint(row.experimentId, n)}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") {

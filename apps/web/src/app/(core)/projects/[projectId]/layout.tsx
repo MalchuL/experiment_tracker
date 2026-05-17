@@ -5,6 +5,7 @@ import { SidebarTrigger } from "@/components/ui/sidebar";
 import { ThemeToggle } from "@/components/shared/theme-toggle";
 import { UserMenu } from "@/components/shared/user-menu";
 import { WorkspaceDocsNav } from "@/components/shared/workspace-docs-nav";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { ProjectProvider } from "@/domain/projects/hooks";
 import { useParams, usePathname } from "next/navigation";
 
@@ -50,7 +51,9 @@ export default function ProjectLayout({
               </div>
             </header>
             <main className="min-h-0 flex-1 overflow-auto">
-              <div className={containerClassName}>{children}</div>
+              <TooltipProvider delayDuration={300}>
+                <div className={containerClassName}>{children}</div>
+              </TooltipProvider>
             </main>
           </SidebarInset>
         </ProjectProvider>

@@ -66,12 +66,11 @@ import {
   projectMetricKeyString,
 } from "@/lib/metrics/format-metric-label";
 import {
-  formatMetricScalarForDisplay,
   formatMetricScalarForEditorDraft,
   formatMetricScalarForEditorFull,
   metricEditorValuesEffectivelyEqual,
 } from "@/lib/metrics/metric-value-display";
-import { MetricDeltaVsParent } from "@/components/shared/metric-delta-vs-parent";
+import { MetricNameValueDiffRow } from "@/components/shared/metric-name-value-diff-row";
 import { useToast } from "@/lib/hooks/use-toast";
 import { GitBranch, ChevronDown, X } from "lucide-react";
 import { format, parseISO } from "date-fns";
@@ -299,45 +298,78 @@ export function ExperimentDetailsView({ projectId }: { projectId: string }) {
                   </TableCell>
                 </TableRow>
               ) : (
-                displayedProjectMetrics.map((pm) => (
-                  <TableRow key={projectMetricKeyString(pm)}>
-                    <TableCell className="font-medium">
-                      {formatMetricLabel(pm.name, pm.label ?? null)}
-                    </TableCell>
-                    {experimentsOrdered.map((e) => {
-                      const value = aggregatedMetricsByExperiment[e.id]?.find((m) =>
-                        displayMetricKeyEquals(
-                          { name: m.name, label: m.label },
-                          { name: pm.name, label: pm.label ?? null }
-                        )
-                      )?.value;
-                      const parentId = e.parentExperimentId;
-                      const parentValue =
-                        parentId != null
-                          ? aggregatedMetricsByExperiment[parentId]?.find((m) =>
-                              displayMetricKeyEquals(
-                                { name: m.name, label: m.label },
-                                { name: pm.name, label: pm.label ?? null }
-                              )
-                            )?.value
-                          : undefined;
-                      const direction = pm.direction === "minimize" ? "minimize" : "maximize";
-                      return (
-                        <TableCell key={e.id} className="font-mono text-sm">
-                          <div className="flex flex-wrap items-center gap-1 min-w-0">
-                            <span>{formatMetricScalarForDisplay(value ?? null)}</span>
-                            <MetricDeltaVsParent
+                displayedProjectMetrics.map((pm) => {
+                  const direction = pm.direction === "minimize" ? "minimize" : "maximize";
+                  const rowGroupHasDiff = experimentsOrdered.some((exp) => {
+                    const parentId = exp.parentExperimentId;
+                    if (parentId == null) return false;
+                    const cellValue = aggregatedMetricsByExperiment[exp.id]?.find((m) =>
+                      displayMetricKeyEquals(
+                        { name: m.name, label: m.label },
+                        { name: pm.name, label: pm.label ?? null }
+                      )
+                    )?.value;
+                    const parentValue = aggregatedMetricsByExperiment[parentId]?.find((m) =>
+                      displayMetricKeyEquals(
+                        { name: m.name, label: m.label },
+                        { name: pm.name, label: pm.label ?? null }
+                      )
+                    )?.value;
+                    return cellValue != null && parentValue != null;
+                  });
+                  const metricTitle = formatMetricLabel(pm.name, pm.label ?? null);
+                  return (
+                    <TableRow key={projectMetricKeyString(pm)}>
+                      <TableCell className="font-medium max-w-[14rem]">
+                        <span
+                          title={metricTitle}
+                          className="block min-w-0 cursor-default truncate"
+                        >
+                          {metricTitle}
+                        </span>
+                      </TableCell>
+                      {experimentsOrdered.map((e) => {
+                        const value = aggregatedMetricsByExperiment[e.id]?.find((m) =>
+                          displayMetricKeyEquals(
+                            { name: m.name, label: m.label },
+                            { name: pm.name, label: pm.label ?? null }
+                          )
+                        )?.value;
+                        const parentId = e.parentExperimentId;
+                        const parentValue =
+                          parentId != null
+                            ? aggregatedMetricsByExperiment[parentId]?.find((m) =>
+                                displayMetricKeyEquals(
+                                  { name: m.name, label: m.label },
+                                  { name: pm.name, label: pm.label ?? null }
+                                )
+                              )?.value
+                            : undefined;
+                        return (
+                          <TableCell key={e.id} className="font-mono text-sm">
+                            <MetricNameValueDiffRow
+                              metricName={pm.name}
+                              metricLabel={pm.label ?? null}
                               value={value ?? null}
                               parentValue={parentValue ?? null}
                               direction={direction}
-                              textClassName="font-mono text-xs tabular-nums leading-none"
+                              showName={false}
+                              metricTable={{
+                                scope: "cell",
+                                groupHasAnyDiff: rowGroupHasDiff,
+                              }}
+                              classNameProps={{
+                                valueText: "text-sm",
+                                deltaText: "font-mono text-xs tabular-nums leading-none",
+                                deltaIcon: "w-2.5 h-2.5",
+                              }}
                             />
-                          </div>
-                        </TableCell>
-                      );
-                    })}
-                  </TableRow>
-                ))
+                          </TableCell>
+                        );
+                      })}
+                    </TableRow>
+                  );
+                })
               )}
             </TableBody>
           </Table>

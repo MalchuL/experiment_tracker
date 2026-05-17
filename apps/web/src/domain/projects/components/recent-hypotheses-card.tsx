@@ -38,11 +38,11 @@ export function RecentHypothesesCard({
                   className="flex items-center justify-between gap-4 p-3 rounded-md hover-elevate active-elevate-2 cursor-pointer"
                   data-testid={`hypothesis-row-${hypothesis.id}`}
                 >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="flex items-center justify-center w-8 h-8 rounded-md bg-accent">
-                      <Lightbulb className="w-4 h-4 text-accent-foreground" />
+                  <div className="flex min-w-0 flex-1 items-center gap-3">
+                    <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-accent">
+                      <Lightbulb className="size-4 shrink-0 text-accent-foreground" aria-hidden />
                     </div>
-                    <p className="text-sm font-medium truncate">
+                    <p className="min-w-0 flex-1 truncate text-sm font-medium">
                       {hypothesis.title}
                     </p>
                   </div>
