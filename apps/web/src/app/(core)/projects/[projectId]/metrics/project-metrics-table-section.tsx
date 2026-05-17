@@ -140,11 +140,19 @@ export function ProjectMetricsTableSection({
                           onMouseDown={h.getResizeHandler()}
                           onTouchStart={h.getResizeHandler()}
                           className={cn(
-                            "absolute right-0 top-0 h-full w-1 touch-none select-none cursor-col-resize",
-                            "bg-border opacity-50 hover:opacity-100",
-                            h.column.getIsResizing() && "bg-primary"
+                            "absolute right-0 top-0 z-10 flex h-full w-2.5 cursor-col-resize items-center justify-center",
+                            "touch-none select-none"
                           )}
-                        />
+                        >
+                          <span
+                            aria-hidden
+                            className={cn(
+                              "block h-full w-px shrink-0 bg-border transition-colors",
+                              "hover:bg-muted-foreground/70",
+                              h.column.getIsResizing() && "bg-primary"
+                            )}
+                          />
+                        </div>
                       )}
                     </TableHead>
                   ))}

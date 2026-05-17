@@ -11,12 +11,22 @@ type ExperimentTruncatedTextProps = {
   className?: string;
   as?: "p" | "span";
   /**
-   * "auto": tooltip only when text is shortened by the character limit (table-style).
-   * "always": tooltip on every hover with full text; layout uses line-clamp (kanban cards).
+   * `card`: character cap + optional Radix tooltip (kanban, compact cards).
+   * `table`: full string in the DOM with CSS ellipsis / line-clamp + native `title` (copy/select gets full text).
+   */
+  variant?: "card" | "table";
+  /**
+   * Card only. "auto": tooltip only when text is shortened by the character limit.
+   * "always": tooltip on every hover; layout uses line-clamp (kanban cards).
    */
   showTooltip?: ShowTooltip;
-  /** Used when showTooltip is "always". 1 = single-line ellipsis; 2–4 = multi-line clamp. */
+  /** Card + showTooltip "always". 1 = single-line ellipsis; 2–4 = multi-line clamp. */
   lineClamp?: 1 | 2 | 3 | 4;
+  /**
+   * Table variant only: `single` = one-line ellipsis (`truncate`); `multi` = up to two lines
+   * (`line-clamp-2`) for descriptions.
+   */
+  tableClamp?: "single" | "multi";
 };
 
 function lineClampClass(lines: 1 | 2 | 3 | 4): string {
@@ -30,12 +40,29 @@ export function ExperimentTruncatedText({
   text,
   className,
   as: Comp = "p",
+  variant = "card",
   showTooltip = "auto",
   lineClamp = 2,
+  tableClamp = "single",
 }: ExperimentTruncatedTextProps) {
   const trimmed = text.trim();
   if (!trimmed) {
     return null;
+  }
+
+  if (variant === "table") {
+    return (
+      <Comp
+        title={trimmed}
+        className={cn(
+          "m-0 min-w-0 w-full max-w-full",
+          tableClamp === "multi" ? "line-clamp-2 break-words" : "truncate",
+          className
+        )}
+      >
+        {trimmed}
+      </Comp>
+    );
   }
 
   const always = showTooltip === "always";

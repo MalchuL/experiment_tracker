@@ -1,24 +1,24 @@
 "use client";
 
 import {
-    DndContext,
-    DragEndEvent,
-    PointerSensor,
-    useSensor,
-    useSensors,
-    closestCenter,
+  DndContext,
+  DragEndEvent,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  closestCenter,
 } from "@dnd-kit/core";
 import {
-    SortableContext,
-    verticalListSortingStrategy,
+  SortableContext,
+  verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { Card } from "@/components/ui/card";
 import {
-    Table,
-    TableBody,
-    TableHead,
-    TableHeader,
-    TableRow,
+  Table,
+  TableBody,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from "@/components/ui/table";
 import { TrendingUp, TrendingDown } from "lucide-react";
 import { Experiment } from "../types";
@@ -26,111 +26,259 @@ import { ProjectMetric } from "@/domain/projects/types";
 import { ExperimentTableRow } from "./experiment-table-row";
 import { arrayMove } from "@dnd-kit/sortable";
 import { Metric } from "@/domain/metrics/types";
-import { displayMetricKeyEquals, formatMetricLabel, projectMetricKeyString } from "@/lib/metrics/format-metric-label";
+import { formatMetricLabel } from "@/lib/metrics/format-metric-label";
+import { cn } from "@/lib/utils";
+import { useExperimentsTableColumnWidths } from "@/domain/experiments/hooks/use-experiments-table-column-widths";
+import {
+  EXPERIMENTS_TABLE_COLUMN,
+  experimentsTableColumnWidthFallback,
+  metricColumnId,
+} from "@/domain/experiments/lib/experiments-table-column-widths";
+
+const stickyGripTh = cn(
+  "sticky z-[21] border-r border-border bg-background shadow-[4px_0_12px_-8px_rgba(0,0,0,0.08)] box-border overflow-hidden",
+  "left-0"
+);
+
+const stickyExperimentTh = cn(
+  "sticky z-[21] border-r border-border bg-background shadow-[4px_0_12px_-8px_rgba(0,0,0,0.08)] box-border overflow-hidden"
+);
+
+function HeaderResizeHandle({
+  columnId,
+  onBeginResize,
+}: {
+  columnId: string;
+  onBeginResize: (columnId: string, clientX: number) => void;
+}) {
+  return (
+    <div
+      role="separator"
+      aria-orientation="vertical"
+      aria-label={`Resize ${columnId} column`}
+      onMouseDown={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        onBeginResize(columnId, e.clientX);
+      }}
+      onTouchStart={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const t = e.touches[0];
+        if (t) onBeginResize(columnId, t.clientX);
+      }}
+      className={cn(
+        "absolute right-0 top-0 z-10 flex h-full w-2.5 cursor-col-resize items-center justify-center",
+        "touch-none select-none"
+      )}
+    >
+      <span
+        aria-hidden
+        className="block h-full w-px shrink-0 bg-border transition-colors hover:bg-muted-foreground/70"
+      />
+    </div>
+  );
+}
 
 interface ExperimentsTableProps {
-    experiments: Experiment[];
-    projectMetrics?: ProjectMetric[];
-    aggregatedMetrics?: Record<string, Metric[]>;
-    /** Parent names for ids not present in `experiments` (fetched separately). */
-    parentNamesById?: Record<string, string>;
-    selectedExperimentId?: string | null;
-    onExperimentClick: (experimentId: string) => void;
-    onReorder: (experimentIds: string[]) => void;
+  /** Used to persist column widths per project. */
+  projectId: string | undefined;
+  experiments: Experiment[];
+  projectMetrics?: ProjectMetric[];
+  aggregatedMetrics?: Record<string, Metric[]>;
+  /** Parent names for ids not present in `experiments` (fetched separately). */
+  parentNamesById?: Record<string, string>;
+  selectedExperimentId?: string | null;
+  onExperimentClick: (experimentId: string) => void;
+  onReorder: (experimentIds: string[]) => void;
 }
 
 export function ExperimentsTable({
-    experiments,
-    projectMetrics,
-    aggregatedMetrics,
-    parentNamesById,
-    selectedExperimentId,
-    onExperimentClick,
-    onReorder,
+  projectId,
+  experiments,
+  projectMetrics,
+  aggregatedMetrics,
+  parentNamesById,
+  selectedExperimentId,
+  onExperimentClick,
+  onReorder,
 }: ExperimentsTableProps) {
-    const sensors = useSensors(
-        useSensor(PointerSensor, {
-            activationConstraint: {
-                distance: 8,
-            },
-        })
-    );
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    })
+  );
 
-    const handleDragEnd = (event: DragEndEvent) => {
-        const { active, over } = event;
-        if (!over || active.id === over.id) return;
+  const filteredMetrics = projectMetrics || [];
+  const {
+    experimentTableResolvedColumnWidths,
+    startResize,
+    experimentTableTotalWidthPx,
+  } = useExperimentsTableColumnWidths(projectId, filteredMetrics);
 
-        const oldIndex = experiments.findIndex((e) => e.id === active.id);
-        const newIndex = experiments.findIndex((e) => e.id === over.id);
+  const getExperimentTableColumnWidth = (columnId: string) =>
+    experimentTableResolvedColumnWidths[columnId] ?? experimentsTableColumnWidthFallback(columnId);
 
-        const newOrder = arrayMove(experiments, oldIndex, newIndex);
-        onReorder(newOrder.map((e) => e.id));
-    };
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
 
-    const filteredMetrics = projectMetrics || [];
+    const oldIndex = experiments.findIndex((e) => e.id === active.id);
+    const newIndex = experiments.findIndex((e) => e.id === over.id);
 
-    return (
-        <Card>
-            <DndContext
-                sensors={sensors}
-                collisionDetection={closestCenter}
-                onDragEnd={handleDragEnd}
-            >
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead className="w-[40px]"></TableHead>
-                            <TableHead className="w-[200px]">Experiment</TableHead>
-                            <TableHead>Status</TableHead>
-                            <TableHead className="min-w-0 max-w-[10rem] w-[10rem] sm:max-w-[14rem] sm:w-[14rem]">
-                                Parent
-                            </TableHead>
-                            {filteredMetrics.map((metric) => (
-                                <TableHead key={projectMetricKeyString(metric)} className="text-right">
-                                    <div className="flex items-center justify-end gap-1">
-                                        {formatMetricLabel(metric.name, metric.label ?? null)}
-                                        {metric.direction === "minimize" ? (
-                                            <TrendingDown className="w-3 h-3" />
-                                        ) : (
-                                            <TrendingUp className="w-3 h-3" />
-                                        )}
-                                    </div>
-                                </TableHead>
-                            ))}
-                            <TableHead className="min-w-[140px] whitespace-nowrap">Created</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <SortableContext
-                        items={experiments.map((e) => e.id)}
-                        strategy={verticalListSortingStrategy}
-                    >
-                        <TableBody>
-                            {experiments.map((experiment) => {
-                                const parent = experiments.find(
-                                    (e) => e.id === experiment.parentExperimentId
-                                );
-                                const pid = experiment.parentExperimentId;
-                                const parentName =
-                                    parent?.name ??
-                                    (pid ? parentNamesById?.[pid] : undefined);
-                                return (
-                                    <ExperimentTableRow
-                                        key={experiment.id}
-                                        experiment={experiment}
-                                        isSelected={selectedExperimentId === experiment.id}
-                                        onClick={() => onExperimentClick(experiment.id)}
-                                        projectMetrics={filteredMetrics}
-                                        expMetrics={aggregatedMetrics?.[experiment.id]}
-                                        parentName={parentName}
-                                    />
-                                );
-                            })}
-                        </TableBody>
-                    </SortableContext>
-                </Table>
-            </DndContext>
-        </Card>
-    );
+    const newOrder = arrayMove(experiments, oldIndex, newIndex);
+    onReorder(newOrder.map((e) => e.id));
+  };
+
+  const experimentTableGripColumnWidthPxResolved = getExperimentTableColumnWidth(
+    EXPERIMENTS_TABLE_COLUMN.grip
+  );
+  const experimentNameColumnWidthPx = getExperimentTableColumnWidth(EXPERIMENTS_TABLE_COLUMN.experiment);
+
+  return (
+    <Card className="min-w-0 shrink-0 border-0 bg-transparent shadow-none">
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragEnd={handleDragEnd}
+      >
+        <Table
+          containerClassName="overflow-visible w-full min-w-0"
+          className="table-fixed min-w-full border-separate border-spacing-0"
+          style={{ width: experimentTableTotalWidthPx, minWidth: "100%" }}
+        >
+          <TableHeader className="sticky top-0 z-20 bg-background shadow-[0_1px_0_0_hsl(var(--border))]">
+            <TableRow>
+              <TableHead
+                className={cn(
+                  "h-12 px-2 text-left align-middle font-medium text-muted-foreground",
+                  stickyGripTh
+                )}
+                style={{
+                  width: experimentTableGripColumnWidthPxResolved,
+                  minWidth: experimentTableGripColumnWidthPxResolved,
+                  maxWidth: experimentTableGripColumnWidthPxResolved,
+                }}
+                aria-label="Reorder"
+              />
+              <TableHead
+                className={cn(
+                  "relative h-12 overflow-hidden px-4 text-left align-middle font-medium text-muted-foreground",
+                  stickyExperimentTh
+                )}
+                style={{
+                  width: experimentNameColumnWidthPx,
+                  minWidth: experimentNameColumnWidthPx,
+                  maxWidth: experimentNameColumnWidthPx,
+                  left: experimentTableGripColumnWidthPxResolved,
+                }}
+              >
+                Experiment
+                <HeaderResizeHandle
+                  columnId={EXPERIMENTS_TABLE_COLUMN.experiment}
+                  onBeginResize={startResize}
+                />
+              </TableHead>
+              <TableHead
+                className="relative h-12 overflow-hidden px-4 text-left align-middle font-medium text-muted-foreground"
+                style={{
+                  width: getExperimentTableColumnWidth(EXPERIMENTS_TABLE_COLUMN.status),
+                  minWidth: getExperimentTableColumnWidth(EXPERIMENTS_TABLE_COLUMN.status),
+                  maxWidth: getExperimentTableColumnWidth(EXPERIMENTS_TABLE_COLUMN.status),
+                }}
+              >
+                Status
+                <HeaderResizeHandle
+                  columnId={EXPERIMENTS_TABLE_COLUMN.status}
+                  onBeginResize={startResize}
+                />
+              </TableHead>
+              <TableHead
+                className="relative h-12 min-w-0 overflow-hidden px-4 text-left align-middle font-medium text-muted-foreground"
+                style={{
+                  width: getExperimentTableColumnWidth(EXPERIMENTS_TABLE_COLUMN.parent),
+                  minWidth: getExperimentTableColumnWidth(EXPERIMENTS_TABLE_COLUMN.parent),
+                  maxWidth: getExperimentTableColumnWidth(EXPERIMENTS_TABLE_COLUMN.parent),
+                }}
+              >
+                Parent
+                <HeaderResizeHandle
+                  columnId={EXPERIMENTS_TABLE_COLUMN.parent}
+                  onBeginResize={startResize}
+                />
+              </TableHead>
+              {filteredMetrics.map((metric) => {
+                const metricColumnIdValue = metricColumnId(metric);
+                const metricColumnWidthPx = getExperimentTableColumnWidth(metricColumnIdValue);
+                return (
+                  <TableHead
+                    key={metricColumnIdValue}
+                    className="relative h-12 overflow-hidden px-4 text-right align-middle font-medium text-muted-foreground"
+                    style={{
+                      width: metricColumnWidthPx,
+                      minWidth: metricColumnWidthPx,
+                      maxWidth: metricColumnWidthPx,
+                    }}
+                  >
+                    <div className="flex min-w-0 items-center justify-end gap-1">
+                      <span className="min-w-0 truncate">
+                        {formatMetricLabel(metric.name, metric.label ?? null)}
+                      </span>
+                      {metric.direction === "minimize" ? (
+                        <TrendingDown className="h-3 w-3 shrink-0" />
+                      ) : (
+                        <TrendingUp className="h-3 w-3 shrink-0" />
+                      )}
+                    </div>
+                    <HeaderResizeHandle columnId={metricColumnIdValue} onBeginResize={startResize} />
+                  </TableHead>
+                );
+              })}
+              <TableHead
+                className="relative h-12 overflow-hidden px-4 text-left align-middle font-medium text-muted-foreground"
+                style={{
+                  width: getExperimentTableColumnWidth(EXPERIMENTS_TABLE_COLUMN.created),
+                  minWidth: getExperimentTableColumnWidth(EXPERIMENTS_TABLE_COLUMN.created),
+                  maxWidth: getExperimentTableColumnWidth(EXPERIMENTS_TABLE_COLUMN.created),
+                }}
+              >
+                Created
+                <HeaderResizeHandle
+                  columnId={EXPERIMENTS_TABLE_COLUMN.created}
+                  onBeginResize={startResize}
+                />
+              </TableHead>
+            </TableRow>
+          </TableHeader>
+          <SortableContext
+            items={experiments.map((e) => e.id)}
+            strategy={verticalListSortingStrategy}
+          >
+            <TableBody>
+              {experiments.map((experiment) => {
+                const parent = experiments.find((e) => e.id === experiment.parentExperimentId);
+                const pid = experiment.parentExperimentId;
+                const parentName = parent?.name ?? (pid ? parentNamesById?.[pid] : undefined);
+                return (
+                  <ExperimentTableRow
+                    key={experiment.id}
+                    experiment={experiment}
+                    isSelected={selectedExperimentId === experiment.id}
+                    onClick={() => onExperimentClick(experiment.id)}
+                    projectMetrics={filteredMetrics}
+                    expMetrics={aggregatedMetrics?.[experiment.id]}
+                    parentName={parentName}
+                    experimentTableResolvedColumnWidths={experimentTableResolvedColumnWidths}
+                    experimentTableGripColumnWidthPx={experimentTableGripColumnWidthPxResolved}
+                  />
+                );
+              })}
+            </TableBody>
+          </SortableContext>
+        </Table>
+      </DndContext>
+    </Card>
+  );
 }
-
-

@@ -45,6 +45,7 @@ export default function Experiments() {
   });
   const { reorderExperiments } = useReorderExperiments(projectId);
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
+  const experimentsListScrollRef = useRef<HTMLDivElement | null>(null);
 
   const filteredMetrics = !project?.metrics
     ? []
@@ -62,8 +63,9 @@ export default function Experiments() {
   };
 
   useEffect(() => {
+    const root = experimentsListScrollRef.current;
     const node = loadMoreRef.current;
-    if (!node || !hasNextPage) {
+    if (!node || !hasNextPage || !root) {
       return;
     }
 
@@ -75,7 +77,7 @@ export default function Experiments() {
         }
       },
       {
-        root: null,
+        root,
         rootMargin: "200px 0px",
         threshold: 0,
       }
@@ -135,7 +137,7 @@ export default function Experiments() {
             }
           />
 
-          <div className="min-h-0 flex-1 overflow-y-auto">
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
             {!experiments.length ? (
               <EmptyState
                 icon={FlaskConical}
@@ -157,8 +159,12 @@ export default function Experiments() {
                 }
               />
             ) : (
-              <>
+              <div
+                ref={experimentsListScrollRef}
+                className="flex min-h-0 flex-1 flex-col overflow-auto rounded-lg border border-border bg-card"
+              >
                 <ExperimentsTable
+                  projectId={projectId}
                   experiments={experiments}
                   projectMetrics={filteredMetrics}
                   aggregatedMetrics={aggregatedMetricsByExperiment}
@@ -167,15 +173,15 @@ export default function Experiments() {
                   onExperimentClick={setSelectedExperimentId}
                   onReorder={reorderExperiments}
                 />
-                <div ref={loadMoreRef} className="h-4" aria-hidden="true" />
+                <div ref={loadMoreRef} className="h-4 shrink-0" aria-hidden="true" />
                 {(experimentsFetchingNextPage || hasNextPage) && (
-                  <p className="text-sm text-muted-foreground">
+                  <p className="shrink-0 px-4 pb-3 text-sm text-muted-foreground">
                     {experimentsFetchingNextPage
                       ? "Loading more experiments..."
                       : "Scroll down to load more experiments."}
                   </p>
                 )}
-              </>
+              </div>
             )}
           </div>
         </div>

@@ -3,9 +3,9 @@ import { type ProjectMetric } from "@/domain/projects/types";
 import { displayMetricsForApiSave, trackedToDisplayKey } from "./format-metric-label";
 
 const trackedMetrics: ProjectMetric[] = [
-  { name: "loss", direction: "minimize", label: null },
-  { name: "acc", direction: "maximize", label: "val" },
-  { name: "f1", direction: "maximize", label: "macro" },
+  { name: "loss", direction: "minimize", aggregation: "last", label: null },
+  { name: "acc", direction: "maximize", aggregation: "last", label: "val" },
+  { name: "f1", direction: "maximize", aggregation: "last", label: "macro" },
 ];
 
 describe("displayMetricsForApiSave", () => {
