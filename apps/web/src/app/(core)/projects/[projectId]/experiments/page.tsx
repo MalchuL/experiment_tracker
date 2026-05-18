@@ -258,6 +258,34 @@ export default function Experiments() {
                     </div>
                   </div>
                 }
+                footer={
+                  <div className="px-4 py-3">
+                    <p className="text-xs text-muted-foreground">
+                      {searchTrimmed ? (
+                        <>
+                          Showing {experiments.length} of {total} matching experiment{total === 1 ? "" : "s"} in this
+                          project
+                          {" · "}
+                          drag-to-reorder is off while searching
+                        </>
+                      ) : (
+                        <>
+                          Showing {experiments.length} of {total} experiment{total === 1 ? "" : "s"} in this project
+                          {experiments.length < total ? " (paginated)" : ""}
+                        </>
+                      )}
+                    </p>
+                    {(experimentsFetchingNextPage || hasNextPage) && (
+                      <p className="mt-2 text-sm text-muted-foreground">
+                        {experimentsFetchingNextPage
+                          ? "Loading more experiments..."
+                          : searchTrimmed
+                            ? "Scroll down to load more matching experiments."
+                            : "Scroll down to load more experiments."}
+                      </p>
+                    )}
+                  </div>
+                }
               >
                 <ExperimentsTable
                   projectId={projectId}
@@ -272,30 +300,6 @@ export default function Experiments() {
                   onReorder={reorderExperiments}
                 />
                 <div ref={loadMoreRef} className="h-4 shrink-0" aria-hidden="true" />
-                <p className="shrink-0 px-4 pb-1 text-xs text-muted-foreground">
-                  {searchTrimmed ? (
-                    <>
-                      Showing {experiments.length} of {total} matching experiment{total === 1 ? "" : "s"} in this
-                      project
-                      {" · "}
-                      drag-to-reorder is off while searching
-                    </>
-                  ) : (
-                    <>
-                      Showing {experiments.length} of {total} experiment{total === 1 ? "" : "s"} in this project
-                      {experiments.length < total ? " (paginated)" : ""}
-                    </>
-                  )}
-                </p>
-                {(experimentsFetchingNextPage || hasNextPage) && (
-                  <p className="shrink-0 px-4 pb-3 text-sm text-muted-foreground">
-                    {experimentsFetchingNextPage
-                      ? "Loading more experiments..."
-                      : searchTrimmed
-                        ? "Scroll down to load more matching experiments."
-                        : "Scroll down to load more experiments."}
-                  </p>
-                )}
               </ProjectDataTableFrame>
             )}
           </div>
