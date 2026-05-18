@@ -66,8 +66,8 @@ export function ProjectMetricsTableSection({
         <div className="min-h-0 min-w-0 flex-1">
           <Table
             containerClassName="overflow-visible w-full min-w-0"
-            className="table-fixed min-w-full border-separate border-spacing-0"
-            style={{ width: table.getTotalSize(), minWidth: "100%" }}
+            className="table-fixed border-separate border-spacing-0"
+            style={{ width: table.getTotalSize() }}
           >
             <TableHeader className="sticky top-0 z-20 bg-background shadow-[0_1px_0_0_hsl(var(--border))]">
               {table.getHeaderGroups().map((hg) => (

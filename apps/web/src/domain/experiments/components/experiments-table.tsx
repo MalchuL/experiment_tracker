@@ -164,8 +164,8 @@ export function ExperimentsTable({
       >
         <Table
           containerClassName="overflow-visible w-full min-w-0"
-          className="table-fixed min-w-full border-separate border-spacing-0"
-          style={{ width: experimentTableTotalWidthPx, minWidth: "100%" }}
+          className="table-fixed border-separate border-spacing-0"
+          style={{ width: experimentTableTotalWidthPx }}
         >
           <TableHeader className="sticky top-0 z-20 bg-background shadow-[0_1px_0_0_hsl(var(--border))]">
             <TableRow>
