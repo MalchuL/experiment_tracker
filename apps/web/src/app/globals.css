@@ -338,7 +338,17 @@
   }
 
   .report-editor-block-controls {
-    @apply hidden items-center gap-0.5 text-muted-foreground sm:flex;
+    @apply relative hidden items-center gap-0.5 text-muted-foreground sm:flex;
+  }
+
+  .report-editor-block-controls::before {
+    content: "";
+    position: absolute;
+    top: -0.0625rem;
+    right: -0.25rem;
+    bottom: -0.0625rem;
+    width: 0.25rem;
+    pointer-events: auto;
   }
 
   .report-editor-block-controls[data-dragging="true"] {

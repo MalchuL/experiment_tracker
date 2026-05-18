@@ -71,7 +71,7 @@ const REPORT_DRAG_HANDLE_NESTED_BY_DIR = {
 const BUBBLE_MENU_OPTIONS = { placement: "top" as const };
 
 const DRAG_HANDLE_COMPUTE_POSITION_CONFIG = {
-  middleware: [offset({ mainAxis: 1, crossAxis: 4 })],
+  middleware: [offset({ mainAxis: 4, crossAxis: 4 })],
 };
 
 const SLASH_MENU_CONFIG = {
