@@ -99,14 +99,16 @@ export function ProjectMetricsTableSection({
                               "touch-none select-none"
                             )}
                           >
-                            <span
-                              aria-hidden
-                              className={cn(
-                                "block h-full w-px shrink-0 bg-border transition-colors",
-                                "hover:bg-muted-foreground/70",
-                                h.column.getIsResizing() && "bg-primary"
-                              )}
-                            />
+                            {h.column.id === "experiment" ? null : (
+                              <span
+                                aria-hidden
+                                className={cn(
+                                  "block h-full w-px shrink-0 bg-border transition-colors",
+                                  "hover:bg-muted-foreground/70",
+                                  h.column.getIsResizing() && "bg-primary"
+                                )}
+                              />
+                            )}
                           </div>
                         )}
                       </TableHead>

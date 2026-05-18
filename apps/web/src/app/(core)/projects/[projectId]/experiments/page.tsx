@@ -187,15 +187,33 @@ export default function Experiments() {
             }
           />
 
-          <div className="max-w-md space-y-1.5">
-            <Label htmlFor="experiments-search">Search id, name, or description</Label>
-            <Input
-              id="experiments-search"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="e.g. uuid fragment, baseline, notes…"
-              data-testid="input-experiments-search"
-            />
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div className="min-w-0 flex-1 space-y-1.5 sm:max-w-md">
+              <Label htmlFor="experiments-search">Search id, name, or description</Label>
+              <Input
+                id="experiments-search"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="e.g. uuid fragment, baseline, notes…"
+                data-testid="input-experiments-search"
+              />
+            </div>
+            <div className="flex h-10 shrink-0 items-center gap-2">
+              <Label htmlFor="experiments-pin-lead" className="text-sm font-normal">
+                Pin lead columns
+              </Label>
+              <Switch
+                id="experiments-pin-lead"
+                checked={pinLeadColumns}
+                onCheckedChange={(v) => {
+                  setPinLeadColumns(v);
+                  if (projectId) {
+                    saveExperimentsTablePinLead(projectId, v);
+                  }
+                }}
+                aria-label="Pin grip and experiment columns when scrolling horizontally"
+              />
+            </div>
           </div>
 
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -235,29 +253,6 @@ export default function Experiments() {
                 pinLeadColumns={pinLeadColumns}
                 leadColumnCount={2}
                 scrollContainerRef={experimentsListScrollRef}
-                toolbar={
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="text-xs text-muted-foreground">
-                      Pin keeps the grip and experiment columns visible while scrolling horizontally.
-                    </span>
-                    <div className="flex items-center gap-2">
-                      <Label htmlFor="experiments-pin-lead" className="text-xs font-normal text-muted-foreground">
-                        Pin lead columns
-                      </Label>
-                      <Switch
-                        id="experiments-pin-lead"
-                        checked={pinLeadColumns}
-                        onCheckedChange={(v) => {
-                          setPinLeadColumns(v);
-                          if (projectId) {
-                            saveExperimentsTablePinLead(projectId, v);
-                          }
-                        }}
-                        aria-label="Pin grip and experiment columns when scrolling horizontally"
-                      />
-                    </div>
-                  </div>
-                }
                 footer={
                   <div className="px-4 py-3">
                     <p className="text-xs text-muted-foreground">

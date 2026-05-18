@@ -37,20 +37,25 @@ import {
 } from "@/domain/experiments/lib/experiments-table-column-widths";
 
 const stickyGripTh = cn(
-  "sticky z-[21] border-r border-border bg-background shadow-[4px_0_12px_-8px_rgba(0,0,0,0.08)] box-border overflow-hidden",
+  "sticky z-[21] bg-background shadow-[4px_0_12px_-8px_rgba(0,0,0,0.08)] box-border overflow-hidden",
   "left-0"
 );
 
 const stickyExperimentTh = cn(
-  "sticky z-[21] border-r border-border bg-background shadow-[4px_0_12px_-8px_rgba(0,0,0,0.08)] box-border overflow-hidden"
+  "sticky z-[21] bg-background shadow-[4px_0_12px_-8px_rgba(0,0,0,0.08)] box-border overflow-hidden"
 );
+
+const headerSeparatorClass =
+  "after:absolute after:right-0 after:top-2 after:bottom-2 after:w-px after:bg-border after:content-['']";
 
 function HeaderResizeHandle({
   columnId,
   onBeginResize,
+  showSeparator = true,
 }: {
   columnId: string;
   onBeginResize: (columnId: string, clientX: number) => void;
+  showSeparator?: boolean;
 }) {
   return (
     <div
@@ -73,10 +78,12 @@ function HeaderResizeHandle({
         "touch-none select-none"
       )}
     >
-      <span
-        aria-hidden
-        className="block h-full w-px shrink-0 bg-border transition-colors hover:bg-muted-foreground/70"
-      />
+      {showSeparator ? (
+        <span
+          aria-hidden
+          className="block h-[calc(100%-1rem)] w-px shrink-0 self-center bg-border transition-colors hover:bg-muted-foreground/70"
+        />
+      ) : null}
     </div>
   );
 }
@@ -150,10 +157,10 @@ export function ExperimentsTable({
   const experimentNameColumnWidthPx = getExperimentTableColumnWidth(EXPERIMENTS_TABLE_COLUMN.experiment);
 
   const pinSticky = pinLeadColumns && leadColumnCount >= 2;
-  const gripThClass = pinSticky ? stickyGripTh : "border-r border-border bg-background box-border overflow-hidden";
+  const gripThClass = pinSticky ? stickyGripTh : "bg-background box-border overflow-hidden";
   const experimentThClass = pinSticky
     ? stickyExperimentTh
-    : "relative border-r border-border bg-background box-border overflow-hidden";
+    : "relative bg-background box-border overflow-hidden";
 
   return (
     <Card className="min-w-0 shrink-0 border-0 bg-transparent shadow-none">
@@ -171,8 +178,9 @@ export function ExperimentsTable({
             <TableRow>
               <TableHead
                 className={cn(
-                  "h-12 px-2 text-left align-middle font-medium text-muted-foreground",
-                  gripThClass
+                  "relative h-12 px-2 text-left align-middle font-medium text-muted-foreground",
+                  gripThClass,
+                  headerSeparatorClass
                 )}
                 style={{
                   width: experimentTableGripColumnWidthPxResolved,
@@ -187,7 +195,8 @@ export function ExperimentsTable({
               <TableHead
                 className={cn(
                   "relative h-12 overflow-hidden px-4 text-left align-middle font-medium text-muted-foreground",
-                  experimentThClass
+                  experimentThClass,
+                  headerSeparatorClass
                 )}
                 style={{
                   width: experimentNameColumnWidthPx,
@@ -201,6 +210,7 @@ export function ExperimentsTable({
                 <HeaderResizeHandle
                   columnId={EXPERIMENTS_TABLE_COLUMN.experiment}
                   onBeginResize={startResize}
+                  showSeparator={false}
                 />
               </TableHead>
               <TableHead
