@@ -10,8 +10,13 @@ import { getExperimentSelectionSurfaceStyle } from "@/domain/experiments/experim
 import type { MetricsTableRow } from "./lib/types";
 
 const stickyExperimentTh = cn(
-  "sticky left-0 z-[21] border-r border-border bg-background shadow-[4px_0_12px_-8px_rgba(0,0,0,0.08)] box-border"
+  "sticky left-0 z-[21] bg-background shadow-[4px_0_12px_-8px_rgba(0,0,0,0.08)] box-border"
 );
+const stickyExperimentCell = cn(
+  "sticky left-0 z-[2] bg-background shadow-[4px_0_12px_-8px_rgba(0,0,0,0.08)] box-border"
+);
+const headerSeparatorClass =
+  "after:absolute after:right-0 after:top-2 after:bottom-2 after:w-px after:bg-border after:content-['']";
 
 function layoutForColumn<T>(
   table: TTable<T>,
@@ -85,6 +90,7 @@ export function ProjectMetricsTableSection({
                           editMode ? "h-auto min-h-12" : "h-12",
                           h.column.id === "experiment" ? "text-left" : "text-right",
                           pinExperiment && stickyExperimentTh,
+                          h.column.id === "experiment" && headerSeparatorClass,
                           layout.className
                         )}
                         style={layout.style}
@@ -103,7 +109,7 @@ export function ProjectMetricsTableSection({
                               <span
                                 aria-hidden
                                 className={cn(
-                                  "block h-full w-px shrink-0 bg-border transition-colors",
+                                  "block h-[calc(100%-1rem)] w-px shrink-0 self-center bg-border transition-colors",
                                   "hover:bg-muted-foreground/70",
                                   h.column.getIsResizing() && "bg-primary"
                                 )}
@@ -154,7 +160,7 @@ export function ProjectMetricsTableSection({
                             key={cell.id}
                             className={cn(
                               "align-top",
-                              pinExperiment && stickyExperimentTh,
+                              pinExperiment && stickyExperimentCell,
                               pinExperiment && "group-hover:bg-muted/50",
                               layout.className
                             )}

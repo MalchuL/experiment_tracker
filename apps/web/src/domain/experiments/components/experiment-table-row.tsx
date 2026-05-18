@@ -24,11 +24,13 @@ import {
 } from "@/domain/experiments/lib/experiments-table-column-widths";
 
 const stickyGripCell = cn(
-  "sticky left-0 z-[2] border-r border-border bg-background shadow-[4px_0_12px_-8px_rgba(0,0,0,0.08)] box-border overflow-hidden"
+  "sticky left-0 z-[2] bg-background shadow-[4px_0_12px_-8px_rgba(0,0,0,0.08)] box-border overflow-hidden"
 );
 const stickyExperimentCell = cn(
-  "sticky z-[2] border-r border-border bg-background shadow-[4px_0_12px_-8px_rgba(0,0,0,0.08)] box-border overflow-hidden"
+  "sticky z-[2] bg-background shadow-[4px_0_12px_-8px_rgba(0,0,0,0.08)] box-border overflow-hidden"
 );
+
+const rowSeparatorClass = "border-y border-border/70";
 
 interface ExperimentTableRowProps {
   experiment: Experiment;
@@ -81,10 +83,10 @@ export function ExperimentTableRow({
   const parentNameColumnWidthPx = getExperimentTableColumnWidth(EXPERIMENTS_TABLE_COLUMN.parent);
   const createdAtColumnWidthPx = getExperimentTableColumnWidth(EXPERIMENTS_TABLE_COLUMN.created);
 
-  const gripCellClass = pinStickyLead ? stickyGripCell : "border-r border-border bg-background box-border overflow-hidden";
+  const gripCellClass = pinStickyLead ? stickyGripCell : "bg-background box-border overflow-hidden";
   const experimentCellClass = pinStickyLead
     ? stickyExperimentCell
-    : "border-r border-border bg-background box-border overflow-hidden";
+    : "bg-background box-border overflow-hidden";
 
   return (
     <TableRow
@@ -99,7 +101,7 @@ export function ExperimentTableRow({
       data-testid={`row-experiment-${experiment.id}`}
     >
       <TableCell
-        className={cn("px-2 group-hover:bg-muted/50", gripCellClass)}
+        className={cn("px-2 group-hover:bg-muted/50", rowSeparatorClass, gripCellClass)}
         style={{
           width: experimentTableGripColumnWidthPx,
           minWidth: experimentTableGripColumnWidthPx,
@@ -122,7 +124,11 @@ export function ExperimentTableRow({
         </div>
       </TableCell>
       <TableCell
-        className={cn("overflow-hidden px-4 align-middle group-hover:bg-muted/50", experimentCellClass)}
+        className={cn(
+          "overflow-hidden px-4 align-middle group-hover:bg-muted/50",
+          rowSeparatorClass,
+          experimentCellClass
+        )}
         style={{
           width: experimentNameColumnWidthPx,
           minWidth: experimentNameColumnWidthPx,
@@ -154,13 +160,13 @@ export function ExperimentTableRow({
         </div>
       </TableCell>
       <TableCell
-        className="overflow-hidden whitespace-nowrap"
+        className={cn("overflow-hidden whitespace-nowrap", rowSeparatorClass)}
         style={{ width: statusColumnWidthPx, minWidth: statusColumnWidthPx, maxWidth: statusColumnWidthPx }}
       >
         <StatusBadge status={experiment.status} />
       </TableCell>
       <TableCell
-        className="min-w-0 overflow-hidden text-sm text-muted-foreground"
+        className={cn("min-w-0 overflow-hidden text-sm text-muted-foreground", rowSeparatorClass)}
         style={{
           width: parentNameColumnWidthPx,
           minWidth: parentNameColumnWidthPx,
@@ -192,7 +198,7 @@ export function ExperimentTableRow({
         return (
           <TableCell
             key={projectMetricKeyString(metric)}
-            className="overflow-hidden whitespace-nowrap text-right font-mono text-sm"
+            className={cn("overflow-hidden whitespace-nowrap text-right font-mono text-sm", rowSeparatorClass)}
             style={{ width: metricColumnWidthPx, minWidth: metricColumnWidthPx, maxWidth: metricColumnWidthPx }}
           >
             <span
@@ -205,7 +211,10 @@ export function ExperimentTableRow({
         );
       })}
       <TableCell
-        className="overflow-hidden whitespace-nowrap text-sm text-muted-foreground tabular-nums"
+        className={cn(
+          "overflow-hidden whitespace-nowrap text-sm text-muted-foreground tabular-nums",
+          rowSeparatorClass
+        )}
         style={{ width: createdAtColumnWidthPx, minWidth: createdAtColumnWidthPx, maxWidth: createdAtColumnWidthPx }}
         title={format(parseISO(experiment.createdAt), "MMM d, yyyy, HH:mm")}
       >

@@ -254,7 +254,7 @@ export default function Experiments() {
                 leadColumnCount={2}
                 scrollContainerRef={experimentsListScrollRef}
                 footer={
-                  <div className="px-4 py-3">
+                  <div className="relative z-10 px-4 py-3">
                     <p className="text-xs text-muted-foreground">
                       {searchTrimmed ? (
                         <>
