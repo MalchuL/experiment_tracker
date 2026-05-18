@@ -7,6 +7,7 @@
 
 import Link from "next/link";
 import { StatusBadge } from "@/components/shared/status-badge";
+import { EntityIdDisplay } from "@/components/shared/entity-id-display";
 import {
   ExperimentEditForm,
   type ExperimentEditSavePayload,
@@ -580,9 +581,7 @@ export function ExperimentSidebar({
               </div>
             </div>
 
-            <div className="text-xs font-mono text-muted-foreground p-2 bg-muted/50 rounded-md">
-              ID: {experiment.id}
-            </div>
+            <EntityIdDisplay label="ID" value={experiment.id} />
 
             {/* Metrics / features / diff — keeps heavy JSON and git output out of the first paint path */}
             <Tabs defaultValue="metrics" className="space-y-2">

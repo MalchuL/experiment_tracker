@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from "react";
 import { PageHeader } from "@/components/shared/page-header";
+import { EntityIdDisplay } from "@/components/shared/entity-id-display";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { AlertCircle, Eye, Pencil, Plus, Settings, Trash2, X } from "lucide-react";
 import { useCurrentProject } from "@/domain/projects/hooks";
@@ -258,7 +259,8 @@ export default function ProjectSettings() {
               Update your project&apos;s basic details.
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
+            <EntityIdDisplay label="ID" value={projectId} />
             <BasicInfoForm
               project={project}
               onSubmit={handleBasicInfoSubmit}
@@ -622,4 +624,3 @@ function DynamicSettingsEditor({
     </>
   );
 }
-
