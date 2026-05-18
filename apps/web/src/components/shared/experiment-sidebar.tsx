@@ -12,6 +12,7 @@ import {
   ExperimentEditForm,
   type ExperimentEditSavePayload,
 } from "@/components/shared/experiment-edit-form";
+import { ExperimentTagsEditor } from "@/domain/experiments/components/experiment-tags-editor";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -162,6 +163,7 @@ export function ExperimentSidebar({
   const { project } = useProject(experiment?.projectId);
 
   const trackedMetricDefinitions = project?.metrics.trackedMetrics ?? [];
+  const experimentTags = experiment?.tags ?? [];
 
   /** Logged scalars grouped by label for accordion sections (locale-sorted labels; unlabeled last). */
   const loggedMetricsByLabel = useMemo((): LoggedMetricsLabelGroup[] => {
@@ -321,6 +323,36 @@ export function ExperimentSidebar({
     }
   };
 
+  const persistExperimentTags = async (tags: string[]) => {
+    if (!experiment) return;
+    try {
+      await updateExperiment(
+        { tags },
+        {
+          onSuccess: () => {
+            toast({
+              title: "Tags updated",
+              description: "Experiment tags have been saved.",
+            });
+          },
+          onError: () => {
+            toast({
+              title: "Error",
+              description: "Failed to update tags.",
+              variant: "destructive",
+            });
+          },
+        }
+      );
+    } catch {
+      toast({
+        title: "Error",
+        description: "Failed to update tags.",
+        variant: "destructive",
+      });
+    }
+  };
+
   if (!experimentId) return null;
 
   /** Aggregates row list for the sidebar’s experiment (tracked metric values + parent deltas). */
@@ -405,6 +437,11 @@ export function ExperimentSidebar({
                   {project.name}
                 </Badge>
               )}
+              <ExperimentTagsEditor
+                tags={experimentTags}
+                disabled={updateIsPending}
+                onChange={persistExperimentTags}
+              />
             </div>
 
             {/* Parent lineage: choose another experiment in the project; saved with the edit form */}

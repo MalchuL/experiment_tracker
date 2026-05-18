@@ -10,6 +10,7 @@ export interface InsertExperiment {
     gitDiff?: string | null;
     color?: string;
     order?: number;
+    tags?: string[];
 }
 
 export interface UpdateExperiment {
@@ -21,4 +22,5 @@ export interface UpdateExperiment {
     gitDiff?: string | null;
     color?: string;
     order?: number;
+    tags?: string[];
 }

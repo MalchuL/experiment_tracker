@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQueries, useQueryClient } from "@tanstack/react-query";
 import { PageHeader } from "@/components/shared/page-header";
+import { EntityIdDisplay } from "@/components/shared/entity-id-display";
 import {
   ExperimentEditForm,
   type ExperimentEditSavePayload,
@@ -44,6 +45,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ExperimentArtifactsPanel } from "@/domain/experiment-artifacts/components/experiment-artifacts-panel";
+import { ExperimentTagsEditor } from "@/domain/experiments/components/experiment-tags-editor";
 import { useAggregatedMetrics, useExperiments } from "@/domain/experiments/hooks";
 import type { Experiment } from "@/domain/experiments/types";
 import type { UpdateExperiment } from "@/domain/experiments/types/dto";
@@ -76,7 +78,6 @@ import { GitBranch, ChevronDown, X } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { experimentsService } from "@/domain/experiments/services";
 import { ExperimentDangerZoneCard } from "@/domain/experiments/components/experiment-danger-zone-card";
-import type { InsertExperiment } from "@/domain/experiments/types";
 function formatExperimentParentOption(exp: Pick<Experiment, "name" | "id">): string {
   return `${exp.name} (${exp.id.slice(0, 7)})`;
 }
@@ -129,7 +130,7 @@ export function ExperimentDetailsView({ projectId }: { projectId: string }) {
     }: {
       experimentId: string;
       payload: UpdateExperiment;
-    }) => experimentsService.update(experimentId, payload as InsertExperiment),
+    }) => experimentsService.update(experimentId, payload),
     onSuccess: (_, v) => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.EXPERIMENTS.BY_ID(v.experimentId)] });
       queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.EXPERIMENTS.BY_PROJECT(projectId)] });
@@ -224,6 +225,11 @@ export function ExperimentDetailsView({ projectId }: { projectId: string }) {
     toast({ title: "Status updated" });
   };
 
+  const handleTagsChange = async (experimentId: string, tags: string[]) => {
+    await updateExperimentMutation.mutateAsync({ experimentId, payload: { tags } });
+    toast({ title: "Tags updated" });
+  };
+
   if (experimentIdsOrdered.length === 0) {
     return (
       <div className="space-y-4">
@@ -268,6 +274,7 @@ export function ExperimentDetailsView({ projectId }: { projectId: string }) {
           projectExperiments={projectExperiments}
           onSave={(data) => handleSaveExperiment(experiment.id, data)}
           onStatusChange={(s) => handleStatusChange(experiment.id, s)}
+          onTagsChange={(tags) => handleTagsChange(experiment.id, tags)}
           isSaving={updateExperimentMutation.isPending}
         />
       ))}
@@ -489,6 +496,7 @@ function ExperimentDetailsMetadataCard({
   projectExperiments,
   onSave,
   onStatusChange,
+  onTagsChange,
   isSaving,
 }: {
   experiment: Experiment;
@@ -496,6 +504,7 @@ function ExperimentDetailsMetadataCard({
   projectExperiments: Experiment[];
   onSave: (data: ExperimentEditSavePayload) => void;
   onStatusChange: (status: Experiment["status"]) => void;
+  onTagsChange: (tags: string[]) => void;
   isSaving: boolean;
 }) {
   const [parentMenuOpen, setParentMenuOpen] = useState(false);
@@ -543,8 +552,13 @@ function ExperimentDetailsMetadataCard({
             <CardTitle className="text-lg">{experiment.name}</CardTitle>
             <StatusBadge status={experiment.status} />
             {project ? <Badge variant="secondary">{project.name}</Badge> : null}
+            <ExperimentTagsEditor
+              tags={experiment.tags ?? []}
+              disabled={isSaving}
+              onChange={onTagsChange}
+            />
           </div>
-          <p className="text-xs font-mono text-muted-foreground">{experiment.id}</p>
+          <EntityIdDisplay label="ID" value={experiment.id} />
         </div>
       </CardHeader>
       <CardContent className="space-y-4">

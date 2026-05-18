@@ -79,6 +79,7 @@ export interface Experiment {
     progress: number;
     color: string;
     order: number;
+    tags?: string[] | null;
     createdAt: string;
     startedAt: string | null;
     completedAt: string | null;

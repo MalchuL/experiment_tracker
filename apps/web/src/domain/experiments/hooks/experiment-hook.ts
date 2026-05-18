@@ -38,7 +38,7 @@ export function useExperiment(
     });
     const queryClient = useQueryClient();
     const updateExperiment = useMutation({
-        mutationFn: (experiment: Experiment) => experimentsService.update(experimentId, experiment),
+        mutationFn: (experiment: UpdateExperiment) => experimentsService.update(experimentId, experiment),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.EXPERIMENTS.BY_ID(experimentId)] });
             if (experiment?.projectId) {
@@ -68,7 +68,7 @@ export function useExperiment(
 
     const updateFn = useCallback(
         (data: UpdateExperiment, options?: UseExperimentOptions) =>
-            updateExperiment.mutateAsync(data as Experiment, options),
+            updateExperiment.mutateAsync(data, options),
         [updateExperiment],
     );
 

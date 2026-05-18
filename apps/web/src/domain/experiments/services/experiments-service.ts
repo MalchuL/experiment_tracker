@@ -2,7 +2,7 @@ import { serviceClients } from "@/lib/api/clients/axios-client";
 import { appendPaginationParams } from "@/lib/api/pagination";
 import { API_ROUTES } from "@/lib/constants/api-routes";
 import { Experiment, ExperimentUsage, CategoryCleanupResponse } from "../types";
-import type { InsertExperiment } from "@/domain/experiments/types";
+import type { InsertExperiment, UpdateExperiment } from "@/domain/experiments/types";
 import type { PaginatedResponse, PaginationParams } from "@/lib/types/pagination";
 
 export interface ExperimentsService {
@@ -21,7 +21,7 @@ export interface ExperimentsService {
     create: (data: InsertExperiment) => Promise<Experiment>;
     reorder: (projectId: string, experimentIds: string[]) => Promise<Experiment[]>;
     get: (experimentId: string) => Promise<Experiment>;
-    update: (experimentId: string, data: InsertExperiment) => Promise<Experiment>;
+    update: (experimentId: string, data: UpdateExperiment) => Promise<Experiment>;
     delete: (experimentId: string) => Promise<CategoryCleanupResponse>;
     getUsage: (experimentId: string) => Promise<ExperimentUsage>;
     cleanupCategory: (experimentId: string, category: string) => Promise<CategoryCleanupResponse>;
@@ -63,7 +63,7 @@ export const experimentsService: ExperimentsService = {
         const response = await serviceClients.api.get<Experiment>(API_ROUTES.EXPERIMENTS.BY_ID.GET(experimentId));
         return response.data;
     },
-    update: async (experimentId: string, data: InsertExperiment) => {
+    update: async (experimentId: string, data: UpdateExperiment) => {
         const response = await serviceClients.api.patch<Experiment>(API_ROUTES.EXPERIMENTS.BY_ID.UPDATE(experimentId), data);
         return response.data;
     },
