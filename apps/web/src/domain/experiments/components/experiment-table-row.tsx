@@ -41,6 +41,7 @@ interface ExperimentTableRowProps {
   parentName?: string;
   experimentTableResolvedColumnWidths: Record<string, number>;
   experimentTableGripColumnWidthPx: number;
+  pinStickyLead?: boolean;
 }
 
 export function ExperimentTableRow({
@@ -53,6 +54,7 @@ export function ExperimentTableRow({
   parentName,
   experimentTableResolvedColumnWidths,
   experimentTableGripColumnWidthPx,
+  pinStickyLead = true,
 }: ExperimentTableRowProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: experiment.id,
@@ -79,21 +81,25 @@ export function ExperimentTableRow({
   const parentNameColumnWidthPx = getExperimentTableColumnWidth(EXPERIMENTS_TABLE_COLUMN.parent);
   const createdAtColumnWidthPx = getExperimentTableColumnWidth(EXPERIMENTS_TABLE_COLUMN.created);
 
+  const gripCellClass = pinStickyLead ? stickyGripCell : "border-r border-border bg-background box-border overflow-hidden";
+  const experimentCellClass = pinStickyLead
+    ? stickyExperimentCell
+    : "border-r border-border bg-background box-border overflow-hidden";
+
   return (
     <TableRow
       ref={setNodeRef}
       data-state={isSelected ? "selected" : undefined}
       style={style}
-      className={
-        isSelected
-          ? "cursor-pointer transition-colors hover-elevate"
-          : "cursor-pointer hover-elevate"
-      }
+      className={cn(
+        "group cursor-pointer hover-elevate",
+        isSelected && "transition-colors"
+      )}
       onClick={onClick}
       data-testid={`row-experiment-${experiment.id}`}
     >
       <TableCell
-        className={cn("px-2", stickyGripCell)}
+        className={cn("px-2 group-hover:bg-muted/50", gripCellClass)}
         style={{
           width: experimentTableGripColumnWidthPx,
           minWidth: experimentTableGripColumnWidthPx,
@@ -116,12 +122,12 @@ export function ExperimentTableRow({
         </div>
       </TableCell>
       <TableCell
-        className={cn("overflow-hidden px-4 align-middle", stickyExperimentCell)}
+        className={cn("overflow-hidden px-4 align-middle group-hover:bg-muted/50", experimentCellClass)}
         style={{
           width: experimentNameColumnWidthPx,
           minWidth: experimentNameColumnWidthPx,
           maxWidth: experimentNameColumnWidthPx,
-          left: experimentTableGripColumnWidthPx,
+          ...(pinStickyLead ? { left: experimentTableGripColumnWidthPx } : {}),
           ...stickyCellBackground,
         }}
       >

@@ -2,6 +2,11 @@
 
 import { useMemo, type Dispatch, type SetStateAction } from "react";
 import { type ColumnDef } from "@tanstack/react-table";
+import type { ColumnWidthPolicy } from "@/lib/table/column-width-policy";
+import {
+  experimentsTableColumnPolicy,
+  metricColumnId,
+} from "@/domain/experiments/lib/experiments-table-column-widths";
 import type { MetricsTableRow } from "../lib/types";
 import {
   CreatedAtCell,
@@ -13,8 +18,12 @@ import {
   ReadonlyMetaColumnHeader,
 } from "../components/metric-table-column-parts";
 
+const UNRESTRICTED_RESIZE_MIN_PX = 1;
+const UNRESTRICTED_RESIZE_MAX_PX = Number.MAX_SAFE_INTEGER;
+
 export type UseMetricTableColumnsOptions = {
   baseNames: string[];
+  inferredMetricColumnWidths: Record<string, number>;
   editMode: boolean;
   hiddenRowIds: Set<string>;
   setHiddenRowIds: Dispatch<SetStateAction<Set<string>>>;
@@ -30,10 +39,24 @@ export type UseMetricTableColumnsOptions = {
   onSelectExperiment: (experimentId: string) => void;
 };
 
+function policyForPivotColumn(id: string): ColumnWidthPolicy {
+  if (id === "experiment") return experimentsTableColumnPolicy("experiment");
+  if (id === "experimentId") {
+    return { mode: "fixed", defaultPx: 140, minPx: 100, maxPx: 360 };
+  }
+  if (id === "createdAt") {
+    return { mode: "fixed", defaultPx: 180, minPx: 140, maxPx: 300 };
+  }
+  return experimentsTableColumnPolicy(
+    metricColumnId({ name: id, label: null, direction: "maximize", aggregation: "last" })
+  );
+}
+
 /** Column defs for the pivot table (experiment + dynamic metric columns). */
 export function useMetricTableColumns(o: UseMetricTableColumnsOptions) {
   const {
     baseNames,
+    inferredMetricColumnWidths,
     editMode,
     hiddenRowIds,
     setHiddenRowIds,
@@ -65,9 +88,10 @@ export function useMetricTableColumns(o: UseMetricTableColumnsOptions) {
           />
         ),
         size: 200,
-        minSize: 120,
-        maxSize: 500,
+        minSize: UNRESTRICTED_RESIZE_MIN_PX,
+        maxSize: UNRESTRICTED_RESIZE_MAX_PX,
         enableSorting: true,
+        meta: { widthPolicy: policyForPivotColumn("experiment") },
       } as ColumnDef<MetricsTableRow, unknown>,
       ...baseNames.map(
         (n) =>
@@ -86,7 +110,7 @@ export function useMetricTableColumns(o: UseMetricTableColumnsOptions) {
                 setMaxHighlightColumnIds={setMaxHighlightColumnIds}
               />
             ),
-            accessorFn: (row) => row.byName[n] ?? null,
+            accessorFn: (row) => row.byName[n] ?? undefined,
             cell: (c) => (
               <MetricValueCell
                 row={c.row.original}
@@ -99,10 +123,12 @@ export function useMetricTableColumns(o: UseMetricTableColumnsOptions) {
                 cycleCellTint={cycleCellTint}
               />
             ),
-            size: 120,
-            minSize: 72,
-            maxSize: 400,
+            size: inferredMetricColumnWidths[n] ?? 120,
+            minSize: UNRESTRICTED_RESIZE_MIN_PX,
+            maxSize: UNRESTRICTED_RESIZE_MAX_PX,
             enableSorting: true,
+            sortUndefined: "last",
+            meta: { widthPolicy: policyForPivotColumn(n) },
           }) as ColumnDef<MetricsTableRow, unknown>
       ),
       {
@@ -118,9 +144,10 @@ export function useMetricTableColumns(o: UseMetricTableColumnsOptions) {
         accessorKey: "experimentId",
         cell: (c) => <ExperimentIdCell value={c.getValue() as string} />,
         size: 140,
-        minSize: 100,
-        maxSize: 360,
+        minSize: UNRESTRICTED_RESIZE_MIN_PX,
+        maxSize: UNRESTRICTED_RESIZE_MAX_PX,
         enableSorting: false,
+        meta: { widthPolicy: policyForPivotColumn("experimentId") },
       } as ColumnDef<MetricsTableRow, unknown>,
       {
         id: "createdAt",
@@ -135,13 +162,15 @@ export function useMetricTableColumns(o: UseMetricTableColumnsOptions) {
         accessorFn: (r) => r.createdAt,
         cell: (c) => <CreatedAtCell raw={c.row.original.createdAt} />,
         size: 180,
-        minSize: 140,
-        maxSize: 300,
+        minSize: UNRESTRICTED_RESIZE_MIN_PX,
+        maxSize: UNRESTRICTED_RESIZE_MAX_PX,
         enableSorting: false,
+        meta: { widthPolicy: policyForPivotColumn("createdAt") },
       } as ColumnDef<MetricsTableRow, unknown>,
     ];
   }, [
     baseNames,
+    inferredMetricColumnWidths,
     editMode,
     hiddenRowIds,
     setHiddenRowIds,

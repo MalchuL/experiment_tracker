@@ -1,7 +1,10 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
+import { Loader2 } from "lucide-react";
 import { ExperimentSidebar } from "@/components/shared/experiment-sidebar";
+import { ProjectDataTableFrame } from "@/components/shared/project-data-table-frame";
+import { Button } from "@/components/ui/button";
 import { useAggregatedMetrics } from "@/domain/experiments/hooks";
 import { getDisplayedTrackedMetrics } from "@/lib/metrics/format-metric-label";
 import { REFRESH_EXPERIMENTS_LIST_INTERVAL } from "@/lib/constants/rates";
@@ -9,6 +12,7 @@ import {
   ProjectMetricsPageIntro,
   ProjectMetricsPageUsageHint,
 } from "./components/project-metrics-page-intro";
+import { ProjectMetricsTableToolbar } from "./components/project-metrics-table-toolbar";
 import {
   ProjectMetricsLabelListError,
   ProjectMetricsLoadingProject,
@@ -54,7 +58,11 @@ export function ProjectMetricsPage() {
     hiddenColumnIds,
     selectedExperimentId,
     setSelectedExperimentId,
+    pinLeadColumns,
+    setPinLeadColumns,
   } = useProjectMetricsPageState();
+
+  const metricsScrollRef = useRef<HTMLDivElement>(null);
 
   const { aggregatedMetricsByExperiment } = useAggregatedMetrics(projectId, {
     refetchInterval: REFRESH_EXPERIMENTS_LIST_INTERVAL,
@@ -74,6 +82,10 @@ export function ProjectMetricsPage() {
           : label.replace(/[^\w.\-]+/g, "-").replace(/^-|-$/g, "") || "label";
     return `project-metrics-${projectId?.slice(0, 8) ?? "project"}-${safe}`;
   }, [label, projectId]);
+
+  const canShowTable = !dataLoading && label !== null && latest != null;
+  const showDownload =
+    canShowTable && !editMode && table.getRowModel().rows.length > 0;
 
   if (!projectId) {
     return <ProjectMetricsNoProject />;
@@ -102,32 +114,76 @@ export function ProjectMetricsPage() {
             onNameFilterChange={setNameFilter}
             editMode={editMode}
             onEditModeChange={setEditMode}
+            pinLeadColumns={pinLeadColumns}
+            onPinLeadColumnsChange={setPinLeadColumns}
           />
 
           <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-hidden">
-            <ProjectMetricsPageIntro projectName={project?.name} />
-            <div className="min-h-0 flex-1 overflow-auto">
+            <div className="shrink-0">
+              <ProjectMetricsPageIntro projectName={project?.name} />
+            </div>
+            <ProjectDataTableFrame
+              pinLeadColumns={pinLeadColumns}
+              leadColumnCount={1}
+              scrollContainerRef={metricsScrollRef}
+              className="min-h-0"
+              toolbar={
+                <ProjectMetricsTableToolbar
+                  table={table}
+                  exportFileBase={exportFileBase}
+                  showDownload={showDownload}
+                />
+              }
+              footer={
+                hasNextPage || latest ? (
+                  <div className="space-y-2 px-4 py-3">
+                    {hasNextPage ? (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => void fetchNextPage()}
+                        disabled={isFetchingNextPage}
+                        type="button"
+                      >
+                        {isFetchingNextPage ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Loading…
+                          </>
+                        ) : (
+                          "Load more experiments"
+                        )}
+                      </Button>
+                    ) : null}
+                    {latest ? (
+                      <p className="text-xs text-muted-foreground">
+                        Showing {tableData.length} experiment{tableData.length === 1 ? "" : "s"} in the table
+                        {nameFilter ? " (name filter on loaded data)" : ""}
+                        {" · Metric columns come from the selected label snapshot."}
+                        {editMode ? ` — report when edit is off: ${rowsInReport.length} row(s)` : null}
+                        {hiddenRowIds.size > 0 ? ` — ${hiddenRowIds.size} row(s) hidden in report` : ""}
+                        {hiddenColumnIds.size > 0 ? ` — ${hiddenColumnIds.size} column(s) hidden in report` : ""} ·{" "}
+                        {latest.total} in project for this label
+                      </p>
+                    ) : null}
+                  </div>
+                ) : undefined
+              }
+            >
               <ProjectMetricsTableSection
                 dataLoading={dataLoading}
                 isError={isError}
-                canShowTable={!dataLoading && label !== null && latest != null}
+                canShowTable={canShowTable}
                 table={table}
                 editMode={editMode}
-                nameFilter={nameFilter}
                 rowsInReport={rowsInReport}
                 filteredRows={filteredRows}
-                hasNextPage={hasNextPage}
-                isFetchingNextPage={isFetchingNextPage}
-                onLoadMore={() => void fetchNextPage()}
-                latest={latest}
-                tableDataLength={tableData.length}
-                hiddenRowIds={hiddenRowIds}
-                hiddenColumnIds={hiddenColumnIds}
                 selectedExperimentId={selectedExperimentId}
-                exportFileBase={exportFileBase}
               />
+            </ProjectDataTableFrame>
+            <div className="shrink-0">
+              <ProjectMetricsPageUsageHint />
             </div>
-            <ProjectMetricsPageUsageHint />
           </div>
         </div>
       </div>

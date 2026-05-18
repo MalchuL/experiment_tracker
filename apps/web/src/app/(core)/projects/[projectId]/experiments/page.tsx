@@ -17,15 +17,22 @@ import {
   useMissingParentExperimentNames,
 } from "@/domain/experiments/hooks";
 import { CreateExperimentDialog, ExperimentsTable } from "@/domain/experiments/components";
+import {
+  loadExperimentsTablePinLead,
+  saveExperimentsTablePinLead,
+} from "@/domain/experiments/lib/experiments-table-column-widths";
 import { useSelectedExperimentStore } from "@/domain/experiments/store";
 import { REFRESH_EXPERIMENTS_LIST_INTERVAL } from "@/lib/constants/rates";
 import { getDisplayedTrackedMetrics } from "@/lib/metrics/format-metric-label";
+import { ProjectDataTableFrame } from "@/components/shared/project-data-table-frame";
+import { Switch } from "@/components/ui/switch";
 
 export default function Experiments() {
   const { project, isLoading: projectLoading } = useCurrentProject();
   const projectId = project?.id;
   const { selectedExperimentId, setSelectedExperimentId } = useSelectedExperimentStore();
   const [searchQuery, setSearchQuery] = useState("");
+  const [pinLeadColumns, setPinLeadColumns] = useState(true);
   const [experimentsListReady, setExperimentsListReady] = useState(false);
 
   const {
@@ -52,6 +59,13 @@ export default function Experiments() {
       setExperimentsListReady(true);
     }
   }, [projectId, experimentsLoading]);
+
+  useEffect(() => {
+    if (projectId) {
+      setPinLeadColumns(loadExperimentsTablePinLead(projectId));
+    }
+  }, [projectId]);
+
   const {
     aggregatedMetricsByExperiment,
     isFetching: metricsFetching,
@@ -217,9 +231,33 @@ export default function Experiments() {
                 </Button>
               </div>
             ) : (
-              <div
-                ref={experimentsListScrollRef}
-                className="flex min-h-0 flex-1 flex-col overflow-auto rounded-lg border border-border bg-card"
+              <ProjectDataTableFrame
+                pinLeadColumns={pinLeadColumns}
+                leadColumnCount={2}
+                scrollContainerRef={experimentsListScrollRef}
+                toolbar={
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-xs text-muted-foreground">
+                      Pin keeps the grip and experiment columns visible while scrolling horizontally.
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <Label htmlFor="experiments-pin-lead" className="text-xs font-normal text-muted-foreground">
+                        Pin lead columns
+                      </Label>
+                      <Switch
+                        id="experiments-pin-lead"
+                        checked={pinLeadColumns}
+                        onCheckedChange={(v) => {
+                          setPinLeadColumns(v);
+                          if (projectId) {
+                            saveExperimentsTablePinLead(projectId, v);
+                          }
+                        }}
+                        aria-label="Pin grip and experiment columns when scrolling horizontally"
+                      />
+                    </div>
+                  </div>
+                }
               >
                 <ExperimentsTable
                   projectId={projectId}
@@ -258,7 +296,7 @@ export default function Experiments() {
                         : "Scroll down to load more experiments."}
                   </p>
                 )}
-              </div>
+              </ProjectDataTableFrame>
             )}
           </div>
         </div>

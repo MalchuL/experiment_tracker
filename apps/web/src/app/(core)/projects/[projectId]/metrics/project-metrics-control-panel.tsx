@@ -19,11 +19,14 @@ type ControlPanelProps = {
   onNameFilterChange: (v: string) => void;
   editMode: boolean;
   onEditModeChange: (v: boolean) => void;
+  pinLeadColumns: boolean;
+  onPinLeadColumnsChange: (v: boolean) => void;
 };
 
 /**
  * Left-rail control blocks (same width pattern as the Scalars page): stacked cards for label,
- * filter, and report/edit options. Persisted prefs live in localStorage; edit session in-memory.
+ * filter, and report/edit options. The selected label owns the metric columns shown in the table.
+ * Persisted prefs live in localStorage; edit session in-memory.
  */
 export function ProjectMetricsControlPanel({
   labelData,
@@ -35,6 +38,8 @@ export function ProjectMetricsControlPanel({
   onNameFilterChange,
   editMode,
   onEditModeChange,
+  pinLeadColumns,
+  onPinLeadColumnsChange,
 }: ControlPanelProps) {
   return (
     <aside
@@ -49,24 +54,28 @@ export function ProjectMetricsControlPanel({
           </div>
         </CardHeader>
         <CardContent className="space-y-3 pt-0">
-          <div className="space-y-1.5">
-            <Label htmlFor="pm-label">Label</Label>
-            <Select
-              value={label === null ? undefined : label === "" ? "__empty__" : label}
-              onValueChange={(v) => (v === "__empty__" ? onLabelChange("") : onLabelChange(v))}
-            >
-              <SelectTrigger id="pm-label" className="w-full">
-                <SelectValue placeholder="Select label" />
-              </SelectTrigger>
-              <SelectContent>
-                {labelData.hasUnlabeled ? <SelectItem value="__empty__">Unlabeled (empty string)</SelectItem> : null}
-                {labelData.labels.map((l) => (
-                  <SelectItem key={l} value={l}>
-                    {l}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="pm-label">Label</Label>
+              <Select
+                value={label === null ? undefined : label === "" ? "__empty__" : label}
+                onValueChange={(v) => (v === "__empty__" ? onLabelChange("") : onLabelChange(v))}
+              >
+                <SelectTrigger id="pm-label" className="w-full">
+                  <SelectValue placeholder="Select label" />
+                </SelectTrigger>
+                <SelectContent>
+                  {labelData.hasUnlabeled ? (
+                    <SelectItem value="__empty__">Unlabeled (empty string)</SelectItem>
+                  ) : null}
+                  {labelData.labels.map((l) => (
+                    <SelectItem key={l} value={l}>
+                      {l}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
           <div className="flex items-center space-x-2">
             <Checkbox
@@ -109,6 +118,16 @@ export function ProjectMetricsControlPanel({
           </div>
         </CardHeader>
         <CardContent className="flex flex-col gap-3 pt-0">
+          <div className="flex shrink-0 items-center gap-2">
+            <Switch
+              id="pin-metric-experiment"
+              checked={pinLeadColumns}
+              onCheckedChange={onPinLeadColumnsChange}
+            />
+            <Label htmlFor="pin-metric-experiment" className="text-sm">
+              Pin experiment column when scrolling horizontally
+            </Label>
+          </div>
           <div className="flex shrink-0 items-center gap-2">
             <Switch id="edit-mode" checked={editMode} onCheckedChange={onEditModeChange} data-testid="switch-edit-mode" />
             <Label htmlFor="edit-mode" className="text-sm">

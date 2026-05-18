@@ -28,6 +28,7 @@ import { arrayMove } from "@dnd-kit/sortable";
 import { Metric } from "@/domain/metrics/types";
 import { formatMetricLabel } from "@/lib/metrics/format-metric-label";
 import { cn } from "@/lib/utils";
+import { useProjectDataTableFrame } from "@/components/shared/project-data-table-frame";
 import { useExperimentsTableColumnWidths } from "@/domain/experiments/hooks/use-experiments-table-column-widths";
 import {
   EXPERIMENTS_TABLE_COLUMN,
@@ -109,6 +110,7 @@ export function ExperimentsTable({
   onExperimentClick,
   onReorder,
 }: ExperimentsTableProps) {
+  const { pinLeadColumns, leadColumnCount } = useProjectDataTableFrame();
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
@@ -122,7 +124,10 @@ export function ExperimentsTable({
     experimentTableResolvedColumnWidths,
     startResize,
     experimentTableTotalWidthPx,
-  } = useExperimentsTableColumnWidths(projectId, filteredMetrics);
+  } = useExperimentsTableColumnWidths(projectId, filteredMetrics, {
+    experiments,
+    aggregatedMetrics,
+  });
 
   const getExperimentTableColumnWidth = (columnId: string) =>
     experimentTableResolvedColumnWidths[columnId] ?? experimentsTableColumnWidthFallback(columnId);
@@ -144,6 +149,12 @@ export function ExperimentsTable({
   );
   const experimentNameColumnWidthPx = getExperimentTableColumnWidth(EXPERIMENTS_TABLE_COLUMN.experiment);
 
+  const pinSticky = pinLeadColumns && leadColumnCount >= 2;
+  const gripThClass = pinSticky ? stickyGripTh : "border-r border-border bg-background box-border overflow-hidden";
+  const experimentThClass = pinSticky
+    ? stickyExperimentTh
+    : "relative border-r border-border bg-background box-border overflow-hidden";
+
   return (
     <Card className="min-w-0 shrink-0 border-0 bg-transparent shadow-none">
       <DndContext
@@ -161,7 +172,7 @@ export function ExperimentsTable({
               <TableHead
                 className={cn(
                   "h-12 px-2 text-left align-middle font-medium text-muted-foreground",
-                  stickyGripTh
+                  gripThClass
                 )}
                 style={{
                   width: experimentTableGripColumnWidthPxResolved,
@@ -176,13 +187,13 @@ export function ExperimentsTable({
               <TableHead
                 className={cn(
                   "relative h-12 overflow-hidden px-4 text-left align-middle font-medium text-muted-foreground",
-                  stickyExperimentTh
+                  experimentThClass
                 )}
                 style={{
                   width: experimentNameColumnWidthPx,
                   minWidth: experimentNameColumnWidthPx,
                   maxWidth: experimentNameColumnWidthPx,
-                  left: experimentTableGripColumnWidthPxResolved,
+                  ...(pinSticky ? { left: experimentTableGripColumnWidthPxResolved } : {}),
                 }}
                 title="Experiment"
               >
@@ -292,6 +303,7 @@ export function ExperimentsTable({
                     parentName={parentName}
                     experimentTableResolvedColumnWidths={experimentTableResolvedColumnWidths}
                     experimentTableGripColumnWidthPx={experimentTableGripColumnWidthPxResolved}
+                    pinStickyLead={pinSticky}
                   />
                 );
               })}
