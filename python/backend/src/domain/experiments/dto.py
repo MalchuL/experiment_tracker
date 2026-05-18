@@ -25,7 +25,6 @@ class ExperimentBaseDTO(BaseModel):
     status: ExperimentStatus = ExperimentStatus.PLANNED
     parent_experiment_id: Optional[UUID_TYPE] = None
     features: Dict[str, Any] = {}
-    git_diff: Optional[str] = None
     color: Optional[str] = None
     order: Optional[int] = None
     tags: Optional[List[str]] = None
@@ -51,7 +50,6 @@ class ExperimentUpdateDTO(BaseModel):
     color: Optional[str] = None
     status: Optional[ExperimentStatus] = None
     features: Optional[Dict[str, Any]] = None
-    git_diff: Optional[str] = None
     progress: Optional[int] = None
     order: Optional[int] = None
     tags: Optional[List[str]] = None
@@ -68,7 +66,6 @@ class ExperimentUpdateDTO(BaseModel):
 
 class ExperimentDTO(ExperimentBaseDTO):
     id: UUID
-    features_diff: Optional[Dict[str, Any]]
     progress: int
     created_at: ApiDateTime
     started_at: ApiOptionalDateTime

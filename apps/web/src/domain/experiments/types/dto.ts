@@ -7,7 +7,6 @@ export interface InsertExperiment {
     status?: ExperimentStatusType;
     parentExperimentId?: string | null;
     features?: Record<string, unknown>;
-    gitDiff?: string | null;
     color?: string;
     order?: number;
     tags?: string[];
@@ -19,7 +18,6 @@ export interface UpdateExperiment {
     status?: ExperimentStatusType;
     parentExperimentId?: string | null;
     features?: Record<string, unknown>;
-    gitDiff?: string | null;
     color?: string;
     order?: number;
     tags?: string[];

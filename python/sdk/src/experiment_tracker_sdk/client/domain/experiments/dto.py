@@ -21,7 +21,6 @@ class ExperimentCreateRequest(BaseModel):
     color: Optional[str] = None
     parentExperimentId: Optional[str | UUID] = None
     features: Optional[dict[str, Any]] = None
-    gitDiff: Optional[str] = None
     status: ExperimentStatus = ExperimentStatus.PLANNED
     tags: Optional[list[str]] = None
 
@@ -32,7 +31,6 @@ class ExperimentUpdateRequest(BaseModel):
     color: Optional[str] = None
     parentExperimentId: Optional[str | UUID] = None
     features: Optional[dict[str, Any]] = None
-    gitDiff: Optional[str] = None
     status: Optional[ExperimentStatus] = None
     progress: Optional[int] = None
     tags: Optional[list[str]] = None
@@ -48,7 +46,6 @@ class ExperimentResponse(BaseModel):
     tags: Optional[list[str]] = None
     parentExperimentId: Optional[str | UUID] = None
     features: Optional[dict[str, Any]] = None
-    gitDiff: Optional[str] = None
     progress: Optional[int] = None
     createdAt: datetime
     startedAt: Optional[datetime] = None

@@ -808,42 +808,12 @@ export function ExperimentSidebar({
                     </pre>
                   </CardContent>
                 </Card>
-
-                {experiment.featuresDiff && (
-                  <Card>
-                    <CardHeader className="py-2 px-3">
-                      <CardTitle className="text-xs font-medium text-muted-foreground">
-                        Features Diff
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="px-3 pb-3 pt-0">
-                      <pre className="text-xs font-mono bg-muted p-2 rounded overflow-auto max-h-32">
-                        {JSON.stringify(experiment.featuresDiff, null, 2)}
-                      </pre>
-                    </CardContent>
-                  </Card>
-                )}
               </TabsContent>
 
               <TabsContent value="code" className="space-y-2">
-                {experiment.gitDiff ? (
-                  <Card>
-                    <CardHeader className="py-2 px-3">
-                      <CardTitle className="text-xs font-medium text-muted-foreground">
-                        Git Diff
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="px-3 pb-3 pt-0">
-                      <pre className="text-xs font-mono bg-muted p-2 rounded overflow-auto max-h-48 whitespace-pre-wrap">
-                        {experiment.gitDiff}
-                      </pre>
-                    </CardContent>
-                  </Card>
-                ) : (
-                  <p className="text-sm text-muted-foreground text-center py-4">
-                    No code diff captured
-                  </p>
-                )}
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  Coming Soon
+                </p>
               </TabsContent>
             </Tabs>
           </div>

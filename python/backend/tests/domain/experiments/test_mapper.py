@@ -35,8 +35,6 @@ async def _create_experiment(
     started_at: datetime | None = None,
     completed_at: datetime | None = None,
     features: dict | None = None,
-    features_diff: dict | None = None,
-    git_diff: str | None = None,
     progress: int | None = None,
     color: str | None = None,
     order: int | None = None,
@@ -48,8 +46,6 @@ async def _create_experiment(
         status=status,
         parent_experiment_id=None,
         features={"lr": 0.1} if features is None else features,
-        features_diff=features_diff,
-        git_diff=git_diff,
         progress=progress,
         color=color,
         order=order,
@@ -78,8 +74,6 @@ class TestExperimentMapper:
             started_at=datetime(2024, 1, 2),
             completed_at=None,
             features={"lr": 0.1},
-            features_diff={"lr": 0.05},
-            git_diff="diff",
             progress=5,
             color="#123456",
             order=1,
@@ -94,8 +88,6 @@ class TestExperimentMapper:
         assert dto.status == ExperimentStatus.RUNNING
         assert dto.parent_experiment_id is None
         assert dto.features == {"lr": 0.1}
-        assert dto.features_diff == {"lr": 0.05}
-        assert dto.git_diff == "diff"
         assert dto.progress == 5
         assert dto.color == "#123456"
         assert dto.order == 1
@@ -144,7 +136,6 @@ class TestExperimentMapper:
             status=ExperimentStatus.PLANNED,
             parent_experiment_id=parent.id,
             features={"lr": 0.1},
-            git_diff="diff",
             color="#123456",
             order=1,
         )
@@ -156,7 +147,6 @@ class TestExperimentMapper:
         assert experiment.project_id == dto.project_id
         assert experiment.parent_experiment_id == parent.id
         assert experiment.features == {"lr": 0.1}
-        assert experiment.git_diff == "diff"
         assert experiment.color == "#123456"
         assert experiment.order == 1
 
@@ -167,7 +157,6 @@ class TestExperimentMapper:
             description="Updated description",
             status=ExperimentStatus.COMPLETE,
             features={"lr": 0.2},
-            git_diff="diff",
             progress=10,
             order=2,
         )
@@ -178,6 +167,5 @@ class TestExperimentMapper:
         assert updates["description"] == "Updated description"
         assert updates["status"] == ExperimentStatus.COMPLETE
         assert updates["features"] == {"lr": 0.2}
-        assert updates["git_diff"] == "diff"
         assert updates["progress"] == 10
         assert updates["order"] == 2

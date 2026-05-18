@@ -25,7 +25,6 @@ export const insertExperimentSchema = z.object({
     status: z.enum(["planned", "running", "complete", "failed"]).default("planned"),
     parentExperimentId: z.string().nullable().optional(),
     features: z.record(z.string(), z.unknown()).default({}),
-    gitDiff: z.string().nullable().optional(),
     color: z.string().optional(),
     order: z.number().optional(),
 }) satisfies ZodType<InsertExperiment>;

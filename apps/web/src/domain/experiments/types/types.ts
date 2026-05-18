@@ -74,8 +74,6 @@ export interface Experiment {
     parentExperimentId: string | null;
     rootExperimentId: string | null;
     features: Record<string, unknown>;
-    featuresDiff: Record<string, unknown> | null;
-    gitDiff: string | null;
     progress: number;
     color: string;
     order: number;

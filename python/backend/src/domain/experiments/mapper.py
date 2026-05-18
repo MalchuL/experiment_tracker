@@ -22,8 +22,6 @@ class ExperimentMapper:
             status=experiment.status,
             parent_experiment_id=experiment.parent_experiment_id,
             features=experiment.features,
-            features_diff=experiment.features_diff,
-            git_diff=experiment.git_diff,
             progress=experiment.progress,
             color=experiment.color,
             order=experiment.order,
@@ -48,7 +46,6 @@ class ExperimentMapper:
             status=experiment.status,
             parent_experiment_id=experiment.parent_experiment_id,
             features=experiment.features,
-            git_diff=experiment.git_diff,
             color=experiment.color,
             order=experiment.order,
             tags=experiment.tags,
@@ -72,8 +69,6 @@ class ExperimentMapper:
             updates["status"] = converted_dto["status"]
         if "features" in converted_dto:
             updates["features"] = converted_dto["features"]
-        if "git_diff" in converted_dto:
-            updates["git_diff"] = converted_dto["git_diff"]
         if "progress" in converted_dto:
             updates["progress"] = converted_dto["progress"]
         if "order" in converted_dto:

@@ -32,7 +32,6 @@ class ExperimentRequestSpecFactory:
         color: Optional[str | Unset] = UNSET,
         parent_experiment_id: Optional[str | UUID | Unset] = UNSET,
         features: Optional[dict[str, Any] | Unset] = UNSET,
-        git_diff: Optional[str | Unset] = UNSET,
         status: ExperimentStatus = ExperimentStatus.PLANNED,
         tags: Optional[list[str] | Unset] = UNSET,
     ) -> ApiRequestSpec[ExperimentResponse]:
@@ -48,8 +47,6 @@ class ExperimentRequestSpecFactory:
             kwargs["parentExperimentId"] = parent_experiment_id
         if features is not UNSET:
             kwargs["features"] = features
-        if git_diff is not UNSET:
-            kwargs["gitDiff"] = git_diff
         if tags is not UNSET:
             kwargs["tags"] = tags
         payload = ExperimentCreateRequest(
@@ -74,7 +71,6 @@ class ExperimentRequestSpecFactory:
         color: Optional[str | Unset] = UNSET,
         parent_experiment_id: Optional[str | UUID | Unset] = UNSET,
         features: Optional[dict[str, Any] | Unset] = UNSET,
-        git_diff: Optional[str | Unset] = UNSET,
         status: Optional[ExperimentStatus | Unset] = UNSET,
         progress: Optional[int | Unset] = UNSET,
         tags: Optional[list[str] | Unset] = UNSET,
@@ -85,18 +81,20 @@ class ExperimentRequestSpecFactory:
             experiment_id
         )
         kwargs: dict[str, Any] = {}
-        if name is not UNSET:
-            kwargs["name"] = truncate_experiment_name(name)
-        if description is not UNSET:
-            kwargs["description"] = truncate_experiment_description(description)
+        if not isinstance(name, Unset):
+            kwargs["name"] = None if name is None else truncate_experiment_name(name)
+        if not isinstance(description, Unset):
+            kwargs["description"] = (
+                None
+                if description is None
+                else truncate_experiment_description(description)
+            )
         if color is not UNSET:
             kwargs["color"] = color
         if parent_experiment_id is not UNSET:
             kwargs["parentExperimentId"] = parent_experiment_id
         if features is not UNSET:
             kwargs["features"] = features
-        if git_diff is not UNSET:
-            kwargs["gitDiff"] = git_diff
         if status is not UNSET:
             kwargs["status"] = status
         if progress is not UNSET:
