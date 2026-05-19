@@ -22,6 +22,10 @@ export type IncrementalScalarsRefreshResult = "updated" | "unchanged" | "unavail
  * watermark (``startTime`` + affected ids) and **merges** into the existing infinite-query cache via
  * ``mergeScalarsPage`` — avoids full refetch of all pages.
  *
+ * Applies to both timed refresh (this hook's ``useEffect`` below) and manual refresh (the scalars
+ * page button calls the returned ``refreshChangedScalars``). The merge re-samples each combined
+ * metric series to ``maxPoints`` and always keeps the latest point.
+ *
  * Uses the same ``last_logged`` query key as ``useArtifactsLiveRefresh`` when both are enabled so only
  * one poll runs per interval.
  */
@@ -87,6 +91,7 @@ export function useScalarsLiveRefresh({
         return {
           ...current,
           pages: current.pages.map((page, index) =>
+            // Same sampled merge path is used by timed polling and the manual refresh button.
             mergeScalarsPage(page, latest.data, { appendMissing: index === 0, maxPoints })
           ),
         };

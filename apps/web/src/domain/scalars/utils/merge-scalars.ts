@@ -20,6 +20,14 @@ export function mergeExperimentScalars(
   };
 }
 
+/**
+ * Merge an incremental scalar payload into one cached React Query page.
+ *
+ * Applies to both scalar live polling and the scalars page manual refresh button because both
+ * paths call ``refreshChangedScalars`` in ``useScalarsLiveRefresh``. For each metric series, the
+ * merge first replaces duplicate steps with incoming values, then reservoir-samples the combined
+ * points back to ``maxPoints`` while always retaining the newest step.
+ */
 export function mergeScalarsPage(
   page: ScalarsPointsResult,
   incoming: ExperimentScalarsPoints[],
@@ -106,6 +114,7 @@ function reservoirSampleSteps(steps: number[], maxPoints?: number): number[] {
   const reservoirSize = maxPoints - 1;
   const candidates = sortedSteps.slice(0, -1);
   const reservoir = candidates.slice(0, reservoirSize);
+  // Seeded randomness keeps reservoir sampling stable across renders for the same set of steps.
   const random = createSeededRandom(hashSteps(sortedSteps));
 
   for (let index = reservoirSize; index < candidates.length; index += 1) {
