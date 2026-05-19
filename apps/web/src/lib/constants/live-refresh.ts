@@ -8,7 +8,7 @@
  * network calls; when timestamps advance, invalidates the project artifacts infinite query so
  * logged objects (images, etc.) refetch.
  */
-export const LAST_LOGGED_POLL_INTERVAL_MS = 5000;
+export const LAST_LOGGED_POLL_INTERVAL_MS = 30_000;
 
 /**
  * How often the project experiments list is refetched (scalars page) so new runs appear
