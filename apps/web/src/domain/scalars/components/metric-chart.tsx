@@ -1,10 +1,14 @@
 "use client";
 
-import { memo, useCallback, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 import Plot from "react-plotly.js";
 import type { Config, Layout, PlotData, PlotMouseEvent } from "plotly.js";
 
 type RelayoutEvent = Readonly<Record<string, unknown>>;
+type PlotlyGraphDiv = Readonly<HTMLElement> & {
+  on?: (eventName: string, handler: (event: RelayoutEvent) => void) => void;
+  removeListener?: (eventName: string, handler: (event: RelayoutEvent) => void) => void;
+};
 type AxisWithUnifiedHoverTitle = NonNullable<Partial<Layout>["xaxis"]> & {
   unifiedhovertitle?: {
     text: string;
@@ -57,12 +61,23 @@ interface StablePlotProps {
   layout: Partial<Layout>;
   config: Partial<Config>;
   revision?: number;
+  shouldFreezeUpdates?: () => boolean;
   onHover: (event: Readonly<PlotMouseEvent>) => void;
   onUnhover?: () => void;
   onRelayout: (event: RelayoutEvent) => void;
+  onInitialized: (_figure: unknown, graphDiv: Readonly<HTMLElement>) => void;
 }
 
-function StablePlot({ data, layout, config, revision, onHover, onUnhover, onRelayout }: StablePlotProps) {
+function StablePlot({
+  data,
+  layout,
+  config,
+  revision,
+  onHover,
+  onUnhover,
+  onRelayout,
+  onInitialized,
+}: StablePlotProps) {
   return (
     <Plot
       data={data}
@@ -74,11 +89,29 @@ function StablePlot({ data, layout, config, revision, onHover, onUnhover, onRela
       onHover={onHover}
       onUnhover={onUnhover}
       onRelayout={onRelayout}
+      onInitialized={onInitialized}
     />
   );
 }
 
-const MemoizedPlot = memo(StablePlot);
+const MemoizedPlot = memo(StablePlot, (prev, next) => {
+  // Plotly can leave axes/grid stuck if Plotly.react runs while the user is dragging.
+  // Skip React-driven plot updates during Plotly's relayouting phase; relayout ends the freeze.
+  if (next.shouldFreezeUpdates?.()) {
+    return true;
+  }
+  return (
+    prev.data === next.data &&
+    prev.layout === next.layout &&
+    prev.config === next.config &&
+    prev.revision === next.revision &&
+    prev.onHover === next.onHover &&
+    prev.onUnhover === next.onUnhover &&
+    prev.onRelayout === next.onRelayout &&
+    prev.onInitialized === next.onInitialized &&
+    prev.shouldFreezeUpdates === next.shouldFreezeUpdates
+  );
+});
 
 import type { Experiment } from "@/domain/experiments/types";
 import type {
@@ -127,6 +160,8 @@ export function MetricChart({
 }: MetricChartProps) {
   const [dragMode, setDragMode] = useState<"zoom" | "pan">("zoom");
   const activePointRef = useRef<ScalarPointSelection | null>(null);
+  const relayoutingRef = useRef(false);
+  const graphDivRef = useRef<PlotlyGraphDiv | null>(null);
   const [multiHover, setMultiHover] = useState<MultiHoverState | null>(null);
 
   const plotData = useMemo(() => {
@@ -215,6 +250,8 @@ export function MetricChart({
 
   const handleRelayout = useCallback(
     (event: RelayoutEvent) => {
+      // End the drag-update freeze once Plotly commits the pan/zoom relayout.
+      relayoutingRef.current = false;
       if (event?.dragmode === "zoom" || event?.dragmode === "pan") {
         setDragMode(event.dragmode);
       }
@@ -244,6 +281,29 @@ export function MetricChart({
       onDomainChange?.(nextDomain);
     },
     [domain, onDomainChange]
+  );
+
+  const handleRelayouting = useCallback(() => {
+    // Mark active Plotly drag so live scalar refreshes do not trigger Plotly.react mid-drag.
+    relayoutingRef.current = true;
+  }, []);
+  const handleInitialized = useCallback(
+    (_figure: unknown, graphDiv: Readonly<HTMLElement>) => {
+      const plotlyGraphDiv = graphDiv as PlotlyGraphDiv;
+      graphDivRef.current = plotlyGraphDiv;
+      // react-plotly's TS types omit onRelayouting, so attach the native Plotly event.
+      plotlyGraphDiv.on?.("plotly_relayouting", handleRelayouting);
+    },
+    [handleRelayouting]
+  );
+  const shouldFreezePlotUpdates = useCallback(() => relayoutingRef.current, []);
+
+  useEffect(
+    () => () => {
+      graphDivRef.current?.removeListener?.("plotly_relayouting", handleRelayouting);
+      graphDivRef.current = null;
+    },
+    [handleRelayouting]
   );
 
   const handleHover = useCallback((event: Readonly<PlotMouseEvent>) => {
@@ -337,8 +397,9 @@ export function MetricChart({
       paper_bgcolor: "transparent",
       plot_bgcolor: "transparent",
       dragmode: dragMode,
+      uirevision: metricName,
     };
-  }, [domain?.x, domain?.y, dragMode, height, hoverMode, isFullscreen]);
+  }, [domain?.x, domain?.y, dragMode, height, hoverMode, isFullscreen, metricName]);
 
   const config = useMemo<Partial<Config>>(() => {
     const modeBarButtonsToAdd = [
@@ -389,9 +450,11 @@ export function MetricChart({
         layout={layout}
         config={config}
         revision={resizeRevision}
+        shouldFreezeUpdates={shouldFreezePlotUpdates}
         onHover={handleHover}
         onUnhover={hoverMode === "compare" ? undefined : handleUnhover}
         onRelayout={handleRelayout}
+        onInitialized={handleInitialized}
       />
       {hoverMode === "compare" && multiHover ? <MultiHoverTooltip hover={multiHover} /> : null}
     </div>
