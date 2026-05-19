@@ -45,7 +45,7 @@ If you start services manually with **`uvicorn ... --reload`** (see **`LOCAL_RUN
 - `python/backend/src/clients/artifacts_info/client.py`
 - `python/backend/src/clients/object_storage/client.py` (multiple call sites)
 
-**Scalars — ClickHouse per HTTP request:** `python/scalars_service/src/db/clickhouse.py` (`get_clickhouse_client` closes in `finally`), wired via `python/scalars_service/src/api/service_dependencies.py`. With a low `NOFILE` limit, many concurrent inbound requests each holding an outbound ClickHouse connection can approach the ceiling quickly.
+**Scalars — ClickHouse client:** `python/scalars_service/src/db/clickhouse.py` keeps a **single shared async client** per process (`init_clickhouse_client` / `close_clickhouse_client` in app lifespan), wired via `python/scalars_service/src/api/service_dependencies.py`. Concurrent requests reuse that client instead of opening a new TCP connection per request.
 
 ## Mitigations
 

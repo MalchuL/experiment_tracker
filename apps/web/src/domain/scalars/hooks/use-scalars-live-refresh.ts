@@ -1,9 +1,9 @@
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { InfiniteData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { LAST_LOGGED_POLL_INTERVAL_MS } from "@/lib/constants/live-refresh";
 import { QUERY_KEYS } from "@/lib/constants/query-keys";
 import { scalarsService } from "@/domain/scalars/services";
-import type { ScalarsPointsResult } from "@/domain/scalars/types";
+import type { LastLoggedExperimentsResult, ScalarsPointsResult } from "@/domain/scalars/types";
 import { mergeScalarsPage } from "@/domain/scalars/utils";
 
 interface UseScalarsLiveRefreshParams {
@@ -13,6 +13,8 @@ interface UseScalarsLiveRefreshParams {
   maxPoints: number;
   enabled?: boolean;
 }
+
+export type IncrementalScalarsRefreshResult = "updated" | "unchanged" | "unavailable";
 
 /**
  * Incremental live refresh for **project scalar curves**: polls ``GET .../last_logged/{project}`` for the
@@ -32,42 +34,31 @@ export function useScalarsLiveRefresh({
 }: UseScalarsLiveRefreshParams) {
   const queryClient = useQueryClient();
   const previousByExperiment = useRef<Map<string, string>>(new Map());
-  const stableExperimentIds = [...experimentIds].sort();
+  const stableExperimentIds = useMemo(() => [...experimentIds].sort(), [experimentIds]);
 
-  const { data } = useQuery({
-    queryKey: projectId
-      ? [
-          QUERY_KEYS.SCALARS.LAST_LOGGED(projectId),
-          { experimentIds: stableExperimentIds },
-        ]
-      : [],
-    queryFn: () => scalarsService.getLastLoggedByProject(projectId!, stableExperimentIds),
-    enabled: !!projectId && enabled && stableExperimentIds.length > 0,
-    refetchInterval: LAST_LOGGED_POLL_INTERVAL_MS,
-  });
+  const mergeChangedScalars = useCallback(
+    async (lastLogged: LastLoggedExperimentsResult): Promise<IncrementalScalarsRefreshResult> => {
+      if (!projectId || !lastLogged.data.length || !scalarsQueryKey.length) return "unavailable";
 
-  /**
-   * Diff ``last_logged`` against ref; skip first poll (no prior timestamps). Fetch incremental scalar
-   * slice and merge each infinite page in-place with ``setQueryData``.
-   */
-  useEffect(() => {
-    if (!projectId || !data?.data.length) return;
+      const previous = previousByExperiment.current;
+      const hasCompleteBaseline = lastLogged.data.every((item) =>
+        previous.has(item.experiment_id)
+      );
+      const changed = lastLogged.data
+        .map((item) => ({ item, previousModified: previous.get(item.experiment_id) }))
+        .filter(({ item, previousModified }) => {
+          if (!previousModified) return false;
+          return new Date(item.last_modified).getTime() > new Date(previousModified).getTime();
+        });
 
-    const previous = previousByExperiment.current;
-    const changed = data.data
-      .map((item) => ({ item, previousModified: previous.get(item.experiment_id) }))
-      .filter(({ item, previousModified }) => {
-        if (!previousModified) return false;
-        return new Date(item.last_modified).getTime() > new Date(previousModified).getTime();
+      lastLogged.data.forEach((item) => {
+        previous.set(item.experiment_id, item.last_modified);
       });
 
-    data.data.forEach((item) => {
-      previous.set(item.experiment_id, item.last_modified);
-    });
+      if (changed.length === 0) {
+        return hasCompleteBaseline ? "unchanged" : "unavailable";
+      }
 
-    if (changed.length === 0) return;
-
-    void (async () => {
       const startTime = changed
         .map(({ previousModified }) => previousModified)
         .filter((value): value is string => !!value)
@@ -86,6 +77,37 @@ export function useScalarsLiveRefresh({
           pages: current.pages.map((page) => mergeScalarsPage(page, latest.data)),
         };
       });
-    })();
-  }, [data, maxPoints, projectId, queryClient, scalarsQueryKey]);
+      return "updated";
+    },
+    [maxPoints, projectId, queryClient, scalarsQueryKey]
+  );
+
+  const refreshChangedScalars = useCallback(async (): Promise<IncrementalScalarsRefreshResult> => {
+    if (!projectId || stableExperimentIds.length === 0) return "unavailable";
+    const lastLogged = await scalarsService.getLastLoggedByProject(projectId, stableExperimentIds);
+    return mergeChangedScalars(lastLogged);
+  }, [mergeChangedScalars, projectId, stableExperimentIds]);
+
+  const { data } = useQuery({
+    queryKey: projectId
+      ? [
+          QUERY_KEYS.SCALARS.LAST_LOGGED(projectId),
+          { experimentIds: stableExperimentIds },
+        ]
+      : [],
+    queryFn: () => scalarsService.getLastLoggedByProject(projectId!, stableExperimentIds),
+    enabled: !!projectId && enabled && stableExperimentIds.length > 0,
+    refetchInterval: LAST_LOGGED_POLL_INTERVAL_MS,
+  });
+
+  /**
+   * Diff ``last_logged`` against ref; skip first poll (no prior timestamps). Fetch incremental scalar
+   * slice and merge each infinite page in-place with ``setQueryData``.
+   */
+  useEffect(() => {
+    if (!data) return;
+    void mergeChangedScalars(data);
+  }, [data, mergeChangedScalars]);
+
+  return { refreshChangedScalars };
 }

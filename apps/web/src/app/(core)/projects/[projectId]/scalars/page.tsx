@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { parseISO } from "date-fns";
-import { InfiniteData, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
 import { AlertCircle, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -43,7 +43,6 @@ import { getScalarsDotThreshold, getScalarsMaxPointsPerPlot } from "@/domain/sca
 import type { InsertExperiment } from "@/domain/experiments/types";
 import { EXPERIMENTS_LIST_POLL_INTERVAL_MS } from "@/lib/constants/live-refresh";
 import { QUERY_KEYS } from "@/lib/constants/query-keys";
-import { DEFAULT_PAGE_SIZE } from "@/lib/constants/pagination";
 
 export default function Scalars() {
   const { project, isLoading: projectLoading } = useCurrentProject();
@@ -150,7 +149,6 @@ export default function Scalars() {
     selectedExperimentIds,
     hiddenMetrics,
     currentQueryString,
-    setSelectedExperimentIds,
     toggleExperiment,
     selectAllExperiments,
     clearAllExperiments,
@@ -212,7 +210,7 @@ export default function Scalars() {
     });
   }, [sortedExperiments, selectedExperimentIds]);
 
-  useScalarsLiveRefresh({
+  const { refreshChangedScalars } = useScalarsLiveRefresh({
     projectId,
     experimentIds: lastLoggedExperimentIds,
     scalarsQueryKey,
@@ -270,22 +268,12 @@ export default function Scalars() {
       size="sm"
       onClick={() => {
         void (async () => {
-          const hadAllSelected = selectedExperimentIds.size === modelExperiments.length;
+          const incrementalScalarsRefresh = await refreshChangedScalars();
           await refetchExperiments();
-          await refetchScalars();
-          await refetchObjects();
-          if (hadAllSelected && projectId) {
-            const refreshedExperimentsData = queryClient.getQueryData<
-              InfiniteData<{ data: Experiment[] }>
-            >([
-              QUERY_KEYS.EXPERIMENTS.BY_PROJECT(projectId),
-              { limit: DEFAULT_PAGE_SIZE, mode: "auto" },
-            ]);
-            const refreshedExperiments =
-              refreshedExperimentsData?.pages.flatMap((page) => page.data) ?? [];
-            const allIds = new Set(refreshedExperiments.map((experiment) => experiment.id));
-            setSelectedExperimentIds(allIds);
+          if (incrementalScalarsRefresh === "unavailable") {
+            await refetchScalars();
           }
+          await refetchObjects();
         })();
       }}
       disabled={scalarsFetching || experimentsFetching || objectsFetching}
@@ -516,4 +504,3 @@ export default function Scalars() {
     </div>
   );
 }
-

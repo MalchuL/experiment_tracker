@@ -170,9 +170,11 @@ def _build_feature_tree(
                 {
                     "name": "config",
                     "children": [
-                        {"name": "external-config-yaml"}
-                        if args.config_path
-                        else {"name": "generated-config-yaml"}
+                        (
+                            {"name": "external-config-yaml"}
+                            if args.config_path
+                            else {"name": "generated-config-yaml"}
+                        )
                     ],
                 },
             ],
@@ -260,7 +262,7 @@ def main() -> None:
             logger.info("project_found", extra={"project_id": project["id"]})
 
         duration_seconds = 60
-        steps = 120
+        steps = 12000
         tracker = ExpTracker.init(
             project=str(project["id"]),
             experiment=args.experiment_name,
