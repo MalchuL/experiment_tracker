@@ -29,6 +29,8 @@ export interface UseExperimentsQueryOptions {
      * and description. Pagination applies to matching rows project-wide (not only the client cache).
      */
     search?: string;
+    /** Include feature trees in list items. Defaults false because features can be large. */
+    includeFeatures?: boolean;
 }
 
 /**
@@ -45,6 +47,7 @@ export function useExperiments(
         options?.search !== undefined && options.search.trim() !== ""
             ? options.search.trim()
             : undefined;
+    const includeFeatures = options?.includeFeatures ?? false;
 
     const {
         data,
@@ -58,7 +61,7 @@ export function useExperiments(
         queryKey: projectId
             ? [
                   QUERY_KEYS.EXPERIMENTS.BY_PROJECT(projectId),
-                  { limit: DEFAULT_PAGE_SIZE, mode: paginationMode, search: searchParam },
+                  { limit: DEFAULT_PAGE_SIZE, mode: paginationMode, search: searchParam, includeFeatures },
               ]
             : [],
         queryFn: ({ pageParam }) =>
@@ -66,6 +69,7 @@ export function useExperiments(
                 limit: DEFAULT_PAGE_SIZE,
                 offset: pageParam,
                 ...(searchParam ? { search: searchParam } : {}),
+                includeFeatures,
             }),
         initialPageParam: 0,
         getNextPageParam: (lastPage, allPages) => {
@@ -110,5 +114,4 @@ export function useExperiments(
         refetch,
     };
 }
-
 

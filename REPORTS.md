@@ -28,7 +28,7 @@ Use Tiptap UI components for slash commands: `SlashCommandTriggerButton` for ins
   - Divider
   - Clear formatting
 - Add slash command UX:
-  - typing `/` opens the slash dropdown
+  typing `/` opens the slash dropdown
   - toolbar/button can insert the slash trigger
   - keyboard navigation works through the menu
   - commands transform the current block or insert the selected block type

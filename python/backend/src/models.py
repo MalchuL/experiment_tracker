@@ -253,7 +253,7 @@ class Experiment(UUIDBase):
     root_experiment_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         UUID(as_uuid=True), nullable=True
     )
-    features: Mapped[dict] = mapped_column(JSONB, default=dict)
+    features: Mapped[List[dict[str, Any]]] = mapped_column(JSONB, default=list)
     progress: Mapped[int] = mapped_column(Integer, default=0)
     color: Mapped[str] = mapped_column(String(20), default="#3b82f6")
     order: Mapped[int] = mapped_column(Integer, default=0)

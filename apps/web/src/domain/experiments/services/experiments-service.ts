@@ -16,7 +16,8 @@ export interface ExperimentsService {
     ) => Promise<PaginatedResponse<Experiment>>;
     getByProjectBatch: (
         projectId: string,
-        experimentIds: string[]
+        experimentIds: string[],
+        params?: Pick<PaginationParams, "includeFeatures">
     ) => Promise<PaginatedResponse<Experiment>>;
     create: (data: InsertExperiment) => Promise<Experiment>;
     reorder: (projectId: string, experimentIds: string[]) => Promise<Experiment[]>;
@@ -40,9 +41,13 @@ export const experimentsService: ExperimentsService = {
         );
         return response.data;
     },
-    getByProjectBatch: async (projectId: string, experimentIds: string[]) => {
+    getByProjectBatch: async (
+        projectId: string,
+        experimentIds: string[],
+        params?: Pick<PaginationParams, "includeFeatures">
+    ) => {
         const response = await serviceClients.api.post<PaginatedResponse<Experiment>>(
-            API_ROUTES.PROJECTS.BY_ID.EXPERIMENTS_BATCH(projectId),
+            appendPaginationParams(API_ROUTES.PROJECTS.BY_ID.EXPERIMENTS_BATCH(projectId), params),
             { experimentIds }
         );
         return response.data;

@@ -130,3 +130,53 @@
 #     def test_reorder_dto_requires_list(self):
 #         with pytest.raises(ValidationError):
 #             ExperimentReorderDTO(experiment_ids="not-a-list")
+
+import pytest
+from pydantic import ValidationError
+
+from domain.experiments.dto import ExperimentCreateDTO, ExperimentUpdateDTO
+from models import ExperimentStatus
+
+
+def test_experiment_create_dto_accepts_nested_feature_tree() -> None:
+    dto = ExperimentCreateDTO(
+        projectId="123e4567-e89b-12d3-a456-426614174000",
+        name="Feature Tree Run",
+        status=ExperimentStatus.PLANNED,
+        features=[
+            {
+                "name": "training",
+                "children": [
+                    {"name": "optimizer-adam"},
+                    {"name": "scheduler-cosine"},
+                ],
+            }
+        ],
+    )
+
+    assert dto.features[0].name == "training"
+    assert dto.features[0].children is not None
+    assert dto.features[0].children[0].name == "optimizer-adam"
+
+
+def test_experiment_create_dto_rejects_feature_without_name() -> None:
+    with pytest.raises(ValidationError):
+        ExperimentCreateDTO(
+            projectId="123e4567-e89b-12d3-a456-426614174000",
+            name="Invalid Feature Tree Run",
+            features=[{"children": [{"name": "optimizer-adam"}]}],
+        )
+
+
+def test_experiment_update_dto_accepts_feature_tree() -> None:
+    dto = ExperimentUpdateDTO(
+        features=[
+            {
+                "name": "logging",
+                "children": [{"name": "named-final-artifacts"}],
+            }
+        ]
+    )
+
+    assert dto.features is not None
+    assert dto.features[0].name == "logging"

@@ -14,9 +14,11 @@ from experiment_tracker_sdk.client import (
     ExperimentStatus,
     ExperimentTrackerClient,
 )
+from experiment_tracker_sdk.client.constants import UNSET
 from experiment_tracker_sdk.client.domain.experiments.dto import (
     ExperimentListResponse,
     ExperimentResponse,
+    FeatureNodeLike,
 )
 from experiment_tracker_sdk.client.domain.projects.dto import (
     ProjectListResponse,
@@ -122,6 +124,7 @@ class ExpTracker:
         project: str | UUID,
         experiment: str | UUID,
         try_existing_experiment: bool = True,
+        features: list[FeatureNodeLike] | None = None,
     ) -> "ExpTracker":
         """Initialize the ExpTracker instance.
         Args:
@@ -171,7 +174,9 @@ class ExpTracker:
                 ExperimentResponse,
                 request_client.request(
                     api_requests_registry.experiments.create_experiment(
-                        project_obj.id, experiment
+                        project_obj.id,
+                        experiment,
+                        features=features if features is not None else UNSET,
                     )
                 ),
             )
@@ -459,6 +464,14 @@ class ExpTracker:
         self._request_client.request(
             self._api_requests_registry.experiments.update_experiment(
                 self.experiment_id, description=description
+            )
+        )
+
+    def features(self, features: list[FeatureNodeLike]):
+        """Update the feature tree for the experiment."""
+        self._request_client.request(
+            self._api_requests_registry.experiments.update_experiment(
+                self.experiment_id, features=features
             )
         )
 

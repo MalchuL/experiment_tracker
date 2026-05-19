@@ -69,16 +69,22 @@ class ExperimentService:
         user: UserProtocol,
         project_id: UUID_TYPE,
         list_options: ListOptions = ListOptions(limit=10, offset=0),
+        *,
+        include_features: bool = True,
     ) -> ExperimentListResponseDTO:
         if not await self.permission_checker.can_view_experiment(user.id, project_id):
             raise ExperimentNotAccessibleError(
                 f"You are not allowed to view experiments in project {project_id}"
             )
         experiments_page = await self.experiment_repository.get_latest_experiments(
-            project_id, list_options
+            project_id, list_options, include_features=include_features
         )
         return ExperimentListResponseDTO.from_page(
-            experiments_page.map(self.experiment_mapper.experiment_schema_to_dto)
+            experiments_page.map(
+                lambda experiment: self.experiment_mapper.experiment_schema_to_list_item_dto(
+                    experiment, include_features=include_features
+                )
+            )
         )
 
     async def get_experiment_if_accessible(
@@ -391,6 +397,7 @@ class ExperimentService:
         list_options: ListOptions = ListOptions(),
         *,
         search: str | None = None,
+        include_features: bool = True,
     ) -> ExperimentListResponseDTO:
         if not await self.permission_checker.can_view_experiment(user.id, project_id):
             raise ExperimentNotAccessibleError(
@@ -400,9 +407,14 @@ class ExperimentService:
             project_id,
             list_options=list_options,
             search=search,
+            include_features=include_features,
         )
         return ExperimentListResponseDTO.from_page(
-            experiments_page.map(self.experiment_mapper.experiment_schema_to_dto)
+            experiments_page.map(
+                lambda experiment: self.experiment_mapper.experiment_schema_to_list_item_dto(
+                    experiment, include_features=include_features
+                )
+            )
         )
 
     async def get_experiments_batch_for_project(
@@ -410,16 +422,25 @@ class ExperimentService:
         user: UserProtocol,
         project_id: UUID_TYPE,
         experiment_ids: List[UUID_TYPE],
+        *,
+        include_features: bool = True,
     ) -> ExperimentListResponseDTO:
         if not await self.permission_checker.can_view_experiment(user.id, project_id):
             raise ExperimentNotAccessibleError(
                 f"You are not allowed to view experiments in project {project_id}"
             )
         unique_ids = list(dict.fromkeys(experiment_ids))
-        rows = await self.experiment_repository.get_experiments_by_ids(unique_ids)
+        rows = await self.experiment_repository.get_experiments_by_ids(
+            unique_ids, include_features=include_features
+        )
         by_id = {e.id: e for e in rows if e.project_id == project_id}
         ordered = [by_id[eid] for eid in unique_ids if eid in by_id]
-        dtos = [self.experiment_mapper.experiment_schema_to_dto(e) for e in ordered]
+        dtos = [
+            self.experiment_mapper.experiment_schema_to_list_item_dto(
+                e, include_features=include_features
+            )
+            for e in ordered
+        ]
         return ExperimentListResponseDTO(
             data=dtos,
             has_next=False,

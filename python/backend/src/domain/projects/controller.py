@@ -130,7 +130,11 @@ async def get_all_projects(
         _raise_project_http_error(exc)
 
 
-@router.get("/{project_id}/experiments", response_model=ExperimentListResponseDTO)
+@router.get(
+    "/{project_id}/experiments",
+    response_model=ExperimentListResponseDTO,
+    response_model_exclude_none=True,
+)
 async def get_project_experiments(
     project_id: UUID,
     limit: int = Query(default=MAX_LIST_PAGE_SIZE, ge=1, le=MAX_LIST_PAGE_SIZE),
@@ -139,6 +143,11 @@ async def get_project_experiments(
         default=None,
         max_length=200,
         description="Optional case-insensitive substring on experiment id, name, or description.",
+    ),
+    include_features: bool = Query(
+        default=True,
+        alias="includeFeatures",
+        description="When true, include experiment feature trees in each list item.",
     ),
     user: User = Depends(get_current_user_dual),
     _: None = Depends(require_api_token_scopes(ProjectActions.VIEW_EXPERIMENT)),
@@ -150,6 +159,7 @@ async def get_project_experiments(
             project_id,
             ListOptions(limit=limit, offset=offset),
             search=search,
+            include_features=include_features,
         )
     except Exception as exc:  # noqa: BLE001
         logger.exception(
@@ -165,10 +175,16 @@ async def get_project_experiments(
 @router.post(
     "/{project_id}/experiments/batch",
     response_model=ExperimentListResponseDTO,
+    response_model_exclude_none=True,
 )
 async def post_project_experiments_batch(
     project_id: UUID,
     body: ExperimentBatchLookupDTO,
+    include_features: bool = Query(
+        default=True,
+        alias="includeFeatures",
+        description="When true, include experiment feature trees in each list item.",
+    ),
     user: User = Depends(get_current_user_dual),
     _: None = Depends(require_api_token_scopes(ProjectActions.VIEW_EXPERIMENT)),
     experiment_service: ExperimentService = Depends(get_experiment_service),
@@ -179,6 +195,7 @@ async def post_project_experiments_batch(
             user,
             project_id,
             list(body.experiment_ids),
+            include_features=include_features,
         )
     except Exception as exc:  # noqa: BLE001
         _raise_project_http_error(exc)

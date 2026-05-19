@@ -53,6 +53,7 @@ import {
   MetricNameValueDiffRow,
   metricRowGroupTableClass,
 } from "@/components/shared/metric-name-value-diff-row";
+import { ExperimentFeaturesPanel } from "@/components/shared/experiment-features-panel";
 import {
   Tooltip,
   TooltipContent,
@@ -67,6 +68,11 @@ import {
 
 /** One bucket of logged scalars sharing the same label (or “unlabeled”). */
 type LoggedMetricsLabelGroup = { label: string | null; items: Metric[] };
+type ExperimentSidebarTab = "metrics" | "features" | "code";
+
+const EXPERIMENT_SIDEBAR_ACTIVE_TAB_STORAGE_KEY = "experiment-sidebar.active-tab";
+const EXPERIMENT_SIDEBAR_FEATURE_DIFFS_STORAGE_KEY = "experiment-sidebar.feature-diffs";
+const EXPERIMENT_SIDEBAR_TABS: ExperimentSidebarTab[] = ["metrics", "features", "code"];
 
 /**
  * Looks up the numeric value for a project “tracked” metric inside an experiment’s aggregated
@@ -115,6 +121,27 @@ function formatExperimentParentOption(exp: Pick<Experiment, "name" | "id">): str
   return `${exp.name} (${exp.id.slice(0, 7)})`;
 }
 
+function readStoredSidebarTab(): ExperimentSidebarTab {
+  if (typeof window === "undefined") return "metrics";
+  const storedValue = window.localStorage.getItem(EXPERIMENT_SIDEBAR_ACTIVE_TAB_STORAGE_KEY);
+  return EXPERIMENT_SIDEBAR_TABS.includes(storedValue as ExperimentSidebarTab)
+    ? (storedValue as ExperimentSidebarTab)
+    : "metrics";
+}
+
+function readStoredBoolean(key: string, fallback: boolean): boolean {
+  if (typeof window === "undefined") return fallback;
+  const storedValue = window.localStorage.getItem(key);
+  if (storedValue === "1") return true;
+  if (storedValue === "0") return false;
+  return fallback;
+}
+
+function writeLocalStorageValue(key: string, value: string) {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(key, value);
+}
+
 interface ExperimentSidebarProps {
   experimentId: string | null;
   onClose: () => void;
@@ -139,6 +166,11 @@ export function ExperimentSidebar({
   const [parentSearchQuery, setParentSearchQuery] = useState("");
   const parentSearchInputRef = useRef<HTMLInputElement>(null);
   const [draftParentExperimentId, setDraftParentExperimentId] = useState<string | null>(null);
+  const [featuresModalOpen, setFeaturesModalOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<ExperimentSidebarTab>(() => readStoredSidebarTab());
+  const [featureDiffsEnabled, setFeatureDiffsEnabled] = useState<boolean>(() =>
+    readStoredBoolean(EXPERIMENT_SIDEBAR_FEATURE_DIFFS_STORAGE_KEY, true)
+  );
 
   useEffect(() => {
     if (!parentMenuOpen) {
@@ -147,6 +179,17 @@ export function ExperimentSidebar({
     }
     requestAnimationFrame(() => parentSearchInputRef.current?.focus());
   }, [parentMenuOpen]);
+
+  useEffect(() => {
+    writeLocalStorageValue(EXPERIMENT_SIDEBAR_ACTIVE_TAB_STORAGE_KEY, activeTab);
+  }, [activeTab]);
+
+  useEffect(() => {
+    writeLocalStorageValue(
+      EXPERIMENT_SIDEBAR_FEATURE_DIFFS_STORAGE_KEY,
+      featureDiffsEnabled ? "1" : "0"
+    );
+  }, [featureDiffsEnabled]);
 
   // Primary record + mutations for the sidebar experiment (light polling while mounted).
   const {
@@ -160,6 +203,9 @@ export function ExperimentSidebar({
 
   const { metrics, isLoading: metricsLoading } = useExperimentMetrics(experimentId || "");
   const { metrics: parentLoggedMetrics } = useExperimentMetrics(experiment?.parentExperimentId ?? "");
+  const {
+    experiment: savedParentExperiment,
+  } = useExperiment(experiment?.parentExperimentId ?? "");
   const { project } = useProject(experiment?.projectId);
 
   const trackedMetricDefinitions = project?.metrics.trackedMetrics ?? [];
@@ -222,8 +268,9 @@ export function ExperimentSidebar({
   // Paginated list of sibling experiments — only fetched while the parent menu is open.
   const { experiments: projectExperiments, isLoading: projectExperimentsLoading } =
     useExperiments(experiment?.projectId, {
-      enabled: parentMenuOpen && !!experiment?.projectId,
+      enabled: (parentMenuOpen || featuresModalOpen) && !!experiment?.projectId,
       paginationMode: "auto",
+      includeFeatures: featuresModalOpen,
     });
 
   // Parent picker rows: everyone in the project except the experiment being edited.
@@ -621,7 +668,11 @@ export function ExperimentSidebar({
             <EntityIdDisplay label="ID" value={experiment.id} />
 
             {/* Metrics / features / diff — keeps heavy JSON and git output out of the first paint path */}
-            <Tabs defaultValue="metrics" className="space-y-2">
+            <Tabs
+              value={activeTab}
+              onValueChange={(value) => setActiveTab(value as ExperimentSidebarTab)}
+              className="min-w-0 max-w-full space-y-2 overflow-hidden"
+            >
               <TabsList className="w-full">
                 <TabsTrigger value="metrics" className="flex-1" data-testid="tab-metrics">
                   Metrics
@@ -794,20 +845,18 @@ export function ExperimentSidebar({
                 )}
               </TabsContent>
 
-              <TabsContent value="features" className="space-y-2">
-                <Card>
-                  <CardHeader className="py-2 px-3">
-                    <CardTitle className="text-xs font-medium text-muted-foreground">
-                      Full Features
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="px-3 pb-3 pt-0">
-                    <pre className="text-xs font-mono bg-muted p-2 rounded overflow-auto max-h-32">
-                      {JSON.stringify(experiment.features, null, 2) ||
-                        "No features"}
-                    </pre>
-                  </CardContent>
-                </Card>
+              <TabsContent value="features" className="min-w-0 max-w-full space-y-2 overflow-hidden">
+                <ExperimentFeaturesPanel
+                  experiment={experiment}
+                  parentExperiment={savedParentExperiment}
+                  projectExperiments={projectExperiments}
+                  experimentsLoading={projectExperimentsLoading}
+                  modalOpen={featuresModalOpen}
+                  onModalOpenChange={setFeaturesModalOpen}
+                  lockExperimentFeaturesSelection
+                  showDiffs={featureDiffsEnabled}
+                  onShowDiffsChange={setFeatureDiffsEnabled}
+                />
               </TabsContent>
 
               <TabsContent value="code" className="space-y-2">

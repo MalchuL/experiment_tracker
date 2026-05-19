@@ -8,7 +8,7 @@ from sqlalchemy import String, cast, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from lib.protocols.user_protocol import UserProtocol
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import defer, selectinload
 
 
 LoadOptions = Sequence[Literal["project", "metrics"]] | bool
@@ -46,11 +46,14 @@ class ExperimentRepository(BaseRepository[Experiment]):
         self,
         project_id: UUID_TYPE,
         list_options: ListOptions = ListOptions(limit=10, offset=0),
+        *,
+        include_features: bool = True,
     ) -> Page[Experiment]:
         filters = [Experiment.project_id == project_id]
         return await self.list(
             *filters,
             order_by=Experiment.created_at.desc(),
+            load=[] if include_features else [defer(Experiment.features)],
             list_options=list_options,
         )
 
@@ -61,6 +64,7 @@ class ExperimentRepository(BaseRepository[Experiment]):
         list_options: ListOptions | None = None,
         *,
         search: str | None = None,
+        include_features: bool = True,
     ) -> Page[Experiment]:
         if isinstance(full_load, Sequence):
             load = [selectinload(getattr(Experiment, option)) for option in full_load]
@@ -68,6 +72,8 @@ class ExperimentRepository(BaseRepository[Experiment]):
             load = [selectinload(Experiment.project), selectinload(Experiment.metrics)]
         else:
             load = []
+        if not include_features:
+            load.append(defer(Experiment.features))
         filters = [Experiment.project_id == project_id]
         if search and (term := search.strip()[:200]):
             # Portable across PostgreSQL and SQLite: avoid ``instr()`` (SQLite-only in practice for PG).
@@ -88,7 +94,7 @@ class ExperimentRepository(BaseRepository[Experiment]):
         )
 
     async def get_experiments_by_ids(
-        self, experiment_ids: List[UUID_TYPE]
+        self, experiment_ids: List[UUID_TYPE], *, include_features: bool = True
     ) -> List[Experiment]:
         if not experiment_ids:
             return []
@@ -96,6 +102,7 @@ class ExperimentRepository(BaseRepository[Experiment]):
         experiments = list(
             await self.advanced_alchemy_repository.list(
                 *filters,
+                load=[] if include_features else [defer(Experiment.features)],
             )
         )
         return experiments

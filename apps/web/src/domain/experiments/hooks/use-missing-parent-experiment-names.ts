@@ -38,7 +38,7 @@ export function useMissingParentExperimentNames(
       batchKey,
     ],
     queryFn: () =>
-      experimentsService.getByProjectBatch(projectId!, batchIds),
+      experimentsService.getByProjectBatch(projectId!, batchIds, { includeFeatures: false }),
     enabled: Boolean(projectId && batchIds.length > 0),
     staleTime: 60_000,
   });

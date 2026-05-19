@@ -3,6 +3,7 @@ from uuid import UUID
 
 from .dto import (
     ExperimentCreateRequest,
+    FeatureNodeLike,
     ExperimentListResponse,
     ExperimentResponse,
     ExperimentStatus,
@@ -31,7 +32,7 @@ class ExperimentRequestSpecFactory:
         description: str = "",
         color: Optional[str | Unset] = UNSET,
         parent_experiment_id: Optional[str | UUID | Unset] = UNSET,
-        features: Optional[dict[str, Any] | Unset] = UNSET,
+        features: Optional[list[FeatureNodeLike] | Unset] = UNSET,
         status: ExperimentStatus = ExperimentStatus.PLANNED,
         tags: Optional[list[str] | Unset] = UNSET,
     ) -> ApiRequestSpec[ExperimentResponse]:
@@ -70,7 +71,7 @@ class ExperimentRequestSpecFactory:
         description: Optional[str | Unset] = UNSET,
         color: Optional[str | Unset] = UNSET,
         parent_experiment_id: Optional[str | UUID | Unset] = UNSET,
-        features: Optional[dict[str, Any] | Unset] = UNSET,
+        features: Optional[list[FeatureNodeLike] | Unset] = UNSET,
         status: Optional[ExperimentStatus | Unset] = UNSET,
         progress: Optional[int | Unset] = UNSET,
         tags: Optional[list[str] | Unset] = UNSET,
@@ -129,6 +130,7 @@ class ExperimentRequestSpecFactory:
         limit: int | None = None,
         offset: int | None = None,
         search: str | None = None,
+        include_features: bool = True,
     ) -> ApiRequestSpec[ExperimentListResponse]:
         if isinstance(project_id, UUID):
             project_id = str(project_id)
@@ -142,6 +144,7 @@ class ExperimentRequestSpecFactory:
             query_params["offset"] = offset
         if search is not None and search.strip() != "":
             query_params["search"] = search.strip()
+        query_params["includeFeatures"] = "true" if include_features else "false"
         return ApiRequestSpec(
             method="GET",
             endpoint=endpoint,
@@ -154,6 +157,7 @@ class ExperimentRequestSpecFactory:
         project_id: str | UUID,
         limit: int | None = None,
         offset: int | None = None,
+        include_features: bool = True,
     ) -> ApiRequestSpec[ExperimentListResponse]:
         if isinstance(project_id, UUID):
             project_id = str(project_id)
@@ -163,6 +167,7 @@ class ExperimentRequestSpecFactory:
             query_params["limit"] = limit
         if offset is not None:
             query_params["offset"] = offset
+        query_params["includeFeatures"] = "true" if include_features else "false"
         return ApiRequestSpec(
             method="GET",
             endpoint=endpoint,

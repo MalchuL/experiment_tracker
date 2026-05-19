@@ -7,13 +7,20 @@ from experiment_tracker_shared.limits import (
 )
 from lib.types import UUID_TYPE
 from pydantic import BaseModel, Field, field_validator
-from typing import List, Optional, Dict, Any
+from typing import List, Optional
 from models import ExperimentStatus
 
 from lib.datetime_types import ApiDateTime, ApiOptionalDateTime
 from lib.dto_config import model_config
 from lib.pagination import PaginatedResponse, MAX_LIST_PAGE_SIZE
 from lib.category_cleanup_dto import CategoryCleanupResponseDTO
+
+
+class FeatureNodeDTO(BaseModel):
+    name: str = Field(..., min_length=1)
+    children: Optional[List["FeatureNodeDTO"]] = None
+
+    model_config = model_config()
 
 
 class ExperimentBaseDTO(BaseModel):
@@ -24,7 +31,7 @@ class ExperimentBaseDTO(BaseModel):
     )
     status: ExperimentStatus = ExperimentStatus.PLANNED
     parent_experiment_id: Optional[UUID_TYPE] = None
-    features: Dict[str, Any] = {}
+    features: List[FeatureNodeDTO] = Field(default_factory=list)
     color: Optional[str] = None
     order: Optional[int] = None
     tags: Optional[List[str]] = None
@@ -49,7 +56,7 @@ class ExperimentUpdateDTO(BaseModel):
     parent_experiment_id: Optional[UUID_TYPE] = None
     color: Optional[str] = None
     status: Optional[ExperimentStatus] = None
-    features: Optional[Dict[str, Any]] = None
+    features: Optional[List[FeatureNodeDTO]] = None
     progress: Optional[int] = None
     order: Optional[int] = None
     tags: Optional[List[str]] = None
@@ -70,6 +77,12 @@ class ExperimentDTO(ExperimentBaseDTO):
     created_at: ApiDateTime
     started_at: ApiOptionalDateTime
     completed_at: ApiOptionalDateTime
+
+    model_config = model_config()
+
+
+class ExperimentListItemDTO(ExperimentDTO):
+    features: Optional[List[FeatureNodeDTO]] = None
 
     model_config = model_config()
 
@@ -130,7 +143,7 @@ class ExperimentUsageDTO(BaseModel):
     model_config = model_config()
 
 
-class ExperimentListResponseDTO(PaginatedResponse[ExperimentDTO]):
+class ExperimentListResponseDTO(PaginatedResponse[ExperimentListItemDTO]):
     model_config = model_config()
 
 

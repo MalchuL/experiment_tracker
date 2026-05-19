@@ -132,6 +132,54 @@ def _build_run_config_yaml(
     return "\n".join(lines) + "\n"
 
 
+def _build_feature_tree(
+    args: argparse.Namespace, steps: int, duration_seconds: int
+) -> list[dict[str, Any]]:
+    return [
+        {
+            "name": "data",
+            "children": [
+                {"name": "synthetic-random-images"},
+                {"name": "box-blur-ground-truth"},
+                {"name": "uint8-rgb-256x256-samples"},
+            ],
+        },
+        {
+            "name": "model",
+            "children": [
+                {"name": "demo-stochastic-metric-generator"},
+                {"name": "accuracy-loss-bce-simulation"},
+            ],
+        },
+        {
+            "name": "training",
+            "children": [
+                {"name": f"steps-{steps}"},
+                {"name": f"duration-seconds-{duration_seconds}"},
+                {"name": "optimizer-random-walk"},
+                {"name": "scheduler-linear-power-sweep"},
+            ],
+        },
+        {
+            "name": "logging",
+            "children": [
+                {"name": "scalars-accuracy-loss-bce-power-rng"},
+                {"name": "final-metrics-loss-accuracy-precision-recall"},
+                {"name": "at-step-image-artifacts"},
+                {"name": "named-final-artifacts"},
+                {
+                    "name": "config",
+                    "children": [
+                        {"name": "external-config-yaml"}
+                        if args.config_path
+                        else {"name": "generated-config-yaml"}
+                    ],
+                },
+            ],
+        },
+    ]
+
+
 def _capture_installed_packages() -> str:
     commands = (
         ["uv", "pip", "freeze"],
@@ -211,9 +259,12 @@ def main() -> None:
         else:
             logger.info("project_found", extra={"project_id": project["id"]})
 
+        duration_seconds = 60
+        steps = 120
         tracker = ExpTracker.init(
             project=str(project["id"]),
             experiment=args.experiment_name,
+            features=_build_feature_tree(args, steps, duration_seconds),
         )
         experiment_id = str(tracker.experiment_id)
         logger.info("experiment_created", extra={"experiment_id": experiment_id})
@@ -224,8 +275,6 @@ def main() -> None:
         tracker.color(f"#{random.randint(0, 16777215):06x}")
         logger.info("experiment_started", extra={"experiment_id": experiment_id})
 
-        duration_seconds = 60
-        steps = 120
         step_seconds = duration_seconds / steps
         start_time = time.time()
         # Scalar tag "power": magnitude sweep for charting very large → very small values.

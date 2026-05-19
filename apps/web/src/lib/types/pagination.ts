@@ -3,6 +3,8 @@ export interface PaginationParams {
   offset?: number;
   /** Server-side substring on experiment id, name, and description (GET …/experiments?search=). */
   search?: string;
+  /** Opt into heavy feature-tree payloads on experiment list endpoints. */
+  includeFeatures?: boolean;
 }
 
 export interface PaginatedResponse<T> {

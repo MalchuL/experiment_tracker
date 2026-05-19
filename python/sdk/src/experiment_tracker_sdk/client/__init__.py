@@ -1,7 +1,7 @@
 from .client import ExperimentTrackerClient
 from .api_registry import APIRequestsRegistry
 from .constants import UNSET, Unset
-from .domain.experiments.dto import ExperimentStatus
+from .domain.experiments.dto import ExperimentStatus, FeatureNode, FeatureNodeLike
 from .request_types import (
     ApiRequestSpec,
     FileDownloadResponse,
@@ -17,4 +17,6 @@ __all__ = [
     "UNSET",
     "Unset",
     "ExperimentStatus",
+    "FeatureNode",
+    "FeatureNodeLike",
 ]
