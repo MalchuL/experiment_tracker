@@ -56,6 +56,7 @@ type FlatDiffLine = {
 };
 
 const FEATURE_TREE_INDENT_PX = 22;
+const FEATURE_TREE_TEXT_CLASS = "inline-block min-w-full font-sans text-xs";
 
 export function ExperimentFeaturesPanel({
   experiment,
@@ -266,7 +267,7 @@ function FeaturePlainTree({ features }: { features: FeatureNode[] }) {
 
   return (
     <div className="w-full min-w-0 max-w-full overflow-x-auto rounded border border-border [contain:inline-size]">
-      <div className="inline-block min-w-full font-mono text-xs">
+      <div className={FEATURE_TREE_TEXT_CLASS}>
         {rows.map((row) => (
           <FeatureUnifiedLine
             key={row.key}
@@ -288,7 +289,7 @@ function FeatureDiffTree({ rows }: { rows: FeatureDiffNode[] }) {
 
   return (
     <div className="w-full min-w-0 max-w-full overflow-x-auto rounded border border-border [contain:inline-size]">
-      <div className="inline-block min-w-full font-mono text-xs">
+      <div className={FEATURE_TREE_TEXT_CLASS}>
         {flatRows.map((row) => (
           <FeatureChangeRow key={row.key} row={row} />
         ))}

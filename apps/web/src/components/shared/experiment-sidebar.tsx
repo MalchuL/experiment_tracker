@@ -35,7 +35,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/lib/hooks/use-toast";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { useExperiment } from "@/domain/experiments/hooks/experiment-hook";
 import { useExperiments } from "@/domain/experiments/hooks/experiments-hook";
 import { GitBranch, RefreshCw, X, ChevronDown } from "lucide-react";
@@ -73,6 +73,9 @@ type ExperimentSidebarTab = "metrics" | "features" | "code";
 const EXPERIMENT_SIDEBAR_ACTIVE_TAB_STORAGE_KEY = "experiment-sidebar.active-tab";
 const EXPERIMENT_SIDEBAR_FEATURE_DIFFS_STORAGE_KEY = "experiment-sidebar.feature-diffs";
 const EXPERIMENT_SIDEBAR_TABS: ExperimentSidebarTab[] = ["metrics", "features", "code"];
+const EXPERIMENT_SIDEBAR_MIN_WIDTH = 320;
+const EXPERIMENT_SIDEBAR_MAX_WIDTH = 760;
+const EXPERIMENT_SIDEBAR_DEFAULT_WIDTH = 400;
 
 /**
  * Looks up the numeric value for a project “tracked” metric inside an experiment’s aggregated
@@ -171,6 +174,7 @@ export function ExperimentSidebar({
   const [featureDiffsEnabled, setFeatureDiffsEnabled] = useState<boolean>(() =>
     readStoredBoolean(EXPERIMENT_SIDEBAR_FEATURE_DIFFS_STORAGE_KEY, true)
   );
+  const [sidebarWidth, setSidebarWidth] = useState(EXPERIMENT_SIDEBAR_DEFAULT_WIDTH);
 
   useEffect(() => {
     if (!parentMenuOpen) {
@@ -190,6 +194,37 @@ export function ExperimentSidebar({
       featureDiffsEnabled ? "1" : "0"
     );
   }, [featureDiffsEnabled]);
+
+  const handleSidebarResizeStart = useCallback(
+    (event: ReactPointerEvent<HTMLButtonElement>) => {
+      event.preventDefault();
+      const startX = event.clientX;
+      const startWidth = sidebarWidth;
+
+      const handlePointerMove = (moveEvent: PointerEvent) => {
+        const viewportMax = Math.max(
+          EXPERIMENT_SIDEBAR_MIN_WIDTH,
+          window.innerWidth - 240
+        );
+        const maxWidth = Math.min(EXPERIMENT_SIDEBAR_MAX_WIDTH, viewportMax);
+        setSidebarWidth(
+          Math.min(
+            maxWidth,
+            Math.max(EXPERIMENT_SIDEBAR_MIN_WIDTH, startWidth + startX - moveEvent.clientX)
+          )
+        );
+      };
+
+      const handlePointerUp = () => {
+        window.removeEventListener("pointermove", handlePointerMove);
+        window.removeEventListener("pointerup", handlePointerUp);
+      };
+
+      window.addEventListener("pointermove", handlePointerMove);
+      window.addEventListener("pointerup", handlePointerUp);
+    },
+    [sidebarWidth]
+  );
 
   // Primary record + mutations for the sidebar experiment (light polling while mounted).
   const {
@@ -465,6 +500,10 @@ export function ExperimentSidebar({
         </div>
       }
       onClose={onClose}
+      widthClassName=""
+      className="md:max-w-none"
+      style={{ width: sidebarWidth }}
+      onResizePointerDown={handleSidebarResizeStart}
       testId="experiment-sidebar"
     >
       {experimentLoading ? (
