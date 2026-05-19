@@ -40,13 +40,22 @@ export function useScalarsLiveRefresh({
     async (lastLogged: LastLoggedExperimentsResult): Promise<IncrementalScalarsRefreshResult> => {
       if (!projectId || !lastLogged.data.length || !scalarsQueryKey.length) return "unavailable";
 
+      const cached = queryClient.getQueryData<InfiniteData<ScalarsPointsResult>>(scalarsQueryKey);
+      const cachedExperimentIds = new Set(
+        cached?.pages.flatMap((page) => page.data.map((item) => item.experiment_id)) ?? []
+      );
       const previous = previousByExperiment.current;
       const hasCompleteBaseline = lastLogged.data.every((item) =>
         previous.has(item.experiment_id)
       );
       const changed = lastLogged.data
-        .map((item) => ({ item, previousModified: previous.get(item.experiment_id) }))
+        .map((item) => ({
+          item,
+          previousModified: previous.get(item.experiment_id),
+          missingFromCache: !cachedExperimentIds.has(item.experiment_id),
+        }))
         .filter(({ item, previousModified }) => {
+          if (!cachedExperimentIds.has(item.experiment_id)) return true;
           if (!previousModified) return false;
           return new Date(item.last_modified).getTime() > new Date(previousModified).getTime();
         });
@@ -59,22 +68,27 @@ export function useScalarsLiveRefresh({
         return hasCompleteBaseline ? "unchanged" : "unavailable";
       }
 
-      const startTime = changed
-        .map(({ previousModified }) => previousModified)
-        .filter((value): value is string => !!value)
-        .sort()[0];
+      const hasMissingCacheRows = changed.some(({ missingFromCache }) => missingFromCache);
+      const startTime = hasMissingCacheRows
+        ? undefined
+        : changed
+            .map(({ previousModified }) => previousModified)
+            .filter((value): value is string => !!value)
+            .sort()[0];
       const latest = await scalarsService.getByProject(projectId, {
         experimentIds: changed.map(({ item }) => item.experiment_id),
         maxPoints,
         returnTags: false,
-        startTime,
+        ...(startTime ? { startTime } : {}),
         limit: Math.max(changed.length, 1),
       });
       queryClient.setQueryData<InfiniteData<ScalarsPointsResult>>(scalarsQueryKey, (current) => {
         if (!current) return current;
         return {
           ...current,
-          pages: current.pages.map((page) => mergeScalarsPage(page, latest.data)),
+          pages: current.pages.map((page, index) =>
+            mergeScalarsPage(page, latest.data, { appendMissing: index === 0 })
+          ),
         };
       });
       return "updated";

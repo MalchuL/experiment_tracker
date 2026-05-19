@@ -21,15 +21,24 @@ export function mergeExperimentScalars(
 
 export function mergeScalarsPage(
   page: ScalarsPointsResult,
-  incoming: ExperimentScalarsPoints[]
+  incoming: ExperimentScalarsPoints[],
+  options: { appendMissing?: boolean } = {}
 ): ScalarsPointsResult {
   const incomingByExperiment = new Map(incoming.map((item) => [item.experiment_id, item]));
+  const currentExperimentIds = new Set(page.data.map((item) => item.experiment_id));
+  const missingIncoming = options.appendMissing
+    ? incoming.filter((item) => !currentExperimentIds.has(item.experiment_id))
+    : [];
+
   return {
     ...page,
-    data: page.data.map((current) => {
-      const next = incomingByExperiment.get(current.experiment_id);
-      return next ? mergeExperimentScalars(current, next) : current;
-    }),
+    data: [
+      ...missingIncoming,
+      ...page.data.map((current) => {
+        const next = incomingByExperiment.get(current.experiment_id);
+        return next ? mergeExperimentScalars(current, next) : current;
+      }),
+    ],
   };
 }
 
