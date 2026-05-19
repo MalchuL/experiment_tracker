@@ -1,20 +1,20 @@
 import math
-import re
-import json
 import mimetypes
-import io
+import re
 from pathlib import Path
 from typing import cast
 from uuid import UUID
 
-from experiment_tracker_sdk.client.api_registry import APIRequestsRegistry
-from experiment_tracker_sdk.client.blob_api import BlobRequestsStrategy
-from experiment_tracker_sdk.logger import logger
 from experiment_tracker_sdk.client import (
     ExperimentStatus,
     ExperimentTrackerClient,
 )
+from experiment_tracker_sdk.client.api_registry import APIRequestsRegistry
+from experiment_tracker_sdk.client.blob_api import BlobRequestsStrategy
 from experiment_tracker_sdk.client.constants import UNSET
+from experiment_tracker_sdk.client.scalar_batching_strategy import (
+    BatchedScalarLoggingStrategy,
+)
 from experiment_tracker_sdk.client.domain.experiments.dto import (
     ExperimentListResponse,
     ExperimentResponse,
@@ -22,10 +22,10 @@ from experiment_tracker_sdk.client.domain.experiments.dto import (
 )
 from experiment_tracker_sdk.client.domain.projects.dto import (
     ProjectListResponse,
-    ProjectResponse,
 )
 from experiment_tracker_sdk.config import load_config
-from experiment_tracker_sdk.error import ExpTrackerAPIError, ExpTrackerProgressError
+from experiment_tracker_sdk.error import ExpTrackerAPIError
+from experiment_tracker_sdk.logger import logger
 from experiment_tracker_sdk.utils.content_utils import (
     _is_existing_file_path,
     image_data_to_png_bytes,
@@ -56,7 +56,7 @@ class ExpTracker:
         experiment_id: str | UUID,
         project_id: str | UUID,
         api_requests_registry: APIRequestsRegistry,
-        request_client: ExperimentTrackerClient | None = None,
+        request_client: ExperimentTrackerClient,
     ):
         """Initialize the ExpTracker instance.
         Args:
@@ -65,23 +65,17 @@ class ExpTracker:
         """
         self.experiment_id = experiment_id
         self.project_id = project_id
-        if request_client is None:
-            # Backward compatibility for tests and lightweight fakes that expose
-            # both request and artifact helper methods on a single object.
-            self._api_requests_registry = api_requests_registry
-            self._request_client = api_requests_registry  # type: ignore[assignment]
-            self._blob_api = api_requests_registry  # type: ignore[assignment]
-        else:
-            self._api_requests_registry = api_requests_registry
-            self._request_client = request_client
-            self._blob_api = BlobRequestsStrategy(
-                registry=api_requests_registry,
-                request_client=request_client,
-            )
-
-        # Used to group scalars by step to reduce API calls (table have separate column per scalar name)
-        self._last_logged_step = 0
-        self._current_values: dict[str, float] = {}
+        self._api_requests_registry = api_requests_registry
+        self._request_client = request_client
+        self._blob_api = BlobRequestsStrategy(
+            registry=api_requests_registry,
+            request_client=request_client,
+        )
+        self._scalar_logging = BatchedScalarLoggingStrategy(
+            experiment_id=experiment_id,
+            registry=api_requests_registry,
+            request_client=request_client,
+        )
 
     @staticmethod
     def _get_api_requests_registry() -> APIRequestsRegistry:
@@ -199,19 +193,7 @@ class ExpTracker:
                 f"Invalid scalar value: {scalar_value} for tag: {tag}, global_step: {global_step}, not logged"
             )
             return
-        if global_step == self._last_logged_step:
-            # We try to group scalars by step to reduce API calls (table have separate column per scalar name)
-            self._current_values[tag] = scalar_value
-        else:
-            # We log the current values and reset the current values
-            if self._current_values:
-                self._request_client.queued_request(
-                    self._api_requests_registry.scalars.log_scalar(
-                        self.experiment_id, self._current_values, self._last_logged_step
-                    )
-                )
-            self._last_logged_step = global_step
-            self._current_values = {tag: scalar_value}
+        self._scalar_logging.add_scalar(tag, float(scalar_value), global_step)
 
     def add_scalars(
         self,
@@ -518,25 +500,11 @@ class ExpTracker:
 
     def flush(self):
         """Flush the event file to disk/network."""
-        if self._current_values:
-            self._request_client.queued_request(
-                self._api_requests_registry.scalars.log_scalar(
-                    self.experiment_id, self._current_values, self._last_logged_step
-                )
-            )
-            self._last_logged_step = 0
-            self._current_values = {}
+        self._scalar_logging.flush()
         self._request_client.flush()
 
     def close(self):
         """Close the logger and free resources."""
-        if self._current_values:
-            self._request_client.queued_request(
-                self._api_requests_registry.scalars.log_scalar(
-                    self.experiment_id, self._current_values, self._last_logged_step
-                )
-            )
-            self._last_logged_step = 0
-            self._current_values = {}
+        self._scalar_logging.flush()
         self._request_client.flush()
         self._request_client.close()
