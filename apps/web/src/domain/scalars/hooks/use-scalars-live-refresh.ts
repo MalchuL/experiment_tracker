@@ -87,7 +87,7 @@ export function useScalarsLiveRefresh({
         return {
           ...current,
           pages: current.pages.map((page, index) =>
-            mergeScalarsPage(page, latest.data, { appendMissing: index === 0 })
+            mergeScalarsPage(page, latest.data, { appendMissing: index === 0, maxPoints })
           ),
         };
       });
