@@ -365,7 +365,7 @@ function FeatureUnifiedLine({
   className?: string;
 }) {
   return (
-    <div className={cn("flex w-max min-w-full border-b border-border/60 px-2 py-1 last:border-b-0", className)}>
+    <div className={cn("flex w-max min-w-full border-b border-border/35 px-2 py-1 last:border-b-0", className)}>
       <span className="flex w-4 shrink-0 select-none items-center justify-center">
         {icon}
       </span>
@@ -389,7 +389,7 @@ function FeatureChangedLine({
   depth: number;
 }) {
   return (
-    <div className="flex w-max min-w-full border-b border-border/60 bg-amber-500/10 px-2 py-1 text-amber-800 last:border-b-0 dark:text-amber-300">
+    <div className="flex w-max min-w-full border-b border-border/25 bg-amber-500/10 px-2 py-1 text-amber-800 last:border-b-0 dark:text-amber-300">
       <span className="flex w-4 shrink-0 select-none items-start justify-center pt-0.5">
         {icon}
       </span>

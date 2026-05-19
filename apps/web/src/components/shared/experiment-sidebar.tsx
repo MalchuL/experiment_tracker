@@ -76,6 +76,21 @@ const EXPERIMENT_SIDEBAR_TABS: ExperimentSidebarTab[] = ["metrics", "features", 
 const EXPERIMENT_SIDEBAR_MIN_WIDTH = 320;
 const EXPERIMENT_SIDEBAR_MAX_WIDTH = 760;
 const EXPERIMENT_SIDEBAR_DEFAULT_WIDTH = 400;
+const METRIC_SIDEBAR_ROW_SEPARATOR_CLASS = "border-b border-border/35 py-1";
+const METRIC_SIDEBAR_DENSE_CLASS_NAMES = {
+  root: "text-sm",
+  nameCluster: METRIC_SIDEBAR_ROW_SEPARATOR_CLASS,
+  valueCluster: METRIC_SIDEBAR_ROW_SEPARATOR_CLASS,
+  tableSlot1: METRIC_SIDEBAR_ROW_SEPARATOR_CLASS,
+  tableArrow: METRIC_SIDEBAR_ROW_SEPARATOR_CLASS,
+  tableSlot2: METRIC_SIDEBAR_ROW_SEPARATOR_CLASS,
+  deltaText: "font-mono text-xs tabular-nums leading-none",
+  deltaIcon: "w-2.5 h-2.5",
+};
+const METRIC_SIDEBAR_UNTRACKED_CLASS_NAMES = {
+  ...METRIC_SIDEBAR_DENSE_CLASS_NAMES,
+  root: "text-sm pl-0",
+};
 
 /**
  * Looks up the numeric value for a project “tracked” metric inside an experiment’s aggregated
@@ -754,11 +769,7 @@ export function ExperimentSidebar({
                               scope: "group",
                               groupHasAnyDiff: trackedMetricsGridShowsParentDelta,
                             }}
-                            classNameProps={{
-                              root: "text-sm",
-                              deltaText: "font-mono text-xs tabular-nums leading-none",
-                              deltaIcon: "w-2.5 h-2.5",
-                            }}
+                            classNameProps={METRIC_SIDEBAR_DENSE_CLASS_NAMES}
                             data-testid={`metric-${projectMetricKeyString(projectMetric)}`}
                           />
                         ))}
@@ -839,11 +850,7 @@ export function ExperimentSidebar({
                                             scope: "group",
                                             groupHasAnyDiff: loggedLabelGroupShowsParentDelta,
                                           }}
-                                          classNameProps={{
-                                            root: "text-sm",
-                                            deltaText: "font-mono text-xs tabular-nums leading-none",
-                                            deltaIcon: "w-2.5 h-2.5",
-                                          }}
+                                          classNameProps={METRIC_SIDEBAR_DENSE_CLASS_NAMES}
                                           data-testid={`logged-metric-${loggedMetric.id}`}
                                         />
                                       );
@@ -862,9 +869,7 @@ export function ExperimentSidebar({
                                           scope: "group",
                                           groupHasAnyDiff: loggedLabelGroupShowsParentDelta,
                                         }}
-                                        classNameProps={{
-                                          root: "text-sm pl-0",
-                                        }}
+                                        classNameProps={METRIC_SIDEBAR_UNTRACKED_CLASS_NAMES}
                                         data-testid={`logged-metric-${loggedMetric.id}`}
                                       />
                                     );

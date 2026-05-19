@@ -107,6 +107,8 @@ export interface ExperimentNodeData {
   [key: string]: unknown;
 }
 
+const DAG_METRIC_ROW_SEPARATOR_CLASS = "border-b border-border/25 py-0.5";
+
 function buildMetricComparisons(
   exp: Experiment,
   aggregatedMetricsByExperiment: Record<string, Metric[]> | undefined,
@@ -243,10 +245,15 @@ function ExperimentNode({ data }: { data: ExperimentNodeData }) {
                   }}
                   classNameProps={{
                     root: "text-[10px]",
+                    nameCluster: DAG_METRIC_ROW_SEPARATOR_CLASS,
                     nameTrigger: "text-muted-foreground",
+                    valueCluster: DAG_METRIC_ROW_SEPARATOR_CLASS,
                     valueText: "text-[10px]",
                     deltaText: "font-mono text-[9px] tabular-nums leading-none",
                     deltaIcon: "w-2.5 h-2.5",
+                    tableSlot1: DAG_METRIC_ROW_SEPARATOR_CLASS,
+                    tableArrow: DAG_METRIC_ROW_SEPARATOR_CLASS,
+                    tableSlot2: DAG_METRIC_ROW_SEPARATOR_CLASS,
                   }}
                 />
               ))}
