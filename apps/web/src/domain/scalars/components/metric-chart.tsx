@@ -427,6 +427,10 @@ export function MetricChart({
       modeBarButtonsToAdd,
       displaylogo: false,
       responsive: true,
+      // Plotly's cartesian axis drag handles switch drags near edges into axis-only pan/zoom,
+      // which feels like snapping while dragging scalar plots. Keep plot-area drag, remove handles.
+      showAxisDragHandles: false,
+      showAxisRangeEntryBoxes: false,
     };
   }, [handleResetAxes, hoverMode, onHoverModeChange]);
 
