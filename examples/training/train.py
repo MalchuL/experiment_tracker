@@ -164,6 +164,7 @@ def _build_feature_tree(
             "name": "logging",
             "children": [
                 {"name": "scalars-accuracy-loss-bce-power-rng"},
+                {"name": "sparse-scalars-accuracy-map-1-percent"},
                 {"name": "final-metrics-loss-accuracy-precision-recall"},
                 {"name": "at-step-image-artifacts"},
                 {"name": "named-final-artifacts"},
@@ -282,6 +283,7 @@ def main() -> None:
         # Scalar tag "power": magnitude sweep for charting very large → very small values.
         power_exp_high = 15.0
         power_exp_low = -15.0
+        scalar_log_step = max(1, steps // 100)
 
         if args.config_path:
             with open(args.config_path, encoding="utf-8") as config_file:
@@ -341,6 +343,7 @@ def main() -> None:
         logger.info("final_artifacts_logged", extra={"experiment_id": experiment_id})
 
         accuracy = random.uniform(0.6, 0.99)
+        mean_average_precision = random.uniform(0.45, 0.75)
         loss = random.uniform(0.1, 1.2)
         bce_loss = random.uniform(0.05, 0.9)
 
@@ -351,9 +354,16 @@ def main() -> None:
 
             # Simulate training metrics and log several scalar values per step.
             accuracy += random.uniform(-0.1, 0.1)
+            mean_average_precision += random.uniform(-0.05, 0.05)
             loss += random.uniform(-0.1, 0.1)
             bce_loss += random.uniform(-0.1, 0.1)
-            tracker.add_scalar("accuracy", accuracy, global_step=step)
+            accuracy = max(0.0, min(1.0, accuracy))
+            mean_average_precision = max(0.0, min(1.0, mean_average_precision))
+            if step % scalar_log_step == 0 or step == steps:
+                tracker.add_scalar("accuracy", accuracy, global_step=step // 100)
+                tracker.add_scalar(
+                    "mAP", mean_average_precision, global_step=step // 100
+                )
             tracker.add_scalar("loss", loss, global_step=step)
             tracker.add_scalar("bce_loss", bce_loss, global_step=step)
             if steps > 1:
@@ -382,6 +392,7 @@ def main() -> None:
                     "progress": progress,
                     "experiment_id": experiment_id,
                     "accuracy": accuracy,
+                    "mAP": mean_average_precision,
                     "loss": loss,
                     "bce_loss": bce_loss,
                 },
@@ -390,6 +401,7 @@ def main() -> None:
         final_metrics = {
             "loss": random.uniform(0.1, 0.6),
             "accuracy": random.uniform(0.7, 0.99),
+            "mAP": random.uniform(0.55, 0.95),
             "precision": random.uniform(0.6, 0.99),
             "recall": random.uniform(0.6, 0.99),
         }
@@ -442,6 +454,7 @@ def main() -> None:
                 "steps": steps,
                 "scalar_names": [
                     "accuracy",
+                    "mAP",
                     "loss",
                     "bce_loss",
                     "power",
