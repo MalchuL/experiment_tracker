@@ -99,7 +99,7 @@ async def get_artifact_info_detail(
     project_id: UUID,
     experiment_id: UUID = Query(...),
     artifact_name: str = Query(..., min_length=1),
-    step: int = Query(..., ge=0),
+    step: int = Query(...),
     artifact_type: str | None = Query(default=None),
     service: ArtifactsInfoService = Depends(get_artifacts_info_service),
 ):

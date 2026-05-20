@@ -166,7 +166,7 @@ async def get_experiment_artifact_detail_at_step(
     project_id: UUID,
     experiment_id: UUID = Query(...),
     artifact_name: str = Query(..., min_length=1),
-    step: int = Query(..., ge=0),
+    step: int = Query(...),
     artifact_type: ArtifactType | None = Query(default=None),
     user: User = Depends(get_current_user_dual),
     _: None = Depends(require_api_token_scopes(ProjectActions.VIEW_ARTIFACT)),
@@ -237,7 +237,7 @@ async def upload_and_log_experiment_artifact_at_step(
 @router.get("/{experiment_id}/download-at-step")
 async def download_experiment_artifact_at_step(
     experiment_id: UUID,
-    step: int = Query(..., ge=0),
+    step: int = Query(...),
     name: str = Query(..., min_length=1),
     artifact_type: ArtifactType | None = Query(default=None),
     user: User = Depends(get_current_user_dual),
