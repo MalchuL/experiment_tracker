@@ -27,6 +27,7 @@ export function useProjectObjects(params: UseProjectObjectsParams) {
   const stableExperimentIds = [...(experimentIds ?? [])].sort();
   const stableObjectTypes = [...(objectTypes ?? [])].sort();
   const stableNames = [...(names ?? [])].sort();
+  const hasExplicitEmptyExperimentSelection = experimentIds !== undefined && experimentIds.length === 0;
   const queryKey = projectId
     ? [
         QUERY_KEYS.ARTIFACTS.BY_PROJECT(projectId),
@@ -67,7 +68,7 @@ export function useProjectObjects(params: UseProjectObjectsParams) {
       }
       return allPages.reduce((total, page) => total + page.data.length, 0);
     },
-    enabled: !!projectId,
+    enabled: !!projectId && !hasExplicitEmptyExperimentSelection,
   });
   useEffect(() => {
     if (hasNextPage && !isFetchingNextPage) {
@@ -76,8 +77,11 @@ export function useProjectObjects(params: UseProjectObjectsParams) {
   }, [data?.pages.length, fetchNextPage, hasNextPage, isFetchingNextPage]);
 
   const artifacts = useMemo(
-    () => data?.pages.flatMap((page) => page.data) ?? [],
-    [data]
+    () => {
+      if (hasExplicitEmptyExperimentSelection) return [];
+      return data?.pages.flatMap((page) => page.data) ?? [];
+    },
+    [data, hasExplicitEmptyExperimentSelection]
   );
   return {
     artifacts,
@@ -103,6 +107,7 @@ export function useProjectObjectSummaries(params: UseProjectObjectsParams) {
   const stableExperimentIds = [...(experimentIds ?? [])].sort();
   const stableObjectTypes = [...(objectTypes ?? [])].sort();
   const stableNames = [...(names ?? [])].sort();
+  const hasExplicitEmptyExperimentSelection = experimentIds !== undefined && experimentIds.length === 0;
   const queryKey = projectId
     ? [
         QUERY_KEYS.ARTIFACTS.BY_PROJECT(projectId),
@@ -146,7 +151,7 @@ export function useProjectObjectSummaries(params: UseProjectObjectsParams) {
       }
       return allPages.reduce((total, page) => total + page.data.length, 0);
     },
-    enabled: !!projectId,
+    enabled: !!projectId && !hasExplicitEmptyExperimentSelection,
   });
   useEffect(() => {
     if (hasNextPage && !isFetchingNextPage) {
@@ -155,8 +160,11 @@ export function useProjectObjectSummaries(params: UseProjectObjectsParams) {
   }, [data?.pages.length, fetchNextPage, hasNextPage, isFetchingNextPage]);
 
   const artifacts = useMemo(
-    () => data?.pages.flatMap((page) => page.data) ?? [],
-    [data]
+    () => {
+      if (hasExplicitEmptyExperimentSelection) return [];
+      return data?.pages.flatMap((page) => page.data) ?? [];
+    },
+    [data, hasExplicitEmptyExperimentSelection]
   );
   return {
     artifacts,
