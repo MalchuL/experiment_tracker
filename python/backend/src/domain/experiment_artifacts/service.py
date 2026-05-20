@@ -17,6 +17,7 @@ from clients.artifacts_info import (
     ArtifactType,
     ArtifactsInfoClientProtocol,
     ArtifactsInfoResultDTO,
+    ArtifactsInfoSummaryResultDTO,
     LogArtifactRequestDTO as ArtifactsInfoLogArtifactRequestDTO,
     LogArtifactResponseDTO as ArtifactsInfoLogArtifactResponseDTO,
 )
@@ -556,6 +557,53 @@ class ExperimentArtifactsService:
             end_time=end_time,
         )
         return result
+
+    async def get_experiments_artifacts_summary_at_step(
+        self,
+        user: UserProtocol,
+        project_id: UUID,
+        experiment_ids: list[UUID] | None = None,
+        artifact_types: list[ArtifactType] | None = None,
+        artifact_names: list[str] | None = None,
+        list_options: ListOptions = ListOptions(),
+        max_steps: int | None = None,
+        start_time: str | None = None,
+        end_time: str | None = None,
+    ) -> ArtifactsInfoSummaryResultDTO:
+        """Return lightweight artifact summaries for project-level slider rendering."""
+
+        await self._ensure_project_view_permission(user, project_id)
+        return await self._artifacts_info_at_step_client.get_artifacts_summary(
+            project_id=project_id,
+            experiment_ids=experiment_ids,
+            artifact_types=artifact_types,
+            artifact_names=artifact_names,
+            limit=list_options.limit,
+            offset=list_options.offset,
+            max_steps=max_steps,
+            start_time=start_time,
+            end_time=end_time,
+        )
+
+    async def get_experiment_artifact_detail_at_step(
+        self,
+        user: UserProtocol,
+        project_id: UUID,
+        experiment_id: UUID,
+        artifact_name: str,
+        step: int,
+        artifact_type: ArtifactType | None = None,
+    ) -> ArtifactsInfoResultDTO:
+        """Return one full artifact metadata row after a summary slider step is selected."""
+
+        await self._ensure_project_view_permission(user, project_id)
+        return await self._artifacts_info_at_step_client.get_artifact_detail(
+            project_id=project_id,
+            experiment_id=experiment_id,
+            artifact_name=artifact_name,
+            step=step,
+            artifact_type=artifact_type,
+        )
 
     async def download_experiment_artifact_at_step(
         self,

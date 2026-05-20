@@ -8,7 +8,11 @@ import type { Experiment } from "@/domain/experiments/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { API_ROUTES } from "@/lib/constants/api-routes";
 import { CHART_COLORS } from "@/domain/scalars/constants";
-import type { LoggedObjectGroups, LoggedObjectNameGroup } from "@/domain/scalars/types";
+import type {
+  LoggedObjectGroups,
+  LoggedObjectNameGroup,
+  LoggedObjectRef,
+} from "@/domain/scalars/types";
 import { closestStep } from "@/domain/scalars/utils";
 import { ArtifactMedia } from "@/domain/scalars/components/artifacts";
 
@@ -120,20 +124,6 @@ export function LoggedObjectsSection({
                         const nearestStep = closestStep(targetStep, experimentSteps);
                         const objectAtStep =
                           nearestStep === null ? undefined : experimentStepMap[nearestStep];
-                        const baseSrc =
-                          objectAtStep && nearestStep !== null
-                            ? API_ROUTES.EXPERIMENT_ARTIFACTS.DOWNLOAD_AT_STEP(
-                                experiment.id,
-                                nearestStep,
-                                name,
-                                objectType
-                              )
-                            : "";
-                        /** Bust browser cache when the same step/name logs new bytes (hash in ``path`` changes). */
-                        const objectSrc =
-                          baseSrc && objectAtStep
-                            ? `${baseSrc}&cb=${encodeURIComponent(objectAtStep.path || objectAtStep.timestamp)}`
-                            : baseSrc;
                         const currentOverrideIndex = Math.max(
                           0,
                           experimentSteps.findIndex(
@@ -193,17 +183,18 @@ export function LoggedObjectsSection({
                                 </p>
                               </div>
                             )}
-                            {!objectAtStep ? (
+                            {!objectAtStep || nearestStep === null ? (
                               <p className="text-xs text-muted-foreground">No object for this step</p>
                             ) : (
-                              <ArtifactMedia
-                                objectType={objectType}
-                                src={objectSrc}
-                                name={name}
+                              <LoggedObjectArtifactMedia
+                                experimentId={experiment.id}
                                 experimentName={experiment.name}
+                                objectType={objectType}
+                                name={name}
+                                step={nearestStep}
+                                objectRef={objectAtStep}
                                 maxHeight={Math.max(120, cardHeight - 50)}
                                 onImagePreview={onImagePreview}
-                                title={`${name} · ${experiment.name} · step ${nearestStep ?? targetStep}`}
                               />
                             )}
                             {nearestStep !== null && (
@@ -221,5 +212,52 @@ export function LoggedObjectsSection({
         </div>
       ))}
     </div>
+  );
+}
+
+function LoggedObjectArtifactMedia({
+  experimentId,
+  experimentName,
+  objectType,
+  name,
+  step,
+  objectRef,
+  maxHeight,
+  onImagePreview,
+}: {
+  experimentId: string;
+  experimentName: string;
+  objectType: string;
+  name: string;
+  step: number;
+  objectRef: LoggedObjectRef;
+  maxHeight: number;
+  onImagePreview: (payload: { src: string; title: string }) => void;
+}) {
+  /**
+   * The download endpoint resolves the object by experiment/name/step/type, so the UI does not
+   * need a full metadata row here. The summary's lastModified value is enough to refresh media URLs
+   * when the same artifact step is overwritten.
+   */
+  const baseSrc = API_ROUTES.EXPERIMENT_ARTIFACTS.DOWNLOAD_AT_STEP(
+    experimentId,
+    step,
+    name,
+    objectType
+  );
+  const objectSrc = objectRef.lastModified
+    ? `${baseSrc}&cb=${encodeURIComponent(objectRef.lastModified)}`
+    : baseSrc;
+
+  return (
+    <ArtifactMedia
+      objectType={objectType}
+      src={objectSrc}
+      name={name}
+      experimentName={experimentName}
+      maxHeight={maxHeight}
+      onImagePreview={onImagePreview}
+      title={`${name} · ${experimentName} · step ${step}`}
+    />
   );
 }

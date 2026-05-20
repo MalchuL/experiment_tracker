@@ -11,6 +11,7 @@ from fastapi_users.models import UserProtocol
 from clients.artifacts_info import (
     ArtifactType,
     ArtifactsInfoResultDTO,
+    ArtifactsInfoSummaryResultDTO,
     LogArtifactResponseDTO as ArtifactsInfoLogArtifactResponseDTO,
 )
 from clients.object_storage import (
@@ -46,6 +47,29 @@ class ExperimentArtifactsServiceProtocol(Protocol):
         list_options: ListOptions = ListOptions(),
         start_time: str | None = None,
         end_time: str | None = None,
+    ) -> ArtifactsInfoResultDTO: ...
+
+    async def get_experiments_artifacts_summary_at_step(
+        self,
+        user: UserProtocol,
+        project_id: UUID,
+        experiment_ids: list[UUID] | None = None,
+        artifact_types: list[ArtifactType] | None = None,
+        artifact_names: list[str] | None = None,
+        list_options: ListOptions = ListOptions(),
+        max_steps: int | None = None,
+        start_time: str | None = None,
+        end_time: str | None = None,
+    ) -> ArtifactsInfoSummaryResultDTO: ...
+
+    async def get_experiment_artifact_detail_at_step(
+        self,
+        user: UserProtocol,
+        project_id: UUID,
+        experiment_id: UUID,
+        artifact_name: str,
+        step: int,
+        artifact_type: ArtifactType | None = None,
     ) -> ArtifactsInfoResultDTO: ...
 
     async def upload_and_log_experiment_artifact_at_step(
@@ -118,4 +142,3 @@ class ExperimentArtifactsServiceProtocol(Protocol):
         experiment_id: UUID,
         name: str,
     ) -> tuple[str, str]: ...
-

@@ -198,6 +198,10 @@ export const API_ROUTES = {
       BY_PROJECT: {
         GET_AT_STEP: (projectId: string) =>
           `/api/experiment-artifacts/projects/${projectId}/get-at-step`,
+        SUMMARY_AT_STEP: (projectId: string) =>
+          `/api/experiment-artifacts/projects/${projectId}/summary-at-step`,
+        DETAIL_AT_STEP: (projectId: string) =>
+          `/api/experiment-artifacts/projects/${projectId}/get-at-step/detail`,
       },
       DOWNLOAD_AT_STEP: (
         experimentId: string,

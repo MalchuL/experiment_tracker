@@ -9,6 +9,7 @@ from experiment_tracker_shared.datetime_utc import to_json_utc_z
 
 from .dto import (
     ArtifactsAtStepInfoResultResponse,
+    ArtifactsAtStepSummaryResultResponse,
     ArtifactType,
     ExperimentArtifactResponse,
     ExperimentArtifactListResponse,
@@ -27,6 +28,12 @@ class ExperimentArtifactsRequestSpecFactory:
     ENDPOINTS: dict[str, Any] = {
         "get_project_artifacts_at_step": lambda project_id: (
             f"/experiment-artifacts/projects/{project_id}/get-at-step"
+        ),
+        "get_project_artifacts_summary_at_step": lambda project_id: (
+            f"/experiment-artifacts/projects/{project_id}/summary-at-step"
+        ),
+        "get_project_artifact_detail_at_step": lambda project_id: (
+            f"/experiment-artifacts/projects/{project_id}/get-at-step/detail"
         ),
         "upload_and_log_experiment_artifact_at_step": lambda experiment_id: (
             f"/experiment-artifacts/{experiment_id}/log-at-step"
@@ -86,6 +93,84 @@ class ExperimentArtifactsRequestSpecFactory:
         if end_time is not None:
             params["end_time"] = to_json_utc_z(end_time)
 
+        return ApiRequestSpec(
+            method="GET",
+            endpoint=endpoint,
+            query_params=params,
+            response_model=ArtifactsAtStepInfoResultResponse,
+        )
+
+    def get_project_artifacts_summary_at_step(
+        self,
+        project_id: str | UUID,
+        experiment_ids: list[str] | None = None,
+        artifact_types: list[str] | None = None,
+        artifact_names: list[str] | None = None,
+        limit: int | None = None,
+        offset: int | None = None,
+        max_steps: int | None = None,
+        start_time: datetime | None = None,
+        end_time: datetime | None = None,
+    ) -> ApiRequestSpec[ArtifactsAtStepSummaryResultResponse]:
+        """Build a request for lightweight artifact slider metadata.
+
+        The response contains names, types, sampled steps, and last-modified timestamps; use
+        ``get_project_artifact_detail_at_step`` for full path/metadata after selecting a step.
+        """
+
+        if isinstance(project_id, UUID):
+            project_id = str(project_id)
+        endpoint = cast(
+            str, self.ENDPOINTS["get_project_artifacts_summary_at_step"](project_id)
+        )
+        params: dict[str, object] = {}
+        if experiment_ids:
+            params["experiment_id"] = experiment_ids
+        if artifact_types:
+            params["artifact_type"] = artifact_types
+        if artifact_names:
+            params["artifact_name"] = artifact_names
+        if limit is not None:
+            params["limit"] = limit
+        if offset is not None:
+            params["offset"] = offset
+        if max_steps is not None:
+            params["max_steps"] = max_steps
+        if start_time is not None:
+            params["start_time"] = to_json_utc_z(start_time)
+        if end_time is not None:
+            params["end_time"] = to_json_utc_z(end_time)
+        return ApiRequestSpec(
+            method="GET",
+            endpoint=endpoint,
+            query_params=params,
+            response_model=ArtifactsAtStepSummaryResultResponse,
+        )
+
+    def get_project_artifact_detail_at_step(
+        self,
+        project_id: str | UUID,
+        experiment_id: str | UUID,
+        artifact_name: str,
+        step: int,
+        artifact_type: ArtifactType | None = None,
+    ) -> ApiRequestSpec[ArtifactsAtStepInfoResultResponse]:
+        """Build a request for one full artifact_info row by project, experiment, name, and step."""
+
+        if isinstance(project_id, UUID):
+            project_id = str(project_id)
+        if isinstance(experiment_id, UUID):
+            experiment_id = str(experiment_id)
+        endpoint = cast(
+            str, self.ENDPOINTS["get_project_artifact_detail_at_step"](project_id)
+        )
+        params: dict[str, object] = {
+            "experiment_id": experiment_id,
+            "artifact_name": artifact_name,
+            "step": step,
+        }
+        if artifact_type is not None:
+            params["artifact_type"] = artifact_type
         return ApiRequestSpec(
             method="GET",
             endpoint=endpoint,

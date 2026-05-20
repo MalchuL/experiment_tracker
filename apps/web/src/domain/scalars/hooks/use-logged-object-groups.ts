@@ -1,10 +1,10 @@
 import { useMemo } from "react";
 import type { Experiment } from "@/domain/experiments/types";
-import type { ExperimentArtifactsInfo } from "@/domain/logged-objects/types";
+import type { ExperimentArtifactsSummary } from "@/domain/logged-objects/types";
 import type { LoggedObjectGroups } from "@/domain/scalars/types";
 
 export function useLoggedObjectGroups(
-  projectArtifacts: ExperimentArtifactsInfo[],
+  projectArtifacts: ExperimentArtifactsSummary[],
   visibleExperiments: Experiment[]
 ) {
   return useMemo(() => {
@@ -17,15 +17,15 @@ export function useLoggedObjectGroups(
         const typeGroup = grouped[obj.artifact_type] || {};
         const nameGroup = typeGroup[obj.name] || { steps: [], byExperiment: {} };
         const byStep = nameGroup.byExperiment[experimentArtifacts.experiment_id] || {};
-        byStep[obj.step] = {
-          path: obj.path,
-          metadata: obj.metadata || {},
-          timestamp: obj.timestamp,
-        };
+        obj.steps.forEach((step) => {
+          byStep[step] = {
+            lastModified: obj.last_modified,
+          };
+          if (!nameGroup.steps.includes(step)) {
+            nameGroup.steps.push(step);
+          }
+        });
         nameGroup.byExperiment[experimentArtifacts.experiment_id] = byStep;
-        if (!nameGroup.steps.includes(obj.step)) {
-          nameGroup.steps.push(obj.step);
-        }
         typeGroup[obj.name] = nameGroup;
         grouped[obj.artifact_type] = typeGroup;
       });

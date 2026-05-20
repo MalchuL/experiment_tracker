@@ -646,6 +646,150 @@ class ClickHouseScalarsDBUtils:
         )
         return select
 
+    def build_select_artifacts_info_summary_statement(
+        self,
+        table_name: str,
+        experiment_ids: Sequence[UUID] | None = None,
+        artifact_types: Sequence[str] | None = None,
+        names: Sequence[str] | None = None,
+        start_time: datetime | None = None,
+        end_time: datetime | None = None,
+        max_steps: int = 1000,
+    ) -> str:
+        """Build a grouped artifact summary query with uniform step sampling per object.
+
+        Each partition is one ``experiment_id + artifact_type + name``. The returned ``steps`` array
+        is capped to ``max_steps`` using the same uniform selector used for scalar sampling.
+        """
+
+        ms = int(max_steps)
+        if ms < 1:
+            raise ValueError("max_steps must be >= 1")
+        where_sql = self._artifacts_info_where_sql(
+            experiment_ids=experiment_ids,
+            artifact_types=artifact_types,
+            names=names,
+            steps=None,
+            start_time=start_time,
+            end_time=end_time,
+        )
+        exp_col = ArtifactsInfoTableColumns.EXPERIMENT_ID.value
+        type_col = ArtifactsInfoTableColumns.ARTIFACT_TYPE.value
+        name_col = ArtifactsInfoTableColumns.NAME.value
+        step_col = ArtifactsInfoTableColumns.STEP.value
+        ts_col = ArtifactsInfoTableColumns.TIMESTAMP.value
+        base_cols = f"{ts_col}, {exp_col}, {step_col}, {type_col}, {name_col}"
+        uniform_filter = self._clickhouse_uniform_sample_predicate(ms)
+        inner = (
+            f"SELECT {base_cols}, "
+            f"row_number() OVER (PARTITION BY {exp_col}, {type_col}, {name_col} "
+            f"ORDER BY {step_col}, {ts_col}) AS _u_rn, "
+            f"count(*) OVER (PARTITION BY {exp_col}, {type_col}, {name_col}) AS _u_cnt "
+            f"FROM {table_name}{where_sql}"
+        )
+        return (
+            f"SELECT {exp_col}, {type_col}, {name_col}, "
+            f"arraySort(groupUniqArray({step_col})) AS steps, "
+            f"max({ts_col}) AS last_modified "
+            f"FROM ({inner}) AS _u_sub "
+            f"WHERE {uniform_filter} "
+            f"GROUP BY {exp_col}, {type_col}, {name_col} "
+            f"ORDER BY {exp_col}, {type_col}, {name_col}"
+        )
+
+    def build_count_distinct_artifact_experiments_statement(
+        self,
+        table_name: str,
+        artifact_types: Sequence[str] | None = None,
+        names: Sequence[str] | None = None,
+        start_time: datetime | None = None,
+        end_time: datetime | None = None,
+    ) -> str:
+        """Count experiments that have artifact_info rows for the provided filters."""
+        where_sql = self._artifacts_info_where_sql(
+            artifact_types=artifact_types,
+            names=names,
+            start_time=start_time,
+            end_time=end_time,
+        )
+        exp_col = ArtifactsInfoTableColumns.EXPERIMENT_ID.value
+        return f"SELECT uniqExact({exp_col}) FROM {table_name}{where_sql}"
+
+    def build_select_artifact_experiment_id_page_statement(
+        self,
+        table_name: str,
+        artifact_types: Sequence[str] | None = None,
+        names: Sequence[str] | None = None,
+        start_time: datetime | None = None,
+        end_time: datetime | None = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> str:
+        """Return one stable page of experiment ids matching artifact_info filters."""
+        lim = int(limit)
+        off = int(offset)
+        if lim < 1 or off < 0:
+            raise ValueError("limit must be >= 1 and offset >= 0")
+        where_sql = self._artifacts_info_where_sql(
+            artifact_types=artifact_types,
+            names=names,
+            start_time=start_time,
+            end_time=end_time,
+        )
+        exp_col = ArtifactsInfoTableColumns.EXPERIMENT_ID.value
+        return (
+            f"SELECT {exp_col} FROM {table_name}{where_sql} "
+            f"GROUP BY {exp_col} ORDER BY {exp_col} LIMIT {lim} OFFSET {off}"
+        )
+
+    def _artifacts_info_where_sql(
+        self,
+        experiment_ids: Sequence[UUID] | None = None,
+        artifact_types: Sequence[str] | None = None,
+        names: Sequence[str] | None = None,
+        steps: Sequence[int] | None = None,
+        start_time: datetime | None = None,
+        end_time: datetime | None = None,
+    ) -> str:
+        where_clauses: list[str] = []
+        if experiment_ids:
+            uuids = ", ".join(
+                [f"'{self._format_uuid_literal(exp_id)}'" for exp_id in experiment_ids]
+            )
+            where_clauses.append(
+                f"{ArtifactsInfoTableColumns.EXPERIMENT_ID.value} IN ({uuids})"
+            )
+        if artifact_types:
+            escaped_types = ", ".join(
+                [f"'{self._escape_sql_literal(item)}'" for item in artifact_types]
+            )
+            where_clauses.append(
+                f"{ArtifactsInfoTableColumns.ARTIFACT_TYPE.value} IN ({escaped_types})"
+            )
+        if names:
+            escaped_names = ", ".join(
+                [f"'{self._escape_sql_literal(item)}'" for item in names]
+            )
+            where_clauses.append(
+                f"{ArtifactsInfoTableColumns.NAME.value} IN ({escaped_names})"
+            )
+        if steps:
+            step_list = ", ".join(str(int(s)) for s in steps)
+            where_clauses.append(
+                f"{ArtifactsInfoTableColumns.STEP.value} IN ({step_list})"
+            )
+        if start_time is not None:
+            where_clauses.append(
+                f"{ArtifactsInfoTableColumns.TIMESTAMP.value} >= "
+                f"toDateTime64('{self._format_datetime_literal(start_time)}', 3, 'UTC')"
+            )
+        if end_time is not None:
+            where_clauses.append(
+                f"{ArtifactsInfoTableColumns.TIMESTAMP.value} <= "
+                f"toDateTime64('{self._format_datetime_literal(end_time)}', 3, 'UTC')"
+            )
+        return f" WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
+
     def build_delete_mapping_statement(self, project_id: UUID) -> str:
         """Delete mapping for a given project ID.
 

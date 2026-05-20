@@ -70,9 +70,10 @@ export interface ChartDomain {
 }
 
 export interface LoggedObjectRef {
-  path: string;
-  metadata: Record<string, string>;
-  timestamp: string;
+  path?: string;
+  metadata?: Record<string, string>;
+  timestamp?: string;
+  lastModified?: string;
 }
 
 export interface LoggedObjectNameGroup {

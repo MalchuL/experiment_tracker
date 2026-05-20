@@ -6,6 +6,7 @@ from uuid import UUID
 from .dto import (
     ArtifactType,
     ArtifactsInfoResultDTO,
+    ArtifactsInfoSummaryResultDTO,
     LogArtifactRequestDTO,
     LogArtifactResponseDTO,
 )
@@ -33,6 +34,8 @@ class ArtifactsInfoClientProtocol(Protocol):
         artifact_types: Iterable[ArtifactType] | None = None,
         artifact_names: Iterable[str] | None = None,
         steps: Iterable[int] | None = None,
+        limit: int | None = None,
+        offset: int | None = None,
         start_time: str | None = None,
         end_time: str | None = None,
     ) -> ArtifactsInfoResultDTO:
@@ -50,3 +53,25 @@ class ArtifactsInfoClientProtocol(Protocol):
         Returns:
             ArtifactsInfoResultDTO: The response from the scalars_service.
         """
+
+    async def get_artifacts_summary(
+        self,
+        project_id: UUID,
+        experiment_ids: Iterable[UUID] | None = None,
+        artifact_types: Iterable[ArtifactType] | None = None,
+        artifact_names: Iterable[str] | None = None,
+        limit: int | None = None,
+        offset: int | None = None,
+        max_steps: int | None = None,
+        start_time: str | None = None,
+        end_time: str | None = None,
+    ) -> ArtifactsInfoSummaryResultDTO: ...
+
+    async def get_artifact_detail(
+        self,
+        project_id: UUID,
+        experiment_id: UUID,
+        artifact_name: str,
+        step: int,
+        artifact_type: ArtifactType | None = None,
+    ) -> ArtifactsInfoResultDTO: ...

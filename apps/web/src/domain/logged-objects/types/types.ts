@@ -24,3 +24,18 @@ export interface ExperimentArtifactsInfo {
 
 export interface ArtifactsInfoResult
   extends PaginatedResponse<ExperimentArtifactsInfo> {}
+
+export interface LoggedArtifactSummaryEntry {
+  name: string;
+  artifact_type: LoggedObjectType;
+  steps: number[];
+  last_modified: string;
+}
+
+export interface ExperimentArtifactsSummary {
+  experiment_id: string;
+  artifacts_info: LoggedArtifactSummaryEntry[];
+}
+
+export interface ArtifactsInfoSummaryResult
+  extends PaginatedResponse<ExperimentArtifactsSummary> {}

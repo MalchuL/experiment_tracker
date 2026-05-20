@@ -19,6 +19,7 @@ interface ScalarDisplayControlsProps {
   onSmoothingChange: (value: number[]) => void;
   onSmoothingCommit: (value: number[]) => void;
   maxPointsPerPlot: number;
+  maxArtifactStepsPerObject: number;
   dotThreshold: number;
 }
 
@@ -37,6 +38,7 @@ export function ScalarDisplayControls({
   onSmoothingChange,
   onSmoothingCommit,
   maxPointsPerPlot,
+  maxArtifactStepsPerObject,
   dotThreshold,
 }: ScalarDisplayControlsProps) {
   return (
@@ -116,6 +118,7 @@ export function ScalarDisplayControls({
       </div>
       <p className="text-[11px] leading-4 text-muted-foreground">
         Each plot requests up to {maxPointsPerPlot.toLocaleString()} points per experiment and scalar.
+        Artifact sliders request up to {maxArtifactStepsPerObject.toLocaleString()} steps per object.
         Series with {dotThreshold} points or fewer show markers.
       </p>
     </div>

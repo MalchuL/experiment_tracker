@@ -32,6 +32,31 @@ class ArtifactsInfoResultDTO(BaseModel):
     total: int = 0
 
 
+class ArtifactInfoSummaryEntryDTO(BaseModel):
+    """Lightweight slider metadata for one artifact name/type within an experiment."""
+
+    name: str
+    artifact_type: ArtifactType
+    steps: List[int]
+    last_modified: ApiDateTime
+
+
+class ExperimentArtifactsSummaryDTO(BaseModel):
+    """Summary rows grouped by experiment, mirroring the full artifacts_info result shape."""
+
+    experiment_id: UUID
+    artifacts_info: List[ArtifactInfoSummaryEntryDTO]
+
+
+class ArtifactsInfoSummaryResultDTO(BaseModel):
+    """Paginated artifact summary response used by UI list/slider loading."""
+
+    data: List[ExperimentArtifactsSummaryDTO]
+    has_next: bool = False
+    size: int = 0
+    total: int = 0
+
+
 class LogArtifactInfoRequestDTO(BaseModel):
     name: str
     artifact_type: ArtifactType

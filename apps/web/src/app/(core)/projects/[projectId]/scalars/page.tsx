@@ -12,7 +12,7 @@ import { useExperiments, useProjectExperimentsPollSync } from "@/domain/experime
 import { experimentsService } from "@/domain/experiments/services";
 import type { Experiment, UpdateExperiment } from "@/domain/experiments/types";
 import { ExperimentStatus } from "@/domain/experiments/types";
-import { useArtifactsLiveRefresh, useProjectObjects } from "@/domain/logged-objects/hooks";
+import { useArtifactsLiveRefresh, useProjectObjectSummaries } from "@/domain/logged-objects/hooks";
 import { metricsService } from "@/domain/metrics/services";
 import { useCurrentProject } from "@/domain/projects/hooks";
 import {
@@ -39,7 +39,11 @@ import type {
   ScalarPointSelection,
   SyncMode,
 } from "@/domain/scalars/types";
-import { getScalarsDotThreshold, getScalarsMaxPointsPerPlot } from "@/domain/scalars/utils";
+import {
+  getScalarsDotThreshold,
+  getScalarsMaxArtifactStepsPerObject,
+  getScalarsMaxPointsPerPlot,
+} from "@/domain/scalars/utils";
 import type { InsertExperiment } from "@/domain/experiments/types";
 import { EXPERIMENTS_LIST_POLL_INTERVAL_MS } from "@/lib/constants/live-refresh";
 import { QUERY_KEYS } from "@/lib/constants/query-keys";
@@ -69,6 +73,7 @@ export default function Scalars() {
   const [metricPoint, setMetricPoint] = useState<ScalarPointSelection | null>(null);
   const [createMetricOpen, setCreateMetricOpen] = useState(false);
   const maxPointsPerPlot = useMemo(() => getScalarsMaxPointsPerPlot(), []);
+  const maxArtifactStepsPerObject = useMemo(() => getScalarsMaxArtifactStepsPerObject(), []);
   const dotThreshold = useMemo(() => getScalarsDotThreshold(), []);
 
   const queryClient = useQueryClient();
@@ -131,8 +136,9 @@ export default function Scalars() {
     isFetching: objectsFetching,
     isFetchingNextPage: objectsFetchingNextPage,
     refetch: refetchObjects,
-  } = useProjectObjects({
+  } = useProjectObjectSummaries({
     projectId,
+    maxSteps: maxArtifactStepsPerObject,
   });
 
   const allLoggedMetricNames = useMemo(() => {
@@ -218,10 +224,11 @@ export default function Scalars() {
     enabled: !scalarsLoading,
   });
 
-  useArtifactsLiveRefresh({
+  const { refreshChangedArtifacts } = useArtifactsLiveRefresh({
     projectId,
     experimentIds: lastLoggedExperimentIds,
     artifactsQueryKey,
+    maxSteps: maxArtifactStepsPerObject,
     enabled: !objectsLoading,
   });
 
@@ -268,12 +275,17 @@ export default function Scalars() {
       size="sm"
       onClick={() => {
         void (async () => {
-          const incrementalScalarsRefresh = await refreshChangedScalars();
+          const [incrementalScalarsRefresh, incrementalArtifactsRefresh] = await Promise.all([
+            refreshChangedScalars(),
+            refreshChangedArtifacts(),
+          ]);
           await refetchExperiments();
           if (incrementalScalarsRefresh === "unavailable") {
             await refetchScalars();
           }
-          await refetchObjects();
+          if (incrementalArtifactsRefresh === "unavailable") {
+            await refetchObjects();
+          }
         })();
       }}
       disabled={scalarsFetching || experimentsFetching || objectsFetching}
@@ -426,6 +438,7 @@ export default function Scalars() {
           onSmoothingChange={handleSmoothingChange}
           onSmoothingCommit={handleSmoothingCommit}
           maxPointsPerPlot={maxPointsPerPlot}
+          maxArtifactStepsPerObject={maxArtifactStepsPerObject}
           dotThreshold={dotThreshold}
           allLoggedMetricNames={allLoggedMetricNames}
           hiddenMetrics={hiddenMetrics}

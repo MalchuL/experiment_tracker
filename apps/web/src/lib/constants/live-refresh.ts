@@ -2,11 +2,13 @@
  * Shared poll interval for ``GET /api/scalars/last_logged/{projectId}``.
  *
  * **Scalars** (`useScalarsLiveRefresh`): on timestamp advances, fetches incremental scalar
- * points (bounded by ``startTime``) and merges into the project scalars infinite cache.
+ * points (bounded by ``startTime``) and merges into the project scalars infinite cache. The
+ * same sampled merge path is used by the manual refresh button; it caps each series at
+ * ``maxPoints`` and always keeps the latest point.
  *
  * **Artifacts** (`useArtifactsLiveRefresh`): uses the same query key so React Query dedupes
- * network calls; when timestamps advance, invalidates the project artifacts infinite query so
- * logged objects (images, etc.) refetch.
+ * network calls; when timestamps advance, fetches incremental artifact rows and merges them
+ * into the project artifacts infinite cache.
  */
 export const LAST_LOGGED_POLL_INTERVAL_MS = 30_000;
 

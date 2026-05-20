@@ -122,6 +122,68 @@ async def test_get_artifact_info_returns_logged_data(clickhouse_url: str, http_c
 
 
 @pytest.mark.asyncio
+async def test_get_artifact_info_summary_groups_steps(
+    clickhouse_url: str, http_client: AsyncClient, project_with_tables: tuple
+) -> None:
+    project_id, experiment_id = project_with_tables
+    for step in [2, 1, 2]:
+        await http_client.post(
+            f"/api/artifacts_info/log/{project_id}/{experiment_id}",
+            json={
+                "name": "sample",
+                "artifact_type": "image",
+                "path": f"/artifacts/{step}.png",
+                "step": step,
+                "metadata": None,
+                "tags": None,
+            },
+        )
+    resp = await http_client.get(f"/api/artifacts_info/summary/{project_id}")
+    assert resp.status_code == 200
+    data = resp.json()["data"]
+    assert len(data) == 1
+    assert data[0]["experiment_id"] == str(experiment_id)
+    assert data[0]["artifacts_info"][0]["name"] == "sample"
+    assert data[0]["artifacts_info"][0]["artifact_type"] == "image"
+    assert data[0]["artifacts_info"][0]["steps"] == [1, 2]
+    assert "last_modified" in data[0]["artifacts_info"][0]
+
+
+@pytest.mark.asyncio
+async def test_get_artifact_info_detail_returns_single_full_row(
+    clickhouse_url: str, http_client: AsyncClient, project_with_tables: tuple
+) -> None:
+    project_id, experiment_id = project_with_tables
+    await http_client.post(
+        f"/api/artifacts_info/log/{project_id}/{experiment_id}",
+        json={
+            "name": "sample",
+            "artifact_type": "image",
+            "path": "/artifacts/img.png",
+            "step": 1,
+            "metadata": {"width": "256"},
+            "tags": ["train"],
+        },
+    )
+    resp = await http_client.get(
+        f"/api/artifacts_info/detail/{project_id}",
+        params={
+            "experiment_id": str(experiment_id),
+            "artifact_name": "sample",
+            "artifact_type": "image",
+            "step": 1,
+        },
+    )
+    assert resp.status_code == 200
+    payload = resp.json()
+    assert payload["size"] == 1
+    entries = payload["data"][0]["artifacts_info"]
+    assert len(entries) == 1
+    assert entries[0]["path"] == "/artifacts/img.png"
+    assert entries[0]["metadata"] == {"width": "256"}
+
+
+@pytest.mark.asyncio
 async def test_get_artifact_info_applies_limit_offset(
     clickhouse_url: str, http_client: AsyncClient, project_with_tables: tuple
 ) -> None:

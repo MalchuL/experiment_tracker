@@ -31,6 +31,7 @@ interface ScalarViewSettingsSidebarProps {
   onSmoothingChange: (value: number[]) => void;
   onSmoothingCommit: (value: number[]) => void;
   maxPointsPerPlot: number;
+  maxArtifactStepsPerObject: number;
   dotThreshold: number;
   allLoggedMetricNames: string[];
   hiddenMetrics: Set<string>;
@@ -66,6 +67,7 @@ export function ScalarViewSettingsSidebar({
   onSmoothingChange,
   onSmoothingCommit,
   maxPointsPerPlot,
+  maxArtifactStepsPerObject,
   dotThreshold,
   allLoggedMetricNames,
   hiddenMetrics,
@@ -126,6 +128,7 @@ export function ScalarViewSettingsSidebar({
               onSmoothingChange={onSmoothingChange}
               onSmoothingCommit={onSmoothingCommit}
               maxPointsPerPlot={maxPointsPerPlot}
+              maxArtifactStepsPerObject={maxArtifactStepsPerObject}
               dotThreshold={dotThreshold}
             />
           </ViewSettingsSection>

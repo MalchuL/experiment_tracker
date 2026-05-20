@@ -52,3 +52,25 @@ class ExperimentArtifactsInfoDTO(BaseModel):
 
 class ArtifactsInfoResultDTO(PaginatedResponse[ExperimentArtifactsInfoDTO]):
     pass
+
+
+class ArtifactInfoSummaryEntryDTO(BaseModel):
+    """Backend-facing summary row for one artifact name/type slider."""
+
+    name: str
+    artifact_type: ArtifactType
+    steps: list[int]
+    last_modified: ApiDateTime
+
+
+class ExperimentArtifactsSummaryDTO(BaseModel):
+    """Artifact summary rows grouped by experiment."""
+
+    experiment_id: UUID
+    artifacts_info: list[ArtifactInfoSummaryEntryDTO]
+
+
+class ArtifactsInfoSummaryResultDTO(PaginatedResponse[ExperimentArtifactsSummaryDTO]):
+    """Paginated artifact summary response from scalars_service."""
+
+    pass
