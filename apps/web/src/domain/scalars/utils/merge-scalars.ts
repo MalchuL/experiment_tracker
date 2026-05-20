@@ -25,8 +25,9 @@ export function mergeExperimentScalars(
  *
  * Applies to both scalar live polling and the scalars page manual refresh button because both
  * paths call ``refreshChangedScalars`` in ``useScalarsLiveRefresh``. For each metric series, the
- * merge first replaces duplicate steps with incoming values, then reservoir-samples the combined
- * points back to ``maxPoints`` while always retaining the newest step.
+ * merge first replaces duplicate steps with incoming values, then thins the combined sampled points
+ * across the step range while always retaining the newest step. This avoids letting a dense
+ * incremental payload evict most of the already-sampled history.
  */
 export function mergeScalarsPage(
   page: ScalarsPointsResult,
@@ -80,7 +81,7 @@ function mergeSeries(
     const value = incoming.y[index];
     if (value !== undefined) byStep.set(step, value);
   });
-  const steps = reservoirSampleSteps(Array.from(byStep.keys()), maxPoints).sort((a, b) => a - b);
+  const steps = sampleStepsByCoverage(Array.from(byStep.keys()), maxPoints);
   return {
     x: steps,
     y: steps.map((step) => byStep.get(step) ?? 0),
@@ -93,51 +94,56 @@ function sampleSeries(series: ScalarSeries, maxPoints?: number): ScalarSeries {
     const value = series.y[index];
     if (value !== undefined) byStep.set(step, value);
   });
-  const steps = reservoirSampleSteps(Array.from(byStep.keys()), maxPoints).sort((a, b) => a - b);
+  const steps = sampleStepsByCoverage(Array.from(byStep.keys()), maxPoints);
   return {
     x: steps,
     y: steps.map((step) => byStep.get(step) ?? 0),
   };
 }
 
-function reservoirSampleSteps(steps: number[], maxPoints?: number): number[] {
+function sampleStepsByCoverage(steps: number[], maxPoints?: number): number[] {
   const sortedSteps = [...steps].sort((a, b) => a - b);
   if (!maxPoints || maxPoints < 1 || sortedSteps.length <= maxPoints) {
     return sortedSteps;
   }
 
+  const firstStep = sortedSteps[0]!;
   const latestStep = sortedSteps[sortedSteps.length - 1]!;
   if (maxPoints === 1) {
     return [latestStep];
   }
 
-  const reservoirSize = maxPoints - 1;
-  const candidates = sortedSteps.slice(0, -1);
-  const reservoir = candidates.slice(0, reservoirSize);
-  // Seeded randomness keeps reservoir sampling stable across renders for the same set of steps.
-  const random = createSeededRandom(hashSteps(sortedSteps));
+  const selected = new Set<number>([firstStep, latestStep]);
+  const span = latestStep - firstStep;
+  if (span <= 0) {
+    return Array.from(selected).sort((a, b) => a - b);
+  }
 
-  for (let index = reservoirSize; index < candidates.length; index += 1) {
-    const replacementIndex = Math.floor(random() * (index + 1));
-    if (replacementIndex < reservoirSize) {
-      reservoir[replacementIndex] = candidates[index]!;
+  let cursor = 0;
+  for (let slot = 1; slot < maxPoints - 1; slot += 1) {
+    const target = firstStep + (span * slot) / (maxPoints - 1);
+    while (
+      cursor < sortedSteps.length - 2 &&
+      Math.abs(sortedSteps[cursor + 1]! - target) <= Math.abs(sortedSteps[cursor]! - target)
+    ) {
+      cursor += 1;
+    }
+    selected.add(sortedSteps[cursor]!);
+  }
+
+  if (selected.size < maxPoints) {
+    for (let slot = 0; slot < maxPoints && selected.size < maxPoints; slot += 1) {
+      const index = Math.round((slot * (sortedSteps.length - 1)) / (maxPoints - 1));
+      selected.add(sortedSteps[index]!);
     }
   }
 
-  return [...reservoir, latestStep];
-}
+  if (selected.size < maxPoints) {
+    for (const step of sortedSteps) {
+      if (selected.size >= maxPoints) break;
+      selected.add(step);
+    }
+  }
 
-function createSeededRandom(seed: number): () => number {
-  let state = seed || 0x6d2b79f5;
-  return () => {
-    state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
-    return state / 0x100000000;
-  };
-}
-
-function hashSteps(steps: number[]): number {
-  return steps.reduce((hash, step) => {
-    const normalizedStep = Number.isFinite(step) ? Math.trunc(step) : 0;
-    return Math.imul(hash ^ normalizedStep, 16777619) >>> 0;
-  }, 2166136261);
+  return Array.from(selected).sort((a, b) => a - b);
 }

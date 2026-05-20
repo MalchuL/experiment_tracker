@@ -35,7 +35,7 @@ describe("mergeScalarsPage", () => {
     });
   });
 
-  it("reservoir samples merged points to maxPoints and always keeps the latest step", () => {
+  it("samples merged points to maxPoints and always keeps the latest step", () => {
     const result = mergeScalarsPage(
       page([
         {
@@ -57,6 +57,39 @@ describe("mergeScalarsPage", () => {
     expect(series?.y).toHaveLength(4);
     expect(series?.x.at(-1)).toBe(8);
     expect(series?.y.at(-1)).toBe(80);
+  });
+
+  it("keeps historical coverage when a dense incremental slice arrives", () => {
+    const result = mergeScalarsPage(
+      page([
+        {
+          experiment_id: "exp-1",
+          scalars: {
+            loss: {
+              x: [1, 101, 201, 301, 401, 501, 601, 701, 801, 901],
+              y: [1, 101, 201, 301, 401, 501, 601, 701, 801, 901],
+            },
+          },
+        },
+      ]),
+      [
+        {
+          experiment_id: "exp-1",
+          scalars: {
+            loss: {
+              x: [902, 903, 904, 905, 906, 907, 908, 909, 910, 911],
+              y: [902, 903, 904, 905, 906, 907, 908, 909, 910, 911],
+            },
+          },
+        },
+      ],
+      { maxPoints: 10 }
+    );
+
+    const steps = result.data[0]?.scalars.loss.x ?? [];
+    expect(steps).toHaveLength(10);
+    expect(steps.at(-1)).toBe(911);
+    expect(steps.filter((step) => step < 902).length).toBeGreaterThanOrEqual(8);
   });
 
   it("keeps only the latest point when maxPoints is one", () => {
