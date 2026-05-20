@@ -461,11 +461,14 @@ class ClickHouseScalarsDBUtils:
         mp = int(max_points)
         if mp == 1:
             return f"(_u_cnt <= 1) OR (_u_rn = _u_cnt)"
+        mp_minus_1 = mp - 1
         return (
-            f"(_u_cnt <= {mp}) OR arrayExists("
-            f"j -> _u_rn = 1 + intDiv(toInt64(j) * toInt64(_u_cnt - 1), "
-            f"greatest(toInt64({mp}) - 1, toInt64(1))), "
-            f"range(toUInt32({mp})))"
+            f"(_u_cnt <= {mp}) OR ("
+            f"_u_rn = 1 + intDiv("
+            f"intDiv(toInt64(_u_rn - 1) * toInt64({mp_minus_1}) + toInt64(_u_cnt - 2), "
+            f"greatest(toInt64(_u_cnt - 1), toInt64(1))) * toInt64(_u_cnt - 1), "
+            f"toInt64({mp_minus_1}))"
+            ")"
         )
 
     def validate_scalar_storage_column_name(self, column_name: str) -> str:

@@ -46,7 +46,8 @@ def test_build_select_artifacts_info_summary_statement() -> None:
     assert "FROM artifacts_info_project" in query
     assert "arraySort(groupUniqArray(__step__)) AS steps" in query
     assert "max(__timestamp__) AS last_modified" in query
-    assert "range(toUInt32(25))" in query
+    assert "range(toUInt32(25))" not in query
+    assert "toInt64(24)" in query
     assert "GROUP BY __experiment_id__, __artifact_type__, __name__" in query
     assert "__artifact_type__ IN ('image')" in query
     assert "__name__ IN ('predictions')" in query

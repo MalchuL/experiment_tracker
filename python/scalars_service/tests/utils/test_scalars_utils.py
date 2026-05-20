@@ -118,8 +118,9 @@ def test_select_uniform_sampled_column_non_null_and_windows():
         in sql
     )
     assert "count(*) OVER (PARTITION BY __experiment_id__)" in sql
-    assert "arrayExists(" in sql
-    assert "range(toUInt32(50))" in sql
+    assert "arrayExists(" not in sql
+    assert "range(toUInt32(50))" not in sql
+    assert "toInt64(49)" in sql
 
 
 def test_alter_table_add_columns_statement():
