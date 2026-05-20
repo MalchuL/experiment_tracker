@@ -74,7 +74,6 @@ export default function Scalars() {
   const [cardMinWidth, setCardMinWidth] = useState(640);
   const [hoverNameMaxLength, setHoverNameMaxLength] = useState(50);
   const [imagePreview, setImagePreview] = useState<{ src: string; title: string } | null>(null);
-  const [hiddenArtifactIds, setHiddenArtifactIds] = useState<Set<string>>(new Set());
   const [pointContext, setPointContext] = useState<{
     point: ScalarPointSelection;
     position: { x: number; y: number };
@@ -178,17 +177,29 @@ export default function Scalars() {
     return Array.from(metricSet).sort();
   }, [scalars]);
 
+  const allArtifactIds = useMemo(() => {
+    const ids = new Set<string>();
+    projectArtifactsAtStep.forEach((experimentArtifacts) => {
+      experimentArtifacts.artifacts_info.forEach((artifact) => {
+        ids.add(`${artifact.artifact_type}:${artifact.name}`);
+      });
+    });
+    return Array.from(ids).sort();
+  }, [projectArtifactsAtStep]);
+
   const {
     smoothing,
     setSmoothing,
     initialized: queryStateInitialized,
     selectedExperimentIds,
     hiddenMetrics,
+    hiddenArtifactIds,
     currentQueryString,
     toggleExperiment,
     selectAllExperiments,
     clearAllExperiments,
     toggleMetric,
+    toggleArtifact,
     showAllMetrics,
     showOnlyMetric,
     handleRestoreSavedView,
@@ -197,6 +208,7 @@ export default function Scalars() {
     searchParams,
     experiments: sortedExperiments,
     allLoggedMetricNames,
+    allArtifactIds,
   });
 
   useEffect(() => {
@@ -358,18 +370,6 @@ export default function Scalars() {
         setChosenExperimentId(null);
       }
       return !prev;
-    });
-  };
-
-  const handleToggleArtifact = (artifactId: string) => {
-    setHiddenArtifactIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(artifactId)) {
-        next.delete(artifactId);
-      } else {
-        next.add(artifactId);
-      }
-      return next;
     });
   };
 
@@ -561,7 +561,7 @@ export default function Scalars() {
           onShowOnlyMetric={showOnlyMetric}
           onExpandMetric={setFullscreenMetric}
           onResetMetricDomain={resetDomain}
-          onToggleArtifact={handleToggleArtifact}
+          onToggleArtifact={toggleArtifact}
           onOpenArtifact={setFullscreenArtifactId}
           onResetAllDomains={resetAllDomains}
           onRestoreView={handleRestoreSavedView}
