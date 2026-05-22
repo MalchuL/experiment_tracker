@@ -37,7 +37,7 @@ flowchart LR
 | `python/scalars_service/src/` | FastAPI scalars/artifacts_info service. `GET /scalars/get/...` paginates **experiments** first, then loads each metric column with ClickHouse `IS NOT NULL` + per-(experiment, column) uniform `max_points` sampling (`columns_per_query` controls parallel column queries; default 1). Cross-table ClickHouse work (delete experiment rows across scalars + artifacts_info + last_logged, usage, admin table listing) is under **`/projects`** (`projects` domain); compaction stays **`POST /scalars/projects/{id}/compact-columns`**. |
 | `python/object_storage/src/` | FastAPI storage service (buckets, experiment/project artifacts). |
 | `python/sdk/src/experiment_tracker_sdk/` | Public Python SDK for the tracker API. |
-| `python/sdk/src/experiment_tracker_sdk/console/` | CLI `experiment-tracker run`: argv split on `--`, pluggable bootstrap hooks, in-process `runpy` (simple experiments only). |
+| `python/sdk/src/experiment_tracker_sdk/console/` | CLI (`experiment-tracker`): **Click** group + `run` command; argv split on `--` via a small `click.Command` subclass; pluggable bootstrap hooks; in-process `runpy` (simple experiments only). |
 | `python/shared/` | Shared package (`experiment-tracker-shared`). |
 | `examples/training/` | Example training integration (optional). |
 | `turbo.json` | Turborepo task graph (`build`, `dev`, etc.). |

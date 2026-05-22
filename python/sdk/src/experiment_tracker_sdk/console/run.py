@@ -1,14 +1,19 @@
+"""``experiment-tracker run`` — execute a script via ``runpy`` after bootstrap."""
+
 from __future__ import annotations
 
-import argparse
 import runpy
 import sys
 from pathlib import Path
+
+import click
 
 from .argv import split_on_first_double_dash
 from .bootstrap import apply_run_bootstrap
 from .context import RunCliContext
 from .tensorboard import register_default_tensorboard_hooks
+
+_EXPERIMENT_ARGV_META_KEY = "experiment_tracker_sdk.console.run.experiment_argv"
 
 _SIMPLE_EXPERIMENTS_EPILOG = """\
 This mode is for simple experiments only (single-process or lightly threaded
@@ -17,75 +22,74 @@ distributed PyTorch, elastic multi-node jobs, or heavy multiprocessing.
 
 The script runs in-process via runpy: bootstrap patches, imports, and sys
 mutations persist in this interpreter after the run finishes.
+
+Put arguments for your script after a lone ``--`` token, for example:
+``experiment-tracker run train.py -- --epochs 10``.
 """
 
 
-def build_run_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
-        prog="experiment-tracker run",
-        allow_abbrev=False,
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog=_SIMPLE_EXPERIMENTS_EPILOG,
-    )
-    parser.add_argument(
-        "--project",
-        default=None,
-        metavar="NAME",
-        help="Project name or id for future tracker bootstrap (wrapper only).",
-    )
-    parser.add_argument(
-        "--offline",
-        action="store_true",
-        help="Offline mode flag for future tracker bootstrap (wrapper only).",
-    )
-    parser.add_argument(
-        "script",
-        help="Python file to execute with __name__ == '__main__'.",
-    )
-    return parser
+class RunCommand(click.Command):
+    """Splits argv on the first ``--`` before Click parses wrapper options.
 
+    Tokens after the first ``--`` are stored on ``ctx.meta`` and forwarded to
+    the target script unchanged. The left segment is parsed normally by Click
+    (options + ``SCRIPT``), so unknown options such as ``--epochs`` fail unless
+    they appear after ``--``.
+    """
 
-def execute_run_cli(argv: list[str]) -> None:
-    """Handle ``experiment-tracker run`` using ``argv`` shaped like ``sys.argv``."""
-    if len(argv) < 2 or argv[1] != "run":
-        raise SystemExit("Internal error: execute_run_cli expects a `run` subcommand.")
-    tail = argv[2:]
-    wrapper_tokens, experiment_tokens = split_on_first_double_dash(tail)
-    parser = build_run_parser()
-    separator_present = "--" in tail
-
-    if not wrapper_tokens:
-        parser.error(
-            "missing script: expected SCRIPT (and optional wrapper flags) "
-            "before a `--` separator."
-        )
-
-    if separator_present:
-        args = parser.parse_args(wrapper_tokens)
-    else:
-        args, unknown = parser.parse_known_args(wrapper_tokens)
-        if unknown:
-            joined = " ".join(unknown)
-            parser.error(
-                "unrecognized wrapper arguments: "
-                f"{joined}. "
-                "Put script arguments after `--`, for example: "
-                "`experiment-tracker run train.py -- --epochs 10`."
+    def parse_args(self, ctx: click.Context, args: list[str]) -> list[str]:
+        wrapper, experiment = split_on_first_double_dash(args)
+        if not wrapper:
+            ctx.fail(
+                "missing script: expected SCRIPT (and optional wrapper flags) "
+                "before a `--` separator."
             )
+        ctx.meta[_EXPERIMENT_ARGV_META_KEY] = experiment
+        return super().parse_args(ctx, wrapper)
 
-    script_arg = args.script
-    script_path = Path(script_arg).expanduser()
-    if not script_path.is_file():
-        parser.error(f"script does not exist or is not a file: {script_arg}")
 
+@click.command(
+    cls=RunCommand,
+    name="run",
+    short_help="Run a Python script as __main__ (simple experiments only)",
+    context_settings={"help_option_names": ["-h", "--help"]},
+    epilog=_SIMPLE_EXPERIMENTS_EPILOG,
+)
+@click.option(
+    "--project",
+    default=None,
+    metavar="NAME",
+    help="Project name or id for future tracker bootstrap (wrapper only).",
+)
+@click.option(
+    "--offline",
+    is_flag=True,
+    help="Offline mode flag for future tracker bootstrap (wrapper only).",
+)
+@click.argument(
+    "script",
+    type=click.Path(
+        exists=True,
+        dir_okay=False,
+        file_okay=True,
+        path_type=Path,
+    ),
+)
+def run_command(project: str | None, offline: bool, script: Path) -> None:
+    """Run SCRIPT with ``__name__ == '__main__'`` after optional tracker bootstrap."""
+    ctx = click.get_current_context()
+    experiment_tokens: list[str] = list(
+        ctx.meta.get(_EXPERIMENT_ARGV_META_KEY, ()),
+    )
+    script_display = str(script)
+    resolved = str(script.resolve())
     register_default_tensorboard_hooks()
-    resolved = str(script_path.resolve())
-    ctx = RunCliContext(
-        project=args.project,
-        offline=bool(args.offline),
-        script_argv0=script_arg,
+    ctx_obj = RunCliContext(
+        project=project,
+        offline=offline,
+        script_argv0=script_display,
         script_resolved_path=resolved,
     )
-    apply_run_bootstrap(ctx)
-    sys.argv = [script_arg, *experiment_tokens]
+    apply_run_bootstrap(ctx_obj)
+    sys.argv = [script_display, *experiment_tokens]
     runpy.run_path(resolved, run_name="__main__")

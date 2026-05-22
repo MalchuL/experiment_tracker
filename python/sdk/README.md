@@ -59,6 +59,8 @@ uv run pyright src tests
 
 ## Configure
 
+The bundled `experiment-tracker` CLI is implemented with [Click](https://click.palletsprojects.io/).
+
 Save the base URL and API token for the backend:
 
 ```
