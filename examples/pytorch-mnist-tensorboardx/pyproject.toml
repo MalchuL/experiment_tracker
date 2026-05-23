@@ -1,0 +1,15 @@
+[project]
+name = "experiment-tracker-pytorch-mnist-tensorboardx"
+version = "0.1.0"
+description = "PyTorch MNIST TensorBoardX example for experiment-tracker run"
+requires-python = "==3.10"
+dependencies = [
+  "experiment-tracker-sdk",
+  "tensorboardX>=2.6.4",
+  "torch==2.2.1",
+  "torchvision==0.17.1",
+  "numpy==1.26.4"
+]
+
+[tool.uv.sources]
+experiment-tracker-sdk = { path = "../../python/sdk" }
