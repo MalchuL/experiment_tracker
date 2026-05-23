@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import cast
 from uuid import UUID
 
+from experiment_tracker_sdk.api_access import ExpTrackerApiAccess
 from experiment_tracker_sdk.client import (
     ExperimentStatus,
     ExperimentTrackerClient,
@@ -23,7 +24,6 @@ from experiment_tracker_sdk.client.domain.experiments.dto import (
 from experiment_tracker_sdk.client.domain.projects.dto import (
     ProjectListResponse,
 )
-from experiment_tracker_sdk.config import load_config
 from experiment_tracker_sdk.error import ExpTrackerAPIError
 from experiment_tracker_sdk.logger import logger
 from experiment_tracker_sdk.utils.content_utils import (
@@ -79,16 +79,11 @@ class ExpTracker:
 
     @staticmethod
     def _get_api_requests_registry() -> APIRequestsRegistry:
-        return APIRequestsRegistry()
+        return ExpTrackerApiAccess.instance().get_api_requests_registry()
 
     @staticmethod
     def _get_request_client() -> ExperimentTrackerClient:
-        config = load_config()
-        return ExperimentTrackerClient(
-            config.base_url,
-            config.api_token,
-            api_prefix=config.api_prefix,
-        )
+        return ExpTrackerApiAccess.instance().get_request_client()
 
     def _upload_artifact_at_step(
         self,

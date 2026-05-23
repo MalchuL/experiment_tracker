@@ -4,18 +4,16 @@ from __future__ import annotations
 
 import importlib.metadata
 import json
+from typing import cast
 
 import click
-import httpx
 
-from ..config import compose_base_url, load_config, save_config
-from ..settings import get_exp_tracker_settings
+from ..api_access import ExpTrackerApiAccess
+from ..client.domain.users.dto import UserResponse
+from ..config import save_config
+from ..error import ExpTrackerConfigError
+from ..settings import get_cli_init_defaults
 from .run import run_command
-
-
-def _cli_init_defaults() -> tuple[str, str]:
-    s = get_exp_tracker_settings()
-    return s.default_base_url, s.default_api_prefix
 
 
 def _get_value(value: str | None, prompt: str, secret: bool = False) -> str:
@@ -60,20 +58,20 @@ def init_command(
     api_token: str | None,
 ) -> None:
     """Store base URL, API prefix, and API token for later SDK use."""
-    default_base_url, default_api_prefix = _cli_init_defaults()
+    defaults = get_cli_init_defaults()
     resolved_base = _get_value(
         base_url,
-        f"Base URL (default: {default_base_url}): ",
+        f"Base URL (default: {defaults.default_base_url}): ",
     )
     if not resolved_base:
-        resolved_base = default_base_url
+        resolved_base = defaults.default_base_url
     if api_prefix is None:
         entered_prefix = _get_value(
             None,
-            f"API prefix (default: {default_api_prefix}, empty for none): ",
+            f"API prefix (default: {defaults.default_api_prefix}, empty for none): ",
         )
         resolved_prefix = (
-            entered_prefix if entered_prefix != "" else default_api_prefix
+            entered_prefix if entered_prefix != "" else defaults.default_api_prefix
         )
     else:
         resolved_prefix = api_prefix
@@ -89,29 +87,33 @@ def init_command(
 @cli.command("whoami", short_help="Validate token and print profile")
 def whoami_command() -> None:
     """Call ``GET /users/me/profile`` using saved credentials."""
-    config = load_config()
-    if config is None:
-        raise click.UsageError("Config not found. Run `experiment-tracker init`.")
-    with httpx.Client(
-        base_url=compose_base_url(config.base_url, config.api_prefix),
-        headers={"Authorization": f"Bearer {config.api_token}"},
-    ) as client:
-        response = client.get("/users/me/profile")
-        response.raise_for_status()
-        click.echo(json.dumps(response.json(), indent=2))
+    try:
+        access = ExpTrackerApiAccess.instance()
+        client = access.get_request_client()
+        registry = access.get_api_requests_registry()
+        profile = cast(
+            UserResponse,
+            client.request(registry.users.get_my_profile()),
+        )
+    except ExpTrackerConfigError as exc:
+        raise click.UsageError(
+            "Config not found. Run `experiment-tracker init`."
+        ) from exc
+    click.echo(json.dumps(profile.model_dump(mode="json"), indent=2, default=str))
 
 
 @cli.command("ping", short_help="Check API availability")
 def ping_command() -> None:
     """Request ``GET /`` on the configured API base URL."""
-    config = load_config()
-    if config is None:
-        raise click.UsageError("Config not found. Run `experiment-tracker init`.")
-    with httpx.Client(
-        base_url=compose_base_url(config.base_url, config.api_prefix),
-    ) as client:
-        response = client.get("/")
-        click.echo(f"Status: {response.status_code}")
+    try:
+        access = ExpTrackerApiAccess.instance()
+        client = access.get_request_client()
+        code = client.probe_http_status("GET", "/")
+    except ExpTrackerConfigError as exc:
+        raise click.UsageError(
+            "Config not found. Run `experiment-tracker init`."
+        ) from exc
+    click.echo(f"Status: {code}")
 
 
 cli.add_command(run_command)

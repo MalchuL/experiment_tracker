@@ -12,6 +12,7 @@ from .project_artifacts.service import (
 from .projects.service import ProjectRequestSpecFactory, ProjectService
 from .scalars.service import ScalarsRequestSpecFactory, ScalarsService
 from .teams.service import TeamRequestSpecFactory, TeamService
+from .users.service import UserRequestSpecFactory, UserService
 
 __all__ = [
     "ExperimentRequestSpecFactory",
@@ -30,4 +31,6 @@ __all__ = [
     "ScalarsService",
     "TeamRequestSpecFactory",
     "TeamService",
+    "UserRequestSpecFactory",
+    "UserService",
 ]

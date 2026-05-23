@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from functools import lru_cache
 
 from pydantic import Field
@@ -46,3 +47,20 @@ class ExpTrackerSettings(BaseSettings):
 def get_exp_tracker_settings() -> ExpTrackerSettings:
     """Return cached settings (reads ``.env`` / environment once per process)."""
     return ExpTrackerSettings()
+
+
+@dataclass(frozen=True)
+class CliInitDefaults:
+    """Resolved defaults for ``experiment-tracker init`` interactive prompts."""
+
+    default_base_url: str
+    default_api_prefix: str
+
+
+def get_cli_init_defaults() -> CliInitDefaults:
+    """Return init prompt defaults (honours ``EXP_TRACKER_*`` / ``.env``)."""
+    s = get_exp_tracker_settings()
+    return CliInitDefaults(
+        default_base_url=s.default_base_url,
+        default_api_prefix=s.default_api_prefix,
+    )

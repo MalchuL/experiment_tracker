@@ -1,17 +1,15 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
-from experiment_tracker_sdk.client import ExperimentTrackerClient
 from experiment_tracker_sdk.client.domain import (
     ExperimentArtifactsRequestSpecFactory,
     ExperimentRequestSpecFactory,
-    MetricRequestSpecFactory,
-    ProjectRequestSpecFactory,
-    ProjectArtifactsRequestSpecFactory,
-    ScalarsRequestSpecFactory,
     HypothesisRequestSpecFactory,
+    MetricRequestSpecFactory,
+    ProjectArtifactsRequestSpecFactory,
+    ProjectRequestSpecFactory,
+    ScalarsRequestSpecFactory,
     TeamRequestSpecFactory,
+    UserRequestSpecFactory,
 )
 
 
@@ -25,6 +23,7 @@ class APIRequestsRegistry:
         self._team_service = TeamRequestSpecFactory()
         self._project_artifacts_service = ProjectArtifactsRequestSpecFactory()
         self._experiment_artifacts_service = ExperimentArtifactsRequestSpecFactory()
+        self._user_service = UserRequestSpecFactory()
 
     @property
     def experiments(self) -> ExperimentRequestSpecFactory:
@@ -57,3 +56,7 @@ class APIRequestsRegistry:
     @property
     def experiment_artifacts(self) -> ExperimentArtifactsRequestSpecFactory:
         return self._experiment_artifacts_service
+
+    @property
+    def users(self) -> UserRequestSpecFactory:
+        return self._user_service

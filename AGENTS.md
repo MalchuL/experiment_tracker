@@ -37,6 +37,7 @@ flowchart LR
 | `python/scalars_service/src/` | FastAPI scalars/artifacts_info service. `GET /scalars/get/...` paginates **experiments** first, then loads each metric column with ClickHouse `IS NOT NULL` + per-(experiment, column) uniform `max_points` sampling (`columns_per_query` controls parallel column queries; default 1). Cross-table ClickHouse work (delete experiment rows across scalars + artifacts_info + last_logged, usage, admin table listing) is under **`/projects`** (`projects` domain); compaction stays **`POST /scalars/projects/{id}/compact-columns`**. |
 | `python/object_storage/src/` | FastAPI storage service (buckets, experiment/project artifacts). |
 | `python/sdk/src/experiment_tracker_sdk/` | Public Python SDK for the tracker API. |
+| `python/sdk/src/experiment_tracker_sdk/api_access.py` | Singleton :class:`ExpTrackerApiAccess` — shared ``APIRequestsRegistry`` / :class:`ExperimentTrackerClient` construction (used by :class:`ExpTracker` and CLI). |
 | `python/sdk/src/experiment_tracker_sdk/constants.py` | Default API base URL and ``/api`` prefix literals shared with settings. |
 | `python/sdk/src/experiment_tracker_sdk/settings.py` | Pydantic ``BaseSettings`` with ``EXP_TRACKER_`` env prefix and optional ``.env`` (CLI init defaults). |
 | `python/sdk/src/experiment_tracker_sdk/console/` | CLI (`experiment-tracker`): **Click** group + `run` command; argv split on `--` via a small `click.Command` subclass; pluggable bootstrap hooks; in-process `runpy` (simple experiments only). |
