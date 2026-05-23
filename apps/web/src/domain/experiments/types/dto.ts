@@ -1,4 +1,4 @@
-import { ExperimentStatusType } from "./types";
+import { ExperimentStatusType, type FeatureNode } from "./types";
 
 export interface InsertExperiment {
     projectId: string;
@@ -6,10 +6,10 @@ export interface InsertExperiment {
     description?: string;
     status?: ExperimentStatusType;
     parentExperimentId?: string | null;
-    features?: Record<string, unknown>;
-    gitDiff?: string | null;
+    features?: FeatureNode[];
     color?: string;
     order?: number;
+    tags?: string[];
 }
 
 export interface UpdateExperiment {
@@ -17,8 +17,8 @@ export interface UpdateExperiment {
     description?: string;
     status?: ExperimentStatusType;
     parentExperimentId?: string | null;
-    features?: Record<string, unknown>;
-    gitDiff?: string | null;
+    features?: FeatureNode[];
     color?: string;
     order?: number;
+    tags?: string[];
 }

@@ -9,6 +9,7 @@ from uuid import UUID
 from clients.artifacts_info import (
     ArtifactType,
     ArtifactsInfoResultDTO,
+    ArtifactsInfoSummaryResultDTO,
     LogArtifactResponseDTO as ArtifactsInfoLogArtifactResponseDTO,
 )
 from clients.object_storage import (
@@ -126,6 +127,67 @@ async def get_experiments_artifacts_at_step(
         _raise_http_error(exc)
 
 
+@router.get("/projects/{project_id}/summary-at-step")
+async def get_experiments_artifacts_summary_at_step(
+    project_id: UUID,
+    experiment_id: list[UUID] | None = Query(default=None),
+    artifact_type: list[ArtifactType] | None = Query(default=None),
+    artifact_name: list[str] | None = Query(default=None),
+    limit: int = Query(default=MAX_LIST_PAGE_SIZE, ge=1, le=MAX_LIST_PAGE_SIZE),
+    offset: int = Query(default=0, ge=0),
+    max_steps: int = Query(default=1000, ge=1),
+    start_time: datetime | None = Query(default=None),
+    end_time: datetime | None = Query(default=None),
+    user: User = Depends(get_current_user_dual),
+    _: None = Depends(require_api_token_scopes(ProjectActions.VIEW_ARTIFACT)),
+    service: ExperimentArtifactsServiceProtocol = Depends(
+        get_experiment_artifacts_service
+    ),
+) -> ArtifactsInfoSummaryResultDTO:
+    """List lightweight project artifact summaries for slider construction."""
+    try:
+        return await service.get_experiments_artifacts_summary_at_step(
+            user=user,
+            project_id=project_id,
+            experiment_ids=experiment_id,
+            artifact_types=artifact_type,
+            artifact_names=artifact_name,
+            list_options=ListOptions(limit=limit, offset=offset),
+            max_steps=max_steps,
+            start_time=to_json_utc_z(start_time) if start_time else None,
+            end_time=to_json_utc_z(end_time) if end_time else None,
+        )
+    except Exception as exc:  # noqa: BLE001
+        _raise_http_error(exc)
+
+
+@router.get("/projects/{project_id}/get-at-step/detail")
+async def get_experiment_artifact_detail_at_step(
+    project_id: UUID,
+    experiment_id: UUID = Query(...),
+    artifact_name: str = Query(..., min_length=1),
+    step: int = Query(...),
+    artifact_type: ArtifactType | None = Query(default=None),
+    user: User = Depends(get_current_user_dual),
+    _: None = Depends(require_api_token_scopes(ProjectActions.VIEW_ARTIFACT)),
+    service: ExperimentArtifactsServiceProtocol = Depends(
+        get_experiment_artifacts_service
+    ),
+) -> ArtifactsInfoResultDTO:
+    """Return one full artifact metadata row for a project/experiment/name/step."""
+    try:
+        return await service.get_experiment_artifact_detail_at_step(
+            user=user,
+            project_id=project_id,
+            experiment_id=experiment_id,
+            artifact_name=artifact_name,
+            step=step,
+            artifact_type=artifact_type,
+        )
+    except Exception as exc:  # noqa: BLE001
+        _raise_http_error(exc)
+
+
 @router.post(
     "/{experiment_id}/log-at-step",
     response_model=ArtifactsInfoLogArtifactResponseDTO,
@@ -175,7 +237,7 @@ async def upload_and_log_experiment_artifact_at_step(
 @router.get("/{experiment_id}/download-at-step")
 async def download_experiment_artifact_at_step(
     experiment_id: UUID,
-    step: int = Query(..., ge=0),
+    step: int = Query(...),
     name: str = Query(..., min_length=1),
     artifact_type: ArtifactType | None = Query(default=None),
     user: User = Depends(get_current_user_dual),
@@ -382,5 +444,3 @@ async def download_experiment_artifacts_archive(
         )
     except Exception as exc:  # noqa: BLE001
         _raise_http_error(exc)
-
-

@@ -11,6 +11,7 @@ import httpx
 from .dto import (
     ArtifactType,
     ArtifactsInfoResultDTO,
+    ArtifactsInfoSummaryResultDTO,
     LogArtifactRequestDTO,
     LogArtifactResponseDTO,
 )
@@ -37,6 +38,8 @@ class ArtifactsInfoClient:
     ENDPOINTS: dict[str, Any] = {
         "log_artifact_at_step": lambda project_id, experiment_id: f"/artifacts_info/log/{project_id}/{experiment_id}",
         "get_artifacts": lambda project_id: f"/artifacts_info/get/{project_id}",
+        "get_artifacts_summary": lambda project_id: f"/artifacts_info/summary/{project_id}",
+        "get_artifact_detail": lambda project_id: f"/artifacts_info/detail/{project_id}",
     }
 
     def __init__(self, base_url: str, timeout: float = 30.0):
@@ -109,6 +112,72 @@ class ArtifactsInfoClient:
         response = await self._request(
             "GET",
             self.ENDPOINTS["get_artifacts"](project_id),
+            params=params,
+        )
+        return ArtifactsInfoResultDTO.model_validate(response)
+
+    async def get_artifacts_summary(
+        self,
+        project_id: UUID,
+        experiment_ids: Iterable[UUID] | None = None,
+        artifact_types: Iterable[ArtifactType] | None = None,
+        artifact_names: Iterable[str] | None = None,
+        limit: int | None = None,
+        offset: int | None = None,
+        max_steps: int | None = None,
+        start_time: str | None = None,
+        end_time: str | None = None,
+    ) -> ArtifactsInfoSummaryResultDTO:
+        """Fetch lightweight artifact slider data from scalars_service.
+
+        ``max_steps`` caps sampled steps per ``experiment + type + name`` group. Bounded
+        ``start_time`` / ``end_time`` calls are used by live refresh and are not cached server-side.
+        """
+
+        params: dict[str, QueryParamValue] = {}
+        if experiment_ids:
+            params["experiment_id"] = [str(e) for e in experiment_ids]
+        if artifact_types:
+            params["artifact_type"] = list(artifact_types)
+        if artifact_names:
+            params["artifact_name"] = list(artifact_names)
+        if limit is not None:
+            params["limit"] = limit
+        if offset is not None:
+            params["offset"] = offset
+        if max_steps is not None:
+            params["max_steps"] = max_steps
+        if start_time:
+            params["start_time"] = start_time
+        if end_time:
+            params["end_time"] = end_time
+        response = await self._request(
+            "GET",
+            self.ENDPOINTS["get_artifacts_summary"](project_id),
+            params=params,
+        )
+        return ArtifactsInfoSummaryResultDTO.model_validate(response)
+
+    async def get_artifact_detail(
+        self,
+        project_id: UUID,
+        experiment_id: UUID,
+        artifact_name: str,
+        step: int,
+        artifact_type: ArtifactType | None = None,
+    ) -> ArtifactsInfoResultDTO:
+        """Fetch one full artifact_info row for a selected slider step."""
+
+        params: dict[str, QueryParamValue] = {
+            "experiment_id": str(experiment_id),
+            "artifact_name": artifact_name,
+            "step": step,
+        }
+        if artifact_type:
+            params["artifact_type"] = artifact_type
+        response = await self._request(
+            "GET",
+            self.ENDPOINTS["get_artifact_detail"](project_id),
             params=params,
         )
         return ArtifactsInfoResultDTO.model_validate(response)

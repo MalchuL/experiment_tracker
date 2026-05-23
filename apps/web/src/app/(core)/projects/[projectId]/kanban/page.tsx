@@ -81,7 +81,7 @@ export default function Kanban() {
 
   if (!projectId) {
     return (
-      <div className="flex flex-col items-center justify-center h-[calc(100vh-8rem)] gap-4">
+      <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4">
         <AlertCircle className="w-12 h-12 text-muted-foreground" />
         <h2 className="text-lg font-medium">No Project Selected</h2>
         <p className="text-muted-foreground text-center max-w-md">
@@ -105,7 +105,7 @@ export default function Kanban() {
   }
 
   return (
-    <div className="flex h-[calc(100vh-8rem)] w-full min-w-0 gap-0">
+    <div className="flex h-full min-h-0 w-full min-w-0 gap-0">
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden px-6 pt-6 pb-6">
         <PageHeader
           title="Kanban View"

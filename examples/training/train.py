@@ -132,6 +132,57 @@ def _build_run_config_yaml(
     return "\n".join(lines) + "\n"
 
 
+def _build_feature_tree(
+    args: argparse.Namespace, steps: int, duration_seconds: int
+) -> list[dict[str, Any]]:
+    return [
+        {
+            "name": "data",
+            "children": [
+                {"name": "synthetic-random-images"},
+                {"name": "box-blur-ground-truth"},
+                {"name": "uint8-rgb-256x256-samples"},
+            ],
+        },
+        {
+            "name": "model",
+            "children": [
+                {"name": "demo-stochastic-metric-generator"},
+                {"name": "accuracy-loss-bce-simulation"},
+            ],
+        },
+        {
+            "name": "training",
+            "children": [
+                {"name": f"steps-{steps}"},
+                {"name": f"duration-seconds-{duration_seconds}"},
+                {"name": "optimizer-random-walk"},
+                {"name": "scheduler-linear-power-sweep"},
+            ],
+        },
+        {
+            "name": "logging",
+            "children": [
+                {"name": "scalars-accuracy-loss-bce-power-rng"},
+                {"name": "sparse-scalars-accuracy-map-1-percent"},
+                {"name": "final-metrics-loss-accuracy-precision-recall"},
+                {"name": "at-step-image-artifacts"},
+                {"name": "named-final-artifacts"},
+                {
+                    "name": "config",
+                    "children": [
+                        (
+                            {"name": "external-config-yaml"}
+                            if args.config_path
+                            else {"name": "generated-config-yaml"}
+                        )
+                    ],
+                },
+            ],
+        },
+    ]
+
+
 def _capture_installed_packages() -> str:
     commands = (
         ["uv", "pip", "freeze"],
@@ -211,9 +262,12 @@ def main() -> None:
         else:
             logger.info("project_found", extra={"project_id": project["id"]})
 
+        duration_seconds = 60
+        steps = 12000
         tracker = ExpTracker.init(
             project=str(project["id"]),
             experiment=args.experiment_name,
+            features=_build_feature_tree(args, steps, duration_seconds),
         )
         experiment_id = str(tracker.experiment_id)
         logger.info("experiment_created", extra={"experiment_id": experiment_id})
@@ -224,13 +278,12 @@ def main() -> None:
         tracker.color(f"#{random.randint(0, 16777215):06x}")
         logger.info("experiment_started", extra={"experiment_id": experiment_id})
 
-        duration_seconds = 60
-        steps = 120
         step_seconds = duration_seconds / steps
         start_time = time.time()
         # Scalar tag "power": magnitude sweep for charting very large → very small values.
         power_exp_high = 15.0
         power_exp_low = -15.0
+        scalar_log_step = max(1, steps // 100)
 
         if args.config_path:
             with open(args.config_path, encoding="utf-8") as config_file:
@@ -290,6 +343,7 @@ def main() -> None:
         logger.info("final_artifacts_logged", extra={"experiment_id": experiment_id})
 
         accuracy = random.uniform(0.6, 0.99)
+        mean_average_precision = random.uniform(0.45, 0.75)
         loss = random.uniform(0.1, 1.2)
         bce_loss = random.uniform(0.05, 0.9)
 
@@ -300,9 +354,16 @@ def main() -> None:
 
             # Simulate training metrics and log several scalar values per step.
             accuracy += random.uniform(-0.1, 0.1)
+            mean_average_precision += random.uniform(-0.05, 0.05)
             loss += random.uniform(-0.1, 0.1)
             bce_loss += random.uniform(-0.1, 0.1)
-            tracker.add_scalar("accuracy", accuracy, global_step=step)
+            accuracy = max(0.0, min(1.0, accuracy))
+            mean_average_precision = max(0.0, min(1.0, mean_average_precision))
+            if step % scalar_log_step == 0 or step == steps:
+                tracker.add_scalar("accuracy", accuracy, global_step=step // 100)
+                tracker.add_scalar(
+                    "mAP", mean_average_precision, global_step=step // 100
+                )
             tracker.add_scalar("loss", loss, global_step=step)
             tracker.add_scalar("bce_loss", bce_loss, global_step=step)
             if steps > 1:
@@ -331,6 +392,7 @@ def main() -> None:
                     "progress": progress,
                     "experiment_id": experiment_id,
                     "accuracy": accuracy,
+                    "mAP": mean_average_precision,
                     "loss": loss,
                     "bce_loss": bce_loss,
                 },
@@ -339,6 +401,7 @@ def main() -> None:
         final_metrics = {
             "loss": random.uniform(0.1, 0.6),
             "accuracy": random.uniform(0.7, 0.99),
+            "mAP": random.uniform(0.55, 0.95),
             "precision": random.uniform(0.6, 0.99),
             "recall": random.uniform(0.6, 0.99),
         }
@@ -391,6 +454,7 @@ def main() -> None:
                 "steps": steps,
                 "scalar_names": [
                     "accuracy",
+                    "mAP",
                     "loss",
                     "bce_loss",
                     "power",

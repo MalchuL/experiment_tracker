@@ -55,6 +55,12 @@ export const DOCS_MANIFEST: DocManifestEntry[] = [
     description: "Creating projects, the project dashboard, and where settings live.",
   },
   {
+    path: "reference/dag-view",
+    title: "DAG view: metrics on nodes",
+    description:
+      "Experiment lineage graph: how many metrics appear per node and which constant controls the cap.",
+  },
+  {
     path: "reference/doc-features",
     title: "Callouts, details & formatting",
     description: "Live examples: warning, tip, danger, note, info, caution, and collapsible blocks.",

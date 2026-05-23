@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { ENTITY_NAME_MAX_LEN } from "@/lib/validation/entity-limits";
 import { ChevronDown } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
@@ -36,7 +37,7 @@ import { FRONTEND_ROUTES } from "@/lib/constants/frontend-routes";
 
 const accountSchema = z.object({
   email: z.string().email(),
-  displayName: z.string().max(100),
+  displayName: z.string().max(ENTITY_NAME_MAX_LEN),
   avatarUrl: z.union([z.literal(""), z.string().url("Enter a valid URL or leave blank")]),
 });
 

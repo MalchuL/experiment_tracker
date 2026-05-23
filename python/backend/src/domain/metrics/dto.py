@@ -1,3 +1,4 @@
+from experiment_tracker_shared.limits import ENTITY_NAME_MAX_LEN
 from lib.datetime_types import ApiDateTime
 from lib.dto_config import model_config
 from lib.pagination import PaginatedResponse
@@ -7,9 +8,9 @@ from pydantic import BaseModel, Field, field_validator
 
 class MetricBase(BaseModel):
     experiment_id: UUID_TYPE
-    name: str = Field(..., min_length=1)
+    name: str = Field(..., min_length=1, max_length=ENTITY_NAME_MAX_LEN)
     value: float
-    label: str | None = None
+    label: str | None = Field(default=None, max_length=ENTITY_NAME_MAX_LEN)
     model_config = model_config()
 
     @field_validator("label", mode="before")

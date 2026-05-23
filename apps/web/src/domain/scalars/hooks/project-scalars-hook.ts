@@ -44,6 +44,7 @@ export function useProjectScalars(
   } = params;
 
   const stableExperimentIds = [...(experimentIds ?? [])].sort();
+  const hasExplicitEmptyExperimentSelection = experimentIds !== undefined && experimentIds.length === 0;
   const queryKey = projectId
     ? [
         QUERY_KEYS.SCALARS.BY_PROJECT(projectId),
@@ -85,7 +86,7 @@ export function useProjectScalars(
       }
       return allPages.reduce((total, page) => total + page.data.length, 0);
     },
-    enabled: !!projectId,
+    enabled: !!projectId && !hasExplicitEmptyExperimentSelection,
   });
   useEffect(() => {
     if (hasNextPage && !isFetchingNextPage) {
@@ -94,8 +95,11 @@ export function useProjectScalars(
   }, [data?.pages.length, fetchNextPage, hasNextPage, isFetchingNextPage]);
 
   const scalars = useMemo(
-    () => data?.pages.flatMap((page) => page.data) ?? [],
-    [data]
+    () => {
+      if (hasExplicitEmptyExperimentSelection) return [];
+      return data?.pages.flatMap((page) => page.data) ?? [];
+    },
+    [data, hasExplicitEmptyExperimentSelection]
   );
 
   return {

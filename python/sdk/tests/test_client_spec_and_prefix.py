@@ -64,3 +64,26 @@ def test_endpoint_factories_are_prefixless() -> None:
         ).endpoint
         == "/project-artifacts/project-id/upload"
     )
+
+
+def test_create_experiment_spec_serializes_feature_tree() -> None:
+    experiment_factory = ExperimentRequestSpecFactory()
+    spec = experiment_factory.create_experiment(
+        "project-id",
+        "run",
+        features=[
+            {
+                "name": "training",
+                "children": [{"name": "optimizer-adam"}],
+            }
+        ],
+    )
+
+    assert spec.request_payload is not None
+    payload = spec.request_payload.model_dump()
+    assert payload["features"] == [
+        {
+            "name": "training",
+            "children": [{"name": "optimizer-adam", "children": None}],
+        }
+    ]

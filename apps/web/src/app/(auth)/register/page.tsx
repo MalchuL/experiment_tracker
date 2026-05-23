@@ -54,7 +54,7 @@ export default function Register() {
           router.push(FRONTEND_ROUTES.LOGIN);
           toast({
             title: "Account created",
-            description: "Welcome to ResearchTrack!",
+            description: "Welcome to Experiment Tracker!",
           });
         },}
       );

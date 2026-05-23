@@ -4,7 +4,12 @@ export function appendPaginationParams(
   path: string,
   params?: PaginationParams,
 ): string {
-  if (params?.limit === undefined && params?.offset === undefined) {
+  if (
+    params?.limit === undefined &&
+    params?.offset === undefined &&
+    params?.search === undefined &&
+    params?.includeFeatures === undefined
+  ) {
     return path;
   }
 
@@ -14,6 +19,12 @@ export function appendPaginationParams(
   }
   if (params?.offset !== undefined) {
     searchParams.set("offset", String(params.offset));
+  }
+  if (params?.search !== undefined && params.search.trim() !== "") {
+    searchParams.set("search", params.search.trim());
+  }
+  if (params?.includeFeatures !== undefined) {
+    searchParams.set("includeFeatures", String(params.includeFeatures));
   }
 
   const query = searchParams.toString();

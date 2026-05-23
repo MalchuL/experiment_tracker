@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -15,6 +15,8 @@ interface RightSidebarShellProps {
   /** overlay = fixed over content (e.g. DAG); push = flex sibling — main column shrinks (list/kanban). */
   variant?: RightSidebarVariant;
   className?: string;
+  style?: CSSProperties;
+  onResizePointerDown?: (event: React.PointerEvent<HTMLButtonElement>) => void;
   testId?: string;
 }
 
@@ -27,6 +29,8 @@ export function RightSidebarShell({
   widthClassName = "w-96",
   variant = "overlay",
   className,
+  style,
+  onResizePointerDown,
   testId,
 }: RightSidebarShellProps) {
   const isPush = variant === "push";
@@ -34,20 +38,29 @@ export function RightSidebarShell({
   return (
     <div
       className={cn(
-        "flex h-full min-h-0 flex-col bg-background border-l",
+        "relative flex min-h-0 flex-col bg-background border-l",
         isPush
-          ? "w-full shrink-0 shadow-sm md:max-w-[400px] md:w-[400px]"
-          : cn("fixed right-0 top-0 z-50 shadow-lg", widthClassName),
+          ? "h-full w-full shrink-0 self-stretch shadow-sm md:max-w-[400px] md:w-[400px]"
+          : cn("fixed inset-y-0 right-0 z-50 shadow-lg", widthClassName),
         className
       )}
+      style={style}
       data-testid={testId}
     >
-      <div className="flex shrink-0 items-center justify-between border-b p-4">
-        <div className="flex min-w-0 items-center gap-2">
+      {onResizePointerDown ? (
+        <button
+          type="button"
+          aria-label="Resize sidebar"
+          className="absolute left-0 top-0 z-10 h-full w-1 cursor-ew-resize bg-transparent transition-colors hover:bg-primary/30"
+          onPointerDown={onResizePointerDown}
+        />
+      ) : null}
+      <div className="flex shrink-0 items-center justify-between gap-2 border-b p-4">
+        <div className="flex min-w-0 flex-1 items-center gap-2">
           {headerPrefix}
-          <h2 className="truncate font-semibold">{title}</h2>
+          <h2 className="min-w-0 flex-1 truncate font-semibold">{title}</h2>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-2">
           {headerActions}
           {onClose ? (
             <Button

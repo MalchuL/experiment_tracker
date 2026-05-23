@@ -7,12 +7,14 @@ from typing import Any, Dict, List
 from uuid import UUID
 
 from domain.hypotheses.dto import HypothesisListResponseDTO
+from domain.project_reports.dto import ProjectReportListResponseDTO
 from domain.experiments.dto import (
     ExperimentBatchLookupDTO,
     ExperimentListResponseDTO,
 )
 from domain.experiments.service import ExperimentService
 from domain.hypotheses.service import HypothesisService
+from domain.project_reports.service import ProjectReportService
 from domain.metrics.dto import (
     MetricLabelsResponseDTO,
     MetricListResponseDTO,
@@ -50,11 +52,12 @@ from .errors import ProjectNotAccessibleError, ProjectPermissionError
 from .service import ProjectCleanupCategory, ProjectService
 from api.routes.service_dependencies import (
     get_experiment_service,
+    get_hypothesis_service,
     get_metric_service,
     get_project_members_service,
+    get_project_report_service,
     get_project_service,
 )
-from api.routes.service_dependencies import get_hypothesis_service
 from domain.projects.members.dto import (
     ProjectMemberInviteDTO,
     ProjectMemberRemoveDTO,
@@ -127,11 +130,25 @@ async def get_all_projects(
         _raise_project_http_error(exc)
 
 
-@router.get("/{project_id}/experiments", response_model=ExperimentListResponseDTO)
+@router.get(
+    "/{project_id}/experiments",
+    response_model=ExperimentListResponseDTO,
+    response_model_exclude_none=True,
+)
 async def get_project_experiments(
     project_id: UUID,
     limit: int = Query(default=MAX_LIST_PAGE_SIZE, ge=1, le=MAX_LIST_PAGE_SIZE),
     offset: int = Query(default=0, ge=0),
+    search: str | None = Query(
+        default=None,
+        max_length=200,
+        description="Optional case-insensitive substring on experiment id, name, or description.",
+    ),
+    include_features: bool = Query(
+        default=True,
+        alias="includeFeatures",
+        description="When true, include experiment feature trees in each list item.",
+    ),
     user: User = Depends(get_current_user_dual),
     _: None = Depends(require_api_token_scopes(ProjectActions.VIEW_EXPERIMENT)),
     experiment_service: ExperimentService = Depends(get_experiment_service),
@@ -141,18 +158,33 @@ async def get_project_experiments(
             user,
             project_id,
             ListOptions(limit=limit, offset=offset),
+            search=search,
+            include_features=include_features,
         )
     except Exception as exc:  # noqa: BLE001
+        logger.exception(
+            "get_project_experiments failed project_id=%s limit=%s offset=%s search=%r",
+            project_id,
+            limit,
+            offset,
+            search,
+        )
         _raise_project_http_error(exc)
 
 
 @router.post(
     "/{project_id}/experiments/batch",
     response_model=ExperimentListResponseDTO,
+    response_model_exclude_none=True,
 )
 async def post_project_experiments_batch(
     project_id: UUID,
     body: ExperimentBatchLookupDTO,
+    include_features: bool = Query(
+        default=True,
+        alias="includeFeatures",
+        description="When true, include experiment feature trees in each list item.",
+    ),
     user: User = Depends(get_current_user_dual),
     _: None = Depends(require_api_token_scopes(ProjectActions.VIEW_EXPERIMENT)),
     experiment_service: ExperimentService = Depends(get_experiment_service),
@@ -163,6 +195,7 @@ async def post_project_experiments_batch(
             user,
             project_id,
             list(body.experiment_ids),
+            include_features=include_features,
         )
     except Exception as exc:  # noqa: BLE001
         _raise_project_http_error(exc)
@@ -179,6 +212,25 @@ async def get_project_hypotheses(
 ):
     try:
         return await hypothesis_service.get_hypotheses_by_project(
+            user,
+            project_id,
+            ListOptions(limit=limit, offset=offset),
+        )
+    except Exception as exc:  # noqa: BLE001
+        _raise_project_http_error(exc)
+
+
+@router.get("/{project_id}/reports", response_model=ProjectReportListResponseDTO)
+async def get_project_reports(
+    project_id: UUID,
+    limit: int = Query(default=MAX_LIST_PAGE_SIZE, ge=1, le=MAX_LIST_PAGE_SIZE),
+    offset: int = Query(default=0, ge=0),
+    user: User = Depends(get_current_user_dual),
+    _: None = Depends(require_api_token_scopes(ProjectActions.VIEW_REPORT)),
+    report_service: ProjectReportService = Depends(get_project_report_service),
+):
+    try:
+        return await report_service.get_reports_by_project(
             user,
             project_id,
             ListOptions(limit=limit, offset=offset),
@@ -407,7 +459,9 @@ async def get_project_usage(
         _raise_project_http_error(exc)
 
 
-@router.post("/{project_id}/cleanup/{category}", response_model=CategoryCleanupResponseDTO)
+@router.post(
+    "/{project_id}/cleanup/{category}", response_model=CategoryCleanupResponseDTO
+)
 async def cleanup_project_category(
     project_id: UUID,
     category: ProjectCleanupCategory,

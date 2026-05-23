@@ -10,9 +10,15 @@ from experiment_tracker_shared.hash_utils import (
     compute_sha256_hexdigest,
     create_sha256_hasher,
 )
+from experiment_tracker_shared.limits import (
+    ENTITY_DESCRIPTION_MAX_LEN,
+    ENTITY_NAME_MAX_LEN,
+)
 from experiment_tracker_shared.sqlalchemy_types import UtcNaiveDateTime
 
 __all__ = [
+    "ENTITY_DESCRIPTION_MAX_LEN",
+    "ENTITY_NAME_MAX_LEN",
     "compute_sha256_hexdigest",
     "create_sha256_hasher",
     "normalize_for_db",

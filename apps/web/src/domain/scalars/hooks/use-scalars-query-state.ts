@@ -13,10 +13,11 @@ import {
  * Query params (see ``buildQueryString``):
  * - ``exp`` — selected experiment ids (encoded list). Omitted when **every** experiment is selected.
  * - ``met`` — names of metrics **hidden** from charts (inverted semantics vs checkbox “visible”).
+ * - ``art`` — ids of artifacts **hidden** from object cards (``artifact_type:name``).
  * - ``s`` — smoothing slider in ``[0, 1]``.
  *
- * Initialization waits until experiments exist; if the URL references ``met`` but scalar columns are
- * not loaded yet (``allLoggedMetricNames`` empty), init defers so metric indices resolve correctly.
+ * Initialization waits until experiments exist; if the URL references ``met`` / ``art`` but scalar
+ * columns / artifact ids are not loaded yet, init defers so names resolve correctly.
  *
  * After init, selection is synced back to the URL via ``history.replaceState`` (no full navigation).
  *
@@ -29,6 +30,7 @@ interface UseScalarsQueryStateParams {
   searchParams: ReadonlyURLSearchParams;
   experiments: Experiment[];
   allLoggedMetricNames: string[];
+  allArtifactIds?: string[];
 }
 
 /**
@@ -40,11 +42,13 @@ export function useScalarsQueryState({
   searchParams,
   experiments,
   allLoggedMetricNames,
+  allArtifactIds = [],
 }: UseScalarsQueryStateParams) {
   const [smoothing, setSmoothing] = useState(0);
   const [initialized, setInitialized] = useState(false);
   const [selectedExperimentIds, setSelectedExperimentIds] = useState<Set<string>>(new Set());
   const [hiddenMetrics, setHiddenMetrics] = useState<Set<string>>(new Set());
+  const [hiddenArtifactIds, setHiddenArtifactIds] = useState<Set<string>>(new Set());
 
   /** Last known experiment id set — used to detect “all experiments selected” when the list grows (poll / infinite scroll). */
   const experimentsSnapshotRef = useRef<Set<string>>(new Set());
@@ -62,6 +66,7 @@ export function useScalarsQueryState({
       try {
         const expParam = params.get("exp");
         const metParam = params.get("met");
+        const artParam = params.get("art");
         const smoothParam = params.get("s");
 
         if (expParam) {
@@ -97,6 +102,22 @@ export function useScalarsQueryState({
           setHiddenMetrics(new Set());
         }
 
+        if (artParam) {
+          const artifactIds = decodeStringSelection(artParam);
+          if (artifactIds.length > 0) {
+            const knownIds = new Set(allArtifactIds);
+            setHiddenArtifactIds(new Set(artifactIds.filter((id) => knownIds.has(id))));
+          } else {
+            const hiddenIndices = decodeLegacyNumberSelection(artParam);
+            const hiddenIds = hiddenIndices
+              .map((index) => allArtifactIds[index])
+              .filter((id): id is string => typeof id === "string");
+            setHiddenArtifactIds(new Set(hiddenIds));
+          }
+        } else {
+          setHiddenArtifactIds(new Set());
+        }
+
         if (smoothParam) {
           const s = Number.parseFloat(smoothParam);
           if (!Number.isNaN(s) && s >= 0 && s <= 1) {
@@ -108,23 +129,26 @@ export function useScalarsQueryState({
       } catch {
         setSelectedExperimentIds(new Set(experiments.map((experiment) => experiment.id)));
         setHiddenMetrics(new Set());
+        setHiddenArtifactIds(new Set());
         setSmoothing(0);
       }
     },
-    [experiments, allLoggedMetricNames]
+    [experiments, allLoggedMetricNames, allArtifactIds]
   );
 
   /* One-shot hydration from ``searchParams`` once experiments (and metrics when needed) are ready. */
   useEffect(() => {
     if (experiments.length === 0 || initialized) return;
     const hasMetricsParam = !!searchParams.get("met");
+    const hasArtifactsParam = !!searchParams.get("art");
     if (hasMetricsParam && allLoggedMetricNames.length === 0) return;
+    if (hasArtifactsParam && allArtifactIds.length === 0) return;
     const timer = window.setTimeout(() => {
       applySharedParams(new URLSearchParams(searchParams.toString()));
       setInitialized(true);
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [experiments, searchParams, initialized, allLoggedMetricNames, applySharedParams]);
+  }, [experiments, searchParams, initialized, allLoggedMetricNames, allArtifactIds, applySharedParams]);
 
   /**
    * Keeps selection aligned when ``experiments`` gains rows: drops stale ids, and if the selection
@@ -156,7 +180,12 @@ export function useScalarsQueryState({
 
   /** Serializes state for the URL; omits ``exp`` when all experiments are selected to keep links short. */
   const buildQueryString = useCallback(
-    (experimentIds: Set<string>, hiddenMets: Set<string>, smooth: number) => {
+    (
+      experimentIds: Set<string>,
+      hiddenMets: Set<string>,
+      hiddenArtifacts: Set<string>,
+      smooth: number
+    ) => {
       const params = new URLSearchParams();
       const allSelected = experimentIds.size === experiments.length;
       if (!allSelected && experimentIds.size > 0) {
@@ -164,6 +193,9 @@ export function useScalarsQueryState({
       }
       if (hiddenMets.size > 0) {
         params.set("met", encodeStringSelection(Array.from(hiddenMets)));
+      }
+      if (hiddenArtifacts.size > 0) {
+        params.set("art", encodeStringSelection(Array.from(hiddenArtifacts)));
       }
       if (smooth > 0) {
         params.set("s", smooth.toFixed(2));
@@ -174,14 +206,14 @@ export function useScalarsQueryState({
   );
 
   const currentQueryString = useMemo(
-    () => buildQueryString(selectedExperimentIds, hiddenMetrics, smoothing),
-    [buildQueryString, selectedExperimentIds, hiddenMetrics, smoothing]
+    () => buildQueryString(selectedExperimentIds, hiddenMetrics, hiddenArtifactIds, smoothing),
+    [buildQueryString, selectedExperimentIds, hiddenMetrics, hiddenArtifactIds, smoothing]
   );
 
   /* Push canonical query string to the address bar when local state diverges (debounced by React batching). */
   useEffect(() => {
     if (!initialized || !projectId) return;
-    const nextQuery = buildQueryString(selectedExperimentIds, hiddenMetrics, smoothing);
+    const nextQuery = buildQueryString(selectedExperimentIds, hiddenMetrics, hiddenArtifactIds, smoothing);
     const currentQuery = new URLSearchParams(window.location.search).toString();
     if (nextQuery === currentQuery) return;
     const basePath = `/projects/${projectId}/scalars`;
@@ -190,7 +222,15 @@ export function useScalarsQueryState({
       "",
       nextQuery ? `${basePath}?${nextQuery}` : basePath
     );
-  }, [initialized, projectId, selectedExperimentIds, hiddenMetrics, smoothing, buildQueryString]);
+  }, [
+    initialized,
+    projectId,
+    selectedExperimentIds,
+    hiddenMetrics,
+    hiddenArtifactIds,
+    smoothing,
+    buildQueryString,
+  ]);
 
   const toggleExperiment = useCallback((experimentId: string) => {
     setSelectedExperimentIds((prev) => {
@@ -236,6 +276,18 @@ export function useScalarsQueryState({
     [allLoggedMetricNames]
   );
 
+  const toggleArtifact = useCallback((artifactId: string) => {
+    setHiddenArtifactIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(artifactId)) {
+        next.delete(artifactId);
+      } else {
+        next.add(artifactId);
+      }
+      return next;
+    });
+  }, []);
+
   const handleRestoreSavedView = useCallback(
     (query: string) => {
       const normalizedQuery = query.startsWith("?") ? query.slice(1) : query;
@@ -259,12 +311,14 @@ export function useScalarsQueryState({
     initialized,
     selectedExperimentIds,
     hiddenMetrics,
+    hiddenArtifactIds,
     currentQueryString,
     setSelectedExperimentIds,
     toggleExperiment,
     selectAllExperiments,
     clearAllExperiments,
     toggleMetric,
+    toggleArtifact,
     showAllMetrics,
     showOnlyMetric,
     handleRestoreSavedView,

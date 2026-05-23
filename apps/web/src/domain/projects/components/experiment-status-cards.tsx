@@ -12,8 +12,8 @@ export function ExperimentStatusCards({ stats }: ExperimentStatusCardsProps) {
       <Card className="hover-elevate">
         <CardContent className="p-4">
           <div className="flex items-center gap-3">
-            <div className="flex items-center justify-center w-10 h-10 rounded-full bg-blue-500/15">
-              <Play className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+            <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-blue-500/15">
+              <Play className="size-5 shrink-0 text-blue-600 dark:text-blue-400" aria-hidden />
             </div>
             <div>
               <p className="text-2xl font-bold">
@@ -27,8 +27,8 @@ export function ExperimentStatusCards({ stats }: ExperimentStatusCardsProps) {
       <Card className="hover-elevate">
         <CardContent className="p-4">
           <div className="flex items-center gap-3">
-            <div className="flex items-center justify-center w-10 h-10 rounded-full bg-green-500/15">
-              <CheckCircle2 className="w-5 h-5 text-green-600 dark:text-green-400" />
+            <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-green-500/15">
+              <CheckCircle2 className="size-5 shrink-0 text-green-600 dark:text-green-400" aria-hidden />
             </div>
             <div>
               <p className="text-2xl font-bold">
@@ -42,8 +42,8 @@ export function ExperimentStatusCards({ stats }: ExperimentStatusCardsProps) {
       <Card className="hover-elevate">
         <CardContent className="p-4">
           <div className="flex items-center gap-3">
-            <div className="flex items-center justify-center w-10 h-10 rounded-full bg-red-500/15">
-              <XCircle className="w-5 h-5 text-red-600 dark:text-red-400" />
+            <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-red-500/15">
+              <XCircle className="size-5 shrink-0 text-red-600 dark:text-red-400" aria-hidden />
             </div>
             <div>
               <p className="text-2xl font-bold">

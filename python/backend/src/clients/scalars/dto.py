@@ -102,6 +102,8 @@ class ScalarsDropStorageTableResponseDTO(BaseModel):
 
 
 class LogScalarRequestDTO(BaseModel):
+    model_config = model_config()
+
     scalars: dict[str, float]
     step: int
     tags: list[str] | None = None

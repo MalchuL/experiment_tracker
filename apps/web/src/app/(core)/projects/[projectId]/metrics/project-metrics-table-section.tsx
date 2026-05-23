@@ -1,18 +1,30 @@
 "use client";
 
-import { flexRender, type Table as TTable } from "@tanstack/react-table";
-import { ChevronDown, Download, Loader2, Table2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import type { CSSProperties } from "react";
+import { flexRender, type Column, type Table as TTable } from "@tanstack/react-table";
+import { Loader2 } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
-import { downloadTableReport } from "./lib/export-report";
+import { useProjectDataTableFrame } from "@/components/shared/project-data-table-frame";
+import { getExperimentSelectionSurfaceStyle } from "@/domain/experiments/experiment-selection-style";
 import type { MetricsTableRow } from "./lib/types";
+
+const stickyExperimentTh = cn(
+  "sticky left-0 z-[21] bg-background shadow-[4px_0_12px_-8px_rgba(0,0,0,0.08)] box-border"
+);
+const stickyExperimentCell = cn(
+  "sticky left-0 z-[2] bg-background shadow-[4px_0_12px_-8px_rgba(0,0,0,0.08)] box-border"
+);
+const headerSeparatorClass =
+  "after:absolute after:right-0 after:top-2 after:bottom-2 after:w-px after:bg-border after:content-['']";
+
+function layoutForColumn<T>(
+  table: TTable<T>,
+  column: Column<T, unknown>
+): { className: string; style: CSSProperties } {
+  const width = column.getSize();
+  return { className: "", style: { width, minWidth: width, maxWidth: width } };
+}
 
 type ProjectMetricsTableSectionProps = {
   dataLoading: boolean;
@@ -20,134 +32,94 @@ type ProjectMetricsTableSectionProps = {
   canShowTable: boolean;
   table: TTable<MetricsTableRow>;
   editMode: boolean;
-  nameFilter: string;
-  /** Rows after row-hide (report); used for empty + footer copy. */
+  /** Rows after row-hide (report); used for empty state copy. */
   rowsInReport: MetricsTableRow[];
   filteredRows: MetricsTableRow[];
-  hasNextPage: boolean | undefined;
-  isFetchingNextPage: boolean;
-  onLoadMore: () => void;
-  latest: { total: number } | undefined;
-  tableDataLength: number;
-  hiddenRowIds: Set<string>;
-  hiddenColumnIds: Set<string>;
   /** Highlights this row in the table while the experiment sidebar is open. */
   selectedExperimentId: string | null;
-  /** Used for download filenames, e.g. project-metrics-train. */
-  exportFileBase: string;
 };
 
-/** Renders the pivot table, load-more, and status line. */
+/** Pivot table body: scrolls inside `ProjectDataTableFrame` (toolbar/footer live on the page). */
 export function ProjectMetricsTableSection({
   dataLoading,
   isError,
   canShowTable,
   table,
   editMode,
-  nameFilter,
   rowsInReport,
   filteredRows,
-  hasNextPage,
-  isFetchingNextPage,
-  onLoadMore,
-  latest,
-  tableDataLength,
-  hiddenRowIds,
-  hiddenColumnIds,
   selectedExperimentId,
-  exportFileBase,
 }: ProjectMetricsTableSectionProps) {
+  const { pinLeadColumns, leadColumnCount } = useProjectDataTableFrame();
+
   return (
-    <div className="space-y-3">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
       {isError && (
-        <p className="text-sm text-destructive" role="alert">
+        <p className="shrink-0 text-sm text-destructive" role="alert">
           Failed to load metrics snapshot. Check permissions and network.
         </p>
       )}
 
       {dataLoading && (
-        <div className="flex items-center gap-2 text-sm text-muted-foreground" aria-live="polite">
+        <div className="flex shrink-0 items-center gap-2 text-sm text-muted-foreground" aria-live="polite">
           <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
           Loading snapshot…
         </div>
       )}
 
       {canShowTable && (
-        <div className="space-y-2">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-              <Table2 className="h-4 w-4" aria-hidden />
-              <span>Metrics grid</span>
-            </div>
-            {!editMode && table.getRowModel().rows.length > 0 ? (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="h-8 gap-1.5 text-xs"
-                    aria-label="Download table"
-                  >
-                    <Download className="h-3.5 w-3.5 shrink-0" />
-                    Download
-                    <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-60" aria-hidden />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-48">
-                  <DropdownMenuItem
-                    onSelect={() => downloadTableReport(table, "csv", exportFileBase)}
-                  >
-                    Comma-separated (CSV)
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onSelect={() => downloadTableReport(table, "json", exportFileBase)}
-                    title='JSON array: [column names, ...rows] — a "list of lists"'
-                  >
-                    JSON (list of rows)
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onSelect={() => downloadTableReport(table, "markdown", exportFileBase)}
-                  >
-                    Markdown table
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            ) : null}
-          </div>
-          <div className="overflow-x-auto rounded-lg border border-border">
-            <Table
-              className="w-full"
-              style={{ width: table.getTotalSize() }}
-            >
-            <TableHeader>
+        <div className="min-h-0 min-w-0 flex-1">
+          <Table
+            containerClassName="overflow-visible w-full min-w-0"
+            className="table-fixed border-separate border-spacing-0"
+            style={{ width: table.getTotalSize() }}
+          >
+            <TableHeader className="sticky top-0 z-20 bg-background shadow-[0_1px_0_0_hsl(var(--border))]">
               {table.getHeaderGroups().map((hg) => (
                 <TableRow key={hg.id}>
-                  {hg.headers.map((h) => (
-                    <TableHead
-                      key={h.id}
-                      colSpan={h.colSpan}
-                      className={cn(
-                        "relative align-top px-4",
-                        editMode ? "h-auto min-h-12" : "h-12",
-                        h.column.id === "experiment" ? "text-left" : "text-right"
-                      )}
-                      style={{ width: h.getSize() }}
-                    >
-                      {flexRender(h.column.columnDef.header, h.getContext())}
-                      {h.column.getCanResize() && (
-                        <div
-                          onMouseDown={h.getResizeHandler()}
-                          onTouchStart={h.getResizeHandler()}
-                          className={cn(
-                            "absolute right-0 top-0 h-full w-1 touch-none select-none cursor-col-resize",
-                            "bg-border opacity-50 hover:opacity-100",
-                            h.column.getIsResizing() && "bg-primary"
-                          )}
-                        />
-                      )}
-                    </TableHead>
-                  ))}
+                  {hg.headers.map((h) => {
+                    const pinExperiment =
+                      pinLeadColumns && leadColumnCount >= 1 && h.column.id === "experiment";
+                    const layout = layoutForColumn(table, h.column);
+                    return (
+                      <TableHead
+                        key={h.id}
+                        colSpan={h.colSpan}
+                        className={cn(
+                          "relative align-top px-4",
+                          editMode ? "h-auto min-h-12" : "h-12",
+                          h.column.id === "experiment" ? "text-left" : "text-right",
+                          pinExperiment && stickyExperimentTh,
+                          h.column.id === "experiment" && headerSeparatorClass,
+                          layout.className
+                        )}
+                        style={layout.style}
+                      >
+                        {flexRender(h.column.columnDef.header, h.getContext())}
+                        {h.column.getCanResize() && (
+                          <div
+                            onMouseDown={h.getResizeHandler()}
+                            onTouchStart={h.getResizeHandler()}
+                            className={cn(
+                              "absolute right-0 top-0 z-10 flex h-full w-2.5 cursor-col-resize items-center justify-center",
+                              "touch-none select-none"
+                            )}
+                          >
+                            {h.column.id === "experiment" ? null : (
+                              <span
+                                aria-hidden
+                                className={cn(
+                                  "block h-[calc(100%-1rem)] w-px shrink-0 self-center bg-border transition-colors",
+                                  "hover:bg-muted-foreground/70",
+                                  h.column.getIsResizing() && "bg-primary"
+                                )}
+                              />
+                            )}
+                          </div>
+                        )}
+                      </TableHead>
+                    );
+                  })}
                 </TableRow>
               ))}
             </TableHeader>
@@ -167,57 +139,52 @@ export function ProjectMetricsTableSection({
                 table.getRowModel().rows.map((row) => {
                   const isRowSelected = selectedExperimentId === row.original.experimentId;
                   const expColor = row.original.experimentColor;
+                  const selectedRowStyle = isRowSelected
+                    ? getExperimentSelectionSurfaceStyle(expColor)
+                    : undefined;
                   return (
-                  <TableRow
-                    key={row.id}
-                    data-state={isRowSelected ? "selected" : undefined}
-                    className={isRowSelected ? "transition-colors" : undefined}
-                    style={
-                      isRowSelected
-                        ? {
-                            backgroundColor: `color-mix(in srgb, ${expColor} 20%, var(--background))`,
-                            boxShadow: `inset 4px 0 0 0 ${expColor}`,
-                          }
-                        : undefined
-                    }
-                  >
-                    {row.getVisibleCells().map((cell) => (
-                      <TableCell key={cell.id} className="align-top" style={{ width: cell.column.getSize() }}>
-                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                      </TableCell>
-                    ))}
-                  </TableRow>
+                    <TableRow
+                      key={row.id}
+                      data-state={isRowSelected ? "selected" : undefined}
+                      className={cn("group", isRowSelected ? "transition-colors" : undefined)}
+                      style={selectedRowStyle}
+                    >
+                      {row.getVisibleCells().map((cell) => {
+                        const pinExperiment =
+                          pinLeadColumns &&
+                          leadColumnCount >= 1 &&
+                          cell.column.id === "experiment";
+                        const layout = layoutForColumn(table, cell.column);
+                        return (
+                          <TableCell
+                            key={cell.id}
+                            className={cn(
+                              "align-top",
+                              pinExperiment && stickyExperimentCell,
+                              pinExperiment && "group-hover:bg-muted/50",
+                              layout.className
+                            )}
+                            style={
+                              pinExperiment && selectedRowStyle
+                                ? {
+                                    ...layout.style,
+                                    ...selectedRowStyle,
+                                    boxShadow: `${selectedRowStyle.boxShadow}, 4px 0 12px -8px rgba(0,0,0,0.08)`,
+                                  }
+                                : layout.style
+                            }
+                          >
+                            {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                          </TableCell>
+                        );
+                      })}
+                    </TableRow>
                   );
                 })
               )}
             </TableBody>
-            </Table>
-          </div>
+          </Table>
         </div>
-      )}
-
-      {hasNextPage && (
-        <Button variant="outline" size="sm" onClick={onLoadMore} disabled={isFetchingNextPage} type="button">
-          {isFetchingNextPage ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Loading…
-            </>
-          ) : (
-            "Load more experiments"
-          )}
-        </Button>
-      )}
-
-      {latest && (
-        <p className="text-xs text-muted-foreground">
-          Showing {tableDataLength} experiment{tableDataLength === 1 ? "" : "s"} in the table
-          {nameFilter ? " (name filter on loaded data)" : ""}
-          {editMode ? ` — report when edit is off: ${rowsInReport.length} row(s)` : null}
-          {hiddenRowIds.size > 0 ? ` — ${hiddenRowIds.size} row(s) hidden in report` : ""}
-          {hiddenColumnIds.size > 0 ? ` — ${hiddenColumnIds.size} column(s) hidden in report` : ""} · {latest.total}{" "}
-          in project for this label
-        </p>
       )}
     </div>
   );

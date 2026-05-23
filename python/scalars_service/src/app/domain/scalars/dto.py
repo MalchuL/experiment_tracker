@@ -40,6 +40,8 @@ class ScalarsPointsResultDTO(BaseModel):
 class LogScalarRequestDTO(BaseModel):
     """Request DTO for logging multiple scalars at a single step"""
 
+    model_config = model_config()
+
     scalars: Dict[str, float]
     step: int
     tags: List[str] | None = None

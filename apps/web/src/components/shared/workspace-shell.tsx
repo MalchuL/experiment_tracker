@@ -57,44 +57,42 @@ function WorkspaceScopeCircles() {
     );
 
   return (
-    <TooltipProvider delayDuration={300}>
-      <div className="flex items-center gap-2">
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button variant="ghost" size="icon" className="rounded-full h-10 w-10 p-0" asChild>
-              <Link
-                href={FRONTEND_ROUTES.PROJECTS}
-                aria-label="Projects"
-                aria-current={projectsActive ? "page" : undefined}
-                data-testid="workspace-scope-projects"
-              >
-                <span className={itemClass(projectsActive)}>
-                  <FolderKanban className="h-4 w-4" />
-                </span>
-              </Link>
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="bottom">Projects</TooltipContent>
-        </Tooltip>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button variant="ghost" size="icon" className="rounded-full h-10 w-10 p-0" asChild>
-              <Link
-                href={FRONTEND_ROUTES.TEAMS}
-                aria-label="Teams"
-                aria-current={teamsActive ? "page" : undefined}
-                data-testid="workspace-scope-teams"
-              >
-                <span className={itemClass(teamsActive)}>
-                  <Users className="h-4 w-4" />
-                </span>
-              </Link>
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="bottom">Teams</TooltipContent>
-        </Tooltip>
-      </div>
-    </TooltipProvider>
+    <div className="flex items-center gap-2">
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button variant="ghost" size="icon" className="rounded-full h-10 w-10 p-0" asChild>
+            <Link
+              href={FRONTEND_ROUTES.PROJECTS}
+              aria-label="Projects"
+              aria-current={projectsActive ? "page" : undefined}
+              data-testid="workspace-scope-projects"
+            >
+              <span className={itemClass(projectsActive)}>
+                <FolderKanban className="h-4 w-4" />
+              </span>
+            </Link>
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent side="bottom">Projects</TooltipContent>
+      </Tooltip>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button variant="ghost" size="icon" className="rounded-full h-10 w-10 p-0" asChild>
+            <Link
+              href={FRONTEND_ROUTES.TEAMS}
+              aria-label="Teams"
+              aria-current={teamsActive ? "page" : undefined}
+              data-testid="workspace-scope-teams"
+            >
+              <span className={itemClass(teamsActive)}>
+                <Users className="h-4 w-4" />
+              </span>
+            </Link>
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent side="bottom">Teams</TooltipContent>
+      </Tooltip>
+    </div>
   );
 }
 
@@ -113,26 +111,28 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
 
   return (
     <WorkspaceHeaderContext.Provider value={headerCtx}>
-      <SidebarProvider style={sidebarStyle}>
-        <div className="flex h-screen w-full">
-          <WorkspaceAppSidebar />
-          <SidebarInset className="flex flex-col flex-1 overflow-hidden">
-            <header className="flex h-14 min-h-14 items-center justify-between gap-2 border-b bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50">
-              <div className="flex min-w-0 flex-1 items-center gap-3">
-                <SidebarTrigger data-testid="button-workspace-sidebar-toggle" />
-                <WorkspaceDocsNav className="hidden sm:flex" />
-                <WorkspaceScopeCircles />
-              </div>
-              <div className="flex flex-shrink-0 flex-wrap items-center justify-end gap-2">
-                {headerActions}
-                <ThemeToggle />
-                <UserMenu />
-              </div>
-            </header>
-            <main className="flex-1 overflow-auto">{children}</main>
-          </SidebarInset>
-        </div>
-      </SidebarProvider>
+      <TooltipProvider delayDuration={300}>
+        <SidebarProvider style={sidebarStyle}>
+          <div className="flex h-screen w-full">
+            <WorkspaceAppSidebar />
+            <SidebarInset className="flex flex-col flex-1 overflow-hidden">
+              <header className="flex h-14 min-h-14 items-center justify-between gap-2 border-b bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50">
+                <div className="flex min-w-0 flex-1 items-center gap-3">
+                  <SidebarTrigger data-testid="button-workspace-sidebar-toggle" />
+                  <WorkspaceDocsNav className="hidden sm:flex" />
+                  <WorkspaceScopeCircles />
+                </div>
+                <div className="flex flex-shrink-0 flex-wrap items-center justify-end gap-2">
+                  {headerActions}
+                  <ThemeToggle />
+                  <UserMenu />
+                </div>
+              </header>
+              <main className="flex-1 overflow-auto">{children}</main>
+            </SidebarInset>
+          </div>
+        </SidebarProvider>
+      </TooltipProvider>
     </WorkspaceHeaderContext.Provider>
   );
 }

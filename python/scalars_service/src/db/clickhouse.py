@@ -1,4 +1,4 @@
-from typing import AsyncGenerator, TypedDict
+from typing import Optional, TypedDict
 from urllib.parse import urlparse
 
 from clickhouse_connect import get_async_client
@@ -13,6 +13,9 @@ class ClickHouseConnectionParams(TypedDict):
     password: str
     database: str
     secure: bool
+
+
+_clickhouse_client: Optional[AsyncClient] = None
 
 
 def _parse_clickhouse_url(url: str) -> ClickHouseConnectionParams:
@@ -45,24 +48,35 @@ def _parse_clickhouse_url(url: str) -> ClickHouseConnectionParams:
     }
 
 
-async def get_clickhouse_client() -> AsyncGenerator[AsyncClient, None]:
-    params = _parse_clickhouse_url(get_settings().CLICKHOUSE_URL)
-    client = await get_async_client(**params)
-    try:
-        yield client
-    finally:
-        await client.close()
+async def init_clickhouse_client() -> AsyncClient:
+    """Create the shared process-wide ClickHouse client (idempotent)."""
+    global _clickhouse_client
+    if _clickhouse_client is None:
+        params = _parse_clickhouse_url(get_settings().CLICKHOUSE_URL)
+        _clickhouse_client = await get_async_client(**params)
+    return _clickhouse_client
+
+
+async def close_clickhouse_client() -> None:
+    """Close and clear the shared ClickHouse client."""
+    global _clickhouse_client
+    if _clickhouse_client is not None:
+        await _clickhouse_client.close()
+        _clickhouse_client = None
+
+
+async def get_clickhouse_client() -> AsyncClient:
+    """FastAPI dependency: return the shared ClickHouse client."""
+    return await init_clickhouse_client()
 
 
 async def check_connection() -> None:
-    params = _parse_clickhouse_url(get_settings().CLICKHOUSE_URL)
-    client = await get_async_client(**params)
     try:
+        client = await init_clickhouse_client()
         await client.command("SELECT 1")
     except Exception as e:
+        await close_clickhouse_client()
         raise RuntimeError(
             f"Failed to connect to ClickHouse at {get_settings().CLICKHOUSE_URL}. "
             f"Please ensure the database exists and is accessible. Error: {e}"
         ) from e
-    finally:
-        await client.close()

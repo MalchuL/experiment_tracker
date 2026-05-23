@@ -31,6 +31,30 @@ class ArtifactsAtStepInfoResultResponse(
     pass
 
 
+class ArtifactInfoAtStepSummaryEntryResponse(BaseModel):
+    """SDK response row for lightweight at-step artifact slider metadata."""
+
+    name: str
+    artifactType: ArtifactType
+    steps: list[int]
+    lastModified: datetime
+
+
+class ExperimentArtifactsAtStepSummaryResponse(BaseModel):
+    """SDK summary rows grouped by experiment."""
+
+    experimentId: str
+    artifactsInfo: list[ArtifactInfoAtStepSummaryEntryResponse]
+
+
+class ArtifactsAtStepSummaryResultResponse(
+    PaginatedResponse[ExperimentArtifactsAtStepSummaryResponse]
+):
+    """Paginated SDK response for at-step artifact summaries."""
+
+    pass
+
+
 class LogArtifactAtStepRequest(BaseModel):
     name: str
     artifactType: ArtifactType

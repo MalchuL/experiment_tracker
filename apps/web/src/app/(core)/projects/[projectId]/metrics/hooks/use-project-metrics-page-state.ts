@@ -13,9 +13,11 @@ import { useProjectMetricLabels, useProjectMetricsByLabel } from "@/domain/metri
 import { CHART_COLORS } from "@/domain/scalars/constants";
 import { useSelectedExperimentStore } from "@/domain/experiments/store";
 import type { MetricsTableRow } from "../lib/types";
+import { buildByNameForRow } from "../lib/metrics-column-order";
 import { loadPersistedMetricsUi, savePersistedMetricsUi } from "../lib/persisted-ui";
 import { metricCellStyleKey } from "../lib/constants";
 import { useMetricTableColumns } from "./use-metric-table-columns";
+import { inferMetricColumnWidthPx } from "@/lib/table/column-width-inference";
 
 /**
  * All state for the project metrics pivot page: data loading, persisted table prefs, edit-session
@@ -35,6 +37,7 @@ export function useProjectMetricsPageState() {
   const [label, setLabel] = useState<string | null>(null);
   const [includeAll, setIncludeAll] = useState(false);
   const [nameFilter, setNameFilter] = useState("");
+  const [pinLeadColumns, setPinLeadColumns] = useState(true);
   const [columnOrder, setColumnOrder] = useState<ColumnOrderState>([]);
   const [columnSizing, setColumnSizing] = useState<Record<string, number>>({});
   const [sorting, setSorting] = useState<SortingState>([]);
@@ -71,6 +74,7 @@ export function useProjectMetricsPageState() {
     if (s?.includeAll != null) setIncludeAll(!!s.includeAll);
     if (s?.columnSizing) setColumnSizing(s.columnSizing);
     if (s?.label !== undefined) setLabel(s.label);
+    if (s?.pinLeadColumns != null) setPinLeadColumns(!!s.pinLeadColumns);
   }, [projectId]);
 
   useEffect(() => {
@@ -86,32 +90,38 @@ export function useProjectMetricsPageState() {
     useProjectMetricsByLabel(projectId, label, includeAll);
 
   const latest = pages?.pages?.[pages.pages.length - 1];
-  const baseNames = latest?.metricNames ?? pages?.pages?.[0]?.metricNames ?? [];
+
+  const apiMetricNames = useMemo(() => {
+    for (const p of pages?.pages ?? []) {
+      if (p.metricNames.length > 0) return p.metricNames;
+    }
+    return [] as string[];
+  }, [pages]);
+
+  const baseNames = apiMetricNames;
+
   const flatRows: MetricsTableRow[] = useMemo(() => {
-    const all = pages?.pages.flatMap((p) => p.rows) ?? [];
-    const sorted = [...all].sort((a, b) => {
-      const ta =
-        a.createdAt != null && a.createdAt !== "" ? Date.parse(a.createdAt) : 0;
-      const tb =
-        b.createdAt != null && b.createdAt !== "" ? Date.parse(b.createdAt) : 0;
+    const pairs =
+      pages?.pages.flatMap((page) =>
+        page.rows.map((row) => ({ row, apiNames: page.metricNames }))
+      ) ?? [];
+    const sorted = [...pairs].sort((a, b) => {
+      const ra = a.row;
+      const rb = b.row;
+      const ta = ra.createdAt != null && ra.createdAt !== "" ? Date.parse(ra.createdAt) : 0;
+      const tb = rb.createdAt != null && rb.createdAt !== "" ? Date.parse(rb.createdAt) : 0;
       if (Number.isFinite(tb) && Number.isFinite(ta) && tb !== ta) {
         return tb - ta;
       }
-      return b.experimentId.localeCompare(a.experimentId);
+      return rb.experimentId.localeCompare(ra.experimentId);
     });
-    return sorted.map((r, idx) => {
-      const byName: Record<string, number | null> = {};
-      baseNames.forEach((n, i) => {
-        byName[n] = r.values[i] ?? null;
-      });
-      return {
-        experimentId: r.experimentId,
-        experimentName: r.experimentName,
-        createdAt: r.createdAt ?? "",
-        experimentColor: r.color ?? CHART_COLORS[idx % CHART_COLORS.length]!,
-        byName,
-      };
-    });
+    return sorted.map(({ row: r, apiNames }, idx) => ({
+      experimentId: r.experimentId,
+      experimentName: r.experimentName,
+      createdAt: r.createdAt ?? "",
+      experimentColor: r.color ?? CHART_COLORS[idx % CHART_COLORS.length]!,
+      byName: buildByNameForRow(r.values, apiNames, baseNames),
+    }));
   }, [pages, baseNames]);
 
   const metricNameKey = useMemo(() => baseNames.join("|"), [baseNames]);
@@ -130,7 +140,7 @@ export function useProjectMetricsPageState() {
       const fromData = co.filter(
         (c) => !fixed(c) && baseNames.includes(c)
       );
-      let middle: string[] = [];
+      const middle: string[] = [];
       if (fromData.length > 0) {
         for (const c of fromData) {
           if (baseNames.includes(c) && !middle.includes(c)) middle.push(c);
@@ -181,6 +191,20 @@ export function useProjectMetricsPageState() {
     return out;
   }, [baseNames, rowsInReport]);
 
+  const inferredMetricColumnWidths = useMemo(() => {
+    const out: Record<string, number> = {};
+    for (const n of baseNames) {
+      out[n] = inferMetricColumnWidthPx({
+        header: n,
+        values: tableData.map((r) => r.byName[n]),
+        minPx: 72,
+        maxPx: 260,
+        chromePx: editMode ? 76 : 48,
+      });
+    }
+    return out;
+  }, [baseNames, editMode, tableData]);
+
   const columnVisibility = useMemo(() => {
     const vis: Record<string, boolean> = { experiment: true };
     for (const n of baseNames) {
@@ -193,6 +217,7 @@ export function useProjectMetricsPageState() {
 
   const columns = useMetricTableColumns({
     baseNames,
+    inferredMetricColumnWidths,
     editMode,
     hiddenRowIds,
     setHiddenRowIds,
@@ -227,6 +252,7 @@ export function useProjectMetricsPageState() {
       savePersistedMetricsUi(projectId, {
         label: label ?? undefined,
         includeAll,
+        pinLeadColumns,
         columnOrder: columnOrder.filter(
           (c) => c !== "experiment" && c !== "experimentId" && c !== "createdAt"
         ),
@@ -234,7 +260,7 @@ export function useProjectMetricsPageState() {
       });
     }, 200);
     return () => clearTimeout(t);
-  }, [projectId, label, includeAll, columnOrder, columnSizing]);
+  }, [projectId, label, includeAll, pinLeadColumns, columnOrder, columnSizing]);
 
   const hasAnyLabel = (labelData?.labels.length ?? 0) > 0 || (labelData?.hasUnlabeled ?? false);
 
@@ -253,6 +279,8 @@ export function useProjectMetricsPageState() {
     setNameFilter,
     editMode,
     setEditMode,
+    pinLeadColumns,
+    setPinLeadColumns,
     isError,
     dataLoading,
     latest,

@@ -15,8 +15,9 @@
  * If two values differ by less than this (absolute), the UI treats them as **equal** for
  * **comparison** UI only (not API or storage).
  *
- * **Formatting / UX effect:** very small parent–child gaps show as **no delta** (e.g. `0`), and
- * “better / worse” coloring vs parent is turned off so float noise does not flicker arrows.
+ * **Formatting / UX effect:** very small parent–child gaps show as **no real change** (signed delta
+ * string **`+0`** from `formatMetricSignedDeltaForDisplay`, equality icon in `MetricDeltaVsParent`),
+ * and “better / worse” coloring vs parent is turned off so float noise does not flicker arrows.
  *
  * **Turn it up** → more pairs count as equal → calmer DAG/sidebar. **Turn it down** → smaller
  * differences count as real → more arrows and color, more noise.
@@ -24,7 +25,7 @@
  * Independent of how many **digits** you show (`METRIC_DISPLAY_AUTO_FORMAT_PRECISION`).
  *
  * **Examples** (with default `1e-10`):
- * - Signed delta `5e-11` → formatted as `"0"` (tie).
+ * - Signed delta `5e-11` → formatted as **`+0`** (tie).
  * - Signed delta `5e-9` → non-zero signed delta string.
  * - Parent `1`, child `1 + 5e-11`, maximize → no better/worse hint.
  * - Parent `1`, child `1 + 5e-9`, maximize → gap large enough for better/worse.

@@ -16,6 +16,7 @@ export function useRecentExperiments(projectId?: string, limit?: number | undefi
             experimentsService.getRecent(projectId!, {
                 limit,
                 offset,
+                includeFeatures: false,
             }),
         enabled: Boolean(projectId)
     });

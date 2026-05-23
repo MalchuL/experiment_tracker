@@ -7,9 +7,10 @@
 #   PUBLIC_URL=<ui-origin> ./scripts/docker-up-public.sh [PUBLIC_API_URL] [-- docker compose args...]
 #   ./scripts/docker-up-public.sh <ui-origin> [public-api-base] [-- docker compose args...]
 #
-# If `docker compose` only works with sudo, put sudo immediately before this script path.
-# Prefer URL args so env is not lost:   sudo ./scripts/docker-up-public.sh http://192.168.1.247
-# Or preserve env:   sudo -E env PUBLIC_URL=http://192.168.1.247 ./scripts/docker-up-public.sh
+# If `docker compose` only works with sudo, put assignments after sudo so they reach the script:
+#   sudo PUBLIC_URL=http://192.168.1.247 ./scripts/docker-up-public.sh
+# Or URL args (no env):   sudo ./scripts/docker-up-public.sh http://192.168.1.247
+# Or preserve a prior export:   sudo -E ./scripts/docker-up-public.sh
 #
 # Examples:
 #   PUBLIC_URL=https://dashboard.example.com ./scripts/docker-up-public.sh
@@ -23,6 +24,20 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
+
+if ! command -v python3 >/dev/null 2>&1; then
+  echo "docker-up-public.sh: python3 is required but was not found in PATH" >&2
+  exit 1
+fi
+python3 <<'CHECK'
+import sys
+if sys.version_info < (3, 8):
+    sys.stderr.write(
+        "docker-up-public.sh: Python 3.8+ is required (this interpreter is %s)\n"
+        % (".".join(map(str, sys.version_info[:3])),)
+    )
+    raise SystemExit(1)
+CHECK
 
 PUBLIC_URL="${PUBLIC_URL:-}"
 PUBLIC_API_URL="${PUBLIC_API_URL:-}"
@@ -104,7 +119,7 @@ p = urllib.parse.urlparse(ui)
 if not p.scheme or not p.hostname:
     print("PUBLIC_URL must include scheme and host", file=sys.stderr)
     sys.exit(2)
-origins: list[str] = []
+origins = []
 if p.port is not None:
     origins.append(ui)
 else:

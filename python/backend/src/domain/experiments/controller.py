@@ -45,13 +45,18 @@ def _raise_experiment_http_error(error: Exception) -> None:
     raise HTTPException(status_code=400, detail=str(error))
 
 
-@router.get("/recent", response_model=ExperimentListResponseDTO)
+@router.get("/recent", response_model=ExperimentListResponseDTO, response_model_exclude_none=True)
 async def get_recent_experiments(
     limit: int = Query(default=10, ge=1, le=MAX_LIST_PAGE_SIZE),
     offset: int = Query(default=0, ge=0),
     user: User = Depends(get_current_user_dual),
     project_id: UUID = Query(
         ..., alias="projectId", description="The ID of the project"
+    ),
+    include_features: bool = Query(
+        default=True,
+        alias="includeFeatures",
+        description="When true, include experiment feature trees in each list item.",
     ),
     _: None = Depends(require_api_token_scopes(ProjectActions.VIEW_EXPERIMENT)),
     experiment_service: ExperimentService = Depends(get_experiment_service),
@@ -61,6 +66,7 @@ async def get_recent_experiments(
             user,
             project_id,
             ListOptions(limit=limit, offset=offset),
+            include_features=include_features,
         )
     except Exception as exc:  # noqa: BLE001
         _raise_experiment_http_error(exc)

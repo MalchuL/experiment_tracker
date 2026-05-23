@@ -17,8 +17,9 @@ import uuid
 from typing import Any, Optional, cast
 
 from fastapi_users import schemas
-from pydantic import ConfigDict
+from pydantic import ConfigDict, Field
 
+from experiment_tracker_shared.limits import ENTITY_NAME_MAX_LEN
 from lib.datetime_types import ApiOptionalDateTime
 from lib.dto_config import model_config as dto_model_config
 
@@ -65,7 +66,7 @@ class UserRead(schemas.BaseUser[uuid.UUID]):
 class UserCreate(schemas.BaseUserCreate):
     """Payload for registration / user creation (extends base email + password)."""
 
-    display_name: Optional[str] = None
+    display_name: Optional[str] = Field(default=None, max_length=ENTITY_NAME_MAX_LEN)
 
     model_config = _user_create_config()
 
@@ -73,7 +74,7 @@ class UserCreate(schemas.BaseUserCreate):
 class UserUpdate(schemas.BaseUserUpdate):
     """Patch payload for user profile updates."""
 
-    display_name: Optional[str] = None
+    display_name: Optional[str] = Field(default=None, max_length=ENTITY_NAME_MAX_LEN)
     avatar_url: Optional[str] = None
 
     model_config = _user_update_config()

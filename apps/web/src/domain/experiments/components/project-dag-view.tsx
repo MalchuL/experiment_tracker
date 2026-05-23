@@ -63,19 +63,20 @@ import { Input } from "@/components/ui/input";
 import {
   Tooltip,
   TooltipContent,
-  TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { DAG_NODE_MAX_DISPLAY_METRICS, DAG_NODE_WIDTH_PX } from "@/lib/constants/dag";
 import { REFRESH_EXPERIMENTS_LIST_INTERVAL } from "@/lib/constants/rates";
 import { Metric } from "@/domain/metrics/types";
 import {
   displayMetricKeyEquals,
-  formatMetricLabel,
   getDisplayedTrackedMetrics,
   projectMetricKeyString,
 } from "@/lib/metrics/format-metric-label";
-import { MetricDeltaVsParent } from "@/components/shared/metric-delta-vs-parent";
-import { formatMetricScalarForDisplay } from "@/lib/metrics/metric-value-display";
+import {
+  MetricNameValueDiffRow,
+  metricRowGroupTableClass,
+} from "@/components/shared/metric-name-value-diff-row";
 import { cn } from "@/lib/utils";
 import { useQueryClient } from "@tanstack/react-query";
 import { QUERY_KEYS } from "@/lib/constants/query-keys";
@@ -84,8 +85,6 @@ import { calculateDagTreeLayout } from "@/domain/experiments/dag/calculate-dag-l
 import { wouldCreateCycle } from "@/domain/experiments/dag/dag-parent-utils";
 import { ListSkeleton } from "@/components/shared/loading-skeleton";
 import type { InsertExperiment } from "@/domain/experiments/types";
-
-const MAX_METRICS_ON_CARD = 3;
 
 export interface MetricComparison {
   name: string;
@@ -107,6 +106,8 @@ export interface ExperimentNodeData {
   isHighlighted?: boolean;
   [key: string]: unknown;
 }
+
+const DAG_METRIC_ROW_SEPARATOR_CLASS = "border-b border-border/25 py-0.5";
 
 function buildMetricComparisons(
   exp: Experiment,
@@ -167,8 +168,11 @@ function ExperimentNode({ data }: { data: ExperimentNodeData }) {
     }
   };
 
-  const shownMetrics = data.metrics.slice(0, MAX_METRICS_ON_CARD);
+  const shownMetrics = data.metrics.slice(0, DAG_NODE_MAX_DISPLAY_METRICS);
   const restCount = data.metrics.length - shownMetrics.length;
+  const dagMetricsGroupHasDiff = shownMetrics.some(
+    (m) => m.value != null && m.parentValue != null
+  );
 
   const highlightOpacity =
     data.isHighlighted === false ? ({ opacity: 0.35 } as const) : undefined;
@@ -178,10 +182,11 @@ function ExperimentNode({ data }: { data: ExperimentNodeData }) {
       <Handle type="target" position={Position.Top} className="w-2 h-2" />
       <div
         className={cn(
-          "w-[200px] px-2 py-1.5 rounded-md border bg-card shadow-sm cursor-pointer hover-elevate transition-all",
+          "min-w-0 shrink-0 px-2 py-1.5 rounded-md border bg-card shadow-sm cursor-pointer hover-elevate transition-all",
           data.isSelected && "ring-2 ring-primary ring-offset-2 ring-offset-background"
         )}
         style={{
+          width: DAG_NODE_WIDTH_PX,
           borderLeftColor: data.color,
           borderLeftWidth: "4px",
           ...highlightOpacity,
@@ -221,40 +226,38 @@ function ExperimentNode({ data }: { data: ExperimentNodeData }) {
         ) : null}
 
         {shownMetrics.length > 0 && (
-          <div className="flex flex-col gap-0 mt-1 border-t pt-0.5 leading-tight">
-            {shownMetrics.map((metric) => {
-              const labelText = formatMetricLabel(metric.name, metric.label);
-              return (
-                <div
+          <div className="mt-1 flex flex-col gap-0 border-t pt-0.5 leading-tight">
+            <div className={metricRowGroupTableClass(dagMetricsGroupHasDiff)}>
+              {shownMetrics.map((metric) => (
+                <MetricNameValueDiffRow
                   key={projectMetricKeyString({
                     name: metric.name,
                     label: metric.label,
                   })}
-                  className="flex items-center gap-0.5 text-[10px] min-w-0"
-                >
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <span className="text-muted-foreground truncate min-w-0 flex-1">
-                        {labelText}
-                      </span>
-                    </TooltipTrigger>
-                    <TooltipContent side="left" className="max-w-xs">
-                      {labelText}
-                    </TooltipContent>
-                  </Tooltip>
-                  <div className="flex items-center gap-0.5 shrink-0">
-                    <span className="font-mono tabular-nums text-[10px]">
-                      {formatMetricScalarForDisplay(metric.value)}
-                    </span>
-                    <MetricDeltaVsParent
-                      value={metric.value}
-                      parentValue={metric.parentValue}
-                      direction={metric.direction}
-                    />
-                  </div>
-                </div>
-              );
-            })}
+                  metricName={metric.name}
+                  metricLabel={metric.label}
+                  value={metric.value}
+                  parentValue={metric.parentValue}
+                  direction={metric.direction}
+                  metricTable={{
+                    scope: "group",
+                    groupHasAnyDiff: dagMetricsGroupHasDiff,
+                  }}
+                  classNameProps={{
+                    root: "text-[10px]",
+                    nameCluster: DAG_METRIC_ROW_SEPARATOR_CLASS,
+                    nameTrigger: "text-muted-foreground",
+                    valueCluster: DAG_METRIC_ROW_SEPARATOR_CLASS,
+                    valueText: "text-[10px]",
+                    deltaText: "font-mono text-[9px] tabular-nums leading-none",
+                    deltaIcon: "w-2.5 h-2.5",
+                    tableSlot1: DAG_METRIC_ROW_SEPARATOR_CLASS,
+                    tableArrow: DAG_METRIC_ROW_SEPARATOR_CLASS,
+                    tableSlot2: DAG_METRIC_ROW_SEPARATOR_CLASS,
+                  }}
+                />
+              ))}
+            </div>
             {restCount > 0 ? (
               <span className="text-[9px] text-muted-foreground">+{restCount} more</span>
             ) : null}
@@ -521,7 +524,6 @@ function DagViewCanvas({
   return (
     <>
       <div className="dag-flow-canvas h-full min-h-[480px] w-full relative">
-        <TooltipProvider delayDuration={300}>
           <ReactFlow
             nodes={nodes}
             edges={edges}
@@ -622,7 +624,6 @@ function DagViewCanvas({
             </Panel>
             <Controls position="bottom-right" />
           </ReactFlow>
-        </TooltipProvider>
       </div>
 
       {selectedExperimentId ? (

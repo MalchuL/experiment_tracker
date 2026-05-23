@@ -7,6 +7,11 @@ export const ExperimentStatus = {
   
 export type ExperimentStatusType = typeof ExperimentStatus[keyof typeof ExperimentStatus];
 
+export interface FeatureNode {
+    name: string;
+    children?: FeatureNode[];
+}
+
 export interface SatelliteStepDto {
   ok: boolean;
   skipped?: boolean;
@@ -73,12 +78,11 @@ export interface Experiment {
     status: ExperimentStatusType;
     parentExperimentId: string | null;
     rootExperimentId: string | null;
-    features: Record<string, unknown>;
-    featuresDiff: Record<string, unknown> | null;
-    gitDiff: string | null;
+    features?: FeatureNode[];
     progress: number;
     color: string;
     order: number;
+    tags?: string[] | null;
     createdAt: string;
     startedAt: string | null;
     completedAt: string | null;

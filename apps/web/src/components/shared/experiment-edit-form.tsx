@@ -5,6 +5,10 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import {
+  ENTITY_DESCRIPTION_MAX_LEN,
+  ENTITY_NAME_MAX_LEN,
+} from "@/lib/validation/entity-limits";
+import {
   Form,
   FormControl,
   FormField,
@@ -21,8 +25,8 @@ import type { Experiment } from "@/domain/experiments/types";
 import { ColorList } from "./color-list";
 
 const experimentEditSchema = z.object({
-  name: z.string().min(1, "Name is required"),
-  description: z.string().default(""),
+  name: z.string().min(1, "Name is required").max(ENTITY_NAME_MAX_LEN),
+  description: z.string().max(ENTITY_DESCRIPTION_MAX_LEN).default(""),
   color: z.string().default(EXPERIMENT_COLORS[0]),
 });
 

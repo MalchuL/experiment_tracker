@@ -23,11 +23,9 @@
 #         "status": "planned",
 #         "parentExperimentId": None,
 #         "features": {"learningRate": 0.1},
-#         "gitDiff": "diff",
 #         "color": "#123456",
 #         "order": 2,
 #         "id": "123e4567-e89b-12d3-a456-426614174111",
-#         "featuresDiff": {"learningRate": 0.05},
 #         "progress": 10,
 #         "createdAt": "2021-01-01T00:00:00Z",
 #         "startedAt": "2021-01-02T00:00:00Z",
@@ -42,11 +40,9 @@
 #         assert dto.description == self.INPUT_DATA["description"]
 #         assert dto.status == ExperimentStatus.PLANNED
 #         assert dto.features == self.INPUT_DATA["features"]
-#         assert dto.git_diff == self.INPUT_DATA["gitDiff"]
 #         assert dto.color == self.INPUT_DATA["color"]
 #         assert dto.order == self.INPUT_DATA["order"]
 #         assert str(dto.id) == self.INPUT_DATA["id"]
-#         assert dto.features_diff == self.INPUT_DATA["featuresDiff"]
 #         assert dto.progress == self.INPUT_DATA["progress"]
 #         assert dto.created_at == datetime.fromisoformat(self.INPUT_DATA["createdAt"])
 #         assert dto.started_at == datetime.fromisoformat(self.INPUT_DATA["startedAt"])
@@ -61,11 +57,9 @@
 #         assert dumped["description"] == self.INPUT_DATA["description"]
 #         assert dumped["status"] == self.INPUT_DATA["status"]
 #         assert dumped["features"] == self.INPUT_DATA["features"]
-#         assert dumped["gitDiff"] == self.INPUT_DATA["gitDiff"]
 #         assert dumped["color"] == self.INPUT_DATA["color"]
 #         assert dumped["order"] == self.INPUT_DATA["order"]
 #         assert dumped["id"] == self.INPUT_DATA["id"]
-#         assert dumped["featuresDiff"] == self.INPUT_DATA["featuresDiff"]
 #         assert dumped["progress"] == self.INPUT_DATA["progress"]
 #         assert dumped["createdAt"] == self.INPUT_DATA["createdAt"]
 
@@ -78,7 +72,6 @@
 #         "status": "running",
 #         "parentExperimentId": None,
 #         "features": {"learningRate": 0.2},
-#         "gitDiff": None,
 #         "color": "#abcdef",
 #         "order": 1,
 #         "parentExperimentName": "1_from_root_seed",
@@ -99,7 +92,6 @@
 #         "description": "Updated description",
 #         "status": "complete",
 #         "features": {"learningRate": 0.3},
-#         "gitDiff": "diff",
 #         "progress": 50,
 #         "order": 3,
 #     }
@@ -112,7 +104,6 @@
 #         assert dumped["description"] == self.INPUT_DATA["description"]
 #         assert dumped["status"] == ExperimentStatus.COMPLETE
 #         assert dumped["features"] == self.INPUT_DATA["features"]
-#         assert dumped["git_diff"] == self.INPUT_DATA["gitDiff"]
 #         assert dumped["progress"] == self.INPUT_DATA["progress"]
 #         assert dumped["order"] == self.INPUT_DATA["order"]
 
@@ -139,3 +130,53 @@
 #     def test_reorder_dto_requires_list(self):
 #         with pytest.raises(ValidationError):
 #             ExperimentReorderDTO(experiment_ids="not-a-list")
+
+import pytest
+from pydantic import ValidationError
+
+from domain.experiments.dto import ExperimentCreateDTO, ExperimentUpdateDTO
+from models import ExperimentStatus
+
+
+def test_experiment_create_dto_accepts_nested_feature_tree() -> None:
+    dto = ExperimentCreateDTO(
+        projectId="123e4567-e89b-12d3-a456-426614174000",
+        name="Feature Tree Run",
+        status=ExperimentStatus.PLANNED,
+        features=[
+            {
+                "name": "training",
+                "children": [
+                    {"name": "optimizer-adam"},
+                    {"name": "scheduler-cosine"},
+                ],
+            }
+        ],
+    )
+
+    assert dto.features[0].name == "training"
+    assert dto.features[0].children is not None
+    assert dto.features[0].children[0].name == "optimizer-adam"
+
+
+def test_experiment_create_dto_rejects_feature_without_name() -> None:
+    with pytest.raises(ValidationError):
+        ExperimentCreateDTO(
+            projectId="123e4567-e89b-12d3-a456-426614174000",
+            name="Invalid Feature Tree Run",
+            features=[{"children": [{"name": "optimizer-adam"}]}],
+        )
+
+
+def test_experiment_update_dto_accepts_feature_tree() -> None:
+    dto = ExperimentUpdateDTO(
+        features=[
+            {
+                "name": "logging",
+                "children": [{"name": "named-final-artifacts"}],
+            }
+        ]
+    )
+
+    assert dto.features is not None
+    assert dto.features[0].name == "logging"

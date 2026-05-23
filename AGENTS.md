@@ -172,3 +172,5 @@ Canonical write-up (in-app docs): **`/docs/getting-started/file-descriptors`** â
 Prefer updating this file or code comments when changing global runbooks; avoid adding new markdown files unless the user asks for them.
 
 For **changing how in-app docs render** (remark/rehype directives, sanitize allowlist, `DocsMarkdown` components), follow and keep in sync **`apps/web/content/docs/contributing/extending-doc-pipeline.md`** (published at `/docs/contributing/extending-doc-pipeline`).
+
+Don't fight bugs! Every time you encounter the same error by accident, research the web and find 3-5 possible ways to fix it. Then choose the most effective solution and implement it.

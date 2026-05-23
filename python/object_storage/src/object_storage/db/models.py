@@ -135,7 +135,7 @@ class Bucket(Base):
     experiment_id: Mapped[PyUUID | None] = mapped_column(
         SAUUID(as_uuid=True), nullable=True, index=True
     )
-    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    name: Mapped[str] = mapped_column(String(512), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         UtcNaiveDateTime,
         server_default=text("timezone('utc', now())"),

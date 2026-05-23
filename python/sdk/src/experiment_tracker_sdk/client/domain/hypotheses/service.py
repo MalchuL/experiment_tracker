@@ -9,6 +9,13 @@ from .dto import (
     HypothesisUpdateRequest,
     SuccessResponse,
 )
+from .limits import (
+    truncate_hypothesis_author,
+    truncate_hypothesis_baseline,
+    truncate_hypothesis_description,
+    truncate_hypothesis_target_metric_name,
+    truncate_hypothesis_title,
+)
 from ...constants import UNSET, Unset
 from ...request_types import ApiRequestSpec
 
@@ -48,14 +55,15 @@ class HypothesisRequestSpecFactory:
         if isinstance(project_id, UUID):
             project_id = str(project_id)
         endpoint = cast(str, self.ENDPOINTS["create_hypothesis"])
+        t_metrics = [truncate_hypothesis_target_metric_name(m) for m in (target_metrics or [])]
         payload = HypothesisCreateRequest(
             projectId=project_id,
-            title=title,
-            description=description,
-            author=author,
+            title=truncate_hypothesis_title(title),
+            description=truncate_hypothesis_description(description),
+            author=truncate_hypothesis_author(author),
             status=status,
-            targetMetrics=target_metrics or [],
-            baseline=baseline,
+            targetMetrics=t_metrics,
+            baseline=truncate_hypothesis_baseline(baseline),
         )
         return ApiRequestSpec(
             method="POST",
@@ -81,17 +89,19 @@ class HypothesisRequestSpecFactory:
         )
         kwargs: dict[str, Any] = {}
         if title is not UNSET:
-            kwargs["title"] = title
+            kwargs["title"] = truncate_hypothesis_title(title)
         if description is not UNSET:
-            kwargs["description"] = description
+            kwargs["description"] = truncate_hypothesis_description(description)
         if author is not UNSET:
-            kwargs["author"] = author
+            kwargs["author"] = truncate_hypothesis_author(author)
         if status is not UNSET:
             kwargs["status"] = status
         if target_metrics is not UNSET:
-            kwargs["targetMetrics"] = target_metrics
+            kwargs["targetMetrics"] = [
+                truncate_hypothesis_target_metric_name(m) for m in target_metrics
+            ]
         if baseline is not UNSET:
-            kwargs["baseline"] = baseline
+            kwargs["baseline"] = truncate_hypothesis_baseline(baseline)
         payload = HypothesisUpdateRequest(**kwargs)
         return ApiRequestSpec(
             method="PATCH",

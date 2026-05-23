@@ -1,4 +1,5 @@
 const DEFAULT_MAX_POINTS_PER_PLOT = 1000;
+const DEFAULT_MAX_ARTIFACT_STEPS_PER_OBJECT = 1000;
 const DEFAULT_DOT_THRESHOLD = 10;
 
 function readPositiveInteger(value: string | undefined, fallback: number): number {
@@ -13,6 +14,13 @@ export function getScalarsMaxPointsPerPlot(): number {
   return readPositiveInteger(
     process.env.NEXT_PUBLIC_SCALARS_MAX_POINTS_PER_PLOT,
     DEFAULT_MAX_POINTS_PER_PLOT
+  );
+}
+
+export function getScalarsMaxArtifactStepsPerObject(): number {
+  return readPositiveInteger(
+    process.env.NEXT_PUBLIC_SCALARS_MAX_ARTIFACT_STEPS_PER_OBJECT,
+    DEFAULT_MAX_ARTIFACT_STEPS_PER_OBJECT
   );
 }
 

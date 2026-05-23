@@ -79,6 +79,7 @@ Same behavior as `:::details`; pick whichever reads better in prose.
 
 ## Related
 
+- [DAG view: metrics on nodes](/docs/reference/dag-view) — cap on metric rows per experiment card in the project graph.
 - [Common documentation patterns](/docs/examples/common-patterns) — recipes for onboarding and runbooks.
 - [Adding documentation pages](/docs/contributing/adding-pages) — manifest + syntax guide for authors.
 - [Extending the docs pipeline](/docs/contributing/extending-doc-pipeline) — how developers add new directive types, sanitization, and UI.

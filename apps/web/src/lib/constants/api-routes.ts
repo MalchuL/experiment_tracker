@@ -115,9 +115,19 @@ export const API_ROUTES = {
           `/api/projects/${projectId}/settings/${encodeURIComponent(name)}`,
         MEMBERS: (projectId: string) => `/api/projects/${projectId}/members`,
         USERS_LOOKUP: (projectId: string) => `/api/projects/${projectId}/users/lookup`,
+        REPORTS: (projectId: string) => `/api/projects/${projectId}/reports`,
       },
     },
-  
+
+    REPORTS: {
+      CREATE: "/api/reports",
+      BY_ID: {
+        GET: (reportId: string) => `/api/reports/${reportId}`,
+        PATCH: (reportId: string) => `/api/reports/${reportId}`,
+        DELETE: (reportId: string) => `/api/reports/${reportId}`,
+      },
+    },
+
     EXPERIMENTS: {
       LIST: "/api/experiments",
       CREATE: "/api/experiments",
@@ -188,6 +198,10 @@ export const API_ROUTES = {
       BY_PROJECT: {
         GET_AT_STEP: (projectId: string) =>
           `/api/experiment-artifacts/projects/${projectId}/get-at-step`,
+        SUMMARY_AT_STEP: (projectId: string) =>
+          `/api/experiment-artifacts/projects/${projectId}/summary-at-step`,
+        DETAIL_AT_STEP: (projectId: string) =>
+          `/api/experiment-artifacts/projects/${projectId}/get-at-step/detail`,
       },
       DOWNLOAD_AT_STEP: (
         experimentId: string,

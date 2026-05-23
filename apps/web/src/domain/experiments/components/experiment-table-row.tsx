@@ -10,106 +10,218 @@ import { ProjectMetric } from "@/domain/projects/types";
 import { format, parseISO } from "date-fns";
 import { Metric } from "@/domain/metrics/types";
 import { displayMetricKeyEquals, projectMetricKeyString } from "@/lib/metrics/format-metric-label";
-import { formatMetricScalarForDisplay } from "@/lib/metrics/metric-value-display";
+import {
+  formatMetricScalarForDisplay,
+  formatMetricScalarTooltipFull,
+} from "@/lib/metrics/metric-value-display";
 import { getExperimentSelectionSurfaceStyle } from "../experiment-selection-style";
 import { ExperimentTruncatedText } from "./experiment-truncated-text";
+import { cn } from "@/lib/utils";
+import {
+  EXPERIMENTS_TABLE_COLUMN,
+  experimentsTableColumnWidthFallback,
+  metricColumnId,
+} from "@/domain/experiments/lib/experiments-table-column-widths";
+
+const stickyGripCell = cn(
+  "sticky left-0 z-[2] bg-background shadow-[4px_0_12px_-8px_rgba(0,0,0,0.08)] box-border overflow-hidden"
+);
+const stickyExperimentCell = cn(
+  "sticky z-[2] bg-background shadow-[4px_0_12px_-8px_rgba(0,0,0,0.08)] box-border overflow-hidden"
+);
+
+const rowSeparatorClass = "border-y border-border/70";
 
 interface ExperimentTableRowProps {
-    experiment: Experiment;
-    onClick: () => void;
-    isSelected?: boolean;
-    projectMetrics?: ProjectMetric[];
-    expMetrics?: Metric[];
-    parentName?: string;
+  experiment: Experiment;
+  onClick: () => void;
+  isSelected?: boolean;
+  /** When true, row is not draggable (e.g. list is search-filtered; reorder must use full list). */
+  reorderDisabled?: boolean;
+  projectMetrics?: ProjectMetric[];
+  expMetrics?: Metric[];
+  parentName?: string;
+  experimentTableResolvedColumnWidths: Record<string, number>;
+  experimentTableGripColumnWidthPx: number;
+  pinStickyLead?: boolean;
 }
 
 export function ExperimentTableRow({
-    experiment,
-    onClick,
-    isSelected,
-    projectMetrics,
-    expMetrics,
-    parentName,
+  experiment,
+  onClick,
+  isSelected,
+  reorderDisabled = false,
+  projectMetrics,
+  expMetrics,
+  parentName,
+  experimentTableResolvedColumnWidths,
+  experimentTableGripColumnWidthPx,
+  pinStickyLead = true,
 }: ExperimentTableRowProps) {
-    const {
-        attributes,
-        listeners,
-        setNodeRef,
-        transform,
-        transition,
-        isDragging,
-    } = useSortable({ id: experiment.id });
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: experiment.id,
+    disabled: reorderDisabled,
+  });
 
-    const style = {
-        transform: CSS.Transform.toString(transform),
-        transition,
-        opacity: isDragging ? 0.5 : 1,
-        ...(isSelected ? getExperimentSelectionSurfaceStyle(experiment.color) : {}),
-    };
+  const transformStr = transform ? CSS.Transform.toString(transform) : undefined;
+  const selectionSurface = isSelected ? getExperimentSelectionSurfaceStyle(experiment.color) : undefined;
+  const stickyCellBackground =
+    selectionSurface != null ? { backgroundColor: selectionSurface.backgroundColor } : undefined;
 
-    return (
-        <TableRow
-            ref={setNodeRef}
-            data-state={isSelected ? "selected" : undefined}
-            style={style}
-            className={
-                isSelected
-                    ? "cursor-pointer transition-colors hover-elevate"
-                    : "cursor-pointer hover-elevate"
-            }
-            onClick={onClick}
-            data-testid={`row-experiment-${experiment.id}`}
+  const style = {
+    ...(transformStr ? { transform: transformStr } : {}),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    ...(selectionSurface ?? {}),
+  };
+
+  const getExperimentTableColumnWidth = (columnId: string) =>
+    experimentTableResolvedColumnWidths[columnId] ?? experimentsTableColumnWidthFallback(columnId);
+
+  const experimentNameColumnWidthPx = getExperimentTableColumnWidth(EXPERIMENTS_TABLE_COLUMN.experiment);
+  const statusColumnWidthPx = getExperimentTableColumnWidth(EXPERIMENTS_TABLE_COLUMN.status);
+  const parentNameColumnWidthPx = getExperimentTableColumnWidth(EXPERIMENTS_TABLE_COLUMN.parent);
+  const createdAtColumnWidthPx = getExperimentTableColumnWidth(EXPERIMENTS_TABLE_COLUMN.created);
+
+  const gripCellClass = pinStickyLead ? stickyGripCell : "bg-background box-border overflow-hidden";
+  const experimentCellClass = pinStickyLead
+    ? stickyExperimentCell
+    : "bg-background box-border overflow-hidden";
+
+  return (
+    <TableRow
+      ref={setNodeRef}
+      data-state={isSelected ? "selected" : undefined}
+      style={style}
+      className={cn(
+        "group cursor-pointer hover-elevate",
+        isSelected && "transition-colors"
+      )}
+      onClick={onClick}
+      data-testid={`row-experiment-${experiment.id}`}
+    >
+      <TableCell
+        className={cn("px-2 group-hover:bg-muted/50", rowSeparatorClass, gripCellClass)}
+        style={{
+          width: experimentTableGripColumnWidthPx,
+          minWidth: experimentTableGripColumnWidthPx,
+          maxWidth: experimentTableGripColumnWidthPx,
+          ...stickyCellBackground,
+        }}
+      >
+        <div
+          className={
+            reorderDisabled
+              ? "cursor-not-allowed p-1 opacity-40"
+              : "cursor-grab p-1 active:cursor-grabbing"
+          }
+          title={reorderDisabled ? "Clear the search filter to reorder experiments" : undefined}
+          {...attributes}
+          {...(reorderDisabled ? {} : listeners)}
+          onClick={(e) => e.stopPropagation()}
         >
-            <TableCell>
-                <div
-                    className="cursor-grab active:cursor-grabbing p-1"
-                    {...attributes}
-                    {...listeners}
-                    onClick={(e) => e.stopPropagation()}
-                >
-                    <GripVertical className="w-4 h-4 text-muted-foreground" />
-                </div>
-            </TableCell>
-            <TableCell>
-                <div className="flex items-center gap-2">
-                    <div
-                        className="w-3 h-3 rounded-full flex-shrink-0"
-                        style={{ backgroundColor: experiment.color }}
-                    />
-                    <div className="min-w-0">
-                        <ExperimentTruncatedText text={experiment.name} className="font-medium" />
-                        {experiment.description ? (
-                            <ExperimentTruncatedText
-                                text={experiment.description}
-                                className="mt-0.5 text-xs text-muted-foreground"
-                            />
-                        ) : null}
-                    </div>
-                </div>
-            </TableCell>
-            <TableCell>
-                <StatusBadge status={experiment.status} />
-            </TableCell>
-            <TableCell className="text-muted-foreground text-sm">
-                {parentName || "-"}
-            </TableCell>
-            {projectMetrics?.map((metric) => (
-                <TableCell key={projectMetricKeyString(metric)} className="text-right font-mono text-sm">
-                    {formatMetricScalarForDisplay(
-                        expMetrics?.find((m) =>
-                            displayMetricKeyEquals(
-                                { name: m.name, label: m.label },
-                                { name: metric.name, label: metric.label ?? null }
-                            )
-                        )?.value
-                    )}
-                </TableCell>
-            ))}
-            <TableCell className="text-muted-foreground text-sm whitespace-nowrap tabular-nums">
-                {format(parseISO(experiment.createdAt), "MMM d, yyyy, HH:mm")}
-            </TableCell>
-        </TableRow>
-    );
+          <GripVertical className="h-4 w-4 text-muted-foreground" />
+        </div>
+      </TableCell>
+      <TableCell
+        className={cn(
+          "overflow-hidden px-4 align-middle group-hover:bg-muted/50",
+          rowSeparatorClass,
+          experimentCellClass
+        )}
+        style={{
+          width: experimentNameColumnWidthPx,
+          minWidth: experimentNameColumnWidthPx,
+          maxWidth: experimentNameColumnWidthPx,
+          ...(pinStickyLead ? { left: experimentTableGripColumnWidthPx } : {}),
+          ...stickyCellBackground,
+        }}
+      >
+        <div className="flex min-w-0 items-center gap-2">
+          <div
+            className="h-3 w-3 shrink-0 rounded-full"
+            style={{ backgroundColor: experiment.color }}
+          />
+          <div className="min-w-0 flex-1">
+            <ExperimentTruncatedText
+              variant="table"
+              text={experiment.name}
+              className="font-medium"
+            />
+            {experiment.description ? (
+              <ExperimentTruncatedText
+                variant="table"
+                tableClamp="multi"
+                text={experiment.description}
+                className="mt-0.5 text-xs text-muted-foreground"
+              />
+            ) : null}
+          </div>
+        </div>
+      </TableCell>
+      <TableCell
+        className={cn("overflow-hidden whitespace-nowrap", rowSeparatorClass)}
+        style={{ width: statusColumnWidthPx, minWidth: statusColumnWidthPx, maxWidth: statusColumnWidthPx }}
+      >
+        <StatusBadge status={experiment.status} />
+      </TableCell>
+      <TableCell
+        className={cn("min-w-0 overflow-hidden text-sm text-muted-foreground", rowSeparatorClass)}
+        style={{
+          width: parentNameColumnWidthPx,
+          minWidth: parentNameColumnWidthPx,
+          maxWidth: parentNameColumnWidthPx,
+        }}
+      >
+        {parentName ? (
+          <div className="min-w-0 max-w-full">
+            <ExperimentTruncatedText
+              variant="table"
+              text={parentName}
+              as="span"
+              className="block"
+            />
+          </div>
+        ) : (
+          "-"
+        )}
+      </TableCell>
+      {projectMetrics?.map((metric) => {
+        const raw = expMetrics?.find((m) =>
+          displayMetricKeyEquals(
+            { name: m.name, label: m.label },
+            { name: metric.name, label: metric.label ?? null }
+          )
+        )?.value;
+        const metricColumnIdValue = metricColumnId(metric);
+        const metricColumnWidthPx = getExperimentTableColumnWidth(metricColumnIdValue);
+        return (
+          <TableCell
+            key={projectMetricKeyString(metric)}
+            className={cn("overflow-hidden whitespace-nowrap text-right font-mono text-sm", rowSeparatorClass)}
+            style={{ width: metricColumnWidthPx, minWidth: metricColumnWidthPx, maxWidth: metricColumnWidthPx }}
+          >
+            <span
+              className="inline-block min-w-0 max-w-full cursor-default text-right tabular-nums"
+              title={formatMetricScalarTooltipFull(raw)}
+            >
+              {formatMetricScalarForDisplay(raw)}
+            </span>
+          </TableCell>
+        );
+      })}
+      <TableCell
+        className={cn(
+          "overflow-hidden whitespace-nowrap text-sm text-muted-foreground tabular-nums",
+          rowSeparatorClass
+        )}
+        style={{ width: createdAtColumnWidthPx, minWidth: createdAtColumnWidthPx, maxWidth: createdAtColumnWidthPx }}
+        title={format(parseISO(experiment.createdAt), "MMM d, yyyy, HH:mm")}
+      >
+        <span className="block min-w-0 truncate">
+          {format(parseISO(experiment.createdAt), "MMM d, yyyy, HH:mm")}
+        </span>
+      </TableCell>
+    </TableRow>
+  );
 }
-
-

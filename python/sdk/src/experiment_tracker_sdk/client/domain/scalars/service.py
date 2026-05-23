@@ -37,7 +37,11 @@ class ScalarsRequestSpecFactory:
         if isinstance(experiment_id, UUID):
             experiment_id = str(experiment_id)
         endpoint = cast(str, self.ENDPOINTS["log_scalar"](experiment_id))
-        payload = LogScalarRequest(scalars=scalars, step=step, tags=tags)
+        payload = LogScalarRequest(
+            scalars=scalars,
+            step=step,
+            tags=tags,
+        )
         return ApiRequestSpec(
             method="POST",
             endpoint=endpoint,
@@ -51,7 +55,15 @@ class ScalarsRequestSpecFactory:
         if isinstance(experiment_id, UUID):
             experiment_id = str(experiment_id)
         endpoint = cast(str, self.ENDPOINTS["log_scalars_batch"](experiment_id))
-        payload = LogScalarsRequest(scalars=scalars)
+        normalized = [
+            LogScalarRequest(
+                scalars=row.scalars,
+                step=row.step,
+                tags=row.tags,
+            )
+            for row in scalars
+        ]
+        payload = LogScalarsRequest(scalars=normalized)
         return ApiRequestSpec(
             method="POST",
             endpoint=endpoint,

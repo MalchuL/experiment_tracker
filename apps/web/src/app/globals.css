@@ -1,3 +1,6 @@
+@import '../styles/_variables.scss';
+@import '../styles/_keyframe-animations.scss';
+
 @import "tailwindcss";
 @import "tw-animate-css";
 
@@ -239,5 +242,136 @@
   }
   .docs-prose .docs-collapsible > summary + * {
     @apply border-t border-border/70 pt-3;
+  }
+
+  .report-editor-shell {
+    @apply w-full overflow-visible bg-background;
+  }
+
+  .report-editor-canvas {
+    @apply min-h-[320px] py-3;
+  }
+
+  .report-editor-content {
+    @apply min-h-[260px] max-w-none text-base leading-7 text-foreground;
+  }
+
+  .report-editor-content > * + * {
+    @apply mt-3;
+  }
+
+  .report-editor-content h1 {
+    @apply mt-7 text-3xl font-semibold leading-tight tracking-normal first:mt-0;
+  }
+
+  .report-editor-content h2 {
+    @apply mt-6 text-2xl font-semibold leading-tight tracking-normal first:mt-0;
+  }
+
+  .report-editor-content h3 {
+    @apply mt-5 text-xl font-semibold leading-snug tracking-normal first:mt-0;
+  }
+
+  .report-editor-content p {
+    @apply min-h-6;
+  }
+
+  .report-editor-content ul {
+    @apply list-disc pl-6;
+  }
+
+  .report-editor-content ol {
+    @apply list-decimal pl-6;
+  }
+
+  .report-editor-content li {
+    @apply pl-1;
+  }
+
+  .report-editor-content blockquote {
+    @apply border-l-4 border-border pl-4 text-muted-foreground;
+  }
+
+  .report-editor-content pre {
+    @apply overflow-x-auto rounded-md bg-muted/50 p-4 text-xs leading-relaxed;
+  }
+
+  .report-editor-content code {
+    @apply rounded bg-muted px-1 py-0.5 font-mono text-xs;
+  }
+
+  .report-editor-content pre code {
+    @apply bg-transparent p-0;
+  }
+
+  .report-editor-content hr {
+    @apply my-6 border-border;
+  }
+
+  .report-editor-content.ProseMirror-focused {
+    @apply outline-none;
+  }
+
+  .report-editor-content .ProseMirror-selectednode {
+    @apply outline outline-2 outline-ring/60;
+  }
+
+  .report-editor-content p.is-editor-empty:first-child::before,
+  .report-editor-content h1.is-empty::before,
+  .report-editor-content h2.is-empty::before,
+  .report-editor-content h3.is-empty::before,
+  .report-editor-content p.is-empty::before {
+    @apply pointer-events-none float-left h-0 text-muted-foreground/50;
+    content: attr(data-placeholder);
+  }
+
+  .report-editor-bubble-menu {
+    @apply flex items-center gap-1 rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-md;
+  }
+
+  .report-editor-bubble-button {
+    @apply inline-flex h-8 w-8 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground;
+  }
+
+  .report-editor-bubble-button[data-active="true"] {
+    @apply bg-accent text-accent-foreground;
+  }
+
+  .report-editor-block-controls {
+    @apply relative hidden items-center gap-0.5 text-muted-foreground sm:flex;
+  }
+
+  .report-editor-block-controls::before {
+    content: "";
+    position: absolute;
+    top: -0.0625rem;
+    right: -0.25rem;
+    bottom: -0.0625rem;
+    width: 0.25rem;
+    pointer-events: auto;
+  }
+
+  .report-editor-block-controls[data-dragging="true"] {
+    @apply opacity-80;
+  }
+
+  .report-editor-block-controls-inner {
+    @apply flex items-center gap-0.5;
+  }
+
+  .report-editor-insert-button,
+  .report-editor-drag-handle {
+    @apply h-5 w-5 shrink-0 rounded-sm border-0 bg-transparent text-muted-foreground opacity-60 transition-colors hover:bg-accent hover:text-accent-foreground hover:opacity-100;
+    pointer-events: auto;
+    user-select: none;
+  }
+
+  .report-editor-insert-button {
+    @apply flex items-center justify-center text-xl font-light leading-none;
+  }
+
+  .report-editor-drag-handle {
+    @apply flex cursor-grab items-center justify-center active:cursor-grabbing;
+    touch-action: none;
   }
 }

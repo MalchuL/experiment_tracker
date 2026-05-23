@@ -3,6 +3,10 @@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import {
+  ENTITY_DESCRIPTION_MAX_LEN,
+  ENTITY_NAME_MAX_LEN,
+} from "@/lib/validation/entity-limits";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -25,8 +29,8 @@ import { useCreateTeam } from "@/domain/teams/hooks";
 import { useToast } from "@/lib/hooks/use-toast";
 
 const createTeamSchema = z.object({
-  name: z.string().min(1, "Name is required").max(100),
-  description: z.string().max(500).optional().default(""),
+  name: z.string().min(1, "Name is required").max(ENTITY_NAME_MAX_LEN),
+  description: z.string().max(ENTITY_DESCRIPTION_MAX_LEN).optional().default(""),
 });
 
 export type CreateTeamFormValues = z.infer<typeof createTeamSchema>;

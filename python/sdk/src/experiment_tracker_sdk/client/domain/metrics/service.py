@@ -9,6 +9,11 @@ from .dto import (
     MetricUpsertRequest,
     UniqueMetricDimensionsResponse,
 )
+from .limits import (
+    truncate_metric_label,
+    truncate_metric_label_query_param,
+    truncate_metric_name,
+)
 from ...request_types import ApiRequestSpec
 
 
@@ -37,11 +42,13 @@ class MetricRequestSpecFactory:
         if isinstance(experiment_id, UUID):
             experiment_id = str(experiment_id)
         endpoint = cast(str, self.ENDPOINTS["upsert_metric"])
+        t_name = truncate_metric_name(name)
+        t_label = truncate_metric_label(label)
         payload = MetricUpsertRequest(
             experimentId=experiment_id,
-            name=name,
+            name=t_name,
             value=value,
-            label=label,
+            label=t_label,
         )
         return ApiRequestSpec(
             method="POST",
@@ -147,7 +154,7 @@ class MetricRequestSpecFactory:
             Callable[[Any], str], self.ENDPOINTS["get_project_metrics_by_label"]
         )(project_id)
         q: dict[str, Any] = {
-            "label": label,
+            "label": truncate_metric_label_query_param(label),
             "include_experiments_without_metrics": include_experiments_without_metrics,
         }
         if limit is not None:

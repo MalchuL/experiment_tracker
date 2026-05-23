@@ -118,20 +118,21 @@ Typical order when you want the stack **gone** and then a **clean start** next t
 ### Do you need `sudo`?
 
 - **`docker compose …`** and **`./scripts/docker-up-public.sh`** (it ends with `docker compose …`): normally **no `sudo`** if your user can talk to the Docker daemon (Linux: user is in the **`docker`** group, or Docker Desktop on Mac/Windows). If you see *permission denied* on the Docker socket, you can run Compose **with** `sudo` until permissions are fixed (not ideal long-term).
-- **Where to put `sudo` for `docker-up-public.sh`:** put it **immediately before the script path** (not before `PUBLIC_URL=…` on the same line, or the variable may not reach the script under `sudo`).
+- **`sudo` and `PUBLIC_URL` for `docker-up-public.sh`:** assignments **between** `sudo` and the program are passed into **that** command’s environment (not the same as `PUBLIC_URL=…` *before* `sudo`, which applies only to your shell, not to root’s process). Typical pattern:
 
-  **Recommended if you must use `sudo`:** pass URLs as arguments so nothing depends on the caller environment:
+  ```bash
+  sudo PUBLIC_URL=http://192.168.1.247 ./scripts/docker-up-public.sh
+  sudo PUBLIC_URL=http://192.168.1.247 WEB_PORT=3000 ./scripts/docker-up-public.sh
+  ```
+
+  **Alternative:** pass URLs as arguments so nothing depends on env (works even when assignment-style `sudo` is restricted by `sudoers`):
 
   ```bash
   sudo ./scripts/docker-up-public.sh http://192.168.1.247
   sudo ./scripts/docker-up-public.sh http://192.168.1.247 http://192.168.1.247:8000
   ```
 
-  **If you rely on `PUBLIC_URL=…` (or `WEB_PORT=…`) in the environment**, preserve the environment into the elevated process:
-
-  ```bash
-  sudo -E env PUBLIC_URL=http://192.168.1.247 WEB_PORT=3000 ./scripts/docker-up-public.sh
-  ```
+  If you already **exported** `PUBLIC_URL` / `WEB_PORT` in your shell and need root to see them, use **`sudo -E`** (preserve environment) or inline vars: **`sudo -E env PUBLIC_URL=… WEB_PORT=… ./scripts/docker-up-public.sh`**. **`-E` is a `sudo` flag**, not a `bash` flag. If the script is not executable, use `sudo PUBLIC_URL=… bash ./scripts/docker-up-public.sh`.
 
   Running the script as root can create **root-owned files** under `./storage/`; prefer adding your user to the **`docker`** group and running **without** `sudo`.
 
@@ -197,6 +198,29 @@ Only the **published** host port (left side of `host:container` in `docker-compo
 
 Use the same idea for other clashes: `CLICKHOUSE_HTTP_PORT`, `BACKEND_PORT`, `WEB_PORT`, etc., as listed in `.env.example`.
 
+## Known issues (Docker / MinIO)
+
+- **MinIO fails to start: host port 9000 already in use.** The compose file publishes MinIO’s API on **`${MINIO_API_PORT:-9000}:9000`** (see `.env.example`). If something else on the host already listens on **9000**, set free ports in a root `.env`, then `docker compose down` and bring the stack up again:
+
+  ```env
+  MINIO_API_PORT=9010
+  MINIO_CONSOLE_PORT=9011
+  ```
+
+  Services inside Compose still use **`minio:9000`**; only the **host** side of the map changes.
+
+- **Older Docker Engine and `minio/minio:latest`.** On some older installations, the current **`minio/minio:latest`** image may not start or may exit immediately. Pin the server image to a known-good release, for example **`minio/minio:RELEASE.2024-11-07T00-52-20Z`**, by editing the `minio:` service `image:` line in `docker-compose.yml` (or using a Compose override file) instead of `:latest`.
+
+- **After pinning MinIO or fixing bad local object storage state**, stop the stack, **clear persisted data** under **`storage/`** (destructive — empty blobs and any prior MinIO layout on disk), then start again:
+
+  ```bash
+  docker compose down
+  rm -rf storage/*
+  docker compose up -d --build
+  ```
+
+  If files were created as root, you may need `sudo rm -rf storage/*` once, then fix Docker permissions so future runs do not require root for that directory.
+
 ## CORS
 
 Backend and object-storage read `ALLOWED_ORIGINS` / `OBJECT_STORAGE_ALLOWED_ORIGINS` from the environment. If you publish the UI on a different origin, set the matching comma-separated list in a root `.env` (see `.env.example`). For real hostnames, HTTPS, or splitting UI and API on different origins, use **Custom URL or domain** below (including rebuilding `web` when `NEXT_PUBLIC_BASE_URL` changes).
@@ -256,7 +280,7 @@ The script sets **`ALLOWED_ORIGINS`** and **`OBJECT_STORAGE_ALLOWED_ORIGINS`** (
 Override the in-container BFF target only if needed:  
 `SERVER_API_BASE_URL=http://other:8000 PUBLIC_URL=... ./scripts/docker-up-public.sh`
 
-**If `docker compose` only works with `sudo`:** put **`sudo`** right before the script (see **Docker: stop, remove…** → *Do you need `sudo`?*), e.g. `sudo ./scripts/docker-up-public.sh http://192.168.1.247` or `sudo -E env PUBLIC_URL=http://192.168.1.247 ./scripts/docker-up-public.sh`.
+**If `docker compose` only works with `sudo`:** see **Docker: stop, remove…** → *Do you need `sudo`?* — e.g. `sudo PUBLIC_URL=http://192.168.1.247 ./scripts/docker-up-public.sh`, or `sudo ./scripts/docker-up-public.sh http://192.168.1.247`, or `sudo -E ./scripts/docker-up-public.sh` if you already exported `PUBLIC_URL` (use **`sudo -E`**, not `bash -E`).
 
 ## Dependencies, startup order, and hybrid setups
 

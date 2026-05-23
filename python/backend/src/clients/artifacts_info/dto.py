@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -15,7 +15,7 @@ class LogArtifactRequestDTO(BaseModel):
     artifact_type: ArtifactType
     path: str
     step: int
-    metadata: dict[str, str] | None = None
+    metadata: dict[str, str] | None = None  # Only strings supported in clickhouse
     tags: list[str] | None = None
 
 
@@ -30,7 +30,9 @@ class ArtifactInfoEntryDTO(BaseModel):
     name: str
     artifact_type: ArtifactType
     path: str
-    metadata: dict[str, str] = Field(default_factory=dict)
+    metadata: dict[str, str] = Field(
+        default_factory=dict  # Only strings supported in clickhouse
+    )
     tags: list[str] = Field(default_factory=list)
 
 
@@ -49,4 +51,26 @@ class ExperimentArtifactsInfoDTO(BaseModel):
 
 
 class ArtifactsInfoResultDTO(PaginatedResponse[ExperimentArtifactsInfoDTO]):
+    pass
+
+
+class ArtifactInfoSummaryEntryDTO(BaseModel):
+    """Backend-facing summary row for one artifact name/type slider."""
+
+    name: str
+    artifact_type: ArtifactType
+    steps: list[int]
+    last_modified: ApiDateTime
+
+
+class ExperimentArtifactsSummaryDTO(BaseModel):
+    """Artifact summary rows grouped by experiment."""
+
+    experiment_id: UUID
+    artifacts_info: list[ArtifactInfoSummaryEntryDTO]
+
+
+class ArtifactsInfoSummaryResultDTO(PaginatedResponse[ExperimentArtifactsSummaryDTO]):
+    """Paginated artifact summary response from scalars_service."""
+
     pass

@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { parseISO } from "date-fns";
-import { InfiniteData, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import type { InfiniteData } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
 import { AlertCircle, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -12,7 +13,10 @@ import { useExperiments, useProjectExperimentsPollSync } from "@/domain/experime
 import { experimentsService } from "@/domain/experiments/services";
 import type { Experiment, UpdateExperiment } from "@/domain/experiments/types";
 import { ExperimentStatus } from "@/domain/experiments/types";
-import { useArtifactsLiveRefresh, useProjectObjects } from "@/domain/logged-objects/hooks";
+import { useArtifactsLiveRefresh, useProjectObjectSummaries } from "@/domain/logged-objects/hooks";
+import { loggedObjectsService } from "@/domain/logged-objects/services";
+import type { ArtifactsInfoSummaryResult } from "@/domain/logged-objects/types";
+import { mergeArtifactsInfoPage } from "@/domain/logged-objects/utils";
 import { metricsService } from "@/domain/metrics/services";
 import { useCurrentProject } from "@/domain/projects/hooks";
 import {
@@ -37,13 +41,21 @@ import type {
   ArtifactViewItem,
   ScalarHoverMode,
   ScalarPointSelection,
+  ScalarsPointsResult,
   SyncMode,
 } from "@/domain/scalars/types";
-import { getScalarsDotThreshold, getScalarsMaxPointsPerPlot } from "@/domain/scalars/utils";
+import { scalarsService } from "@/domain/scalars/services";
+import {
+  decodeLegacyNumberSelection,
+  decodeStringSelection,
+  getScalarsDotThreshold,
+  getScalarsMaxArtifactStepsPerObject,
+  getScalarsMaxPointsPerPlot,
+  mergeScalarsPage,
+} from "@/domain/scalars/utils";
 import type { InsertExperiment } from "@/domain/experiments/types";
 import { EXPERIMENTS_LIST_POLL_INTERVAL_MS } from "@/lib/constants/live-refresh";
 import { QUERY_KEYS } from "@/lib/constants/query-keys";
-import { DEFAULT_PAGE_SIZE } from "@/lib/constants/pagination";
 
 export default function Scalars() {
   const { project, isLoading: projectLoading } = useCurrentProject();
@@ -62,14 +74,15 @@ export default function Scalars() {
   const [cardMinWidth, setCardMinWidth] = useState(640);
   const [hoverNameMaxLength, setHoverNameMaxLength] = useState(50);
   const [imagePreview, setImagePreview] = useState<{ src: string; title: string } | null>(null);
-  const [hiddenArtifactIds, setHiddenArtifactIds] = useState<Set<string>>(new Set());
   const [pointContext, setPointContext] = useState<{
     point: ScalarPointSelection;
     position: { x: number; y: number };
   } | null>(null);
   const [metricPoint, setMetricPoint] = useState<ScalarPointSelection | null>(null);
   const [createMetricOpen, setCreateMetricOpen] = useState(false);
+  const incrementalInFlightIds = useRef<Set<string>>(new Set());
   const maxPointsPerPlot = useMemo(() => getScalarsMaxPointsPerPlot(), []);
+  const maxArtifactStepsPerObject = useMemo(() => getScalarsMaxArtifactStepsPerObject(), []);
   const dotThreshold = useMemo(() => getScalarsDotThreshold(), []);
 
   const queryClient = useQueryClient();
@@ -113,6 +126,23 @@ export default function Scalars() {
     });
   }, [experiments]);
 
+  const initialExperimentIdsFromUrl = useMemo(() => {
+    const expParam = searchParams.get("exp");
+    if (!expParam) return sortedExperiments.map((experiment) => experiment.id);
+
+    const validIds = new Set(sortedExperiments.map((experiment) => experiment.id));
+    const decodedIds = decodeStringSelection(expParam);
+    if (decodedIds.length > 0) {
+      return decodedIds.filter((id) => validIds.has(id));
+    }
+
+    return decodeLegacyNumberSelection(expParam)
+      .map((index) => sortedExperiments[index]?.id)
+      .filter((id): id is string => typeof id === "string");
+  }, [searchParams, sortedExperiments]);
+
+  const [requestedExperimentIds, setRequestedExperimentIds] = useState<string[]>([]);
+
   const {
     scalars,
     queryKey: scalarsQueryKey,
@@ -122,6 +152,7 @@ export default function Scalars() {
     refetch: refetchScalars,
   } = useProjectScalars({
     projectId,
+    experimentIds: requestedExperimentIds,
     maxPoints: maxPointsPerPlot,
     returnTags: false,
   });
@@ -132,8 +163,10 @@ export default function Scalars() {
     isFetching: objectsFetching,
     isFetchingNextPage: objectsFetchingNextPage,
     refetch: refetchObjects,
-  } = useProjectObjects({
+  } = useProjectObjectSummaries({
     projectId,
+    experimentIds: requestedExperimentIds,
+    maxSteps: maxArtifactStepsPerObject,
   });
 
   const allLoggedMetricNames = useMemo(() => {
@@ -144,17 +177,29 @@ export default function Scalars() {
     return Array.from(metricSet).sort();
   }, [scalars]);
 
+  const allArtifactIds = useMemo(() => {
+    const ids = new Set<string>();
+    projectArtifactsAtStep.forEach((experimentArtifacts) => {
+      experimentArtifacts.artifacts_info.forEach((artifact) => {
+        ids.add(`${artifact.artifact_type}:${artifact.name}`);
+      });
+    });
+    return Array.from(ids).sort();
+  }, [projectArtifactsAtStep]);
+
   const {
     smoothing,
     setSmoothing,
+    initialized: queryStateInitialized,
     selectedExperimentIds,
     hiddenMetrics,
+    hiddenArtifactIds,
     currentQueryString,
-    setSelectedExperimentIds,
     toggleExperiment,
     selectAllExperiments,
     clearAllExperiments,
     toggleMetric,
+    toggleArtifact,
     showAllMetrics,
     showOnlyMetric,
     handleRestoreSavedView,
@@ -163,7 +208,89 @@ export default function Scalars() {
     searchParams,
     experiments: sortedExperiments,
     allLoggedMetricNames,
+    allArtifactIds,
   });
+
+  useEffect(() => {
+    if (queryStateInitialized) return;
+    setRequestedExperimentIds(initialExperimentIdsFromUrl);
+    incrementalInFlightIds.current.clear();
+  }, [initialExperimentIdsFromUrl, queryStateInitialized]);
+
+  useEffect(() => {
+    if (!queryStateInitialized || !projectId || !scalarsQueryKey.length || !artifactsQueryKey.length) return;
+
+    const fetchedIds = new Set([
+      ...requestedExperimentIds,
+      ...scalars.map((item) => item.experiment_id),
+    ]);
+    const missingIds = Array.from(selectedExperimentIds).filter(
+      (id) => !fetchedIds.has(id) && !incrementalInFlightIds.current.has(id)
+    );
+    if (missingIds.length === 0) return;
+
+    missingIds.forEach((id) => incrementalInFlightIds.current.add(id));
+    let cancelled = false;
+
+    void Promise.all([
+      scalarsService.getByProject(projectId, {
+        experimentIds: missingIds,
+        limit: Math.max(missingIds.length, 1),
+        maxPoints: maxPointsPerPlot,
+        returnTags: false,
+      }),
+      loggedObjectsService.getSummaryByProject(projectId, {
+        experimentIds: missingIds,
+        limit: Math.max(missingIds.length, 1),
+        maxSteps: maxArtifactStepsPerObject,
+      }),
+    ])
+      .then(([scalarsResult, artifactsResult]) => {
+        if (cancelled) return;
+        queryClient.setQueryData<InfiniteData<ScalarsPointsResult>>(scalarsQueryKey, (current) => {
+          if (!current) return current;
+          return {
+            ...current,
+            pages: current.pages.map((page, index) =>
+              mergeScalarsPage(page, scalarsResult.data, {
+                appendMissing: index === 0,
+                maxPoints: maxPointsPerPlot,
+              })
+            ),
+          };
+        });
+        queryClient.setQueryData<InfiniteData<ArtifactsInfoSummaryResult>>(artifactsQueryKey, (current) => {
+          if (!current) return current;
+          return {
+            ...current,
+            pages: current.pages.map((page, index) =>
+              mergeArtifactsInfoPage(page, artifactsResult.data, { appendMissing: index === 0 })
+            ),
+          };
+        });
+      })
+      .catch((error: unknown) => {
+        console.error("failed_to_fetch_selected_experiments", error);
+      })
+      .finally(() => {
+        missingIds.forEach((id) => incrementalInFlightIds.current.delete(id));
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    artifactsQueryKey,
+    maxArtifactStepsPerObject,
+    maxPointsPerPlot,
+    projectId,
+    queryClient,
+    queryStateInitialized,
+    requestedExperimentIds,
+    scalars,
+    scalarsQueryKey,
+    selectedExperimentIds,
+  ]);
 
   const {
     sortedExperiments: modelExperiments,
@@ -212,7 +339,7 @@ export default function Scalars() {
     });
   }, [sortedExperiments, selectedExperimentIds]);
 
-  useScalarsLiveRefresh({
+  const { refreshChangedScalars } = useScalarsLiveRefresh({
     projectId,
     experimentIds: lastLoggedExperimentIds,
     scalarsQueryKey,
@@ -220,10 +347,11 @@ export default function Scalars() {
     enabled: !scalarsLoading,
   });
 
-  useArtifactsLiveRefresh({
+  const { refreshChangedArtifacts } = useArtifactsLiveRefresh({
     projectId,
     experimentIds: lastLoggedExperimentIds,
     artifactsQueryKey,
+    maxSteps: maxArtifactStepsPerObject,
     enabled: !objectsLoading,
   });
 
@@ -245,18 +373,6 @@ export default function Scalars() {
     });
   };
 
-  const handleToggleArtifact = (artifactId: string) => {
-    setHiddenArtifactIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(artifactId)) {
-        next.delete(artifactId);
-      } else {
-        next.add(artifactId);
-      }
-      return next;
-    });
-  };
-
   const handlePointContextMenu = (
     point: ScalarPointSelection,
     position: { x: number; y: number }
@@ -270,21 +386,16 @@ export default function Scalars() {
       size="sm"
       onClick={() => {
         void (async () => {
-          const hadAllSelected = selectedExperimentIds.size === modelExperiments.length;
+          const [incrementalScalarsRefresh, incrementalArtifactsRefresh] = await Promise.all([
+            refreshChangedScalars(),
+            refreshChangedArtifacts(),
+          ]);
           await refetchExperiments();
-          await refetchScalars();
-          await refetchObjects();
-          if (hadAllSelected && projectId) {
-            const refreshedExperimentsData = queryClient.getQueryData<
-              InfiniteData<{ data: Experiment[] }>
-            >([
-              QUERY_KEYS.EXPERIMENTS.BY_PROJECT(projectId),
-              { limit: DEFAULT_PAGE_SIZE, mode: "auto" },
-            ]);
-            const refreshedExperiments =
-              refreshedExperimentsData?.pages.flatMap((page) => page.data) ?? [];
-            const allIds = new Set(refreshedExperiments.map((experiment) => experiment.id));
-            setSelectedExperimentIds(allIds);
+          if (incrementalScalarsRefresh === "unavailable") {
+            await refetchScalars();
+          }
+          if (incrementalArtifactsRefresh === "unavailable") {
+            await refetchObjects();
           }
         })();
       }}
@@ -438,6 +549,7 @@ export default function Scalars() {
           onSmoothingChange={handleSmoothingChange}
           onSmoothingCommit={handleSmoothingCommit}
           maxPointsPerPlot={maxPointsPerPlot}
+          maxArtifactStepsPerObject={maxArtifactStepsPerObject}
           dotThreshold={dotThreshold}
           allLoggedMetricNames={allLoggedMetricNames}
           hiddenMetrics={hiddenMetrics}
@@ -449,7 +561,7 @@ export default function Scalars() {
           onShowOnlyMetric={showOnlyMetric}
           onExpandMetric={setFullscreenMetric}
           onResetMetricDomain={resetDomain}
-          onToggleArtifact={handleToggleArtifact}
+          onToggleArtifact={toggleArtifact}
           onOpenArtifact={setFullscreenArtifactId}
           onResetAllDomains={resetAllDomains}
           onRestoreView={handleRestoreSavedView}
@@ -516,4 +628,3 @@ export default function Scalars() {
     </div>
   );
 }
-

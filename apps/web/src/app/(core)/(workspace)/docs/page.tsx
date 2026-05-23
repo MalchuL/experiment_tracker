@@ -8,7 +8,7 @@ export default function DocsIndexPage() {
   return (
     <DocsPageShell
       title="Documentation"
-      description="Product and architecture notes for using ResearchTrack in the browser and with the wider platform."
+      description="Product and architecture notes for using Experiment Tracker in the browser and with the wider platform."
       currentPath={null}
       toc={[]}
     >

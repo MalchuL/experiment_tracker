@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from "react";
 import { PageHeader } from "@/components/shared/page-header";
+import { EntityIdDisplay } from "@/components/shared/entity-id-display";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { AlertCircle, Eye, Pencil, Plus, Settings, Trash2, X } from "lucide-react";
 import { useCurrentProject } from "@/domain/projects/hooks";
@@ -97,16 +98,20 @@ export default function ProjectSettings() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const handleUpdateSuccess = useCallback(() => {
+  const invalidateProjectCaches = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.PROJECTS.LIST] });
     if (projectId) {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.PROJECTS.GET_BY_ID(projectId)] });
     }
+  }, [projectId, queryClient]);
+
+  const handleUpdateSuccess = useCallback(() => {
+    invalidateProjectCaches();
     toast({
       title: "Settings saved",
       description: "Project settings have been updated successfully.",
     });
-  }, [projectId, queryClient, toast]);
+  }, [invalidateProjectCaches, toast]);
 
   const handleUpdateError = useCallback(() => {
     toast({
@@ -127,7 +132,7 @@ export default function ProjectSettings() {
     [projectId, updateProject, handleUpdateSuccess, handleUpdateError]
   );
 
-  const handleSettingsSubmit = useCallback(
+  const handleDisplayMetricsChange = useCallback(
     async (displayMetrics: ProjectDisplayMetric[]) => {
       if (!projectId || !project) return;
       try {
@@ -254,7 +259,8 @@ export default function ProjectSettings() {
               Update your project&apos;s basic details.
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
+            <EntityIdDisplay label="ID" value={projectId} />
             <BasicInfoForm
               project={project}
               onSubmit={handleBasicInfoSubmit}
@@ -272,13 +278,14 @@ export default function ProjectSettings() {
               Display Metrics
             </CardTitle>
             <CardDescription>
-              Choose which metrics to show by default on the Scalars page.
+              Choose which metrics to show by default on the Scalars page. Order applies to experiment tables
+              and related views; drag rows to reorder. Changes save automatically.
             </CardDescription>
           </CardHeader>
           <CardContent>
             <DisplayMetricsForm
               project={project}
-              onSubmit={handleSettingsSubmit}
+              onDisplayMetricsChange={handleDisplayMetricsChange}
               isPending={updateIsPending}
             />
           </CardContent>
@@ -617,4 +624,3 @@ function DynamicSettingsEditor({
     </>
   );
 }
-

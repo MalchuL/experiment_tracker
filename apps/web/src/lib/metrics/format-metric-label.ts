@@ -51,7 +51,7 @@ export function projectMetricKeyString(m: { name: string; label?: string | null 
   return `${m.name}::${m.label ?? ""}`;
 }
 
-/** Tracked columns shown on Experiments / Kanban / DAG. Empty `display` ⇒ none. */
+/** Tracked columns shown on Experiments / Kanban / DAG. Empty `display` ⇒ none. Order follows `display`. */
 export function getDisplayedTrackedMetrics(
   tracked: ProjectMetric[],
   display: ProjectDisplayMetric[]
@@ -59,9 +59,16 @@ export function getDisplayedTrackedMetrics(
   if (display.length === 0) {
     return [];
   }
-  return tracked.filter((m) =>
-    isExplicitlyInDisplayList({ name: m.name, label: m.label }, display)
-  );
+  const trackedByKey = new Map(tracked.map((m) => [projectMetricKeyString(m), m]));
+  const out: ProjectMetric[] = [];
+  for (const d of display) {
+    const n = normalizeDisplayMetric(d);
+    const m = trackedByKey.get(projectMetricKeyString(n));
+    if (m) {
+      out.push(m);
+    }
+  }
+  return out;
 }
 
 /** How a tracked row is stored in `displayMetrics` (legacy string = name only). */
@@ -78,12 +85,20 @@ export function displayMetricsForApiSave(
   formDisplay: ProjectDisplayMetric[]
 ): ProjectDisplayMetric[] {
   if (formDisplay.length === 0) return [];
+  const trackedByKey = new Map(tracked.map((m) => [projectMetricKeyString(m), m]));
+  const canonicalDisplay = formDisplay.flatMap((entry) => {
+    const normalized = normalizeDisplayMetric(entry);
+    const trackedMetric = trackedByKey.get(projectMetricKeyString(normalized));
+    if (!trackedMetric) return [];
+    return [trackedToDisplayKey(trackedMetric)];
+  });
   if (
     tracked.length > 0 &&
-    formDisplay.length === tracked.length &&
-    tracked.every((m) => isExplicitlyInDisplayList({ name: m.name, label: m.label }, formDisplay))
+    canonicalDisplay.length === tracked.length &&
+    tracked.every((m) => isExplicitlyInDisplayList({ name: m.name, label: m.label }, canonicalDisplay))
   ) {
-    return tracked.map(trackedToDisplayKey);
+    // Keep the UI drag-and-drop order while still persisting a canonical explicit full list.
+    return canonicalDisplay;
   }
   return formDisplay;
 }

@@ -1,8 +1,13 @@
 import re
 from uuid import UUID
+
+from experiment_tracker_shared.limits import (
+    ENTITY_DESCRIPTION_MAX_LEN,
+    ENTITY_NAME_MAX_LEN,
+)
 from lib.types import UUID_TYPE
 from pydantic import BaseModel, Field, field_validator
-from typing import List, Optional, Dict, Any
+from typing import List, Optional
 from models import ExperimentStatus
 
 from lib.datetime_types import ApiDateTime, ApiOptionalDateTime
@@ -11,14 +16,22 @@ from lib.pagination import PaginatedResponse, MAX_LIST_PAGE_SIZE
 from lib.category_cleanup_dto import CategoryCleanupResponseDTO
 
 
+class FeatureNodeDTO(BaseModel):
+    name: str = Field(..., min_length=1)
+    children: Optional[List["FeatureNodeDTO"]] = None
+
+    model_config = model_config()
+
+
 class ExperimentBaseDTO(BaseModel):
     project_id: UUID
-    name: str = Field(..., min_length=1, max_length=100)
-    description: str = Field(default="", max_length=1000)
+    name: str = Field(..., min_length=1, max_length=ENTITY_NAME_MAX_LEN)
+    description: str = Field(
+        default="", max_length=ENTITY_DESCRIPTION_MAX_LEN
+    )
     status: ExperimentStatus = ExperimentStatus.PLANNED
     parent_experiment_id: Optional[UUID_TYPE] = None
-    features: Dict[str, Any] = {}
-    git_diff: Optional[str] = None
+    features: List[FeatureNodeDTO] = Field(default_factory=list)
     color: Optional[str] = None
     order: Optional[int] = None
     tags: Optional[List[str]] = None
@@ -38,27 +51,38 @@ class ExperimentCreateDTO(ExperimentBaseDTO):
 
 
 class ExperimentUpdateDTO(BaseModel):
-    name: Optional[str] = Field(None, min_length=1, max_length=100)
-    description: Optional[str] = Field(None, max_length=1000)
+    name: Optional[str] = Field(None, min_length=1, max_length=ENTITY_NAME_MAX_LEN)
+    description: Optional[str] = Field(None, max_length=ENTITY_DESCRIPTION_MAX_LEN)
     parent_experiment_id: Optional[UUID_TYPE] = None
     color: Optional[str] = None
     status: Optional[ExperimentStatus] = None
-    features: Optional[Dict[str, Any]] = None
-    git_diff: Optional[str] = None
+    features: Optional[List[FeatureNodeDTO]] = None
     progress: Optional[int] = None
     order: Optional[int] = None
     tags: Optional[List[str]] = None
 
     model_config = model_config()
 
+    @field_validator("color")
+    @classmethod
+    def validate_color(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and not re.match(r"^#[0-9a-fA-F]{6,8}$", v):
+            raise ValueError("Invalid color")
+        return v
+
 
 class ExperimentDTO(ExperimentBaseDTO):
     id: UUID
-    features_diff: Optional[Dict[str, Any]]
     progress: int
     created_at: ApiDateTime
     started_at: ApiOptionalDateTime
     completed_at: ApiOptionalDateTime
+
+    model_config = model_config()
+
+
+class ExperimentListItemDTO(ExperimentDTO):
+    features: Optional[List[FeatureNodeDTO]] = None
 
     model_config = model_config()
 
@@ -119,7 +143,7 @@ class ExperimentUsageDTO(BaseModel):
     model_config = model_config()
 
 
-class ExperimentListResponseDTO(PaginatedResponse[ExperimentDTO]):
+class ExperimentListResponseDTO(PaginatedResponse[ExperimentListItemDTO]):
     model_config = model_config()
 
 

@@ -12,7 +12,8 @@ Project-wide CAS (snapshots, `ProjectBlob` metadata, bucket registry for the pro
 - `python/object_storage/PROJECT_ARTIFACTS_API.md`
 
 ## Local Development
-# Setup Database
+
+### Setup Database
 
 `sudo -u postgres psql` - Opens default postgres user
 `ALTER ROLE myuser SUPERUSER;` - Grant permission to create extension

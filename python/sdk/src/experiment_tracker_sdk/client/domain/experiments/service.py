@@ -3,12 +3,14 @@ from uuid import UUID
 
 from .dto import (
     ExperimentCreateRequest,
+    FeatureNodeLike,
     ExperimentListResponse,
     ExperimentResponse,
     ExperimentStatus,
     SuccessResponse,
     ExperimentUpdateRequest,
 )
+from .limits import truncate_experiment_description, truncate_experiment_name
 from ...constants import UNSET, Unset
 from ...request_types import ApiRequestSpec
 
@@ -30,14 +32,15 @@ class ExperimentRequestSpecFactory:
         description: str = "",
         color: Optional[str | Unset] = UNSET,
         parent_experiment_id: Optional[str | UUID | Unset] = UNSET,
-        features: Optional[dict[str, Any] | Unset] = UNSET,
-        git_diff: Optional[str | Unset] = UNSET,
+        features: Optional[list[FeatureNodeLike] | Unset] = UNSET,
         status: ExperimentStatus = ExperimentStatus.PLANNED,
         tags: Optional[list[str] | Unset] = UNSET,
     ) -> ApiRequestSpec[ExperimentResponse]:
         if isinstance(project_id, UUID):
             project_id = str(project_id)
         endpoint: str = cast(str, self.ENDPOINTS["create_experiment"])
+        t_name = truncate_experiment_name(name)
+        t_description = truncate_experiment_description(description)
         kwargs: dict[str, Any] = {}
         if color is not UNSET:
             kwargs["color"] = color
@@ -45,14 +48,12 @@ class ExperimentRequestSpecFactory:
             kwargs["parentExperimentId"] = parent_experiment_id
         if features is not UNSET:
             kwargs["features"] = features
-        if git_diff is not UNSET:
-            kwargs["gitDiff"] = git_diff
         if tags is not UNSET:
             kwargs["tags"] = tags
         payload = ExperimentCreateRequest(
             projectId=project_id,
-            name=name,
-            description=description,
+            name=t_name,
+            description=t_description,
             status=status,
             **kwargs,
         )
@@ -70,8 +71,7 @@ class ExperimentRequestSpecFactory:
         description: Optional[str | Unset] = UNSET,
         color: Optional[str | Unset] = UNSET,
         parent_experiment_id: Optional[str | UUID | Unset] = UNSET,
-        features: Optional[dict[str, Any] | Unset] = UNSET,
-        git_diff: Optional[str | Unset] = UNSET,
+        features: Optional[list[FeatureNodeLike] | Unset] = UNSET,
         status: Optional[ExperimentStatus | Unset] = UNSET,
         progress: Optional[int | Unset] = UNSET,
         tags: Optional[list[str] | Unset] = UNSET,
@@ -82,18 +82,20 @@ class ExperimentRequestSpecFactory:
             experiment_id
         )
         kwargs: dict[str, Any] = {}
-        if name is not UNSET:
-            kwargs["name"] = name
-        if description is not UNSET:
-            kwargs["description"] = description
+        if not isinstance(name, Unset):
+            kwargs["name"] = None if name is None else truncate_experiment_name(name)
+        if not isinstance(description, Unset):
+            kwargs["description"] = (
+                None
+                if description is None
+                else truncate_experiment_description(description)
+            )
         if color is not UNSET:
             kwargs["color"] = color
         if parent_experiment_id is not UNSET:
             kwargs["parentExperimentId"] = parent_experiment_id
         if features is not UNSET:
             kwargs["features"] = features
-        if git_diff is not UNSET:
-            kwargs["gitDiff"] = git_diff
         if status is not UNSET:
             kwargs["status"] = status
         if progress is not UNSET:
@@ -108,7 +110,9 @@ class ExperimentRequestSpecFactory:
             response_model=ExperimentResponse,
         )
 
-    def get_experiment(self, experiment_id: str | UUID) -> ApiRequestSpec[ExperimentResponse]:
+    def get_experiment(
+        self, experiment_id: str | UUID
+    ) -> ApiRequestSpec[ExperimentResponse]:
         if isinstance(experiment_id, UUID):
             experiment_id = str(experiment_id)
         endpoint: str = cast(Callable[[Any], str], self.ENDPOINTS["get_experiment"])(
@@ -125,17 +129,22 @@ class ExperimentRequestSpecFactory:
         project_id: str | UUID,
         limit: int | None = None,
         offset: int | None = None,
+        search: str | None = None,
+        include_features: bool = True,
     ) -> ApiRequestSpec[ExperimentListResponse]:
         if isinstance(project_id, UUID):
             project_id = str(project_id)
         endpoint: str = cast(
             Callable[[Any], str], self.ENDPOINTS["get_experiments_by_project"]
         )(project_id)
-        query_params: dict[str, int] = {}
+        query_params: dict[str, str | int] = {}
         if limit is not None:
             query_params["limit"] = limit
         if offset is not None:
             query_params["offset"] = offset
+        if search is not None and search.strip() != "":
+            query_params["search"] = search.strip()
+        query_params["includeFeatures"] = "true" if include_features else "false"
         return ApiRequestSpec(
             method="GET",
             endpoint=endpoint,
@@ -148,6 +157,7 @@ class ExperimentRequestSpecFactory:
         project_id: str | UUID,
         limit: int | None = None,
         offset: int | None = None,
+        include_features: bool = True,
     ) -> ApiRequestSpec[ExperimentListResponse]:
         if isinstance(project_id, UUID):
             project_id = str(project_id)
@@ -157,6 +167,7 @@ class ExperimentRequestSpecFactory:
             query_params["limit"] = limit
         if offset is not None:
             query_params["offset"] = offset
+        query_params["includeFeatures"] = "true" if include_features else "false"
         return ApiRequestSpec(
             method="GET",
             endpoint=endpoint,
@@ -164,7 +175,9 @@ class ExperimentRequestSpecFactory:
             query_params=query_params,
         )
 
-    def delete_experiment(self, experiment_id: str | UUID) -> ApiRequestSpec[SuccessResponse]:
+    def delete_experiment(
+        self, experiment_id: str | UUID
+    ) -> ApiRequestSpec[SuccessResponse]:
         if isinstance(experiment_id, UUID):
             experiment_id = str(experiment_id)
         endpoint: str = cast(Callable[[Any], str], self.ENDPOINTS["delete_experiment"])(

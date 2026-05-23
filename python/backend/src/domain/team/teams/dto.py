@@ -1,7 +1,11 @@
 import uuid
 from typing import Optional
 
-from pydantic import BaseModel
+from experiment_tracker_shared.limits import (
+    ENTITY_DESCRIPTION_MAX_LEN,
+    ENTITY_NAME_MAX_LEN,
+)
+from pydantic import BaseModel, Field
 
 from lib.category_cleanup_dto import CategoryCleanupResponseDTO
 from lib.datetime_types import ApiDateTime
@@ -10,8 +14,10 @@ from models import Role
 
 
 class TeamBase(BaseModel):
-    name: str
-    description: Optional[str] = None
+    name: str = Field(..., min_length=1, max_length=ENTITY_NAME_MAX_LEN)
+    description: Optional[str] = Field(
+        default=None, max_length=ENTITY_DESCRIPTION_MAX_LEN
+    )
 
     model_config = model_config()
 

@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import type { MetricsTableRow } from "../lib/types";
 import { formatMetricTableCellValue } from "../lib/format";
 import { METRIC_CELL_TINTS, metricCellStyleKey } from "../lib/constants";
+import { formatMetricScalarTooltipFull } from "@/lib/metrics/metric-value-display";
 
 export function flipIdInSet(id: string, set: Set<string>): Set<string> {
   const s = new Set(set);
@@ -23,15 +24,19 @@ type ExperimentColumnHeaderProps = {
 
 export function ExperimentColumnHeader({ editMode, header }: ExperimentColumnHeaderProps) {
   const col = header.column;
+  const experimentHeaderFullLabel = `Experiment${
+    col.getIsSorted() === "asc" ? " ↑" : col.getIsSorted() === "desc" ? " ↓" : ""
+  }`;
   return (
     <div className="w-full text-left">
       {editMode ? <span className="mb-0.5 block text-[10px] text-muted-foreground">In view</span> : null}
       <button
         type="button"
         className="flex w-full min-w-0 items-center gap-1 text-left font-medium"
+        title={experimentHeaderFullLabel}
         onClick={col.getToggleSortingHandler()}
       >
-        Experiment{col.getIsSorted() === "asc" ? " ↑" : col.getIsSorted() === "desc" ? " ↓" : null}
+        {experimentHeaderFullLabel}
       </button>
     </div>
   );
@@ -154,6 +159,7 @@ export function MetricColumnHeader({
         <button
           type="button"
           className="flex w-full min-w-0 items-center justify-end gap-1 font-medium"
+          title={n}
           onClick={ctx.getToggleSortingHandler()}
         >
           <span className="whitespace-nowrap" title={n}>
@@ -167,10 +173,13 @@ export function MetricColumnHeader({
   return (
     <button
       type="button"
-      className="flex w-full items-end justify-end gap-1"
+      className="flex w-full min-w-0 items-end justify-end gap-1"
+      title={n}
       onClick={ctx.getToggleSortingHandler()}
     >
-      <span className="block w-full whitespace-nowrap text-right">{n}</span>
+      <span className="block w-full min-w-0 truncate text-right" title={n}>
+        {n}
+      </span>
       {ctx.getIsSorted() === "asc" ? " ↑" : ctx.getIsSorted() === "desc" ? " ↓" : null}
     </button>
   );
@@ -206,6 +215,7 @@ export function MetricValueCell({
     <div
       role="button"
       tabIndex={0}
+      title={formatMetricScalarTooltipFull(v)}
       onClick={() => cycleCellTint(row.experimentId, n)}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") {
@@ -242,14 +252,14 @@ export function ReadonlyMetaColumnHeader({
     columnId === "experimentId" ? (
       <div
         className="font-mono text-xs sm:text-sm text-muted-foreground/90"
-        title="Read-only when shown — not sortable"
+        title="experimentId — Read-only when shown — not sortable"
       >
         experimentId
       </div>
     ) : (
       <div
         className="font-mono text-xs sm:text-sm text-muted-foreground/90"
-        title="Read-only when shown — not sortable"
+        title="createdAt — Read-only when shown — not sortable"
       >
         createdAt
       </div>
@@ -273,7 +283,11 @@ export function ReadonlyMetaColumnHeader({
   return (
     <div
       className="w-full min-w-0 text-right text-muted-foreground/90 opacity-80"
-      title="Read-only when shown — not sortable"
+      title={
+        columnId === "experimentId"
+          ? "experimentId — Read-only when shown — not sortable"
+          : "createdAt — Read-only when shown — not sortable"
+      }
     >
       <span className="font-mono text-xs sm:text-sm">{columnId === "experimentId" ? "experimentId" : "createdAt"}</span>
     </div>

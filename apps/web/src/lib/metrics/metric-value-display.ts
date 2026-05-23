@@ -104,9 +104,15 @@ export class MetricValueDisplayFormatter {
   /** @see formatMetricSignedDeltaForDisplay */
   formatSignedDeltaForDisplay(delta: number): string {
     if (!Number.isFinite(delta)) return "—";
-    if (Math.abs(delta) < this.opts.tieEpsilon) return "0";
+    if (Math.abs(delta) < this.opts.tieEpsilon) return "+0";
     const sign = delta > 0 ? "+" : "-";
     return sign + formatValue(Math.abs(delta), this.mathjsOverrides());
+  }
+
+  /** Same tie band as {@link formatSignedDeltaForDisplay}: absolute delta below configured tie epsilon. */
+  signedDeltaIsDisplayTie(delta: number): boolean {
+    if (!Number.isFinite(delta)) return false;
+    return Math.abs(delta) < this.opts.tieEpsilon;
   }
 
   /** @see metricIsBetterThanParent */
@@ -171,6 +177,15 @@ export function formatMetricScalarForEditorFull(value: number): string {
 }
 
 /**
+ * Full non-exponential string for read-only value tooltips (DAG, sidebar, tables).
+ * Null, undefined, or non-finite → em dash (same as display cells).
+ */
+export function formatMetricScalarTooltipFull(value: number | null | undefined): string {
+  if (value === null || value === undefined || !Number.isFinite(value)) return "—";
+  return formatMetricScalarForEditorFull(value);
+}
+
+/**
  * True when the parsed editor value should be treated as unchanged vs the stored metric
  * (skip HTTP upsert). Uses a small absolute floor and a ULP-scaled tolerance so harmless
  * float noise does not trigger saves.
@@ -180,11 +195,20 @@ export function metricEditorValuesEffectivelyEqual(parsed: number, previous: num
 }
 
 /**
- * Signed delta vs parent for DAG / sidebar. Tie (|delta| below configured tie epsilon) → `"0"`.
+ * Signed delta vs parent for DAG / sidebar. Tie (|delta| below configured tie epsilon) → **`"+0"`**
+ * (explicit “no change” for deltas; use with {@link metricSignedDeltaIsDisplayTie} for icons).
  * Uses {@link formatValue} on |delta| with the same options as scalar display.
  */
 export function formatMetricSignedDeltaForDisplay(delta: number): string {
   return metricValueDisplayFormatter.formatSignedDeltaForDisplay(delta);
+}
+
+/**
+ * True when {@link formatMetricSignedDeltaForDisplay} would print the tie sentinel (`"+0"`).
+ * Uses the same epsilon as the default formatter (override via {@link MetricValueDisplayFormatter} for tests).
+ */
+export function metricSignedDeltaIsDisplayTie(delta: number): boolean {
+  return metricValueDisplayFormatter.signedDeltaIsDisplayTie(delta);
 }
 
 /** Same rules as `buildMetricComparisons` in the DAG (tie band, maximize vs minimize). */

@@ -264,8 +264,9 @@ class TestProjectControllerDelete:
 
         assert response.status_code == 200
         body = response.json()
-        assert body["success"] is True
-        assert body["errors"] == []
+        assert body["partial"] is True
+        # one error for the project table deletion inside object storage
+        assert len(body["errors"]) == 1
         assert any(r["category"] == "postgres:project" for r in body["results"])
 
     async def test_delete_project_denied_without_permission(

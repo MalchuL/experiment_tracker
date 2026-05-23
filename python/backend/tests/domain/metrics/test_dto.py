@@ -81,3 +81,18 @@ class TestMetricUpsertDTO:
         converter = DtoConverter[MetricUpsertDTO](MetricUpsertDTO)
         dto = converter.dict_with_json_case_to_dto(data)
         assert dto.label is None
+
+    def test_metric_upsert_name_max_length_boundary(self):
+        converter = DtoConverter[MetricUpsertDTO](MetricUpsertDTO)
+        ok = {
+            "experimentId": "223e4567-e89b-12d3-a456-426614174000",
+            "name": "x" * 512,
+            "value": 1.0,
+            "label": None,
+        }
+        dto = converter.dict_with_json_case_to_dto(ok)
+        assert len(dto.name) == 512
+
+        bad = {**ok, "name": "y" * 513}
+        with pytest.raises(ValidationError):
+            converter.dict_with_json_case_to_dto(bad)

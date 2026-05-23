@@ -12,6 +12,7 @@ from .dto import (
     TeamResponse,
     TeamUpdateRequest,
 )
+from .limits import truncate_team_description, truncate_team_name
 from ...request_types import ApiRequestSpec
 
 
@@ -29,7 +30,10 @@ class TeamRequestSpecFactory:
         self, name: str, description: str | None = None
     ) -> ApiRequestSpec[TeamResponse]:
         endpoint = cast(str, self.ENDPOINTS["create_team"])
-        payload = TeamCreateRequest(name=name, description=description)
+        payload = TeamCreateRequest(
+            name=truncate_team_name(name),
+            description=truncate_team_description(description),
+        )
         return ApiRequestSpec(
             method="POST",
             endpoint=endpoint,
@@ -43,7 +47,11 @@ class TeamRequestSpecFactory:
         if isinstance(team_id, UUID):
             team_id = str(team_id)
         endpoint = cast(str, self.ENDPOINTS["update_team"])
-        payload = TeamUpdateRequest(id=team_id, name=name, description=description)
+        payload = TeamUpdateRequest(
+            id=team_id,
+            name=truncate_team_name(name),
+            description=truncate_team_description(description),
+        )
         return ApiRequestSpec(
             method="PATCH",
             endpoint=endpoint,

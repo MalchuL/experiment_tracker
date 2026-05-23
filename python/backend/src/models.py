@@ -103,7 +103,7 @@ class TeamMember(UUIDBase):
 class User(SQLAlchemyBaseUserTableUUID, Base):
     __tablename__ = "users"
 
-    display_name: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    display_name: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
     avatar_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         UtcNaiveDateTime, default=utc_now_naive
@@ -135,7 +135,7 @@ class ApiToken(UUIDBase):
     token_hash: Mapped[str] = mapped_column(
         String(64), nullable=False, unique=True, index=True
     )
-    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    name: Mapped[str] = mapped_column(String(512), nullable=False)
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     scopes: Mapped[list[str]] = mapped_column(JSONB, default=list)
     created_at: Mapped[datetime] = mapped_column(
@@ -157,8 +157,8 @@ class ApiToken(UUIDBase):
 class Team(UUIDBase):
     __tablename__ = "teams"
 
-    name: Mapped[str] = mapped_column(String(100), nullable=False)
-    description: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    name: Mapped[str] = mapped_column(String(512), nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
     owner_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
@@ -194,8 +194,8 @@ class Team(UUIDBase):
 class Project(UUIDBase):
     __tablename__ = "projects"
 
-    name: Mapped[str] = mapped_column(String(100), nullable=False)
-    description: Mapped[str] = mapped_column(String(500), default="")
+    name: Mapped[str] = mapped_column(String(512), nullable=False)
+    description: Mapped[str] = mapped_column(String(512), default="")
     owner_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
@@ -224,6 +224,12 @@ class Project(UUIDBase):
         cascade="all, delete-orphan",
         lazy="raise",
     )
+    reports: Mapped[List["ProjectReport"]] = relationship(
+        "ProjectReport",
+        back_populates="project",
+        cascade="all, delete-orphan",
+        lazy="raise",
+    )
 
 
 class Experiment(UUIDBase):
@@ -234,7 +240,7 @@ class Experiment(UUIDBase):
         ForeignKey("projects.id", ondelete="CASCADE"),
         nullable=False,
     )
-    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    name: Mapped[str] = mapped_column(String(512), nullable=False)
     description: Mapped[str] = mapped_column(Text, default="")
     status: Mapped[ExperimentStatus] = mapped_column(
         SQLEnum(ExperimentStatus), default=ExperimentStatus.PLANNED
@@ -247,9 +253,7 @@ class Experiment(UUIDBase):
     root_experiment_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         UUID(as_uuid=True), nullable=True
     )
-    features: Mapped[dict] = mapped_column(JSONB, default=dict)
-    features_diff: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
-    git_diff: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    features: Mapped[List[dict[str, Any]]] = mapped_column(JSONB, default=list)
     progress: Mapped[int] = mapped_column(Integer, default=0)
     color: Mapped[str] = mapped_column(String(20), default="#3b82f6")
     order: Mapped[int] = mapped_column(Integer, default=0)
@@ -292,14 +296,14 @@ class Hypothesis(UUIDBase):
         ForeignKey("projects.id", ondelete="CASCADE"),
         nullable=False,
     )
-    title: Mapped[str] = mapped_column(String(200), nullable=False)
+    title: Mapped[str] = mapped_column(String(512), nullable=False)
     description: Mapped[str] = mapped_column(Text, default="")
-    author: Mapped[str] = mapped_column(String(100), nullable=False)
+    author: Mapped[str] = mapped_column(String(512), nullable=False)
     status: Mapped[HypothesisStatus] = mapped_column(
         SQLEnum(HypothesisStatus), default=HypothesisStatus.PROPOSED
     )
     target_metrics: Mapped[List[str]] = mapped_column(JSONB, default=list)
-    baseline: Mapped[str] = mapped_column(String(100), default="root")
+    baseline: Mapped[str] = mapped_column(String(512), default="root")
     created_at: Mapped[datetime] = mapped_column(
         UtcNaiveDateTime, default=utc_now_naive
     )
@@ -309,6 +313,30 @@ class Hypothesis(UUIDBase):
 
     project: Mapped["Project"] = relationship(
         "Project", back_populates="hypotheses", lazy="raise"
+    )
+
+
+class ProjectReport(UUIDBase):
+    """Rich-text experiment report (Tiptap JSON document) scoped to a project."""
+
+    __tablename__ = "project_reports"
+
+    project_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("projects.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    title: Mapped[str] = mapped_column(String(512), nullable=False)
+    content: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
+    created_at: Mapped[datetime] = mapped_column(
+        UtcNaiveDateTime, default=utc_now_naive
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        UtcNaiveDateTime, default=utc_now_naive, onupdate=utc_now_naive
+    )
+
+    project: Mapped["Project"] = relationship(
+        "Project", back_populates="reports", lazy="raise"
     )
 
 
@@ -341,9 +369,9 @@ class Metric(UUIDBase):
         ForeignKey("experiments.id", ondelete="CASCADE"),
         nullable=False,
     )
-    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    name: Mapped[str] = mapped_column(String(512), nullable=False)
     value: Mapped[float] = mapped_column(Float, nullable=False)
-    label: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    label: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         UtcNaiveDateTime, default=utc_now_naive
     )

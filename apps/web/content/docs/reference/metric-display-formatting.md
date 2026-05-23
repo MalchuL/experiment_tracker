@@ -18,7 +18,7 @@ Restart the Next.js dev server after editing constants so the UI picks up new va
 |----------|---------------------------|
 | **`METRIC_DISPLAY_AUTO_FORMAT_PRECISION`** | **How many significant digits** you see. Higher = longer, more exact-looking text; lower = shorter, rounder. |
 | **`METRIC_DISPLAY_AUTO_FORMAT_EXP_BOUND`** | **Plain decimals vs scientific** (`1e+7`, `1e-8`). Higher = keep `10000000` / long `0.000…` styles longer; lower = switch to `e` notation sooner for compact layout. |
-| **`METRIC_DISPLAY_TIE_EPSILON`** | **Comparisons only** (parent vs child, deltas): tiny gaps show as **no change** (`0` delta, no better/worse hint). Does **not** change digit count. Higher = treat more differences as ties; lower = stricter, noisier. |
+| **`METRIC_DISPLAY_TIE_EPSILON`** | **Comparisons only** (parent vs child, deltas): tiny gaps show as **no change** (`+0` delta text and equality icon in delta UI, no better/worse hint). Does **not** change digit count. Higher = treat more differences as ties; lower = stricter, noisier. |
 
 Focused logged-metric editing uses a **full decimal** string; that path ignores the exponent bound above. Save/skip rules for typed values are in `experiment-details-view.tsx`.
 
@@ -51,7 +51,7 @@ Does not change how one number is printed. It changes **delta** and **vs parent*
 
 | Situation | With default `1e-10` |
 |-----------|----------------------|
-| Signed delta `5e-11` | Treated as tie → shows as **`0`** (covered in `metric-value-display.test.ts`). |
+| Signed delta `5e-11` | Treated as tie → shows **`+0`** and equality styling (see `metric-value-display.test.ts`, `MetricDeltaVsParent`). |
 | Signed delta `5e-9` | Shows a **non-zero** signed delta. |
 | Child `1 + 5e-11`, parent `1`, maximize | No better/worse hint (`null`). |
 | Child `1 + 5e-9`, parent `1`, maximize | Gap large enough → better/worse can show. |
@@ -64,3 +64,7 @@ Does not change how one number is printed. It changes **delta** and **vs parent*
 :::note
 This page is only **display**. Logged-metric **typing**, parsing, and when blur skips a save are handled in `experiment-details-view.tsx`.
 :::
+
+## Related
+
+- [DAG view: metrics on nodes](/docs/reference/dag-view) — how many metric rows appear on each experiment card in the lineage graph (`DAG_NODE_MAX_DISPLAY_METRICS`).

@@ -1,9 +1,9 @@
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { InfiniteData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { LAST_LOGGED_POLL_INTERVAL_MS } from "@/lib/constants/live-refresh";
 import { QUERY_KEYS } from "@/lib/constants/query-keys";
 import { scalarsService } from "@/domain/scalars/services";
-import type { ScalarsPointsResult } from "@/domain/scalars/types";
+import type { LastLoggedExperimentsResult, ScalarsPointsResult } from "@/domain/scalars/types";
 import { mergeScalarsPage } from "@/domain/scalars/utils";
 
 interface UseScalarsLiveRefreshParams {
@@ -14,11 +14,17 @@ interface UseScalarsLiveRefreshParams {
   enabled?: boolean;
 }
 
+export type IncrementalScalarsRefreshResult = "updated" | "unchanged" | "unavailable";
+
 /**
  * Incremental live refresh for **project scalar curves**: polls ``GET .../last_logged/{project}`` for the
  * watched experiments; when any ``last_modified`` moves forward, fetches only rows after the previous
  * watermark (``startTime`` + affected ids) and **merges** into the existing infinite-query cache via
  * ``mergeScalarsPage`` — avoids full refetch of all pages.
+ *
+ * Applies to both timed refresh (this hook's ``useEffect`` below) and manual refresh (the scalars
+ * page button calls the returned ``refreshChangedScalars``). The merge re-samples each combined
+ * metric series to ``maxPoints`` and always keeps the latest point.
  *
  * Uses the same ``last_logged`` query key as ``useArtifactsLiveRefresh`` when both are enabled so only
  * one poll runs per interval.
@@ -32,7 +38,74 @@ export function useScalarsLiveRefresh({
 }: UseScalarsLiveRefreshParams) {
   const queryClient = useQueryClient();
   const previousByExperiment = useRef<Map<string, string>>(new Map());
-  const stableExperimentIds = [...experimentIds].sort();
+  const stableExperimentIds = useMemo(() => [...experimentIds].sort(), [experimentIds]);
+
+  const mergeChangedScalars = useCallback(
+    async (lastLogged: LastLoggedExperimentsResult): Promise<IncrementalScalarsRefreshResult> => {
+      if (!projectId || !lastLogged.data.length || !scalarsQueryKey.length) return "unavailable";
+
+      const cached = queryClient.getQueryData<InfiniteData<ScalarsPointsResult>>(scalarsQueryKey);
+      const cachedExperimentIds = new Set(
+        cached?.pages.flatMap((page) => page.data.map((item) => item.experiment_id)) ?? []
+      );
+      const previous = previousByExperiment.current;
+      const hasCompleteBaseline = lastLogged.data.every((item) =>
+        previous.has(item.experiment_id)
+      );
+      const changed = lastLogged.data
+        .map((item) => ({
+          item,
+          previousModified: previous.get(item.experiment_id),
+          missingFromCache: !cachedExperimentIds.has(item.experiment_id),
+        }))
+        .filter(({ item, previousModified }) => {
+          if (!cachedExperimentIds.has(item.experiment_id)) return true;
+          if (!previousModified) return false;
+          return new Date(item.last_modified).getTime() > new Date(previousModified).getTime();
+        });
+
+      lastLogged.data.forEach((item) => {
+        previous.set(item.experiment_id, item.last_modified);
+      });
+
+      if (changed.length === 0) {
+        return hasCompleteBaseline ? "unchanged" : "unavailable";
+      }
+
+      const hasMissingCacheRows = changed.some(({ missingFromCache }) => missingFromCache);
+      const startTime = hasMissingCacheRows
+        ? undefined
+        : changed
+            .map(({ previousModified }) => previousModified)
+            .filter((value): value is string => !!value)
+            .sort()[0];
+      const latest = await scalarsService.getByProject(projectId, {
+        experimentIds: changed.map(({ item }) => item.experiment_id),
+        maxPoints,
+        returnTags: false,
+        ...(startTime ? { startTime } : {}),
+        limit: Math.max(changed.length, 1),
+      });
+      queryClient.setQueryData<InfiniteData<ScalarsPointsResult>>(scalarsQueryKey, (current) => {
+        if (!current) return current;
+        return {
+          ...current,
+          pages: current.pages.map((page, index) =>
+            // Same sampled merge path is used by timed polling and the manual refresh button.
+            mergeScalarsPage(page, latest.data, { appendMissing: index === 0, maxPoints })
+          ),
+        };
+      });
+      return "updated";
+    },
+    [maxPoints, projectId, queryClient, scalarsQueryKey]
+  );
+
+  const refreshChangedScalars = useCallback(async (): Promise<IncrementalScalarsRefreshResult> => {
+    if (!projectId || stableExperimentIds.length === 0) return "unavailable";
+    const lastLogged = await scalarsService.getLastLoggedByProject(projectId, stableExperimentIds);
+    return mergeChangedScalars(lastLogged);
+  }, [mergeChangedScalars, projectId, stableExperimentIds]);
 
   const { data } = useQuery({
     queryKey: projectId
@@ -51,41 +124,9 @@ export function useScalarsLiveRefresh({
    * slice and merge each infinite page in-place with ``setQueryData``.
    */
   useEffect(() => {
-    if (!projectId || !data?.data.length) return;
+    if (!data) return;
+    void mergeChangedScalars(data);
+  }, [data, mergeChangedScalars]);
 
-    const previous = previousByExperiment.current;
-    const changed = data.data
-      .map((item) => ({ item, previousModified: previous.get(item.experiment_id) }))
-      .filter(({ item, previousModified }) => {
-        if (!previousModified) return false;
-        return new Date(item.last_modified).getTime() > new Date(previousModified).getTime();
-      });
-
-    data.data.forEach((item) => {
-      previous.set(item.experiment_id, item.last_modified);
-    });
-
-    if (changed.length === 0) return;
-
-    void (async () => {
-      const startTime = changed
-        .map(({ previousModified }) => previousModified)
-        .filter((value): value is string => !!value)
-        .sort()[0];
-      const latest = await scalarsService.getByProject(projectId, {
-        experimentIds: changed.map(({ item }) => item.experiment_id),
-        maxPoints,
-        returnTags: false,
-        startTime,
-        limit: Math.max(changed.length, 1),
-      });
-      queryClient.setQueryData<InfiniteData<ScalarsPointsResult>>(scalarsQueryKey, (current) => {
-        if (!current) return current;
-        return {
-          ...current,
-          pages: current.pages.map((page) => mergeScalarsPage(page, latest.data)),
-        };
-      });
-    })();
-  }, [data, maxPoints, projectId, queryClient, scalarsQueryKey]);
+  return { refreshChangedScalars };
 }
