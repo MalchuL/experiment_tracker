@@ -9,6 +9,7 @@ from typing import cast
 import click
 
 from ..api_access import ExpTrackerApiAccess
+from ..client.domain.health.dto import HealthCheckResponse
 from ..client.domain.users.dto import UserResponse
 from ..config import save_config
 from ..error import ExpTrackerConfigError
@@ -104,16 +105,21 @@ def whoami_command() -> None:
 
 @cli.command("ping", short_help="Check API availability")
 def ping_command() -> None:
-    """Request ``GET /`` on the configured API base URL."""
+    """Request ``GET /`` and print the healthcheck payload."""
     try:
         access = ExpTrackerApiAccess.instance()
         client = access.get_request_client()
-        code = client.probe_http_status("GET", "/")
+        registry = access.get_api_requests_registry()
+        health = cast(
+            HealthCheckResponse,
+            client.request(registry.health.get_healthcheck()),
+        )
     except ExpTrackerConfigError as exc:
         raise click.UsageError(
             "Config not found. Run `experiment-tracker init`."
         ) from exc
-    click.echo(f"Status: {code}")
+    click.echo(json.dumps(health.model_dump(mode="json"), indent=2, default=str))
 
 
+# Add the run command to the CLI via `experiment-tracker run`
 cli.add_command(run_command)

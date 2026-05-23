@@ -3,6 +3,7 @@ from __future__ import annotations
 from experiment_tracker_sdk.client.domain import (
     ExperimentArtifactsRequestSpecFactory,
     ExperimentRequestSpecFactory,
+    HealthRequestSpecFactory,
     HypothesisRequestSpecFactory,
     MetricRequestSpecFactory,
     ProjectArtifactsRequestSpecFactory,
@@ -24,6 +25,7 @@ class APIRequestsRegistry:
         self._project_artifacts_service = ProjectArtifactsRequestSpecFactory()
         self._experiment_artifacts_service = ExperimentArtifactsRequestSpecFactory()
         self._user_service = UserRequestSpecFactory()
+        self._health_service = HealthRequestSpecFactory()
 
     @property
     def experiments(self) -> ExperimentRequestSpecFactory:
@@ -60,3 +62,7 @@ class APIRequestsRegistry:
     @property
     def users(self) -> UserRequestSpecFactory:
         return self._user_service
+
+    @property
+    def health(self) -> HealthRequestSpecFactory:
+        return self._health_service
