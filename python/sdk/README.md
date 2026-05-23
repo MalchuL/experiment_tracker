@@ -61,6 +61,13 @@ uv run pyright src tests
 
 The bundled `experiment-tracker` CLI is implemented with [Click](https://click.palletsprojects.io/).
 
+Optional environment defaults for interactive `experiment-tracker init` (when
+you omit flags and press Enter at prompts) can be set with the `EXP_TRACKER_`
+prefix, for example `EXP_TRACKER_DEFAULT_BASE_URL` and
+`EXP_TRACKER_DEFAULT_API_PREFIX`. Values are read from the process environment
+and an optional `.env` file in the current working directory (see
+`experiment_tracker_sdk.settings`).
+
 Save the base URL and API token for the backend:
 
 ```

@@ -9,10 +9,13 @@ import click
 import httpx
 
 from ..config import compose_base_url, load_config, save_config
+from ..settings import get_exp_tracker_settings
 from .run import run_command
 
-DEFAULT_BASE_URL = "http://127.0.0.1:8000"
-DEFAULT_API_PREFIX = "/api"
+
+def _cli_init_defaults() -> tuple[str, str]:
+    s = get_exp_tracker_settings()
+    return s.default_base_url, s.default_api_prefix
 
 
 def _get_value(value: str | None, prompt: str, secret: bool = False) -> str:
@@ -57,19 +60,20 @@ def init_command(
     api_token: str | None,
 ) -> None:
     """Store base URL, API prefix, and API token for later SDK use."""
+    default_base_url, default_api_prefix = _cli_init_defaults()
     resolved_base = _get_value(
         base_url,
-        f"Base URL (default: {DEFAULT_BASE_URL}): ",
+        f"Base URL (default: {default_base_url}): ",
     )
     if not resolved_base:
-        resolved_base = DEFAULT_BASE_URL
+        resolved_base = default_base_url
     if api_prefix is None:
         entered_prefix = _get_value(
             None,
-            f"API prefix (default: {DEFAULT_API_PREFIX}, empty for none): ",
+            f"API prefix (default: {default_api_prefix}, empty for none): ",
         )
         resolved_prefix = (
-            entered_prefix if entered_prefix != "" else DEFAULT_API_PREFIX
+            entered_prefix if entered_prefix != "" else default_api_prefix
         )
     else:
         resolved_prefix = api_prefix

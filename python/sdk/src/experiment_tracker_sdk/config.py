@@ -1,10 +1,11 @@
 import json
-from pathlib import Path
 from dataclasses import dataclass
+from pathlib import Path
 from urllib.parse import urlsplit, urlunsplit
 
 from experiment_tracker_sdk.error import ExpTrackerConfigError
 
+from .constants import DEFAULT_API_PREFIX
 
 CONFIG_DIR = Path.home() / ".experiment-tracker"
 CONFIG_PATH = CONFIG_DIR / "config.json"
@@ -14,12 +15,12 @@ CONFIG_PATH = CONFIG_DIR / "config.json"
 class SDKConfig:
     base_url: str
     api_token: str
-    api_prefix: str = "/api"
+    api_prefix: str = DEFAULT_API_PREFIX
 
 
 def normalize_api_prefix(api_prefix: str | None) -> str:
     if api_prefix is None:
-        return "/api"
+        return DEFAULT_API_PREFIX
     trimmed = api_prefix.strip()
     if trimmed == "":
         return ""
@@ -37,7 +38,9 @@ def compose_base_url(base_url: str, api_prefix: str | None) -> str:
             composed_path = f"{path}{normalized_prefix}" if path else normalized_prefix
     else:
         composed_path = path
-    return urlunsplit((split.scheme, split.netloc, composed_path, split.query, split.fragment))
+    return urlunsplit(
+        (split.scheme, split.netloc, composed_path, split.query, split.fragment)
+    )
 
 
 def load_config() -> SDKConfig:
@@ -59,11 +62,15 @@ def load_config() -> SDKConfig:
     return SDKConfig(
         base_url=raw["base_url"],
         api_token=raw["api_token"],
-        api_prefix=normalize_api_prefix(raw.get("api_prefix", "/api")),
+        api_prefix=normalize_api_prefix(raw.get("api_prefix", DEFAULT_API_PREFIX)),
     )
 
 
-def save_config(base_url: str, api_token: str, api_prefix: str = "/api") -> Path:
+def save_config(
+    base_url: str,
+    api_token: str,
+    api_prefix: str = DEFAULT_API_PREFIX,
+) -> Path:
     """Persist SDK config to the default config path.
 
     Args:
