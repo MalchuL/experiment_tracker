@@ -2,12 +2,9 @@ from dataclasses import dataclass
 from datetime import datetime
 import random
 from typing import Any
-from experiment_tracker_sdk import (
-    ExpTracker,
-    ExpTrackerApiAccess,
-    ExperimentTrackerClient,
-    APIRequestsRegistry,
-)
+from experiment_tracker_sdk import ExpTracker
+from experiment_tracker_sdk.client import APIRequestsRegistry, ExperimentTrackerClient
+from experiment_tracker_sdk.client.api_access import resolve_client_and_registry
 from experiment_tracker_sdk.client.fetching_domain_pages import (
     fetch_all_projects,
     fetch_all_project_experiments,
@@ -51,13 +48,12 @@ class RunSample:
         api_requests_registry: APIRequestsRegistry | None = None,
     ):
         self.exp_tracker = None
-        self._request_client = (
-            request_client or ExpTrackerApiAccess.instance().get_request_client()
+        resolved = resolve_client_and_registry(
+            request_client=request_client,
+            api_requests_registry=api_requests_registry,
         )
-        self._api_requests_registry = (
-            api_requests_registry
-            or ExpTrackerApiAccess.instance().get_api_requests_registry()
-        )
+        self._request_client = resolved.request_client
+        self._api_requests_registry = resolved.api_requests_registry
         self._logger = logger.getChild("runner")
         
     def _resolve_multiple_items(self, items: list[MultipleResolvingContextObject], strategy: MultipleItemsResolveStrategy) -> MultipleResolvingContextObject:

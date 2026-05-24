@@ -4,11 +4,12 @@ from datetime import datetime
 from typing import cast
 from uuid import UUID
 
+from experiment_tracker_sdk.client.api_access import resolve_client_and_registry
 from experiment_tracker_sdk.client.api_registry import APIRequestsRegistry
 from experiment_tracker_sdk.client.client import ExperimentTrackerClient
 from experiment_tracker_sdk.client.domain.teams.dto import TeamResponse
 
-from .base import ServerInstance, resolve_client_and_registry
+from .base import ServerInstance
 
 
 class TeamBuilder:
@@ -30,10 +31,12 @@ class TeamBuilder:
         request_client: ExperimentTrackerClient | None = None,
         api_requests_registry: APIRequestsRegistry | None = None,
     ) -> None:
-        self._request_client, self._api_requests_registry = resolve_client_and_registry(
+        resolved = resolve_client_and_registry(
             request_client,
             api_requests_registry,
         )
+        self._request_client = resolved.request_client
+        self._api_requests_registry = resolved.api_requests_registry
         self._name: str | None = None
         self._description: str | None = None
 
@@ -108,18 +111,20 @@ class TeamInstance(ServerInstance):
         request_client: ExperimentTrackerClient | None = None,
         api_requests_registry: APIRequestsRegistry | None = None,
     ) -> TeamInstance:
-        request_client, api_requests_registry = resolve_client_and_registry(
+        resolved = resolve_client_and_registry(
             request_client,
             api_requests_registry,
         )
         response = cast(
             TeamResponse,
-            request_client.request(api_requests_registry.teams.get_team(team_id)),
+            resolved.request_client.request(
+                resolved.api_requests_registry.teams.get_team(team_id)
+            ),
         )
         return cls._from_response(
             response,
-            request_client=request_client,
-            api_requests_registry=api_requests_registry,
+            request_client=resolved.request_client,
+            api_requests_registry=resolved.api_requests_registry,
         )
 
     @classmethod

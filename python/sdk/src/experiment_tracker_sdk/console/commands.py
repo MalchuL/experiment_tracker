@@ -8,7 +8,7 @@ from typing import cast
 
 import click
 
-from ..api_access import ExpTrackerApiAccess
+from ..client.api_access import ExpTrackerApiAccess
 from ..client.domain.health.dto import HealthCheckResponse
 from ..client.domain.users.dto import UserResponse
 from ..config import save_config

@@ -1,5 +1,10 @@
 from .client import ExperimentTrackerClient
 from .api_registry import APIRequestsRegistry
+from .api_access import (
+    ExpTrackerApiAccess,
+    ResolvedClientAndRegistry,
+    resolve_client_and_registry,
+)
 from .constants import UNSET, Unset
 from .domain.experiments.dto import ExperimentStatus, FeatureNode, FeatureNodeLike
 from .request_types import (
@@ -11,6 +16,9 @@ from .request_types import (
 __all__ = [
     "ExperimentTrackerClient",
     "APIRequestsRegistry",
+    "ExpTrackerApiAccess",
+    "ResolvedClientAndRegistry",
+    "resolve_client_and_registry",
     "ApiRequestSpec",
     "FileDownloadResponse",
     "FileUploadSpec",

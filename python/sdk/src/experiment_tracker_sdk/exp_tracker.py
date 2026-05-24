@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import cast
 from uuid import UUID
 
-from experiment_tracker_sdk.api_access import ExpTrackerApiAccess
+from experiment_tracker_sdk.client.api_access import ExpTrackerApiAccess
 from experiment_tracker_sdk.client import (
     ExperimentStatus,
     ExperimentTrackerClient,

@@ -2,17 +2,35 @@ from __future__ import annotations
 
 from abc import ABC
 import re
-from typing import Any
+from typing import Any, Literal, overload
 from uuid import UUID
 
 from pydantic import BaseModel
 
-from experiment_tracker_sdk.api_access import ExpTrackerApiAccess
+from experiment_tracker_sdk.client.api_access import resolve_client_and_registry
 from experiment_tracker_sdk.client.api_registry import APIRequestsRegistry
 from experiment_tracker_sdk.client.client import ExperimentTrackerClient
 from experiment_tracker_sdk.error import ExpTrackerAPIError
 
 HEX_COLOR_RE = re.compile(r"^#[0-9a-fA-F]{6,8}$")
+
+
+@overload
+def validate_uuid(
+    value: str | UUID | None,
+    *,
+    field_name: str,
+    required: Literal[True],
+) -> str: ...
+
+
+@overload
+def validate_uuid(
+    value: str | UUID | None,
+    *,
+    field_name: str,
+    required: Literal[False] = False,
+) -> str | None: ...
 
 
 def validate_uuid(
@@ -69,30 +87,6 @@ def validate_hex_color(value: object) -> str | None:
     return value
 
 
-def resolve_client_and_registry(
-    request_client: ExperimentTrackerClient | None = None,
-    api_requests_registry: APIRequestsRegistry | None = None,
-) -> tuple[ExperimentTrackerClient, APIRequestsRegistry]:
-    """Resolve SDK request dependencies for instances and builders.
-
-    Args:
-        request_client: Optional explicit SDK HTTP client. When omitted, the
-            process-wide :class:`ExpTrackerApiAccess` client is used.
-        api_requests_registry: Optional explicit request-spec registry. When
-            omitted, the process-wide :class:`ExpTrackerApiAccess` registry is
-            used.
-
-    Returns:
-        A tuple of ``(request_client, api_requests_registry)`` that is safe for
-        issuing typed SDK requests.
-    """
-    access = ExpTrackerApiAccess.instance()
-    return (
-        request_client or access.get_request_client(),
-        api_requests_registry or access.get_api_requests_registry(),
-    )
-
-
 class ServerInstance(ABC):
     """Base class for SDK objects backed by server rows.
 
@@ -136,10 +130,12 @@ class ServerInstance(ABC):
         request_client: ExperimentTrackerClient | None = None,
         api_requests_registry: APIRequestsRegistry | None = None,
     ) -> None:
-        self._request_client, self._api_requests_registry = resolve_client_and_registry(
+        resolved = resolve_client_and_registry(
             request_client,
             api_requests_registry,
         )
+        self._request_client = resolved.request_client
+        self._api_requests_registry = resolved.api_requests_registry
         self._in_context = False
         self._deleted = False
         self._dirty: dict[str, Any] = {}

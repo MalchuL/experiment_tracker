@@ -3,25 +3,14 @@ from __future__ import annotations
 from typing import cast
 from uuid import UUID
 
+from experiment_tracker_sdk.client.api_access import resolve_client_and_registry
 from experiment_tracker_sdk.client.api_registry import APIRequestsRegistry
 from experiment_tracker_sdk.client.client import ExperimentTrackerClient
 from experiment_tracker_sdk.client.domain.experiments.dto import ExperimentResponse
 from experiment_tracker_sdk.client.domain.projects.dto import ProjectResponse
 from experiment_tracker_sdk.client.domain.teams.dto import TeamListItemResponse
-from experiment_tracker_sdk.api_access import ExpTrackerApiAccess
 
 from .utils.fetching_utils import DEFAULT_FETCH_LIMIT, fetch_all_requests
-
-
-def _resolve_client_and_registry(
-    request_client: ExperimentTrackerClient | None,
-    api_requests_registry: APIRequestsRegistry | None,
-) -> tuple[ExperimentTrackerClient, APIRequestsRegistry]:
-    access = ExpTrackerApiAccess.instance()
-    return (
-        request_client or access.get_request_client(),
-        api_requests_registry or access.get_api_requests_registry(),
-    )
 
 
 def fetch_all_projects(
@@ -49,15 +38,15 @@ def fetch_all_projects(
         AttributeError: If a page does not expose ``hasNext`` or ``has_next``.
         RuntimeError: If a page reports another page but returns zero items.
     """
-    request_client, api_requests_registry = _resolve_client_and_registry(
+    resolved = resolve_client_and_registry(
         request_client,
         api_requests_registry,
     )
     return cast(
         list[ProjectResponse],
         fetch_all_requests(
-            request_client.request,
-            api_requests_registry.projects.get_all_projects,
+            resolved.request_client.request,
+            resolved.api_requests_registry.projects.get_all_projects,
             limit=limit,
         ),
     )
@@ -98,14 +87,14 @@ def fetch_all_project_experiments(
         AttributeError: If a page does not expose ``hasNext`` or ``has_next``.
         RuntimeError: If a page reports another page but returns zero items.
     """
-    request_client, api_requests_registry = _resolve_client_and_registry(
+    resolved = resolve_client_and_registry(
         request_client,
         api_requests_registry,
     )
     project_id = str(project_id)
 
     def make_request_spec(*, limit: int, offset: int):
-        return api_requests_registry.experiments.get_experiments_by_project(
+        return resolved.api_requests_registry.experiments.get_experiments_by_project(
             project_id,
             limit=limit,
             offset=offset,
@@ -116,7 +105,7 @@ def fetch_all_project_experiments(
     return cast(
         list[ExperimentResponse],
         fetch_all_requests(
-            request_client.request,
+            resolved.request_client.request,
             make_request_spec,
             limit=limit,
         ),
@@ -155,14 +144,14 @@ def fetch_all_recent_experiments(
         AttributeError: If a page does not expose ``hasNext`` or ``has_next``.
         RuntimeError: If a page reports another page but returns zero items.
     """
-    request_client, api_requests_registry = _resolve_client_and_registry(
+    resolved = resolve_client_and_registry(
         request_client,
         api_requests_registry,
     )
     project_id = str(project_id)
 
     def make_request_spec(*, limit: int, offset: int):
-        return api_requests_registry.experiments.get_recent_experiments(
+        return resolved.api_requests_registry.experiments.get_recent_experiments(
             project_id,
             limit=limit,
             offset=offset,
@@ -172,7 +161,7 @@ def fetch_all_recent_experiments(
     return cast(
         list[ExperimentResponse],
         fetch_all_requests(
-            request_client.request,
+            resolved.request_client.request,
             make_request_spec,
             limit=limit,
         ),
@@ -204,15 +193,15 @@ def fetch_all_teams(
         AttributeError: If a page does not expose ``hasNext`` or ``has_next``.
         RuntimeError: If a page reports another page but returns zero items.
     """
-    request_client, api_requests_registry = _resolve_client_and_registry(
+    resolved = resolve_client_and_registry(
         request_client,
         api_requests_registry,
     )
     return cast(
         list[TeamListItemResponse],
         fetch_all_requests(
-            request_client.request,
-            api_requests_registry.teams.get_all_teams,
+            resolved.request_client.request,
+            resolved.api_requests_registry.teams.get_all_teams,
             limit=limit,
         ),
     )
