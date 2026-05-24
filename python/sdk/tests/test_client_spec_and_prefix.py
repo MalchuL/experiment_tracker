@@ -1,9 +1,13 @@
+import pytest
+from pydantic import ValidationError
+
 from experiment_tracker_sdk.client.domain import (
     ExperimentRequestSpecFactory,
     MetricRequestSpecFactory,
     ProjectArtifactsRequestSpecFactory,
     TeamRequestSpecFactory,
 )
+from experiment_tracker_sdk.client.domain.teams.dto import TeamCreateRequest, TeamUpdateRequest
 from experiment_tracker_sdk.client.request import ApiRequestSpec, FileUploadSpec
 from experiment_tracker_sdk.client.domain.project_artifacts.dto import UploadProjectArtifactResponse
 from experiment_tracker_sdk.config import compose_base_url, normalize_api_prefix
@@ -49,6 +53,18 @@ def test_normalize_api_prefix() -> None:
     assert normalize_api_prefix("api") == "/api"
     assert normalize_api_prefix("/api/") == "/api"
     assert normalize_api_prefix("") == ""
+
+
+def test_team_create_request_rejects_owner_id() -> None:
+    with pytest.raises(ValidationError):
+        TeamCreateRequest.model_validate({"name": "Team", "ownerId": "other-user"})
+
+
+def test_team_update_request_rejects_owner_id() -> None:
+    with pytest.raises(ValidationError):
+        TeamUpdateRequest.model_validate(
+            {"id": "team-1", "name": "Team", "ownerId": "other-user"}
+        )
 
 
 def test_endpoint_factories_are_prefixless() -> None:

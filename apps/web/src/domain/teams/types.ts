@@ -1,3 +1,16 @@
+/** POST /teams request body (owner is assigned server-side). */
+export interface TeamCreateInput {
+  name: string;
+  description?: string | null;
+}
+
+/** PATCH /teams request body. */
+export interface TeamUpdateInput {
+  id: string;
+  name: string;
+  description?: string | null;
+}
+
 export interface Team {
   id: string;
   name: string;

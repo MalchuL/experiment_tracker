@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from abc import ABC
 import re
-from typing import Any, Literal, overload
+from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel
@@ -13,24 +13,6 @@ from experiment_tracker_sdk.client.client import ExperimentTrackerClient
 from experiment_tracker_sdk.error import ExpTrackerAPIError
 
 HEX_COLOR_RE = re.compile(r"^#[0-9a-fA-F]{6,8}$")
-
-
-@overload
-def validate_uuid(
-    value: str | UUID | None,
-    *,
-    field_name: str,
-    required: Literal[True],
-) -> str: ...
-
-
-@overload
-def validate_uuid(
-    value: str | UUID | None,
-    *,
-    field_name: str,
-    required: Literal[False] = False,
-) -> str | None: ...
 
 
 def validate_uuid(
