@@ -8,10 +8,10 @@ from pathlib import Path
 
 import click
 
-from .argv import split_on_first_double_dash
-from .bootstrap import apply_run_bootstrap
-from .context import RunCliContext
-from .tensorboard import register_default_tensorboard_hooks
+from .utils.argv import split_on_first_double_dash
+from .utils.bootstrap import apply_run_bootstrap
+from .utils.context import RunCliContext
+from ..utils.hooks.tensorboard import register_default_tensorboard_hooks
 
 _EXPERIMENT_ARGV_META_KEY = "experiment_tracker_sdk.console.run.experiment_argv"
 
@@ -92,4 +92,5 @@ def run_command(project: str | None, offline: bool, script: Path) -> None:
     )
     apply_run_bootstrap(ctx_obj)
     sys.argv = [script_display, *experiment_tokens]
+    click.echo(f"Running script {resolved} with arguments context: {ctx_obj}")
     runpy.run_path(resolved, run_name="__main__")

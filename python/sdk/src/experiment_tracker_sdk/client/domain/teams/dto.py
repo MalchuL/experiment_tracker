@@ -2,6 +2,8 @@ from datetime import datetime
 from enum import Enum
 from pydantic import BaseModel
 
+from ...pagination import PaginatedResponse
+
 
 class TeamRole(str, Enum):
     OWNER = "owner"
@@ -24,9 +26,17 @@ class TeamUpdateRequest(BaseModel):
 class TeamResponse(BaseModel):
     id: str
     createdAt: datetime
-    ownerId: str
+    ownerId: str | None = None
     name: str
     description: str | None = None
+
+
+class TeamListItemResponse(TeamResponse):
+    canCreateProject: bool = False
+
+
+class TeamListResponse(PaginatedResponse[TeamListItemResponse]):
+    pass
 
 
 class TeamMemberCreateRequest(BaseModel):

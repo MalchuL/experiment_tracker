@@ -4,6 +4,7 @@ from uuid import UUID
 from .dto import (
     SuccessResponse,
     TeamCreateRequest,
+    TeamListResponse,
     TeamMemberCreateRequest,
     TeamMemberDeleteRequest,
     TeamMemberResponse,
@@ -18,6 +19,8 @@ from ...request_types import ApiRequestSpec
 
 class TeamRequestSpecFactory:
     ENDPOINTS = {
+        "get_all_teams": "/teams",
+        "get_team": lambda team_id: f"/teams/{team_id}",
         "create_team": "/teams",
         "update_team": "/teams",
         "delete_team": lambda team_id: f"/teams/{team_id}",
@@ -25,6 +28,34 @@ class TeamRequestSpecFactory:
         "update_team_member": "/teams/members",
         "remove_team_member": "/teams/members",
     }
+
+    def get_all_teams(
+        self,
+        limit: int | None = None,
+        offset: int | None = None,
+    ) -> ApiRequestSpec[TeamListResponse]:
+        endpoint = cast(str, self.ENDPOINTS["get_all_teams"])
+        query_params: dict[str, int] = {}
+        if limit is not None:
+            query_params["limit"] = limit
+        if offset is not None:
+            query_params["offset"] = offset
+        return ApiRequestSpec(
+            method="GET",
+            endpoint=endpoint,
+            response_model=TeamListResponse,
+            query_params=query_params or None,
+        )
+
+    def get_team(self, team_id: str | UUID) -> ApiRequestSpec[TeamResponse]:
+        if isinstance(team_id, UUID):
+            team_id = str(team_id)
+        endpoint = cast(str, self.ENDPOINTS["get_team"](team_id))  # type: ignore[operator]
+        return ApiRequestSpec(
+            method="GET",
+            endpoint=endpoint,
+            response_model=TeamResponse,
+        )
 
     def create_team(
         self, name: str, description: str | None = None

@@ -84,6 +84,34 @@ class MetricService:
             metrics_page.map(self.metric_mapper.metric_schema_to_dto)
         )
 
+    async def get_metric_by_key(
+        self,
+        user: UserProtocol,
+        experiment_id: UUID_TYPE,
+        name: str,
+        label: str | None,
+    ) -> MetricDTO:
+        try:
+            experiment = await self.experiment_repository.get_by_id(experiment_id)
+        except DBNotFoundError as exc:
+            raise MetricNotFoundError(f"Experiment {experiment_id} not found") from exc
+        if not await self.permission_checker.can_view_metric(
+            user.id, experiment.project_id
+        ):
+            raise MetricNotAccessibleError(
+                f"Project {experiment.project_id} not accessible"
+            )
+        metric = await self.metric_repository.get_by_experiment_name_and_label(
+            experiment_id,
+            name,
+            None if label == "" else label,
+        )
+        if metric is None:
+            raise MetricNotFoundError(
+                f"Metric not found for experiment={experiment_id} name={name!r} label={label!r}"
+            )
+        return self.metric_mapper.metric_schema_to_dto(metric)
+
     async def upsert_metric(self, user: UserProtocol, data: MetricUpsertDTO) -> MetricDTO:
         data = self._normalize_upsert_dto_label(data)
         try:

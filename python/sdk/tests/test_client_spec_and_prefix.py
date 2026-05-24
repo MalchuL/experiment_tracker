@@ -2,6 +2,7 @@ from experiment_tracker_sdk.client.domain import (
     ExperimentRequestSpecFactory,
     MetricRequestSpecFactory,
     ProjectArtifactsRequestSpecFactory,
+    TeamRequestSpecFactory,
 )
 from experiment_tracker_sdk.client.request import ApiRequestSpec, FileUploadSpec
 from experiment_tracker_sdk.client.domain.project_artifacts.dto import UploadProjectArtifactResponse
@@ -54,6 +55,7 @@ def test_endpoint_factories_are_prefixless() -> None:
     experiment_factory = ExperimentRequestSpecFactory()
     metrics_factory = MetricRequestSpecFactory()
     project_artifacts_factory = ProjectArtifactsRequestSpecFactory()
+    team_factory = TeamRequestSpecFactory()
 
     assert experiment_factory.create_experiment("project-id", "run").endpoint == "/experiments"
     assert metrics_factory.upsert_metric("exp-id", "acc", 0.5).endpoint == "/metrics"
@@ -64,6 +66,9 @@ def test_endpoint_factories_are_prefixless() -> None:
         ).endpoint
         == "/project-artifacts/project-id/upload"
     )
+    assert team_factory.get_all_teams().endpoint == "/teams"
+    assert team_factory.get_team("team-id").endpoint == "/teams/team-id"
+    assert metrics_factory.get_metric("exp-id", "acc").endpoint == "/metrics/by-key"
 
 
 def test_create_experiment_spec_serializes_feature_tree() -> None:

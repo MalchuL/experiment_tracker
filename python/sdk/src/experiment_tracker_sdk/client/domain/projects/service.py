@@ -57,7 +57,7 @@ class ProjectRequestSpecFactory:
         description: str = "",
         metrics: ProjectMetricsResponse | None = None,
         settings: list[ProjectSettingResponse] | None = None,
-        team_id: str | None = None,
+        team_id: str | UUID | None = None,
     ) -> ApiRequestSpec[ProjectResponse]:
         endpoint = cast(str, self.ENDPOINTS["create_project"])
         payload = ProjectCreateRequest(
@@ -65,7 +65,7 @@ class ProjectRequestSpecFactory:
             description=truncate_project_description(description),
             metrics=metrics or ProjectMetricsResponse(),
             settings=settings or [],
-            teamId=team_id,
+            teamId=None if team_id is None else str(team_id),
         )
         return ApiRequestSpec(
             method="POST",

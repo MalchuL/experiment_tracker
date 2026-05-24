@@ -97,6 +97,14 @@ This mode uses `runpy` in the **current** process: bootstrap behavior and
 or multiprocessing-heavy training. Use `experiment-tracker run --help` for the
 full epilog.
 
+## Environment variables
+
+The SDK uses the following environment variables:
+
+- `EXP_TRACKER_DEFAULT_BASE_URL`: The default base URL for the Experiment Tracker backend.
+- `EXP_TRACKER_DEFAULT_API_PREFIX`: The default API prefix for the Experiment Tracker backend.
+- `EXP_TRACKER_API_TOKEN`: The API token for the Experiment Tracker backend.
+
 ## Use in code
 
 Create a client and log metrics:

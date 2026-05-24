@@ -20,6 +20,7 @@ from ...request_types import ApiRequestSpec
 class MetricRequestSpecFactory:
     ENDPOINTS = {
         "upsert_metric": "/metrics",
+        "get_metric": "/metrics/by-key",
         "delete_metric": lambda metric_id: f"/metrics/{metric_id}",
         "get_experiment_metrics": lambda experiment_id: f"/experiments/{experiment_id}/metrics",
         "get_project_metrics": lambda project_id: f"/projects/{project_id}/metrics",
@@ -57,7 +58,30 @@ class MetricRequestSpecFactory:
             response_model=MetricResponse,
         )
 
-    def delete_metric(self, metric_id: str | UUID) -> ApiRequestSpec[None]:
+    def get_metric(
+        self,
+        experiment_id: str | UUID,
+        name: str,
+        label: str | None = None,
+    ) -> ApiRequestSpec[MetricResponse]:
+        if isinstance(experiment_id, UUID):
+            experiment_id = str(experiment_id)
+        endpoint = cast(str, self.ENDPOINTS["get_metric"])
+        query_params: dict[str, str] = {
+            "experimentId": experiment_id,
+            "name": truncate_metric_name(name),
+        }
+        t_label = truncate_metric_label(label)
+        if t_label is not None:
+            query_params["label"] = t_label
+        return ApiRequestSpec(
+            method="GET",
+            endpoint=endpoint,
+            response_model=MetricResponse,
+            query_params=query_params,
+        )
+
+    def delete_metric(self, metric_id: str | UUID) -> ApiRequestSpec[Any]:
         if isinstance(metric_id, UUID):
             metric_id = str(metric_id)
         endpoint: str = cast(Callable[[Any], str], self.ENDPOINTS["delete_metric"])(

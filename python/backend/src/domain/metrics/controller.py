@@ -3,7 +3,7 @@
 from api.routes.service_dependencies import get_metric_service
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from api.routes.auth import (
     get_current_user_dual,
@@ -42,6 +42,26 @@ async def upsert_metric(
 ):
     try:
         return await metric_service.upsert_metric(user, data)
+    except Exception as exc:  # noqa: BLE001
+        _raise_metric_http_error(exc)
+
+
+@router.get("/by-key", response_model=MetricDTO)
+async def get_metric_by_key(
+    experiment_id: UUID = Query(..., alias="experimentId"),
+    name: str = Query(..., min_length=1),
+    label: str | None = Query(default=None),
+    user: User = Depends(get_current_user_dual),
+    _: None = Depends(require_api_token_scopes(ProjectActions.VIEW_METRIC)),
+    metric_service: MetricService = Depends(get_metric_service),
+):
+    try:
+        return await metric_service.get_metric_by_key(
+            user,
+            experiment_id,
+            name,
+            label,
+        )
     except Exception as exc:  # noqa: BLE001
         _raise_metric_http_error(exc)
 

@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import importlib.util
 
-from .bootstrap import register_run_bootstrap_hook
-from .context import RunCliContext
+from ...console.utils.bootstrap import register_run_bootstrap_hook
+from ...console.utils.context import RunCliContext
 
 _defaults_registered = False
 

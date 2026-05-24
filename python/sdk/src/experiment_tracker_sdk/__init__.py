@@ -19,4 +19,4 @@ __all__ = [
     "ExpTrackerProgressError",
     "config",
 ]
-__version__ = "0.6.5"
+__version__ = "0.8.0"

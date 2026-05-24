@@ -9,7 +9,7 @@ import pytest
 
 
 def test_split_on_first_double_dash() -> None:
-    from experiment_tracker_sdk.console.argv import split_on_first_double_dash
+    from experiment_tracker_sdk.console.utils.argv import split_on_first_double_dash
 
     assert split_on_first_double_dash(["a", "--", "b"]) == (["a"], ["b"])
     assert split_on_first_double_dash(["a", "b"]) == (["a", "b"], [])

@@ -10,77 +10,66 @@ import sys
 import time
 from typing import Any, Optional
 
-import httpx
 import numpy as np
 
 from experiment_tracker_sdk import ExpTracker
 from experiment_tracker_sdk.client import ExperimentStatus
+from experiment_tracker_sdk.client.domain.projects.dto import ProjectResponse
+from experiment_tracker_sdk.client.fetching_domain_pages import fetch_all_projects
+from experiment_tracker_sdk.client.instances import ProjectInstance, TeamInstance
 from experiment_tracker_sdk.config import load_config
 from experiment_tracker_sdk.utils.content_utils import image_data_to_png_bytes
 
 logger = logging.getLogger("training_example")
 
 
-def _get_api_client(base_url: str, api_token: str) -> httpx.Client:
-    return httpx.Client(
-        base_url=base_url.rstrip("/"),
-        headers={"Authorization": f"Bearer {api_token}"},
-        timeout=10.0,
-    )
-
-
-def _list_projects(client: httpx.Client) -> list[dict[str, Any]]:
-    response = client.get("/projects")
-    response.raise_for_status()
-    payload = response.json()
-    return payload["data"]
-
-
 def _find_team_id_from_projects(
-    projects: list[dict[str, Any]], team_name: str
+    projects: list[ProjectResponse], team_name: str
 ) -> Optional[str]:
     for project in projects:
-        team = project.get("team")
-        if team and team.get("name") == team_name:
-            return str(team.get("id"))
+        team = project.team
+        if team and team.name == team_name:
+            return str(team.id)
     return None
 
 
-def _create_team(client: httpx.Client, team_name: str) -> str:
-    response = client.post(
-        "/teams",
-        json={"name": team_name, "description": "SDK training example team"},
+def _create_team(
+    team_name: str,
+) -> str:
+    team = (
+        TeamInstance.builder()
+        .name(team_name)
+        .description("SDK training example team")
+        .create()
     )
-    response.raise_for_status()
-    return str(response.json()["id"])
+    return team.id
 
 
 def _find_project(
-    projects: list[dict[str, Any]], project_name: str, team_name: Optional[str]
-) -> Optional[dict[str, Any]]:
+    projects: list[ProjectResponse], project_name: str, team_name: Optional[str]
+) -> Optional[ProjectResponse]:
     for project in projects:
-        if project.get("name") != project_name:
+        if project.name != project_name:
             continue
-        team = project.get("team")
+        team = project.team
         if team_name is None and team is None:
             return project
-        if team_name is not None and team and team.get("name") == team_name:
+        if team_name is not None and team and team.name == team_name:
             return project
     return None
 
 
 def _create_project(
-    client: httpx.Client, project_name: str, team_id: Optional[str]
-) -> dict[str, Any]:
-    payload: dict[str, Any] = {
-        "name": project_name,
-        "description": "SDK training example project",
-    }
-    if team_id:
-        payload["teamId"] = team_id
-    response = client.post("/projects", json=payload)
-    response.raise_for_status()
-    return response.json()
+    project_name: str,
+    team_id: Optional[str],
+) -> ProjectInstance:
+    return (
+        ProjectInstance.builder()
+        .name(project_name)
+        .description("SDK training example project")
+        .team_id(team_id)
+        .create()
+    )
 
 
 def _parse_args() -> argparse.Namespace:
@@ -226,8 +215,7 @@ def _capture_installed_packages() -> str:
 
 def main() -> None:
     args = _parse_args()
-    config = load_config()
-    if config is None:
+    if load_config() is None:
         raise SystemExit("SDK config not found. Run `experiment-tracker init`.")
 
     logging.basicConfig(
@@ -239,33 +227,35 @@ def main() -> None:
         "starting_training",
         extra={"project": args.project_name, "team": args.team_name},
     )
-    api_client = _get_api_client(config.base_url, config.api_token)
     tracker: Optional[ExpTracker] = None
     try:
-        projects = _list_projects(api_client)
+        projects = fetch_all_projects()
         team_id = None
         if args.team_name:
             team_id = _find_team_id_from_projects(projects, args.team_name)
             if team_id is None:
                 logger.info("team_not_found_creating", extra={"team": args.team_name})
-                team_id = _create_team(api_client, args.team_name)
+                team_id = _create_team(args.team_name)
                 logger.info("team_created", extra={"team_id": team_id})
-                projects = _list_projects(api_client)
+                projects = fetch_all_projects()
 
         project = _find_project(projects, args.project_name, args.team_name)
         if project is None:
             logger.info(
                 "project_not_found_creating", extra={"project": args.project_name}
             )
-            project = _create_project(api_client, args.project_name, team_id)
-            logger.info("project_created", extra={"project_id": project["id"]})
+            project = _create_project(
+                args.project_name,
+                team_id,
+            )
+            logger.info("project_created", extra={"project_id": project.id})
         else:
-            logger.info("project_found", extra={"project_id": project["id"]})
+            logger.info("project_found", extra={"project_id": project.id})
 
         duration_seconds = 60
         steps = 12000
         tracker = ExpTracker.init(
-            project=str(project["id"]),
+            project=str(project.id),
             experiment=args.experiment_name,
             features=_build_feature_tree(args, steps, duration_seconds),
         )
@@ -480,7 +470,6 @@ def main() -> None:
     finally:
         if tracker is not None:
             tracker.close()
-        api_client.close()
 
 
 if __name__ == "__main__":

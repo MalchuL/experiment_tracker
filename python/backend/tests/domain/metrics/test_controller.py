@@ -157,6 +157,37 @@ class TestMetricControllerUpsert:
         assert r2.json()["id"] == mid
         assert r2.json()["value"] == 0.9
 
+    async def test_get_metric_by_key_as_member(
+        self, auth_client, test_user: User, test_user_2: User
+    ):
+        owner_client = auth_client(test_user)
+        team_id = _create_team(owner_client)
+        _add_team_member(owner_client, team_id, str(test_user_2.id), role="member")
+        project = _create_project(owner_client, team_id)
+        experiment = _create_experiment(owner_client, project["id"])
+        body = {
+            "experimentId": experiment["id"],
+            "name": "accuracy",
+            "value": 0.5,
+            "label": "train",
+        }
+        member_client = auth_client(test_user_2)
+        created = member_client.post("/api/v1/metrics", json=body)
+        assert created.status_code == 200
+
+        response = member_client.get(
+            "/api/v1/metrics/by-key",
+            params={
+                "experimentId": experiment["id"],
+                "name": "accuracy",
+                "label": "train",
+            },
+        )
+
+        assert response.status_code == 200
+        assert response.json()["id"] == created.json()["id"]
+        assert response.json()["value"] == 0.5
+
     async def test_upsert_metric_denied_for_viewer(
         self, auth_client, test_user: User, test_user_2: User
     ):

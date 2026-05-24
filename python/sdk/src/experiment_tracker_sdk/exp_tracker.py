@@ -17,19 +17,20 @@ from experiment_tracker_sdk.client.scalar_batching_strategy import (
     BatchedScalarLoggingStrategy,
 )
 from experiment_tracker_sdk.client.domain.experiments.dto import (
-    ExperimentListResponse,
     ExperimentResponse,
     FeatureNodeLike,
 )
-from experiment_tracker_sdk.client.domain.projects.dto import (
-    ProjectListResponse,
-)
+from experiment_tracker_sdk.client.domain.experiment_artifacts.dto import ArtifactType
 from experiment_tracker_sdk.error import ExpTrackerAPIError
 from experiment_tracker_sdk.logger import logger
 from experiment_tracker_sdk.utils.content_utils import (
     _is_existing_file_path,
     image_data_to_png_bytes,
     materialize_content,
+)
+from experiment_tracker_sdk.client.fetching_domain_pages import (
+    fetch_all_project_experiments,
+    fetch_all_projects,
 )
 
 
@@ -92,7 +93,7 @@ class ExpTracker:
         content: bytes,
         content_type: str,
         name: str,
-        artifact_type: str,
+        artifact_type: ArtifactType,
         step: int,
         metadata: dict | None = None,
     ):
@@ -127,10 +128,10 @@ class ExpTracker:
         api_requests_registry = cls._get_api_requests_registry()
         request_client = cls._get_request_client()
 
-        projects = cast(
-            ProjectListResponse,
-            request_client.request(api_requests_registry.projects.get_all_projects()),
-        ).data
+        projects = fetch_all_projects(
+            request_client=request_client,
+            api_requests_registry=api_requests_registry,
+        )
         project_obj = next(
             (p for p in projects if p.name == project or p.id == project), None
         )
@@ -140,14 +141,11 @@ class ExpTracker:
         experiment_obj = None
         if try_existing_experiment:
             # Try to find an existing experiment with the given name or ID
-            experiments = cast(
-                ExperimentListResponse,
-                request_client.request(
-                    api_requests_registry.experiments.get_experiments_by_project(
-                        project_obj.id
-                    )
-                ),
-            ).data
+            experiments = fetch_all_project_experiments(
+                project_obj.id,
+                request_client=request_client,
+                api_requests_registry=api_requests_registry,
+            )
             experiment_obj = next(
                 (e for e in experiments if e.name == experiment or e.id == experiment),
                 None,
@@ -462,15 +460,11 @@ class ExpTracker:
 
     def parent_experiment(self, parent_experiment: str | UUID):
         """Update the parent experiment of the experiment."""
-        experiments = cast(
-            ExperimentListResponse,
-            self._request_client.request(
-                self._api_requests_registry.experiments.get_experiments_by_project(
-                    self.project_id
-                )
-            ),
-        ).data
-        # TODO: Must be paginated in the future
+        experiments = fetch_all_project_experiments(
+            self.project_id,
+            request_client=self._request_client,
+            api_requests_registry=self._api_requests_registry,
+        )
         parent_experiment_obj = next(
             (
                 e

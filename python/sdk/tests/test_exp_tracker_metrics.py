@@ -135,17 +135,17 @@ def test_add_scalar_queues_batch_after_128_steps(monkeypatch) -> None:
     timers = _capture_timers(monkeypatch)
     tracker, registry, client = _create_tracker()
 
-    for step in range(129):
+    for step in range(257):
         tracker.add_scalar("loss", float(step), global_step=step)
 
     assert len(registry.scalars.batch_calls) == 1
     experiment_id, scalars = registry.scalars.batch_calls[0]
     assert experiment_id == "exp-id"
-    assert len(scalars) == 128
+    assert len(scalars) == 256
     assert scalars[0].step == 0
     assert scalars[0].scalars == {"loss": 0.0}
-    assert scalars[-1].step == 127
-    assert scalars[-1].scalars == {"loss": 127.0}
+    assert scalars[-1].step == 255
+    assert scalars[-1].scalars == {"loss": 255.0}
     assert len(client.queued_calls) == 1
     assert timers[0].cancelled is True
 
