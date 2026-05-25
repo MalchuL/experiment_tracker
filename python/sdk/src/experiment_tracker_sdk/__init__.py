@@ -22,6 +22,7 @@ from .error import (
     ExpTrackerAPIError,
     ExpTrackerProgressError,
 )
+from .utils.color_utils import random_hex_color
 from .utils.content_utils import image_data_to_png_bytes
 from .utils.experiment_init_strategy import InitParams
 from . import config
@@ -45,10 +46,11 @@ __all__ = [
     "fetch_all_recent_experiments",
     "fetch_all_teams",
     "image_data_to_png_bytes",
+    "random_hex_color",
     "ExpTrackerError",
     "ExpTrackerConfigError",
     "ExpTrackerAPIError",
     "ExpTrackerProgressError",
     "config",
 ]
-__version__ = "0.8.3"
+__version__ = "0.8.7"

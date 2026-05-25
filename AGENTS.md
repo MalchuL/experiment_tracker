@@ -126,6 +126,15 @@ Work from the package root, for example:
 
 Do **not** assume a single global `python/backend`-only layout; **scalars_service**, **object_storage**, and **sdk** are first-class packages with their own `uv` workflows.
 
+### SDK version
+
+When shipping SDK changes that should be published or consumed with a pinned version, bump **both** of these and keep them identical:
+
+1. `python/sdk/pyproject.toml` — `[project] version` (package metadata for installs/builds)
+2. `python/sdk/src/experiment_tracker_sdk/__init__.py` — `__version__` (runtime; import as `experiment_tracker_sdk.__version__`)
+
+Use [semver](https://semver.org/): **patch** for fixes and small backward-compatible additions, **minor** for larger backward-compatible features, **major** for breaking API changes. Bump the version in the same change set as the SDK feature or fix it describes.
+
 ## Frontend: Turborepo and pnpm
 
 - Orchestrated with **Turborepo** (`turbo.json`). Prefer running tasks via Turbo from the repo root when appropriate.

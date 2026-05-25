@@ -151,6 +151,19 @@ def test_features_updates_experiment_feature_tree() -> None:
     assert client.queued_calls == []
 
 
+def test_context_batches_experiment_metadata_updates() -> None:
+    tracker, registry, client = _create_tracker()
+
+    with tracker:
+        tracker.color("#123456")
+        tracker.progress(100)
+
+    assert registry.experiments.calls == [
+        ("exp-id", {"color": "#123456", "progress": 100})
+    ]
+    assert len(client.request_calls) == 1
+
+
 def test_add_scalar_queues_batch_after_128_steps(monkeypatch) -> None:
     timers = _capture_timers(monkeypatch)
     tracker, registry, client = _create_tracker()

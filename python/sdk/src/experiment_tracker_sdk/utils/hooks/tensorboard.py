@@ -1,24 +1,184 @@
 from __future__ import annotations
 
+import importlib
 import importlib.util
+import logging
+from typing import Any
 
 from ...console.utils.bootstrap import register_run_bootstrap_hook
 from ...console.utils.context import RunCliContext
 
 _defaults_registered = False
+_active_tracker: Any | None = None
+_logger = logging.getLogger(__name__)
 
 
-def _tensorboard_bootstrap(_ctx: RunCliContext) -> None:
+def _global_step_or_zero(global_step: Any) -> int:
+    if global_step is None:
+        return 0
+    try:
+        return int(global_step)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _walltime_or_zero(walltime: Any) -> float:
+    if walltime is None:
+        return 0
+    try:
+        return float(walltime)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _tensor_to_numpy_like(value: Any) -> Any:
+    """Convert tensor-like inputs to numpy arrays when possible."""
+    if hasattr(value, "detach") and callable(value.detach):
+        value = value.detach()
+    if hasattr(value, "cpu") and callable(value.cpu):
+        value = value.cpu()
+    if hasattr(value, "numpy") and callable(value.numpy):
+        return value.numpy()
+    return value
+
+
+def _prepare_image_for_tracker(img_tensor: Any, dataformats: Any) -> Any:
+    """Convert TensorBoard image layouts to tracker-supported image layouts."""
+    image = _tensor_to_numpy_like(img_tensor)
+    try:
+        import numpy as np  # type: ignore[import-not-found]
+    except Exception:
+        return image
+    if not isinstance(image, np.ndarray):
+        return image
+
+    fmt = str(dataformats or "CHW").upper()
+    if fmt.startswith("N") and image.ndim >= 4:
+        image = image[0]
+        fmt = fmt[1:]
+    if fmt == "CHW" and image.ndim == 3:
+        if image.shape[0] == 1:
+            return image[0]
+        return np.moveaxis(image, 0, -1)
+    if fmt == "HWC" and image.ndim == 3 and image.shape[2] == 1:
+        return image[:, :, 0]
+    return image
+
+
+def _image_dataformats(args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
+    if "dataformats" in kwargs:
+        return kwargs["dataformats"]
+    if args:
+        return args[0]
+    return "CHW"
+
+
+def _patch_summary_writer(writer_cls: type[Any]) -> None:
+    """Patch one SummaryWriter class so scalar/image calls also hit the tracker."""
+    if getattr(writer_cls, "_experiment_tracker_sdk_patched", False):
+        return
+
+    original_add_scalar = getattr(writer_cls, "add_scalar", None)
+    if callable(original_add_scalar):
+
+        def add_scalar(self, tag, scalar_value, global_step=None, walltime=None, *args, **kwargs):  # type: ignore[no-untyped-def]
+            tracker = _active_tracker
+            if tracker is not None:
+                try:
+                    tracker.add_scalar(
+                        tag,
+                        scalar_value,
+                        global_step=_global_step_or_zero(global_step),
+                        walltime=_walltime_or_zero(walltime),
+                    )
+                except Exception as exc:  # noqa: BLE001
+                    _logger.warning(
+                        "tensorboard_scalar_capture_failed",
+                        extra={"tag": tag, "error": str(exc)},
+                    )
+            return original_add_scalar(
+                self,
+                tag,
+                scalar_value,
+                global_step,
+                walltime,
+                *args,
+                **kwargs,
+            )
+
+        writer_cls.add_scalar = add_scalar  # type: ignore[method-assign]
+
+    original_add_image = getattr(writer_cls, "add_image", None)
+    if callable(original_add_image):
+
+        def add_image(self, tag, img_tensor, global_step=None, walltime=None, *args, **kwargs):  # type: ignore[no-untyped-def]
+            tracker = _active_tracker
+            if tracker is not None:
+                try:
+                    tracker_image = _prepare_image_for_tracker(
+                        img_tensor,
+                        _image_dataformats(args, kwargs),
+                    )
+                    tracker.add_image(
+                        tag,
+                        tracker_image,
+                        global_step=_global_step_or_zero(global_step),
+                        walltime=_walltime_or_zero(walltime),
+                    )
+                except Exception as exc:  # noqa: BLE001
+                    _logger.warning(
+                        "tensorboard_image_capture_failed",
+                        extra={"tag": tag, "error": str(exc)},
+                    )
+            return original_add_image(
+                self,
+                tag,
+                img_tensor,
+                global_step,
+                walltime,
+                *args,
+                **kwargs,
+            )
+
+        writer_cls.add_image = add_image  # type: ignore[method-assign]
+
+    writer_cls._experiment_tracker_sdk_patched = True  # type: ignore[attr-defined]
+
+
+def _patch_summary_writer_module(module_name: str) -> None:
+    try:
+        spec = importlib.util.find_spec(module_name)
+    except ModuleNotFoundError:
+        return
+    if spec is None:
+        return
+    module = importlib.import_module(module_name)
+    writer_cls = getattr(module, "SummaryWriter", None)
+    if isinstance(writer_cls, type):
+        _patch_summary_writer(writer_cls)
+
+
+def _tensorboard_bootstrap(ctx: RunCliContext) -> None:
     """TensorBoard / TensorBoardX setup for in-process ``run``.
 
-    When ``tensorboard`` or ``tensorboardX`` is installed, warm-import it as an
-    extension point for future SummaryWriter integration. Both dependencies stay
-    optional.
+    When a run tracker is initialized, patch installed SummaryWriter
+    implementations so ``add_scalar`` and ``add_image`` are mirrored to the
+    experiment tracker. TensorBoard dependencies stay optional.
     """
+    global _active_tracker
+    _active_tracker = None if ctx.runner is None else ctx.runner.exp_tracker
     for name in ("tensorboard", "tensorboardX"):
         if importlib.util.find_spec(name) is None:
             continue
         importlib.import_module(name)  # noqa: F401 — side effect / warm import
+    for module_name in ("tensorboardX", "torch.utils.tensorboard"):
+        try:
+            _patch_summary_writer_module(module_name)
+        except Exception as exc:  # noqa: BLE001
+            _logger.warning(
+                "tensorboard_summary_writer_patch_failed",
+                extra={"module_name": module_name, "error": str(exc)},
+            )
 
 
 def register_default_tensorboard_hooks() -> None:

@@ -4,16 +4,21 @@ from __future__ import annotations
 
 import runpy
 import sys
+from datetime import datetime
 from pathlib import Path
 
 import click
 
+from experiment_tracker_sdk.utils.experiment_init_strategy import InitParams
+
 from .utils.argv import split_on_first_double_dash
 from .utils.bootstrap import apply_run_bootstrap
 from .utils.context import RunCliContext
+from .utils.run.runner import RunSample
 from ..utils.hooks.tensorboard import register_default_tensorboard_hooks
 
 _EXPERIMENT_ARGV_META_KEY = "experiment_tracker_sdk.console.run.experiment_argv"
+DEFAULT_PROJECT_NAME = "Default"
 
 _SIMPLE_EXPERIMENTS_EPILOG = """\
 This mode is for simple experiments only (single-process or lightly threaded
@@ -26,6 +31,11 @@ mutations persist in this interpreter after the run finishes.
 Put arguments for your script after a lone ``--`` token, for example:
 ``experiment-tracker run train.py -- --epochs 10``.
 """
+
+
+def _default_experiment_name() -> str:
+    """Return the default run experiment name."""
+    return f"Experiment {datetime.now().strftime('%d-%m-%Y %H:%M:%S')}"
 
 
 class RunCommand(click.Command):
@@ -68,6 +78,12 @@ class RunCommand(click.Command):
     help="Team name or id for future tracker bootstrap (wrapper only).",
 )
 @click.option(
+    "--experiment",
+    default=None,
+    metavar="NAME",
+    help="Experiment name or id for tracker bootstrap (wrapper only).",
+)
+@click.option(
     "--offline",
     is_flag=True,
     help="Offline mode flag for future tracker bootstrap (wrapper only).",
@@ -84,6 +100,7 @@ class RunCommand(click.Command):
 def run_command(
     project: str | None,
     team: str | None,
+    experiment: str | None,
     offline: bool,
     script: Path,
 ) -> None:
@@ -95,9 +112,26 @@ def run_command(
     script_display = str(script)
     resolved = str(script.resolve())
     register_default_tensorboard_hooks()
+    runner: RunSample | None = None
+    resolved_project = project or DEFAULT_PROJECT_NAME
+    resolved_experiment = experiment or _default_experiment_name()
+    if not offline:
+        runner = RunSample()
+        runner.init(
+            experiment_name_or_id=resolved_experiment,
+            project_name_or_id=resolved_project,
+            team_name_or_id=team,
+            init_params=InitParams(
+                create_team_if_not_exists=team is not None,
+                create_project_if_not_exists=True,
+                create_experiment_if_not_exists=True,
+            ),
+        )
     ctx_obj = RunCliContext(
-        project=project,
+        project=resolved_project,
         team=team,
+        experiment=resolved_experiment,
+        runner=runner,
         offline=offline,
         script_argv0=script_display,
         script_resolved_path=resolved,
@@ -105,4 +139,11 @@ def run_command(
     apply_run_bootstrap(ctx_obj)
     sys.argv = [script_display, *experiment_tokens]
     click.echo(f"Running script {resolved} with arguments context: {ctx_obj}")
-    runpy.run_path(resolved, run_name="__main__")
+    try:
+        runpy.run_path(resolved, run_name="__main__")
+    except BaseException:
+        if runner is not None:
+            runner.mark_failed()
+        raise
+    if runner is not None:
+        runner.mark_completed()

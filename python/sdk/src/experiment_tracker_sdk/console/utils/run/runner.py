@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-from experiment_tracker_sdk import ExpTracker
+from experiment_tracker_sdk import ExpTracker, ExperimentStatus
 from experiment_tracker_sdk.client import APIRequestsRegistry, ExperimentTrackerClient
 from experiment_tracker_sdk.client.api_access import resolve_client_and_registry
 from experiment_tracker_sdk.logger import logger
+from experiment_tracker_sdk.utils.color_utils import random_hex_color
 from experiment_tracker_sdk.utils.experiment_init_strategy import (
     InitParams,
     MultipleItemsResolveStrategy,
@@ -62,6 +63,23 @@ class RunSample:
             self._request_client,
             experiment_instance=result.experiment,
         )
+        with self.exp_tracker:
+            self.exp_tracker.color(random_hex_color())
+
+    def mark_completed(self) -> None:
+        """Mark the initialized run tracker as completed."""
+        if self.exp_tracker is None:
+            return
+        with self.exp_tracker:
+            self.exp_tracker.progress(100)
+            self.exp_tracker.status(ExperimentStatus.COMPLETE)
+
+    def mark_failed(self) -> None:
+        """Mark the initialized run tracker as failed."""
+        if self.exp_tracker is None:
+            return
+        with self.exp_tracker:
+            self.exp_tracker.status(ExperimentStatus.FAILED)
 
 
 __all__ = [

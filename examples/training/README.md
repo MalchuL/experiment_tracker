@@ -22,7 +22,5 @@ experiment-tracker init --base-url http://127.0.0.1:8000 --api-token <TOKEN>
 From the examples/training folder:
 
 ```
-uv run python train.py --project-name "SDK Training" --team-name "Demo Team"
+uv run experiment-tracker run --project mnist train.py -- --epochs 100 --max-train-batches 100 --max-val-batches 100
 ```
-
-If `--team-name` is omitted, the project is created without a team.

@@ -93,6 +93,15 @@ class ExpTracker:
             api_requests_registry=api_requests_registry,
         )
 
+    def __enter__(self) -> "ExpTracker":
+        """Enter batched experiment metadata update mode."""
+        self._experiment.__enter__()
+        return self
+
+    def __exit__(self, exc_type, exc, tb) -> bool:  # type: ignore[exit-return]
+        """Leave batched experiment metadata update mode."""
+        return self._experiment.__exit__(exc_type, exc, tb)
+
     def _upload_artifact_at_step(
         self,
         *,
