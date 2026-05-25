@@ -257,11 +257,11 @@ def main() -> None:
         tracker = ExpTracker.init(
             project=str(project.id),
             experiment=args.experiment_name,
-            features=_build_feature_tree(args, steps, duration_seconds),
         )
         experiment_id = str(tracker.experiment_id)
         logger.info("experiment_created", extra={"experiment_id": experiment_id})
 
+        tracker.features(_build_feature_tree(args, steps, duration_seconds))
         tracker.tags("training-example")
         tracker.status(ExperimentStatus.RUNNING)
         tracker.progress(0)

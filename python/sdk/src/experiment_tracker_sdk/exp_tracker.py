@@ -1,11 +1,9 @@
 import math
 import mimetypes
-import re
+from datetime import datetime
 from pathlib import Path
-from typing import cast
 from uuid import UUID
 
-from experiment_tracker_sdk.client.api_access import ExpTrackerApiAccess
 from experiment_tracker_sdk.client import (
     ExperimentStatus,
     ExperimentTrackerClient,
@@ -21,6 +19,7 @@ from experiment_tracker_sdk.client.domain.experiments.dto import (
     FeatureNodeLike,
 )
 from experiment_tracker_sdk.client.domain.experiment_artifacts.dto import ArtifactType
+from experiment_tracker_sdk.client.instances import ExperimentInstance
 from experiment_tracker_sdk.error import ExpTrackerAPIError
 from experiment_tracker_sdk.logger import logger
 from experiment_tracker_sdk.utils.content_utils import (
@@ -30,7 +29,10 @@ from experiment_tracker_sdk.utils.content_utils import (
 )
 from experiment_tracker_sdk.client.fetching_domain_pages import (
     fetch_all_project_experiments,
-    fetch_all_projects,
+)
+from experiment_tracker_sdk.utils.experiment_init_strategy import (
+    ExperimentInitStrategy,
+    InitParams,
 )
 
 
@@ -58,6 +60,7 @@ class ExpTracker:
         project_id: str | UUID,
         api_requests_registry: APIRequestsRegistry,
         request_client: ExperimentTrackerClient,
+        experiment_instance: ExperimentInstance | None = None,
     ):
         """Initialize the ExpTracker instance.
         Args:
@@ -77,14 +80,18 @@ class ExpTracker:
             registry=api_requests_registry,
             request_client=request_client,
         )
-
-    @staticmethod
-    def _get_api_requests_registry() -> APIRequestsRegistry:
-        return ExpTrackerApiAccess.instance().get_api_requests_registry()
-
-    @staticmethod
-    def _get_request_client() -> ExperimentTrackerClient:
-        return ExpTrackerApiAccess.instance().get_request_client()
+        self._experiment = experiment_instance or ExperimentInstance._from_response(
+            ExperimentResponse(
+                id=str(experiment_id),
+                projectId=str(project_id),
+                name="",
+                description="",
+                status=ExperimentStatus.PLANNED.value,
+                createdAt=datetime.now(),
+            ),
+            request_client=request_client,
+            api_requests_registry=api_requests_registry,
+        )
 
     def _upload_artifact_at_step(
         self,
@@ -113,65 +120,41 @@ class ExpTracker:
         cls,
         project: str | UUID,
         experiment: str | UUID,
-        try_existing_experiment: bool = True,
-        features: list[FeatureNodeLike] | None = None,
+        team: str | UUID | None = None,
+        init_params: InitParams | None = None,
     ) -> "ExpTracker":
         """Initialize the ExpTracker instance.
+
         Args:
-            project (str | UUID): The ID or name of the project.
-            experiment (str | UUID): The ID or name of the experiment.
+            project: Project ID or name to resolve.
+            experiment: Experiment ID or name to resolve inside the project.
+            team: Optional team ID or name used to resolve team-owned projects
+                and to create a team/project when requested by ``init_params``.
+            init_params: Optional initialization behavior. Controls whether
+                existing team/project/experiment objects are reused, how
+                ambiguous matches are resolved, and whether missing objects are
+                created. When omitted, missing experiments are created by
+                default while projects and teams must already exist.
+
+        Returns:
+            Configured ``ExpTracker`` bound to the resolved experiment.
         """
-        # Convert UUIDs to strings
-        project = str(project)
-        experiment = str(experiment)
-
-        api_requests_registry = cls._get_api_requests_registry()
-        request_client = cls._get_request_client()
-
-        projects = fetch_all_projects(
-            request_client=request_client,
-            api_requests_registry=api_requests_registry,
+        resolved_init_params = init_params or InitParams(
+            create_experiment_if_not_exists=True,
         )
-        project_obj = next(
-            (p for p in projects if p.name == project or p.id == project), None
+        strategy = ExperimentInitStrategy()
+        result = strategy.init(
+            experiment_name_or_id=experiment,
+            project_name_or_id=project,
+            team_name_or_id=team,
+            init_params=resolved_init_params,
         )
-        if project_obj is None:
-            raise ExpTrackerAPIError(f"Project not found: {project}")
-        logger.info(f"Using project: {project_obj.id} with name {project_obj.name}")
-        experiment_obj = None
-        if try_existing_experiment:
-            # Try to find an existing experiment with the given name or ID
-            experiments = fetch_all_project_experiments(
-                project_obj.id,
-                request_client=request_client,
-                api_requests_registry=api_requests_registry,
-            )
-            experiment_obj = next(
-                (e for e in experiments if e.name == experiment or e.id == experiment),
-                None,
-            )
-            if experiment_obj is not None:
-                logger.info(
-                    f"Using experiment: {experiment_obj.id} with name {experiment_obj.name}"
-                )
-        if experiment_obj is None:
-            # Create a new experiment
-            logger.info(f"Creating new experiment: {experiment} for project: {project}")
-            experiment_obj = cast(
-                ExperimentResponse,
-                request_client.request(
-                    api_requests_registry.experiments.create_experiment(
-                        project_obj.id,
-                        experiment,
-                        features=features if features is not None else UNSET,
-                    )
-                ),
-            )
         return cls(
-            experiment_obj.id,
-            project_obj.id,
-            api_requests_registry,
-            request_client,
+            result.experiment.id,
+            result.project.id,
+            strategy.api_requests_registry,
+            strategy.request_client,
+            experiment_instance=result.experiment,
         )
 
     def add_scalar(
@@ -402,61 +385,31 @@ class ExpTracker:
         if isinstance(progress, float):
             progress = min(max(progress, 0), 1)
             progress = round(progress * 100)
-        self._request_client.queued_request(
-            self._api_requests_registry.experiments.update_experiment(
-                self.experiment_id, progress=progress
-            )
-        )
+        self._experiment.progress = int(progress)
 
     def status(self, status: ExperimentStatus):
         """Update the status of the experiment."""
-        self._request_client.queued_request(
-            self._api_requests_registry.experiments.update_experiment(
-                self.experiment_id, status=status
-            )
-        )
+        self._experiment.status = status
 
     def tags(self, *tags: str):
         """Update the tags of the experiment."""
-        self._request_client.request(
-            self._api_requests_registry.experiments.update_experiment(
-                self.experiment_id, tags=list(tags)
-            )
-        )
+        self._experiment.tags = list(tags)
 
     def color(self, color: str):
         """Update the color of the experiment."""
-        if not re.fullmatch(r"^#[0-9a-fA-F]{6}$", color):
-            raise ExpTrackerAPIError(f"Invalid color: {color}")
-        self._request_client.request(
-            self._api_requests_registry.experiments.update_experiment(
-                self.experiment_id, color=color
-            )
-        )
+        self._experiment.color = color
 
     def description(self, description: str):
         """Update the description of the experiment."""
-        self._request_client.request(
-            self._api_requests_registry.experiments.update_experiment(
-                self.experiment_id, description=description
-            )
-        )
+        self._experiment.description = description
 
     def features(self, features: list[FeatureNodeLike]):
         """Update the feature tree for the experiment."""
-        self._request_client.request(
-            self._api_requests_registry.experiments.update_experiment(
-                self.experiment_id, features=features
-            )
-        )
+        self._experiment.features = features
 
     def name(self, name: str):
         """Update the name of the experiment."""
-        self._request_client.request(
-            self._api_requests_registry.experiments.update_experiment(
-                self.experiment_id, name=name
-            )
-        )
+        self._experiment.name = name
 
     def parent_experiment(self, parent_experiment: str | UUID):
         """Update the parent experiment of the experiment."""
@@ -481,11 +434,7 @@ class ExpTracker:
         logger.info(
             f"Using parent experiment: {parent_experiment_obj.id} with name {parent_experiment_obj.name}"
         )
-        self._request_client.request(
-            self._api_requests_registry.experiments.update_experiment(
-                self.experiment_id, parent_experiment_id=parent_experiment_obj.id
-            )
-        )
+        self._experiment.parentExperimentId = parent_experiment_obj.id
 
     def flush(self):
         """Flush the event file to disk/network."""
