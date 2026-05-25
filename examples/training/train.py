@@ -17,63 +17,12 @@ from PIL import Image
 from experiment_tracker_sdk import (
     ExpTracker,
     ExperimentStatus,
-    ProjectInstance,
-    TeamInstance,
+    InitParams,
     config,
-    fetch_all_projects,
     image_data_to_png_bytes,
 )
 
 logger = logging.getLogger("training_example")
-
-
-def _find_team_id_from_projects(
-    projects: list[Any], team_name: str
-) -> Optional[str]:
-    for project in projects:
-        team = project.team
-        if team and team.name == team_name:
-            return str(team.id)
-    return None
-
-
-def _create_team(
-    team_name: str,
-) -> str:
-    team = (
-        TeamInstance.builder()
-        .name(team_name)
-        .description("SDK training example team")
-        .create()
-    )
-    return team.id
-
-
-def _find_project(
-    projects: list[Any], project_name: str, team_name: Optional[str]
-) -> Optional[Any]:
-    for project in projects:
-        if project.name != project_name:
-            continue
-        team = project.team
-        if team_name is None and team is None:
-            return project
-        if team_name is not None and team and team.name == team_name:
-            return project
-    return None
-
-
-def _create_project(
-    project_name: str,
-    team_id: Optional[str],
-) -> ProjectInstance:
-    return (
-        ProjectInstance.builder()
-        .name(project_name)
-        .description("SDK training example project")
-        .team_id(team_id)
-        .create()
-    )
 
 
 def _parse_args() -> argparse.Namespace:
@@ -239,37 +188,26 @@ def main() -> None:
     )
     tracker: Optional[ExpTracker] = None
     try:
-        projects = fetch_all_projects()
-        team_id = None
-        if args.team_name:
-            team_id = _find_team_id_from_projects(projects, args.team_name)
-            if team_id is None:
-                logger.info("team_not_found_creating", extra={"team": args.team_name})
-                team_id = _create_team(args.team_name)
-                logger.info("team_created", extra={"team_id": team_id})
-                projects = fetch_all_projects()
-
-        project = _find_project(projects, args.project_name, args.team_name)
-        if project is None:
-            logger.info(
-                "project_not_found_creating", extra={"project": args.project_name}
-            )
-            project = _create_project(
-                args.project_name,
-                team_id,
-            )
-            logger.info("project_created", extra={"project_id": project.id})
-        else:
-            logger.info("project_found", extra={"project_id": project.id})
-
         duration_seconds = 60
         steps = 12000
         tracker = ExpTracker.init(
-            project=str(project.id),
+            project=args.project_name,
             experiment=args.experiment_name,
+            team=args.team_name,
+            init_params=InitParams(
+                create_team_if_not_exists=True,
+                create_project_if_not_exists=True,
+                create_experiment_if_not_exists=True,
+            ),
         )
         experiment_id = str(tracker.experiment_id)
-        logger.info("experiment_created", extra={"experiment_id": experiment_id})
+        logger.info(
+            "tracker_initialized",
+            extra={
+                "project_id": str(tracker.project_id),
+                "experiment_id": experiment_id,
+            },
+        )
 
         tracker.features(_build_feature_tree(args, steps, duration_seconds))
         tracker.tags("training-example")

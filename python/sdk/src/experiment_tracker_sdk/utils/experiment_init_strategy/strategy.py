@@ -236,7 +236,6 @@ class ExperimentInitStrategy:
                 error=TeamNotFoundError,
                 init_params=init_params,
             )
-            self._logger.info(f"Creating team: {team_name_or_id}")
             return self._create_team(team_name=team_name_or_id)
         # We select the team from the matches (by using the strategy)
         match = self._select_one(
@@ -327,7 +326,6 @@ class ExperimentInitStrategy:
                 init_params=init_params,
             )
             # We create a new project
-            self._logger.info(f"Creating project: {project_name_or_id}")
             return self._create_project(
                 project_name=project_name_or_id,
                 team_id=None if team is None else team.id,
@@ -425,9 +423,6 @@ class ExperimentInitStrategy:
                 error=ExperimentNotFoundError,
                 init_params=init_params,
             )
-            self._logger.info(
-                f"Creating experiment: {experiment_name_or_id} for project: {project.id}"
-            )
             return self._create_experiment(experiment_name_or_id, project.id)
         match = self._select_one(
             matches,
@@ -446,6 +441,9 @@ class ExperimentInitStrategy:
         project_id: str,
     ) -> ExperimentInstance:
         """Create an experiment and return its instance."""
+        self._logger.info(
+            f"Creating experiment: {experiment_name} for project: {project_id}"
+        )
         builder = (
             ExperimentBuilder(
                 request_client=self._request_client,
