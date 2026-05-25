@@ -90,7 +90,7 @@ requires-dist = [
 
 [[package]]
 name = "experiment-tracker-sdk"
-version = "0.7.0"
+version = "0.8.1"
 source = { directory = "../../python/sdk" }
 dependencies = [
     { name = "click" },

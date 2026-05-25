@@ -8,23 +8,27 @@ import random
 import subprocess
 import sys
 import time
+from io import BytesIO
 from typing import Any, Optional
 
 import numpy as np
+from PIL import Image
 
-from experiment_tracker_sdk import ExpTracker
-from experiment_tracker_sdk.client import ExperimentStatus
-from experiment_tracker_sdk.client.domain.projects.dto import ProjectResponse
-from experiment_tracker_sdk.client.fetching_domain_pages import fetch_all_projects
-from experiment_tracker_sdk.client.instances import ProjectInstance, TeamInstance
-from experiment_tracker_sdk.config import load_config
-from experiment_tracker_sdk.utils.content_utils import image_data_to_png_bytes
+from experiment_tracker_sdk import (
+    ExpTracker,
+    ExperimentStatus,
+    ProjectInstance,
+    TeamInstance,
+    config,
+    fetch_all_projects,
+    image_data_to_png_bytes,
+)
 
 logger = logging.getLogger("training_example")
 
 
 def _find_team_id_from_projects(
-    projects: list[ProjectResponse], team_name: str
+    projects: list[Any], team_name: str
 ) -> Optional[str]:
     for project in projects:
         team = project.team
@@ -46,8 +50,8 @@ def _create_team(
 
 
 def _find_project(
-    projects: list[ProjectResponse], project_name: str, team_name: Optional[str]
-) -> Optional[ProjectResponse]:
+    projects: list[Any], project_name: str, team_name: Optional[str]
+) -> Optional[Any]:
     for project in projects:
         if project.name != project_name:
             continue
@@ -105,6 +109,12 @@ def _smooth_image(image: np.ndarray, kernel_size: int = 7) -> np.ndarray:
             smoothed += padded[dy : dy + height, dx : dx + width, :]
     smoothed /= float(kernel_size * kernel_size)
     return np.clip(smoothed, 0, 255).astype(np.uint8)
+
+
+def _image_data_to_png_bytes(image: np.ndarray) -> bytes:
+    buffer = BytesIO()
+    Image.fromarray(image).save(buffer, format="PNG")
+    return buffer.getvalue()
 
 
 def _build_run_config_yaml(
@@ -215,7 +225,7 @@ def _capture_installed_packages() -> str:
 
 def main() -> None:
     args = _parse_args()
-    if load_config() is None:
+    if config.load_config() is None:
         raise SystemExit("SDK config not found. Run `experiment-tracker init`.")
 
     logging.basicConfig(
@@ -292,11 +302,12 @@ def main() -> None:
             stored_filepath="final/pip-freeze.txt",
             default_content_type="text/plain",
         )
-        # Named final artifacts: same display name (`tag`), different stored paths.
+        # Two final artifact image paths: local PNG bytes and public SDK helper.
         final_demo = np.random.randint(0, 256, size=(128, 128, 3), dtype=np.uint8)
+        final_demo_png = _image_data_to_png_bytes(final_demo)
         tracker.log_final_artifact(
             "final_demo_image",
-            image_data_to_png_bytes(final_demo),
+            final_demo_png,
             stored_filepath="final/demo_image_primary.png",
             default_content_type="image/png",
             default_extension=".png",
@@ -368,7 +379,7 @@ def main() -> None:
                 global_step=step,
             )
             if step % 20 == 0:
-                # Random demo image (HWC, uint8) for object logging examples.
+                # Direct image logging path: pass HWC uint8 arrays to the tracker.
                 noise_image = np.random.randint(
                     0, 256, size=(256, 256, 3), dtype=np.uint8
                 )
