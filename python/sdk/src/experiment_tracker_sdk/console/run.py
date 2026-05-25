@@ -62,6 +62,12 @@ class RunCommand(click.Command):
     help="Project name or id for future tracker bootstrap (wrapper only).",
 )
 @click.option(
+    "--team",
+    default=None,
+    metavar="NAME",
+    help="Team name or id for future tracker bootstrap (wrapper only).",
+)
+@click.option(
     "--offline",
     is_flag=True,
     help="Offline mode flag for future tracker bootstrap (wrapper only).",
@@ -75,7 +81,12 @@ class RunCommand(click.Command):
         path_type=Path,
     ),
 )
-def run_command(project: str | None, offline: bool, script: Path) -> None:
+def run_command(
+    project: str | None,
+    team: str | None,
+    offline: bool,
+    script: Path,
+) -> None:
     """Run SCRIPT with ``__name__ == '__main__'`` after optional tracker bootstrap."""
     ctx = click.get_current_context()
     experiment_tokens: list[str] = list(
@@ -86,6 +97,7 @@ def run_command(project: str | None, offline: bool, script: Path) -> None:
     register_default_tensorboard_hooks()
     ctx_obj = RunCliContext(
         project=project,
+        team=team,
         offline=offline,
         script_argv0=script_display,
         script_resolved_path=resolved,

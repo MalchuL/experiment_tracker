@@ -11,6 +11,10 @@ class RunCliContext:
     # default project). Never forwarded to the target script's ``sys.argv``.
     project: str | None
 
+    # ``--team`` when provided; reserved for future tracker bootstrap alongside
+    # ``--project``. Never forwarded to the target script's ``sys.argv``.
+    team: str | None
+
     # True when ``--offline`` was passed; reserved for future tracker bootstrap
     # (e.g. disable network). Never forwarded to the target script's ``sys.argv``.
     offline: bool

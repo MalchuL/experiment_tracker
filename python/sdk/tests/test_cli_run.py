@@ -53,6 +53,8 @@ def test_run_forwards_argv_after_separator(
             "run",
             "--project",
             "p1",
+            "--team",
+            "t1",
             "--offline",
             str(script),
             "--",
