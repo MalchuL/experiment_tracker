@@ -14,6 +14,7 @@ from ..client.domain.users.dto import UserResponse
 from ..config import save_config
 from ..error import ExpTrackerConfigError
 from ..settings import get_cli_init_defaults
+from .resources import RESOURCE_COMMANDS
 from .run import run_command
 
 
@@ -123,3 +124,5 @@ def ping_command() -> None:
 
 # Add the run command to the CLI via `experiment-tracker run`
 cli.add_command(run_command)
+for resource_command in RESOURCE_COMMANDS:
+    cli.add_command(resource_command)
