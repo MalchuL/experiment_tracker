@@ -61,6 +61,64 @@ The project focuses on experiment understanding instead of remote execution or p
 | Research organization | Keep hypotheses, reports, kanban items, and lineage connected to experiments. |
 | Self-hosted stack | Run the UI, API, scalars service, and object storage with Docker or local development tools. |
 
+
+## Python SDK
+
+### Install
+
+```
+pip install "experiment-tracker-sdk @ git+https://github.com/MalchuL/experiment_tracker.git@main#subdirectory=python/sdk"
+```
+
+Using uv:
+```
+uv pip install "git+https://github.com/MalchuL/experiment_tracker.git@main#subdirectory=python/sdk"
+```
+
+### Get API token
+
+1. Go to the backend UI
+2. Click on "Settings"
+3. Click on "API Tokens"
+4. Click on "Create Token" (Use all permissions for now)
+5. Enter a name for the token
+6. Click on "Create"
+7. Copy the token (It will only be shown once)
+
+### Configure
+
+The SDK installs three equivalent console entry points:
+
+- `experiment-tracker` (full name)
+- `exp-tracker`
+- `exp-track`
+
+They all invoke the same CLI; use whichever name you prefer. Examples below use
+`experiment-tracker`, but `exp-tracker` and `exp-track` work the same way.
+
+The CLI is implemented with [Click](https://click.palletsprojects.io/).
+
+Optional environment defaults for interactive `experiment-tracker init` (when
+you omit flags and press Enter at prompts) can be set with the `EXP_TRACKER_`
+prefix, for example `EXP_TRACKER_DEFAULT_BASE_URL` and
+`EXP_TRACKER_DEFAULT_API_PREFIX`. Values are read from the process environment
+and an optional `.env` file in the current working directory (see
+`experiment_tracker_sdk.settings`).
+
+Save the base URL and API token for the backend:
+
+```
+exp-tracker init --base-url http://127.0.0.1:8000 --api-token <TOKEN>
+```
+
+Check connectivity or token validity:
+
+```
+experiment-tracker ping
+experiment-tracker whoami
+```
+
+
 ## Local Development
 
 For manual local setup with Postgres, MinIO, ClickHouse, the Python services, and the Next.js frontend, see [LOCAL_RUN.md](LOCAL_RUN.md).
