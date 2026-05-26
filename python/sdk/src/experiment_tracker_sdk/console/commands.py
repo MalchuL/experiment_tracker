@@ -28,7 +28,6 @@ def _get_value(
     *,
     default: str | None = None,
     display_default: str | None = None,
-    secret: bool = False,
 ) -> str:
     """Return provided value or prompt the user for input.
 
