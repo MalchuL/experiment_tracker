@@ -4,57 +4,13 @@ Python SDK for sending experiment data to the Experiment Tracker backend.
 
 ## Install
 
-From the repo root:
-
 ```
-pip install -e <root_of_the_repo>/experiment_tracker/python/sdk
-```
-
-Or from the SDK folder:
-
-```
-pip install -e .
+pip install "experiment-tracker-sdk @ git+https://github.com/MalchuL/experiment_tracker.git@main#subdirectory=python/sdk"
 ```
 
 Using uv:
-
 ```
-uv pip install -e <root_of_the_repo>/experiment_tracker/python/sdk
-```
-
-## Run tests
-
-Install dev dependencies first:
-
-```
-uv pip install -e ".[dev]"
-```
-
-From the SDK folder:
-
-```
-uv run pytest
-```
-
-From the repo root:
-
-```
-uv run pytest python/sdk/tests
-```
-
-## Lint and type-check
-
-Install dev dependencies first:
-
-```
-uv pip install -e ".[dev]"
-```
-
-From the SDK folder:
-
-```
-uv run ruff check src tests
-uv run pyright src tests
+uv pip install "git+https://github.com/MalchuL/experiment_tracker.git@main#subdirectory=python/sdk"
 ```
 
 ## Configure
@@ -80,7 +36,7 @@ and an optional `.env` file in the current working directory (see
 Save the base URL and API token for the backend:
 
 ```
-experiment-tracker init --base-url http://127.0.0.1:8000 --api-token <TOKEN>
+exp-tracker init --base-url http://127.0.0.1:8000 --api-token <TOKEN>
 ```
 
 Check connectivity or token validity:
@@ -142,3 +98,59 @@ client = ExperimentClient(
     api_token="<TOKEN>",
 )
 ```
+
+## Install from source
+
+From the repo root:
+
+```
+pip install -e <root_of_the_repo>/experiment_tracker/python/sdk
+```
+
+Or from the SDK folder:
+
+```
+pip install -e .
+```
+
+Using uv:
+
+```
+uv pip install -e <root_of_the_repo>/experiment_tracker/python/sdk
+```
+
+## Run tests
+
+Install dev dependencies first:
+
+```
+uv pip install -e ".[dev]"
+```
+
+From the SDK folder:
+
+```
+uv run pytest
+```
+
+From the repo root:
+
+```
+uv run pytest python/sdk/tests
+```
+
+## Lint and type-check
+
+Install dev dependencies first:
+
+```
+uv pip install -e ".[dev]"
+```
+
+From the SDK folder:
+
+```
+uv run ruff check src tests
+uv run pyright src tests
+```
+
