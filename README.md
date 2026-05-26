@@ -1,21 +1,82 @@
-# Setup Database
+# Experiment Tracker: Research-First Machine Learning Experiment Tracking
+
+![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-backend-009688?logo=fastapi&logoColor=white)
+![Next.js](https://img.shields.io/badge/Next.js-UI-000000?logo=nextdotjs&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-relational%20state-4169E1?logo=postgresql&logoColor=white)
+![ClickHouse](https://img.shields.io/badge/ClickHouse-scalars-FFCC01?logo=clickhouse&logoColor=black)
+![Docker](https://img.shields.io/badge/Docker-self--hosted-2496ED?logo=docker&logoColor=white)
+![SDK](https://img.shields.io/badge/Python%20SDK-training%20logs-4B8BBE?logo=python&logoColor=white)
+
+Experiment Tracker is an open-source, self-hosted machine learning experiment tracker for researchers who need a clear view of training runs, model metrics, scalar curves, logged artifacts, and experiment lineage. It is built for research analysis: compare models, summarize results, inspect training behavior, and keep the broader picture of many experiments visible in one workspace.
+
+The project focuses on experiment understanding instead of remote execution or production serving. Use it when your team needs better research notes, model comparison, scalar visualization, artifact review, and reproducible experiment history.
+
+## Why Researchers Use Experiment Tracker
+
+- **Compare machine learning experiments:** review accuracy, loss, precision, recall, mAP, custom scores, and final metric snapshots across many runs.
+- **Analyze scalar curves:** inspect training and validation metrics over time with multi-run charts, smoothing, synced axes, and saved visual views.
+- **Review model artifacts:** view logged images, predictions, generated samples, checkpoints, configs, and project-level files alongside experiment context.
+- **Track experiment lineage:** connect parent and child runs to understand how model variants, hyperparameter changes, and research branches evolved.
+- **Summarize research results:** keep metrics, scalars, artifacts, reports, hypotheses, and project notes together so researchers can see the wide picture of model training.
+- **Run locally or self-host:** use the Python SDK, FastAPI services, Next.js UI, PostgreSQL, ClickHouse, and S3-compatible object storage in a Docker-based stack.
+
+## Machine Learning Experiment Comparison
+
+<img src="mics/metrics_page_example.png" alt="Machine learning experiment tracker metrics table for comparing model accuracy loss precision recall and mAP" width="100%">
+
+### Features for researchers
+
+- **Metrics-first model comparison:** compare final or labeled metric snapshots across experiments in a dense grid, filter runs, export tables, and inspect selected experiment metadata in the side panel.
+- **Research result summaries:** organize project metrics, experiment status, tags, notes, and SDK-driven training logs in one place for faster model selection.
+
+## Scalar Metrics and Logged Artifacts
+
+<img src="mics/scalars_view_example.png" alt="Machine learning scalar metrics dashboard with training curves validation loss and logged prediction image artifacts" width="100%">
+
+### Features for researchers
+
+- **Interactive scalar analysis:** visualize multi-run scalar curves with synchronized axes, smoothing, resizable cards, saved views, and selective visibility for each metric stream.
+- **Artifact review beside metrics:** inspect image and object artifacts next to scalar trends, grouped by type and name, with step-aware controls for model outputs such as predictions or generated samples.
+
+## Experiment Lineage and Research History
+
+<img src="mics/dag_view_example.png" alt="Experiment lineage graph for machine learning research showing parent child runs and metric deltas" width="100%">
+
+### Features for researchers
+
+- **Experiment lineage graph:** track parent-child relationships between runs, compare metric deltas along branches, and understand how research iterations evolved.
+- **Iteration analysis:** follow branches from baseline to follow-up runs, compare metric movement at each node, and preserve the context behind research decisions.
+
+## Core Capabilities
+
+| Area | What it helps researchers do |
+|------|-------------------------------|
+| Experiment tracking | Record runs, status, tags, metadata, notes, and project context. |
+| Metrics comparison | Compare final scores and labeled metric snapshots across models. |
+| Scalar visualization | Explore training curves for loss, accuracy, learning rate, validation metrics, and custom scalars. |
+| Artifact logging | Store and review experiment artifacts and project-level files. |
+| Research organization | Keep hypotheses, reports, kanban items, and lineage connected to experiments. |
+| Self-hosted stack | Run the UI, API, scalars service, and object storage with Docker or local development tools. |
+
+## Setup Database
 
 `sudo -u postgres psql` - Opens default postgres user
 `ALTER ROLE myuser SUPERUSER;` - Grant permission to create extension
 `CREATE DATABASE experiment_tracker WITH OWNER = myuser;`
 `export DATABASE_URL="postgresql://myuser:myuser@localhost:5432/experiment_tracker"` - Create db for specific user
 
-# Run Backend
+## Run Backend
 `cd python/backend`
 `export DATABASE_URL="postgresql://myuser:myuser@localhost:5432/experiment_tracker"`
 `uv run uvicorn api.main:app --reload --port 8000`
 
-# Run Frontend
+## Run Frontend
 `cd apps/web`
 `export NEXT_PUBLIC_BASE_URL=http://localhost:8000`
 `pnpm run dev`
 
-# Docker (full stack)
+## Docker (full stack)
 
 Run **all** services from `docker-compose.yml` (Postgres ×2, Redis, ClickHouse, MinIO, object-storage, scalars, backend, web). Hybrid setups, dependency details, and aggressive cache busting are covered in the sections below.
 
