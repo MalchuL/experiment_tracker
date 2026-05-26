@@ -73,8 +73,58 @@ def _image_dataformats(args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
     return "CHW"
 
 
+def _feature_name(value: Any) -> str:
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if value is None:
+        return "null"
+    return str(value)
+
+
+def _hyperparameters_to_features(hparam_dict: Any) -> list[dict[str, Any]]:
+    if not isinstance(hparam_dict, dict):
+        return []
+    children = [
+        {"name": f"{key}: {_feature_name(value)}"}
+        for key, value in sorted(hparam_dict.items(), key=lambda item: str(item[0]))
+    ]
+    if not children:
+        return []
+    return [{"name": "hyperparameters", "children": children}]
+
+
+def _merge_feature_branch(
+    existing_features: Any,
+    branch: dict[str, Any],
+) -> list[Any]:
+    existing = list(existing_features or [])
+    merged: list[Any] = []
+    replaced = False
+    for feature in existing:
+        name = None
+        if isinstance(feature, dict):
+            name = feature.get("name")
+        else:
+            name = getattr(feature, "name", None)
+        if name == branch["name"]:
+            merged.append(branch)
+            replaced = True
+        else:
+            merged.append(feature)
+    if not replaced:
+        merged.append(branch)
+    return merged
+
+
+def _tracker_features(tracker: Any) -> Any:
+    experiment = getattr(tracker, "_experiment", None)
+    if experiment is None:
+        return []
+    return getattr(experiment, "features", [])
+
+
 def _patch_summary_writer(writer_cls: type[Any]) -> None:
-    """Patch one SummaryWriter class so scalar/image calls also hit the tracker."""
+    """Patch one SummaryWriter class so TensorBoard calls also hit the tracker."""
     if getattr(writer_cls, "_experiment_tracker_sdk_patched", False):
         return
 
@@ -141,6 +191,36 @@ def _patch_summary_writer(writer_cls: type[Any]) -> None:
             )
 
         writer_cls.add_image = add_image  # type: ignore[method-assign]
+
+    original_add_hparams = getattr(writer_cls, "add_hparams", None)
+    if callable(original_add_hparams):
+
+        def add_hparams(self, hparam_dict, metric_dict=None, *args, **kwargs):  # type: ignore[no-untyped-def]
+            tracker = _active_tracker
+            if tracker is not None:
+                try:
+                    features = _hyperparameters_to_features(hparam_dict)
+                    if features:
+                        tracker.features(
+                            _merge_feature_branch(
+                                _tracker_features(tracker),
+                                features[0],
+                            )
+                        )
+                except Exception as exc:  # noqa: BLE001
+                    _logger.warning(
+                        "tensorboard_hparams_capture_failed",
+                        extra={"error": str(exc)},
+                    )
+            return original_add_hparams(
+                self,
+                hparam_dict,
+                metric_dict,
+                *args,
+                **kwargs,
+            )
+
+        writer_cls.add_hparams = add_hparams  # type: ignore[method-assign]
 
     writer_cls._experiment_tracker_sdk_patched = True  # type: ignore[attr-defined]
 

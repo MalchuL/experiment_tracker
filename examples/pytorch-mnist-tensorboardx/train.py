@@ -239,6 +239,20 @@ def main() -> None:
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
 
     with SummaryWriter(logdir=str(args.log_dir)) as writer:
+        writer.add_hparams(
+            {
+                "batch_size": args.batch_size,
+                "epochs": args.epochs,
+                "lr": args.lr,
+                "max_train_batches": args.max_train_batches,
+                "max_val_batches": args.max_val_batches,
+                "seed": args.seed,
+                "device": device.type,
+                "optimizer": "Adam",
+            },
+            {},
+            name="mnist-run-config",
+        )
         for epoch in range(args.epochs):
             train_steps = train_one_epoch(
                 model=model,

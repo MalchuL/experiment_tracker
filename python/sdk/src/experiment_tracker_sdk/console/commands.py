@@ -18,7 +18,7 @@ from ..config import load_config, save_config
 from ..constants import DEFAULT_API_PREFIX, DEFAULT_BASE_URL
 from ..error import ExpTrackerConfigError
 from ..settings import DEFAULT_CONFIG_DIR, get_exp_tracker_settings
-from .resources import RESOURCE_COMMANDS
+from .domains import DOMAIN_COMMANDS
 from .run import run_command
 
 
@@ -201,5 +201,5 @@ def ping_command() -> None:
 
 # Add the run command to the CLI via `experiment-tracker run`
 cli.add_command(run_command)
-for resource_command in RESOURCE_COMMANDS:
-    cli.add_command(resource_command)
+for domain_command in DOMAIN_COMMANDS:
+    cli.add_command(domain_command)
