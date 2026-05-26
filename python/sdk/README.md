@@ -26,12 +26,10 @@ They all invoke the same CLI; use whichever name you prefer. Examples below use
 
 The CLI is implemented with [Click](https://click.palletsprojects.io/).
 
-Optional environment defaults for interactive `experiment-tracker init` (when
-you omit flags and press Enter at prompts) can be set with the `EXP_TRACKER_`
-prefix, for example `EXP_TRACKER_DEFAULT_BASE_URL` and
-`EXP_TRACKER_DEFAULT_API_PREFIX`. Values are read from the process environment
-and an optional `.env` file in the current working directory (see
-`experiment_tracker_sdk.settings`).
+Optional runtime overrides can be set with the `EXP_TRACKER_` prefix, for
+example `EXP_TRACKER_BASE_URL` and `EXP_TRACKER_API_PREFIX`. Values are read
+from the process environment and an optional `.env` file in the current working
+directory (see `experiment_tracker_sdk.settings`).
 
 Save the base URL and API token for the backend:
 
@@ -66,9 +64,10 @@ full epilog.
 
 The SDK uses the following environment variables:
 
-- `EXP_TRACKER_DEFAULT_BASE_URL`: The default base URL for the Experiment Tracker backend.
-- `EXP_TRACKER_DEFAULT_API_PREFIX`: The default API prefix for the Experiment Tracker backend.
-- `EXP_TRACKER_API_TOKEN`: The API token for the Experiment Tracker backend.
+- `EXP_TRACKER_BASE_URL`: The base URL for the Experiment Tracker backend. Overrides the SDK config file.
+- `EXP_TRACKER_API_PREFIX`: The API prefix for the Experiment Tracker backend. Overrides the SDK config file.
+- `EXP_TRACKER_CONFIG_PATH`: The SDK config file path. Defaults to `~/.experiment-tracker/config.json`.
+- `EXP_TRACKER_API_TOKEN`: The API token for the Experiment Tracker backend. Overrides the token in the SDK config file.
 
 ## Use in code
 
@@ -153,4 +152,3 @@ From the SDK folder:
 uv run ruff check src tests
 uv run pyright src tests
 ```
-

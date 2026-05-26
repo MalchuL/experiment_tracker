@@ -1,21 +1,22 @@
-"""Environment-driven defaults (``EXP_TRACKER_*``) for SDK tooling."""
+"""Environment-driven settings (``EXP_TRACKER_*``) for SDK tooling."""
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from .constants import DEFAULT_API_PREFIX, DEFAULT_BASE_URL
+DEFAULT_CONFIG_DIR = Path.home() / ".experiment-tracker"
+DEFAULT_CONFIG_PATH = DEFAULT_CONFIG_DIR / "config.json"
 
 
 class ExpTrackerSettings(BaseSettings):
     """Settings loaded from the environment and optional ``.env`` file.
 
     All variables use the ``EXP_TRACKER_`` prefix, for example
-    ``EXP_TRACKER_DEFAULT_BASE_URL``.
+    ``EXP_TRACKER_BASE_URL``.
     """
 
     model_config = SettingsConfigDict(
@@ -25,21 +26,21 @@ class ExpTrackerSettings(BaseSettings):
         extra="ignore",
     )
 
-    default_base_url: str = Field(
-        default=DEFAULT_BASE_URL,
-        description=(
-            "Default backend base URL for ``experiment-tracker init`` when "
-            "``--base-url`` is omitted and the user accepts the empty default "
-            "at the prompt."
-        ),
+    base_url: str | None = Field(
+        default=None,
+        description="Backend base URL override used instead of the config file value.",
     )
-    default_api_prefix: str = Field(
-        default=DEFAULT_API_PREFIX,
-        description=(
-            "Default API path prefix for ``experiment-tracker init`` when "
-            "``--api-prefix`` is omitted and the user accepts the empty default "
-            "at the prompt (e.g. ``/api``)."
-        ),
+    api_prefix: str | None = Field(
+        default=None,
+        description="API path prefix override used instead of the config file value.",
+    )
+    config_path: Path = Field(
+        default=DEFAULT_CONFIG_PATH,
+        description="Path to the SDK config file used by ``load_config``.",
+    )
+    api_token: str | None = Field(
+        default=None,
+        description="API token override used instead of the token in the config file.",
     )
 
 
@@ -47,20 +48,3 @@ class ExpTrackerSettings(BaseSettings):
 def get_exp_tracker_settings() -> ExpTrackerSettings:
     """Return cached settings (reads ``.env`` / environment once per process)."""
     return ExpTrackerSettings()
-
-
-@dataclass(frozen=True)
-class CliInitDefaults:
-    """Resolved defaults for ``experiment-tracker init`` interactive prompts."""
-
-    default_base_url: str
-    default_api_prefix: str
-
-
-def get_cli_init_defaults() -> CliInitDefaults:
-    """Return init prompt defaults (honours ``EXP_TRACKER_*`` / ``.env``)."""
-    s = get_exp_tracker_settings()
-    return CliInitDefaults(
-        default_base_url=s.default_base_url,
-        default_api_prefix=s.default_api_prefix,
-    )
