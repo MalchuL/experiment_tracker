@@ -98,38 +98,92 @@ Run **all** services from `docker-compose.yml` (Postgres ×2, Redis, ClickHouse,
 
    **http://localhost:3000** (equivalently **http://127.0.0.1:3000**)
 
-   The main API is on **http://localhost:8000** (interactive docs are usually at **http://localhost:8000/docs**). The web image is built with `NEXT_PUBLIC_BASE_URL` (compose default **http://127.0.0.1:8000**) so the **browser** loads the API from your machine; if you change host ports, use a **custom domain**, or publish the UI elsewhere, set the variables in **Custom URL or domain** below and **rebuild** `web` (see `.env.example`).
+   The main API is on **http://localhost:8000** (interactive docs are usually at **http://localhost:3000/docs** for the UI and **http://localhost:8000/docs** for the swagger UI). The web image is built with `NEXT_PUBLIC_BASE_URL` (compose default **http://127.0.0.1:8000**) so the **browser** loads the API from your machine; if you change host ports, use a **custom domain**, or publish the UI elsewhere, set the variables in **Custom URL or domain** below and **rebuild** `web` (see `.env.example`).
 
-7. **Rebuild only some services** after changing code in one area:
+**That's it!** You can now start training your models and track your experiments.
+---
+
+## Custom URL or domain (not `localhost` / `127.0.0.1`)
+
+Use this when the UI or API is reached under a **real hostname**, **HTTPS**, or a **non-default port** on another machine (for example `https://tracker.example.com` for the app and `https://api.example.com` for the API).
+
+
+### One command without a `.env` file (`PUBLIC_URL`)
+
+From the repository root you can export everything from a **single UI origin** and start the stack (no root `.env` required). Simplest forms:
+
+```bash
+PUBLIC_URL=http://192.168.1.242 ./scripts/docker-up-public.sh
+```
+
+If the UI is on a **non-default** published port, set **`WEB_PORT`** (defaults to **3000**). For `http://…` URLs **without** an explicit port, the script adds **`http://<host>:<WEB_PORT>`** to **`ALLOWED_ORIGINS`** as well as the bare URL, so the browser `Origin` from `http://192.168.1.247:3000` matches after `PUBLIC_URL=http://192.168.1.247`. You can still set **`PUBLIC_URL=http://192.168.1.247:3000`** explicitly if you prefer a single origin string.
+
+```bash
+./scripts/docker-up-public.sh https://dashboard.example.com
+```
+
+The script sets **`ALLOWED_ORIGINS`** and **`OBJECT_STORAGE_ALLOWED_ORIGINS`** (see above for the `http` + no-port case), sets **`NEXT_PUBLIC_BASE_URL`** to the same host with port **8000** unless you pass a second URL (so `http://192.168.1.242` implies `http://192.168.1.242:8000` for the API), keeps **`SERVER_API_BASE_URL=http://backend:8000`**, then runs **`docker compose up -d --build`**.
+
+- **Different API host:** pass a second URL:  
+  `./scripts/docker-up-public.sh https://dashboard.example.com https://api.example.com`
+- **Same as env var:**  
+  `PUBLIC_URL=https://dashboard.example.com ./scripts/docker-up-public.sh`
+- **Only `PUBLIC_URL`:** the script is the supported “single variable” entrypoint; it fills in the other exports for Compose.
+- **Different compose invocation:** append `--` and arguments, e.g.  
+  `./scripts/docker-up-public.sh http://myhost:3000 -- up -d`
+
+Override the in-container BFF target only if needed:  
+`SERVER_API_BASE_URL=http://other:8000 PUBLIC_URL=... ./scripts/docker-up-public.sh`
+
+### If docker compose only works with sudo
+
+- **`docker compose …`** and **`./scripts/docker-up-public.sh`** (it ends with `docker compose …`): normally **no `sudo`** if your user can talk to the Docker daemon (Linux: user is in the **`docker`** group, or Docker Desktop on Mac/Windows). If you see *permission denied* on the Docker socket, you can run Compose **with** `sudo` until permissions are fixed (not ideal long-term).
+- **`sudo` and `PUBLIC_URL` for `docker-up-public.sh`:** assignments **between** `sudo` and the program are passed into **that** command’s environment (not the same as `PUBLIC_URL=…` *before* `sudo`, which applies only to your shell, not to root’s process). Typical pattern:
+
+  ```bash
+  sudo PUBLIC_URL=http://192.168.1.247 ./scripts/docker-up-public.sh
+  sudo PUBLIC_URL=http://192.168.1.247 WEB_PORT=3000 ./scripts/docker-up-public.sh
+  ```
+
+  **Alternative:** pass URLs as arguments so nothing depends on env (works even when assignment-style `sudo` is restricted by `sudoers`):
+
+  ```bash
+  sudo ./scripts/docker-up-public.sh http://192.168.1.247
+  sudo ./scripts/docker-up-public.sh http://192.168.1.247 http://192.168.1.247:8000
+  ```
+
+  If you already **exported** `PUBLIC_URL` / `WEB_PORT` in your shell and need root to see them, use **`sudo -E`** (preserve environment) or inline vars: **`sudo -E env PUBLIC_URL=… WEB_PORT=… ./scripts/docker-up-public.sh`**. **`-E` is a `sudo` flag**, not a `bash` flag. If the script is not executable, use `sudo PUBLIC_URL=… bash ./scripts/docker-up-public.sh`.
+
+  Running the script as root can create **root-owned files** under `./storage/`; prefer adding your user to the **`docker`** group and running **without** `sudo`.
+
+- **`rm -rf storage/`**: usually **no `sudo`** if files are owned by your user. If containers ran as root and created root-owned files under `./storage`, removal may fail until you run **`sudo rm -rf storage/`** once (then prefer running Docker with a user mapping or fix ownership with `sudo chown -R "$USER:$USER" storage/` if you want to avoid root-owned bind mounts).
+- **Installing Docker or changing groups** is a one-time admin task and may require `sudo` or an administrator account on your OS.
+
+### If you want to run docker compose with custom URL
+
+**Root `.env`** (repository root, next to `docker-compose.yml`). Set at least:
+
+   | Variable | Who consumes it | What to set |
+   |----------|-----------------|-------------|
+   | `NEXT_PUBLIC_BASE_URL` | **Web image build** (`web` Dockerfile build-arg) | Full base URL of the **main API as the user’s browser calls it** (scheme + host + port if not 443/80). Example: `https://api.example.com`. No trailing slash. This value is baked into the Next.js client bundle. |
+   | `ALLOWED_ORIGINS` | **Backend** container | Comma-separated **origins of the UI** exactly as the browser sends them in `Origin` (scheme + host + port). Example: `https://tracker.example.com`. Add `http://localhost:3000` too if you still use local dev against the same backend. |
+   | `OBJECT_STORAGE_ALLOWED_ORIGINS` | **object-storage** container | Same idea as `ALLOWED_ORIGINS` (browser talks to object-storage for some flows). Usually match `ALLOWED_ORIGINS`. |
+   | `SERVER_API_BASE_URL` | **Web** container at **runtime** | Leave the default **`http://backend:8000`** when `web` and `backend` are both services in this Compose file. Only override if your Next server reaches the API by a different internal URL. |
+
+2. **Rebuild the `web` image** after changing `NEXT_PUBLIC_BASE_URL` (it is read at `next build`, not at container start):
 
    ```bash
-   docker compose build backend web
-   docker compose up -d --force-recreate backend web
+   docker compose build web --no-cache
+   docker compose up -d web
    ```
 
-   Service names in Compose are `postgres-backend`, `postgres-object-storage`, `redis`, `clickhouse`, `minio`, `minio-init`, `object-storage`, `scalars`, `backend`, `web`. For stubborn cache issues, see **Force rebuild** below.
-
-8. **Shut down (stop) without removing containers:**
+3. **Restart backend and object-storage** after changing CORS variables (no rebuild required unless you changed code):
 
    ```bash
-   docker compose stop
+   docker compose up -d --force-recreate backend object-storage
    ```
 
-9. **Stop and remove containers and the Compose project network.** This is the usual full teardown; **bind-mounted data under `./storage/` remains** on the host (see **Docker: stop, remove containers, and reset for a new run** below for removing data, images, and `sudo` notes):
-
-   ```bash
-   docker compose down
-   ```
-
-   Compose removes the **default project network** (for example `experiment-tracker_default`) automatically when the last container using it is removed. You normally do **not** run `docker network rm` by hand. Add **`--remove-orphans`** if you renamed or removed services and old containers are left over.
-
-10. **Optional: remove anonymous volumes** attached to services (this project mostly uses `./storage` bind mounts, not named Docker volumes):
-
-    ```bash
-    docker compose down -v
-    ```
-
-    To wipe databases completely, stop the stack and delete the `storage/` directory yourself (destructive). `docker compose down` does not remove built images; use `docker image rm …` or `docker compose images` if you want to prune them.
+4. **Reverse proxy / TLS** in front of Compose: the browser must still be able to resolve `NEXT_PUBLIC_BASE_URL` to your API and the UI origin must appear in `ALLOWED_ORIGINS`. Service-to-service URLs inside Compose (`http://backend:8000`, `http://scalars:8001/api`, etc.) stay on the Docker network and do not need to use your public domain.
 
 ## Docker: stop, remove containers, and reset for a new run
 
@@ -164,30 +218,6 @@ Typical order when you want the stack **gone** and then a **clean start** next t
    Or remove specific images with `docker image rm …` / `docker image prune`.
 
 5. **Start again** from the [Full stack: step by step](#full-stack-step-by-step) section (e.g. `docker compose up -d --build` or `./scripts/docker-up-public.sh …`).
-
-### Do you need `sudo`?
-
-- **`docker compose …`** and **`./scripts/docker-up-public.sh`** (it ends with `docker compose …`): normally **no `sudo`** if your user can talk to the Docker daemon (Linux: user is in the **`docker`** group, or Docker Desktop on Mac/Windows). If you see *permission denied* on the Docker socket, you can run Compose **with** `sudo` until permissions are fixed (not ideal long-term).
-- **`sudo` and `PUBLIC_URL` for `docker-up-public.sh`:** assignments **between** `sudo` and the program are passed into **that** command’s environment (not the same as `PUBLIC_URL=…` *before* `sudo`, which applies only to your shell, not to root’s process). Typical pattern:
-
-  ```bash
-  sudo PUBLIC_URL=http://192.168.1.247 ./scripts/docker-up-public.sh
-  sudo PUBLIC_URL=http://192.168.1.247 WEB_PORT=3000 ./scripts/docker-up-public.sh
-  ```
-
-  **Alternative:** pass URLs as arguments so nothing depends on env (works even when assignment-style `sudo` is restricted by `sudoers`):
-
-  ```bash
-  sudo ./scripts/docker-up-public.sh http://192.168.1.247
-  sudo ./scripts/docker-up-public.sh http://192.168.1.247 http://192.168.1.247:8000
-  ```
-
-  If you already **exported** `PUBLIC_URL` / `WEB_PORT` in your shell and need root to see them, use **`sudo -E`** (preserve environment) or inline vars: **`sudo -E env PUBLIC_URL=… WEB_PORT=… ./scripts/docker-up-public.sh`**. **`-E` is a `sudo` flag**, not a `bash` flag. If the script is not executable, use `sudo PUBLIC_URL=… bash ./scripts/docker-up-public.sh`.
-
-  Running the script as root can create **root-owned files** under `./storage/`; prefer adding your user to the **`docker`** group and running **without** `sudo`.
-
-- **`rm -rf storage/`**: usually **no `sudo`** if files are owned by your user. If containers ran as root and created root-owned files under `./storage`, removal may fail until you run **`sudo rm -rf storage/`** once (then prefer running Docker with a user mapping or fix ownership with `sudo chown -R "$USER:$USER" storage/` if you want to avoid root-owned bind mounts).
-- **Installing Docker or changing groups** is a one-time admin task and may require `sudo` or an administrator account on your OS.
 
 ## Layout (no central `docker/` folder)
 
@@ -275,62 +305,6 @@ Use the same idea for other clashes: `CLICKHOUSE_HTTP_PORT`, `BACKEND_PORT`, `WE
 
 Backend and object-storage read `ALLOWED_ORIGINS` / `OBJECT_STORAGE_ALLOWED_ORIGINS` from the environment. If you publish the UI on a different origin, set the matching comma-separated list in a root `.env` (see `.env.example`). For real hostnames, HTTPS, or splitting UI and API on different origins, use **Custom URL or domain** below (including rebuilding `web` when `NEXT_PUBLIC_BASE_URL` changes).
 
-## Custom URL or domain (not `localhost` / `127.0.0.1`)
-
-Use this when the UI or API is reached under a **real hostname**, **HTTPS**, or a **non-default port** on another machine (for example `https://tracker.example.com` for the app and `https://api.example.com` for the API).
-
-1. **Root `.env`** (repository root, next to `docker-compose.yml`). Set at least:
-
-   | Variable | Who consumes it | What to set |
-   |----------|-----------------|-------------|
-   | `NEXT_PUBLIC_BASE_URL` | **Web image build** (`web` Dockerfile build-arg) | Full base URL of the **main API as the user’s browser calls it** (scheme + host + port if not 443/80). Example: `https://api.example.com`. No trailing slash. This value is baked into the Next.js client bundle. |
-   | `ALLOWED_ORIGINS` | **Backend** container | Comma-separated **origins of the UI** exactly as the browser sends them in `Origin` (scheme + host + port). Example: `https://tracker.example.com`. Add `http://localhost:3000` too if you still use local dev against the same backend. |
-   | `OBJECT_STORAGE_ALLOWED_ORIGINS` | **object-storage** container | Same idea as `ALLOWED_ORIGINS` (browser talks to object-storage for some flows). Usually match `ALLOWED_ORIGINS`. |
-   | `SERVER_API_BASE_URL` | **Web** container at **runtime** | Leave the default **`http://backend:8000`** when `web` and `backend` are both services in this Compose file. Only override if your Next server reaches the API by a different internal URL. |
-
-2. **Rebuild the `web` image** after changing `NEXT_PUBLIC_BASE_URL` (it is read at `next build`, not at container start):
-
-   ```bash
-   docker compose build web --no-cache
-   docker compose up -d web
-   ```
-
-3. **Restart backend and object-storage** after changing CORS variables (no rebuild required unless you changed code):
-
-   ```bash
-   docker compose up -d --force-recreate backend object-storage
-   ```
-
-4. **Reverse proxy / TLS** in front of Compose: the browser must still be able to resolve `NEXT_PUBLIC_BASE_URL` to your API and the UI origin must appear in `ALLOWED_ORIGINS`. Service-to-service URLs inside Compose (`http://backend:8000`, `http://scalars:8001/api`, etc.) stay on the Docker network and do not need to use your public domain.
-
-### One command without a `.env` file (`PUBLIC_URL`)
-
-From the repository root you can export everything from a **single UI origin** and start the stack (no root `.env` required). Simplest forms:
-
-```bash
-PUBLIC_URL=http://192.168.1.242 ./scripts/docker-up-public.sh
-```
-
-If the UI is on a **non-default** published port, set **`WEB_PORT`** (defaults to **3000**). For `http://…` URLs **without** an explicit port, the script adds **`http://<host>:<WEB_PORT>`** to **`ALLOWED_ORIGINS`** as well as the bare URL, so the browser `Origin` from `http://192.168.1.247:3000` matches after `PUBLIC_URL=http://192.168.1.247`. You can still set **`PUBLIC_URL=http://192.168.1.247:3000`** explicitly if you prefer a single origin string.
-
-```bash
-./scripts/docker-up-public.sh https://dashboard.example.com
-```
-
-The script sets **`ALLOWED_ORIGINS`** and **`OBJECT_STORAGE_ALLOWED_ORIGINS`** (see above for the `http` + no-port case), sets **`NEXT_PUBLIC_BASE_URL`** to the same host with port **8000** unless you pass a second URL (so `http://192.168.1.242` implies `http://192.168.1.242:8000` for the API), keeps **`SERVER_API_BASE_URL=http://backend:8000`**, then runs **`docker compose up -d --build`**.
-
-- **Different API host:** pass a second URL:  
-  `./scripts/docker-up-public.sh https://dashboard.example.com https://api.example.com`
-- **Same as env var:**  
-  `PUBLIC_URL=https://dashboard.example.com ./scripts/docker-up-public.sh`
-- **Only `PUBLIC_URL`:** the script is the supported “single variable” entrypoint; it fills in the other exports for Compose.
-- **Different compose invocation:** append `--` and arguments, e.g.  
-  `./scripts/docker-up-public.sh http://myhost:3000 -- up -d`
-
-Override the in-container BFF target only if needed:  
-`SERVER_API_BASE_URL=http://other:8000 PUBLIC_URL=... ./scripts/docker-up-public.sh`
-
-**If `docker compose` only works with `sudo`:** see **Docker: stop, remove…** → *Do you need `sudo`?* — e.g. `sudo PUBLIC_URL=http://192.168.1.247 ./scripts/docker-up-public.sh`, or `sudo ./scripts/docker-up-public.sh http://192.168.1.247`, or `sudo -E ./scripts/docker-up-public.sh` if you already exported `PUBLIC_URL` (use **`sudo -E`**, not `bash -E`).
 
 ## Dependencies, startup order, and hybrid setups
 
