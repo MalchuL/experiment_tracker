@@ -5,6 +5,8 @@
 ![Next.js](https://img.shields.io/badge/Next.js-UI-000000?logo=nextdotjs&logoColor=white)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-relational%20state-4169E1?logo=postgresql&logoColor=white)
 ![ClickHouse](https://img.shields.io/badge/ClickHouse-scalars-FFCC01?logo=clickhouse&logoColor=black)
+![MinIO](https://img.shields.io/badge/MinIO-object%20storage-C72E49?logo=minio&logoColor=white)
+![S3 Compatible](https://img.shields.io/badge/S3-compatible%20blobs-569A31?logo=amazons3&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-self--hosted-2496ED?logo=docker&logoColor=white)
 ![SDK](https://img.shields.io/badge/Python%20SDK-training%20logs-4B8BBE?logo=python&logoColor=white)
 
@@ -12,7 +14,7 @@ Experiment Tracker is an open-source, self-hosted machine learning experiment tr
 
 The project focuses on experiment understanding instead of remote execution or production serving. Use it when your team needs better research notes, model comparison, scalar visualization, artifact review, and reproducible experiment history.
 
-## Why Researchers Use Experiment Tracker
+## Why Experiment Tracker Can Help in Your Research
 
 - **Compare machine learning experiments:** review accuracy, loss, precision, recall, mAP, custom scores, and final metric snapshots across many runs.
 - **Analyze scalar curves:** inspect training and validation metrics over time with multi-run charts, smoothing, synced axes, and saved visual views.
