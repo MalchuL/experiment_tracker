@@ -59,7 +59,16 @@ uv run pyright src tests
 
 ## Configure
 
-The bundled `experiment-tracker` CLI is implemented with [Click](https://click.palletsprojects.io/).
+The SDK installs three equivalent console entry points:
+
+- `experiment-tracker` (full name)
+- `exp-tracker`
+- `exp-track`
+
+They all invoke the same CLI; use whichever name you prefer. Examples below use
+`experiment-tracker`, but `exp-tracker` and `exp-track` work the same way.
+
+The CLI is implemented with [Click](https://click.palletsprojects.io/).
 
 Optional environment defaults for interactive `experiment-tracker init` (when
 you omit flags and press Enter at prompts) can be set with the `EXP_TRACKER_`

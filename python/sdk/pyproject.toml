@@ -42,6 +42,8 @@ dev = [
 
 [project.scripts]
 experiment-tracker = "experiment_tracker_sdk.cli:main"
+exp-tracker = "experiment_tracker_sdk.cli:main"
+exp-track = "experiment_tracker_sdk.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
