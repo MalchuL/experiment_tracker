@@ -1,8 +1,9 @@
 "use client";
 
 import type { ComponentType, ReactNode } from "react";
-import { createElement, useRef } from "react";
+import { createElement } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { AlertTriangle, type LucideIcon, Info, Lightbulb, OctagonAlert } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -12,6 +13,7 @@ import rehypeSanitize from "rehype-sanitize";
 import { cn } from "@/lib/utils";
 import type { DocTocItem } from "@/lib/docs/extract-doc-toc";
 import { remarkDocFeatures } from "@/lib/docs/remark-doc-features";
+import { remarkHeadingIds } from "@/lib/docs/remark-heading-ids";
 import { docsRehypeSanitizeSchema } from "@/lib/docs/docs-sanitize-schema";
 
 type DocsMarkdownProps = {
@@ -77,31 +79,43 @@ function DocsCalloutAside({
   );
 }
 
-const REMARK_PLUGINS = [remarkGfm, remarkDirective, remarkDocFeatures];
+const REMARK_PLUGINS = [remarkGfm, remarkDirective, remarkDocFeatures, remarkHeadingIds];
 
 /**
  * Renders markdown with GFM, doc directives (callouts / details), sanitization, and app-specific
  * link/image/callout behavior.
  */
 export function DocsMarkdown({ markdown, className, toc }: DocsMarkdownProps) {
-  const tocIndex = useRef(0);
-  tocIndex.current = 0;
-
-  const syncHeadingIds = Boolean(toc?.length);
-
-  const nextHeadingIdFromToc = (): string | undefined => {
-    if (!syncHeadingIds || !toc?.length) return undefined;
-    const id = toc[tocIndex.current]?.id;
-    tocIndex.current += 1;
-    return id;
-  };
+  const pathname = usePathname();
 
   const heading =
     (Tag: "h1" | "h2" | "h3") =>
-    ({ children, className: nodeClassName }: { children?: ReactNode; className?: string }) => {
-      const id = nextHeadingIdFromToc();
+    ({
+      children,
+      className: nodeClassName,
+      id,
+    }: {
+      children?: ReactNode;
+      className?: string;
+      id?: string;
+    }) => {
       return createElement(Tag, { id, className: cn(HEADING_SCROLL_CLASS, nodeClassName) }, children);
     };
+
+  const scrollToHashTarget = (href: string): boolean => {
+    if (!href.includes("#") || typeof window === "undefined") return false;
+    const targetUrl = new URL(href, window.location.href);
+    if (targetUrl.origin !== window.location.origin || targetUrl.pathname !== pathname) {
+      return false;
+    }
+    const id = decodeURIComponent(targetUrl.hash.slice(1));
+    if (!id) return false;
+    const target = document.getElementById(id);
+    if (!target) return false;
+    window.history.pushState(null, "", `${targetUrl.pathname}${targetUrl.search}${targetUrl.hash}`);
+    target.scrollIntoView({ block: "start" });
+    return true;
+  };
 
   return (
     <div className={className}>
@@ -109,10 +123,37 @@ export function DocsMarkdown({ markdown, className, toc }: DocsMarkdownProps) {
         remarkPlugins={REMARK_PLUGINS}
         rehypePlugins={[rehypeRaw, [rehypeSanitize, docsRehypeSanitizeSchema]]}
         components={{
-          ...(syncHeadingIds ? { h1: heading("h1"), h2: heading("h2"), h3: heading("h3") } : {}),
+          h1: heading("h1"),
+          h2: heading("h2"),
+          h3: heading("h3"),
           a: ({ href, children }): ReactNode => {
             if (href?.startsWith("/")) {
-              return <Link href={href}>{children as never}</Link>;
+              return (
+                <Link
+                  href={href}
+                  onClick={(event) => {
+                    if (scrollToHashTarget(href)) {
+                      event.preventDefault();
+                    }
+                  }}
+                >
+                  {children as never}
+                </Link>
+              );
+            }
+            if (href?.startsWith("#")) {
+              return (
+                <a
+                  href={href}
+                  onClick={(event) => {
+                    if (scrollToHashTarget(href)) {
+                      event.preventDefault();
+                    }
+                  }}
+                >
+                  {children as never}
+                </a>
+              );
             }
             return (
               <a href={href} target="_blank" rel="noopener noreferrer">

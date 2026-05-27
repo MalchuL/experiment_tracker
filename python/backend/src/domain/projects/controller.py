@@ -80,7 +80,17 @@ router = APIRouter(prefix="/projects", tags=["projects"])
 
 
 def _raise_project_http_error(error: Exception) -> None:
-    """Map project/metric/scalars-related exceptions to HTTP status codes."""
+    """Map project/metric/scalars-related exceptions to HTTP status codes.
+
+    Args:
+        error: Exception raised by project, experiment, metric, report, or satellite
+            service calls.
+
+    Raises:
+        HTTPException: ``403`` for permission failures, ``404`` for inaccessible or
+            missing resources, upstream status codes for satellite HTTP errors,
+            ``502`` for satellite connectivity errors, and ``400`` otherwise.
+    """
     if isinstance(error, ExperimentNotAccessibleError):
         raise HTTPException(status_code=404, detail=str(error))
     if isinstance(error, MetricNotAccessibleError):
@@ -101,7 +111,15 @@ def _raise_project_http_error(error: Exception) -> None:
 
 
 def _raise_project_members_http_error(error: Exception) -> None:
-    """Map project membership invite/update/remove errors to HTTP responses."""
+    """Map project membership invite/update/remove errors to HTTP responses.
+
+    Args:
+        error: Exception raised by ``ProjectMembersService``.
+
+    Raises:
+        HTTPException: ``403`` for access denial, ``404`` for missing members/projects,
+            and ``400`` for invalid roles, last-editor protection, or other errors.
+    """
     if isinstance(error, ProjectMemberAccessDenied):
         raise HTTPException(status_code=403, detail=str(error))
     if isinstance(error, (ProjectMemberNotFound, ProjectNotAccessibleError)):
@@ -121,6 +139,21 @@ async def get_all_projects(
     _: None = Depends(require_api_token_scopes(ProjectActions.VIEW_PROJECT)),
     project_service: ProjectService = Depends(get_project_service),
 ):
+    """List projects accessible to the current user.
+
+    Args:
+        limit: Maximum number of projects to return.
+        offset: Number of projects to skip.
+        user: Authenticated user requesting projects.
+        _: API-token scope guard requiring project view access.
+        project_service: Project application service dependency.
+
+    Returns:
+        ProjectListResponseDTO: Paginated project list with counts.
+
+    Raises:
+        HTTPException: ``403``, ``404``, ``502``, or ``400`` via project error mapping.
+    """
     try:
         return await project_service.get_accessible_projects(
             user,
@@ -153,6 +186,25 @@ async def get_project_experiments(
     _: None = Depends(require_api_token_scopes(ProjectActions.VIEW_EXPERIMENT)),
     experiment_service: ExperimentService = Depends(get_experiment_service),
 ):
+    """List experiments for a project.
+
+    Args:
+        project_id: Project identifier.
+        limit: Maximum number of experiments to return.
+        offset: Number of experiments to skip.
+        search: Optional substring filter.
+        include_features: Whether feature trees should be included.
+        user: Authenticated user requesting experiments.
+        _: API-token scope guard requiring experiment view access.
+        experiment_service: Experiment service dependency.
+
+    Returns:
+        ExperimentListResponseDTO: Paginated experiment list items.
+
+    Raises:
+        HTTPException: ``404`` for inaccessible projects/experiments or ``400`` for
+            other service errors.
+    """
     try:
         return await experiment_service.get_experiments_by_project(
             user,
@@ -189,7 +241,22 @@ async def post_project_experiments_batch(
     _: None = Depends(require_api_token_scopes(ProjectActions.VIEW_EXPERIMENT)),
     experiment_service: ExperimentService = Depends(get_experiment_service),
 ):
-    """Load specific experiments by id in one request (same shape as GET …/experiments)."""
+    """Load specific experiments by id in one request.
+
+    Args:
+        project_id: Project that must own returned experiments.
+        body: Requested experiment ids.
+        include_features: Whether feature trees should be included.
+        user: Authenticated user requesting experiments.
+        _: API-token scope guard requiring experiment view access.
+        experiment_service: Experiment service dependency.
+
+    Returns:
+        ExperimentListResponseDTO: Matching experiments in request order.
+
+    Raises:
+        HTTPException: ``404`` for inaccessible projects or ``400`` for service errors.
+    """
     try:
         return await experiment_service.get_experiments_batch_for_project(
             user,
@@ -210,6 +277,22 @@ async def get_project_hypotheses(
     _: None = Depends(require_api_token_scopes(ProjectActions.VIEW_HYPOTHESIS)),
     hypothesis_service: HypothesisService = Depends(get_hypothesis_service),
 ):
+    """List hypotheses for a project.
+
+    Args:
+        project_id: Project identifier.
+        limit: Maximum number of hypotheses to return.
+        offset: Number of hypotheses to skip.
+        user: Authenticated user requesting hypotheses.
+        _: API-token scope guard requiring hypothesis view access.
+        hypothesis_service: Hypothesis service dependency.
+
+    Returns:
+        HypothesisListResponseDTO: Paginated hypothesis list.
+
+    Raises:
+        HTTPException: Project error mapping for access and service failures.
+    """
     try:
         return await hypothesis_service.get_hypotheses_by_project(
             user,
@@ -229,6 +312,22 @@ async def get_project_reports(
     _: None = Depends(require_api_token_scopes(ProjectActions.VIEW_REPORT)),
     report_service: ProjectReportService = Depends(get_project_report_service),
 ):
+    """List reports for a project.
+
+    Args:
+        project_id: Project identifier.
+        limit: Maximum number of reports to return.
+        offset: Number of reports to skip.
+        user: Authenticated user requesting reports.
+        _: API-token scope guard requiring report view access.
+        report_service: Project report service dependency.
+
+    Returns:
+        ProjectReportListResponseDTO: Paginated report summaries.
+
+    Raises:
+        HTTPException: Project error mapping for access and service failures.
+    """
     try:
         return await report_service.get_reports_by_project(
             user,
@@ -249,6 +348,20 @@ async def get_project_metric_labels(
     _: None = Depends(require_api_token_scopes(ProjectActions.VIEW_METRIC)),
     metric_service: MetricService = Depends(get_metric_service),
 ):
+    """Return distinct metric labels for a project.
+
+    Args:
+        project_id: Project identifier.
+        user: Authenticated user requesting metric metadata.
+        _: API-token scope guard requiring metric view access.
+        metric_service: Metric service dependency.
+
+    Returns:
+        MetricLabelsResponseDTO: Distinct labels and unlabeled-metric flag.
+
+    Raises:
+        HTTPException: Project/metric error mapping for access and service failures.
+    """
     try:
         return await metric_service.get_metric_labels_for_project(user, project_id)
     except Exception as exc:  # noqa: BLE001
@@ -265,6 +378,20 @@ async def get_project_unique_metric_dimensions(
     _: None = Depends(require_api_token_scopes(ProjectActions.VIEW_METRIC)),
     metric_service: MetricService = Depends(get_metric_service),
 ):
+    """Return unique metric name/label dimensions for a project.
+
+    Args:
+        project_id: Project identifier.
+        user: Authenticated user requesting metric metadata.
+        _: API-token scope guard requiring metric view access.
+        metric_service: Metric service dependency.
+
+    Returns:
+        UniqueMetricDimensionsResponseDTO: Unique metric dimension pairs.
+
+    Raises:
+        HTTPException: Project/metric error mapping for access and service failures.
+    """
     try:
         return await metric_service.get_unique_metric_dimensions_for_project(
             user, project_id
@@ -293,6 +420,24 @@ async def get_project_metrics_by_label(
     _: None = Depends(require_api_token_scopes(ProjectActions.VIEW_METRIC)),
     metric_service: MetricService = Depends(get_metric_service),
 ):
+    """Return a latest-value metric snapshot for one label.
+
+    Args:
+        project_id: Project identifier.
+        label: Metric label filter; empty string means unlabeled metrics.
+        include_experiments_without_metrics: Whether to include null-valued rows.
+        limit: Maximum number of experiment rows to return.
+        offset: Number of experiment rows to skip.
+        user: Authenticated user requesting the snapshot.
+        _: API-token scope guard requiring metric view access.
+        metric_service: Metric service dependency.
+
+    Returns:
+        MetricsByLabelSnapshotResponseDTO: Table columns and experiment rows.
+
+    Raises:
+        HTTPException: Project/metric error mapping for access and service failures.
+    """
     try:
         return await metric_service.get_metrics_by_label_snapshot(
             user,
@@ -318,6 +463,24 @@ async def get_aggregatedproject_metrics(
     metric_service: MetricService = Depends(get_metric_service),
     project_service: ProjectService = Depends(get_project_service),
 ):
+    """Return configured aggregate metrics for a project.
+
+    Args:
+        project_id: Project identifier.
+        limit: Maximum number of aggregate rows to return.
+        offset: Number of aggregate rows to skip.
+        user: Authenticated user requesting metrics.
+        _: API-token scope guard requiring metric view access.
+        metric_service: Metric service dependency.
+        project_service: Project service dependency used for metric configuration.
+
+    Returns:
+        MetricListResponseDTO: Paginated aggregate metric rows.
+
+    Raises:
+        HTTPException: Project/metric error mapping for access, unsupported
+            aggregation, and service failures.
+    """
     try:
         return await metric_service.get_aggregated_metrics_for_project(
             user,
@@ -336,6 +499,20 @@ async def list_project_members(
     _: None = Depends(require_api_token_scopes(ProjectActions.VIEW_PROJECT)),
     members_service: ProjectMembersService = Depends(get_project_members_service),
 ):
+    """List effective members for a project.
+
+    Args:
+        project_id: Project identifier.
+        user: Authenticated user requesting members.
+        _: API-token scope guard requiring project view access.
+        members_service: Project members service dependency.
+
+    Returns:
+        list[ProjectMemberRowDTO]: Direct, inherited, and override member rows.
+
+    Raises:
+        HTTPException: Project-member error mapping for access and service failures.
+    """
     try:
         return await members_service.list_members(user.id, project_id)
     except Exception as exc:  # noqa: BLE001
@@ -350,6 +527,22 @@ async def lookup_project_user_by_email(
     _: None = Depends(require_api_token_scopes(ProjectActions.EDIT_PROJECT)),
     members_service: ProjectMembersService = Depends(get_project_members_service),
 ):
+    """Look up an active user by email for project membership.
+
+    Args:
+        project_id: Project identifier.
+        email: Email address to search.
+        user: Authenticated user performing the lookup.
+        _: API-token scope guard requiring project edit access.
+        members_service: Project members service dependency.
+
+    Returns:
+        UserLookupDTO: Matching active user's identity.
+
+    Raises:
+        HTTPException: Project-member error mapping for access, missing user, or
+            service failures.
+    """
     try:
         return await members_service.lookup_user_by_email(user.id, project_id, email)
     except Exception as exc:  # noqa: BLE001
@@ -364,6 +557,22 @@ async def invite_project_member(
     _: None = Depends(require_api_token_scopes(ProjectActions.EDIT_PROJECT)),
     members_service: ProjectMembersService = Depends(get_project_members_service),
 ):
+    """Invite an existing user to a project with a role.
+
+    Args:
+        project_id: Project identifier.
+        data: Invite payload with email and role.
+        user: Authenticated user granting access.
+        _: API-token scope guard requiring project edit access.
+        members_service: Project members service dependency.
+
+    Returns:
+        ProjectMemberRowDTO: Effective member row after invite.
+
+    Raises:
+        HTTPException: Project-member error mapping for access, invalid roles, missing
+            users, and service failures.
+    """
     try:
         return await members_service.invite_member(user.id, project_id, data)
     except Exception as exc:  # noqa: BLE001
@@ -378,6 +587,22 @@ async def update_project_member_role(
     _: None = Depends(require_api_token_scopes(ProjectActions.EDIT_PROJECT)),
     members_service: ProjectMembersService = Depends(get_project_members_service),
 ):
+    """Update a project member role or team-member override.
+
+    Args:
+        project_id: Project identifier.
+        data: Target user id and replacement role.
+        user: Authenticated user changing the role.
+        _: API-token scope guard requiring project edit access.
+        members_service: Project members service dependency.
+
+    Returns:
+        ProjectMemberRowDTO: Effective member row after update.
+
+    Raises:
+        HTTPException: Project-member error mapping for access, invalid roles, missing
+            members, and service failures.
+    """
     try:
         return await members_service.update_member_role(user.id, project_id, data)
     except Exception as exc:  # noqa: BLE001
@@ -392,6 +617,22 @@ async def remove_project_member(
     _: None = Depends(require_api_token_scopes(ProjectActions.EDIT_PROJECT)),
     members_service: ProjectMembersService = Depends(get_project_members_service),
 ):
+    """Remove direct project permissions for a member.
+
+    Args:
+        project_id: Project identifier.
+        data: Target user id.
+        user: Authenticated user removing access.
+        _: API-token scope guard requiring project edit access.
+        members_service: Project members service dependency.
+
+    Returns:
+        dict[str, bool]: ``{"success": True}`` after removal.
+
+    Raises:
+        HTTPException: Project-member error mapping for access, last-editor
+            protection, and service failures.
+    """
     try:
         await members_service.remove_member(user.id, project_id, data)
     except Exception as exc:  # noqa: BLE001
@@ -406,6 +647,21 @@ async def get_project(
     _: None = Depends(require_api_token_scopes(ProjectActions.VIEW_PROJECT)),
     project_service: ProjectService = Depends(get_project_service),
 ):
+    """Return one project visible to the current user.
+
+    Args:
+        project_id: Project identifier.
+        user: Authenticated user requesting the project.
+        _: API-token scope guard requiring project view access.
+        project_service: Project service dependency.
+
+    Returns:
+        ProjectDTO: Full project metadata and configuration.
+
+    Raises:
+        HTTPException: ``404`` for missing/inaccessible projects and mapped service
+            errors otherwise.
+    """
     try:
         project = await project_service.get_project_if_accessible(user, project_id)
     except Exception as exc:  # noqa: BLE001
@@ -422,6 +678,21 @@ async def create_project(
     _: None = Depends(require_api_token_scopes(TeamActions.CREATE_PROJECT)),
     project_service: ProjectService = Depends(get_project_service),
 ):
+    """Create a project.
+
+    Args:
+        data: Project create payload, optionally including a team id.
+        user: Authenticated user creating the project.
+        _: API-token scope guard requiring team/project creation access.
+        project_service: Project service dependency.
+
+    Returns:
+        ProjectDTO: Created project with initial counts.
+
+    Raises:
+        HTTPException: Project error mapping for permission, satellite, and
+            persistence failures.
+    """
     try:
         return await project_service.create_project(user, data)
     except Exception as exc:  # noqa: BLE001
@@ -436,6 +707,21 @@ async def update_project(
     _: None = Depends(require_api_token_scopes(ProjectActions.EDIT_PROJECT)),
     project_service: ProjectService = Depends(get_project_service),
 ):
+    """Update project metadata and configuration.
+
+    Args:
+        project_id: Project identifier.
+        data: Project update payload.
+        user: Authenticated user editing the project.
+        _: API-token scope guard requiring project edit access.
+        project_service: Project service dependency.
+
+    Returns:
+        ProjectDTO: Updated project.
+
+    Raises:
+        HTTPException: Project error mapping for permission and service failures.
+    """
     try:
         return await project_service.update_project(user, project_id, data)
     except Exception as exc:  # noqa: BLE001
@@ -452,6 +738,19 @@ async def get_project_usage(
     """Project-wide storage breakdown: CAS artifacts, snapshots, experiment buckets, scalars.
 
     Used by the project settings danger zone; combines object-storage and ClickHouse usage.
+
+    Args:
+        project_id: Project identifier.
+        user: Authenticated user requesting usage.
+        _: API-token scope guard requiring project view access.
+        project_service: Project service dependency.
+
+    Returns:
+        ProjectUsageDTO: Usage blocks and total bytes.
+
+    Raises:
+        HTTPException: Project error mapping for access, satellite, and service
+            failures.
     """
     try:
         return await project_service.get_project_usage(user, project_id)
@@ -472,6 +771,20 @@ async def cleanup_project_category(
     """Danger-zone partial wipe: one of project artifacts, snapshots, buckets, or full scalars tables.
 
     Requires project delete permission; does **not** remove the Postgres project record.
+
+    Args:
+        project_id: Project identifier.
+        category: Storage category to clean.
+        user: Authenticated user requesting cleanup.
+        _: API-token scope guard requiring project delete access.
+        project_service: Project service dependency.
+
+    Returns:
+        CategoryCleanupResponseDTO: Structured cleanup results and errors.
+
+    Raises:
+        HTTPException: Project error mapping for permission, unknown category, and
+            satellite failures.
     """
     try:
         return await project_service.cleanup_project_category(
@@ -495,8 +808,19 @@ async def add_project_settings(
     Purpose:
         Creates plugin/SDK settings in the project's dynamic settings list.
 
-    Response:
+    Args:
+        project_id: Project identifier.
+        data: Single setting or list of settings to append.
+        user: Authenticated user editing settings.
+        _: API-token scope guard requiring project edit access.
+        project_service: Project service dependency.
+
+    Returns:
         List[ProjectSettingDTO]: the full, updated settings list after insertion.
+
+    Raises:
+        HTTPException: Project error mapping for permission, duplicate names, type
+            validation, and persistence failures.
     """
     entries = data if isinstance(data, list) else [data]
     try:
@@ -517,8 +841,17 @@ async def get_project_settings(
     Purpose:
         Returns settings editor-friendly data with metadata and typed values.
 
-    Response:
+    Args:
+        project_id: Project identifier.
+        user: Authenticated user requesting settings.
+        _: API-token scope guard requiring project view access.
+        project_service: Project service dependency.
+
+    Returns:
         List[ProjectSettingDTO]: each item contains `name`, `description`, `type`, `value`.
+
+    Raises:
+        HTTPException: Project error mapping for access and service failures.
     """
     try:
         return await project_service.get_project_settings(user, project_id)
@@ -538,8 +871,17 @@ async def get_project_settings_map(
     Purpose:
         Provides compact settings for consumers that only need runtime values.
 
-    Response:
+    Args:
+        project_id: Project identifier.
+        user: Authenticated user requesting runtime settings.
+        _: API-token scope guard requiring project view access.
+        project_service: Project service dependency.
+
+    Returns:
         Dict[str, Any]: `{setting_name: setting_value}`.
+
+    Raises:
+        HTTPException: Project error mapping for access and service failures.
     """
     try:
         return await project_service.get_project_settings_map(user, project_id)
@@ -562,8 +904,20 @@ async def update_project_setting_value(
         Changes only the `value` field for an existing setting while enforcing
         the setting's declared type.
 
-    Response:
+    Args:
+        project_id: Project identifier.
+        name: Setting name to update.
+        data: Payload containing the replacement value.
+        user: Authenticated user editing settings.
+        _: API-token scope guard requiring project edit access.
+        project_service: Project service dependency.
+
+    Returns:
         ProjectSettingDTO: the updated setting entry.
+
+    Raises:
+        HTTPException: Project error mapping for permission, missing setting, type
+            validation, and persistence failures.
     """
     try:
         return await project_service.update_project_setting_value(
@@ -586,8 +940,19 @@ async def delete_project_setting(
     Purpose:
         Removes one dynamic setting entry from the project's settings list.
 
-    Response:
+    Args:
+        project_id: Project identifier.
+        name: Setting name to delete.
+        user: Authenticated user editing settings.
+        _: API-token scope guard requiring project edit access.
+        project_service: Project service dependency.
+
+    Returns:
         Dict[str, bool]: `{\"success\": true}` when deletion succeeds.
+
+    Raises:
+        HTTPException: Project error mapping for permission, missing setting, and
+            persistence failures.
     """
     try:
         success = await project_service.delete_project_setting(user, project_id, name)
@@ -615,6 +980,23 @@ async def delete_project(
     _: None = Depends(require_api_token_scopes(ProjectActions.DELETE_PROJECT)),
     project_service: ProjectService = Depends(get_project_service),
 ):
+    """Delete a project and clean up satellite data.
+
+    Args:
+        project_id: Project identifier to delete.
+        detailed: Whether to include full cleanup result payloads.
+        user: Authenticated user deleting the project.
+        _: API-token scope guard requiring project delete access.
+        project_service: Project service dependency.
+
+    Returns:
+        ProjectDeleteResponseDTO: Structured cleanup outcome for satellites and the
+        Postgres project row.
+
+    Raises:
+        HTTPException: Project error mapping for permission, satellite, and repository
+            failures.
+    """
     try:
         return await project_service.delete_project(user, project_id, detailed=detailed)
     except Exception as exc:  # noqa: BLE001

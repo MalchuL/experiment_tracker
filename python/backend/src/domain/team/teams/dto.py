@@ -28,12 +28,25 @@ class TeamReadDTO(TeamBase):
     owner_id: uuid.UUID | None = None
 
 
-class TeamCreateDTO(TeamBase):
-    pass
+class TeamCreateDTO(BaseModel):
+    """Create body: name and description only. Owner is set from the authenticated user."""
+
+    name: str = Field(..., min_length=1, max_length=ENTITY_NAME_MAX_LEN)
+    description: Optional[str] = Field(
+        default=None, max_length=ENTITY_DESCRIPTION_MAX_LEN
+    )
+
+    model_config = model_config()
 
 
-class TeamUpdateDTO(TeamBase):
+class TeamUpdateDTO(BaseModel):
     id: uuid.UUID
+    name: str = Field(..., min_length=1, max_length=ENTITY_NAME_MAX_LEN)
+    description: Optional[str] = Field(
+        default=None, max_length=ENTITY_DESCRIPTION_MAX_LEN
+    )
+
+    model_config = model_config()
 
 
 class TeamMemberBase(BaseModel):

@@ -8,79 +8,21 @@ import random
 import subprocess
 import sys
 import time
-from typing import Any, Optional
+from io import BytesIO
+from typing import Any
 
-import httpx
 import numpy as np
+from PIL import Image
 
-from experiment_tracker_sdk import ExpTracker
-from experiment_tracker_sdk.client import ExperimentStatus
-from experiment_tracker_sdk.config import load_config
-from experiment_tracker_sdk.utils.content_utils import image_data_to_png_bytes
+from experiment_tracker_sdk import (
+    ExperimentStatus,
+    ExpTracker,
+    InitParams,
+    config,
+    image_data_to_png_bytes,
+)
 
 logger = logging.getLogger("training_example")
-
-
-def _get_api_client(base_url: str, api_token: str) -> httpx.Client:
-    return httpx.Client(
-        base_url=base_url.rstrip("/"),
-        headers={"Authorization": f"Bearer {api_token}"},
-        timeout=10.0,
-    )
-
-
-def _list_projects(client: httpx.Client) -> list[dict[str, Any]]:
-    response = client.get("/projects")
-    response.raise_for_status()
-    payload = response.json()
-    return payload["data"]
-
-
-def _find_team_id_from_projects(
-    projects: list[dict[str, Any]], team_name: str
-) -> Optional[str]:
-    for project in projects:
-        team = project.get("team")
-        if team and team.get("name") == team_name:
-            return str(team.get("id"))
-    return None
-
-
-def _create_team(client: httpx.Client, team_name: str) -> str:
-    response = client.post(
-        "/teams",
-        json={"name": team_name, "description": "SDK training example team"},
-    )
-    response.raise_for_status()
-    return str(response.json()["id"])
-
-
-def _find_project(
-    projects: list[dict[str, Any]], project_name: str, team_name: Optional[str]
-) -> Optional[dict[str, Any]]:
-    for project in projects:
-        if project.get("name") != project_name:
-            continue
-        team = project.get("team")
-        if team_name is None and team is None:
-            return project
-        if team_name is not None and team and team.get("name") == team_name:
-            return project
-    return None
-
-
-def _create_project(
-    client: httpx.Client, project_name: str, team_id: Optional[str]
-) -> dict[str, Any]:
-    payload: dict[str, Any] = {
-        "name": project_name,
-        "description": "SDK training example project",
-    }
-    if team_id:
-        payload["teamId"] = team_id
-    response = client.post("/projects", json=payload)
-    response.raise_for_status()
-    return response.json()
 
 
 def _parse_args() -> argparse.Namespace:
@@ -116,6 +58,50 @@ def _smooth_image(image: np.ndarray, kernel_size: int = 7) -> np.ndarray:
             smoothed += padded[dy : dy + height, dx : dx + width, :]
     smoothed /= float(kernel_size * kernel_size)
     return np.clip(smoothed, 0, 255).astype(np.uint8)
+
+
+def _image_data_to_png_bytes(image: np.ndarray) -> bytes:
+    buffer = BytesIO()
+    Image.fromarray(image).save(buffer, format="PNG")
+    return buffer.getvalue()
+
+
+def _build_checkerboard_image(
+    size: int = 128,
+    tile_size: int = 16,
+    color_a: tuple[int, int, int] = (32, 48, 64),
+    color_b: tuple[int, int, int] = (240, 196, 80),
+) -> np.ndarray:
+    rows, cols = np.indices((size, size))
+    mask = ((rows // tile_size) + (cols // tile_size)) % 2 == 0
+    image = np.empty((size, size, 3), dtype=np.uint8)
+    image[mask] = color_a
+    image[~mask] = color_b
+    return image
+
+
+def _build_large_training_text(
+    args: argparse.Namespace, steps: int, duration_seconds: int
+) -> str:
+    header = [
+        "Synthetic training run report",
+        f"project={args.project_name}",
+        f"experiment={args.experiment_name}",
+        f"team={args.team_name or 'none'}",
+        f"steps={steps}",
+        f"duration_seconds={duration_seconds}",
+        "",
+    ]
+    rows = [
+        (
+            f"epoch={epoch:03d} "
+            f"phase={'warmup' if epoch < 10 else 'main'} "
+            f"target_lr={0.001 * (1 + epoch / 100):.6f} "
+            f"notes=deterministic large text payload for artifact rendering"
+        )
+        for epoch in range(1, 151)
+    ]
+    return "\n".join(header + rows) + "\n"
 
 
 def _build_run_config_yaml(
@@ -168,6 +154,8 @@ def _build_feature_tree(
                 {"name": "final-metrics-loss-accuracy-precision-recall"},
                 {"name": "at-step-image-artifacts"},
                 {"name": "named-final-artifacts"},
+                {"name": "direct-numpy-image-artifacts"},
+                {"name": "large-at-step-text-artifacts"},
                 {
                     "name": "config",
                     "children": [
@@ -226,8 +214,7 @@ def _capture_installed_packages() -> str:
 
 def main() -> None:
     args = _parse_args()
-    config = load_config()
-    if config is None:
+    if config.load_config() is None:
         raise SystemExit("SDK config not found. Run `experiment-tracker init`.")
 
     logging.basicConfig(
@@ -239,39 +226,30 @@ def main() -> None:
         "starting_training",
         extra={"project": args.project_name, "team": args.team_name},
     )
-    api_client = _get_api_client(config.base_url, config.api_token)
-    tracker: Optional[ExpTracker] = None
+    tracker: ExpTracker | None = None
     try:
-        projects = _list_projects(api_client)
-        team_id = None
-        if args.team_name:
-            team_id = _find_team_id_from_projects(projects, args.team_name)
-            if team_id is None:
-                logger.info("team_not_found_creating", extra={"team": args.team_name})
-                team_id = _create_team(api_client, args.team_name)
-                logger.info("team_created", extra={"team_id": team_id})
-                projects = _list_projects(api_client)
-
-        project = _find_project(projects, args.project_name, args.team_name)
-        if project is None:
-            logger.info(
-                "project_not_found_creating", extra={"project": args.project_name}
-            )
-            project = _create_project(api_client, args.project_name, team_id)
-            logger.info("project_created", extra={"project_id": project["id"]})
-        else:
-            logger.info("project_found", extra={"project_id": project["id"]})
-
         duration_seconds = 60
         steps = 12000
         tracker = ExpTracker.init(
-            project=str(project["id"]),
+            project=args.project_name,
             experiment=args.experiment_name,
-            features=_build_feature_tree(args, steps, duration_seconds),
+            team=args.team_name,
+            init_params=InitParams(
+                create_team_if_not_exists=True,
+                create_project_if_not_exists=True,
+                create_experiment_if_not_exists=True,
+            ),
         )
         experiment_id = str(tracker.experiment_id)
-        logger.info("experiment_created", extra={"experiment_id": experiment_id})
+        logger.info(
+            "tracker_initialized",
+            extra={
+                "project_id": str(tracker.project_id),
+                "experiment_id": experiment_id,
+            },
+        )
 
+        tracker.features(_build_feature_tree(args, steps, duration_seconds))
         tracker.tags("training-example")
         tracker.status(ExperimentStatus.RUNNING)
         tracker.progress(0)
@@ -280,7 +258,7 @@ def main() -> None:
 
         step_seconds = duration_seconds / steps
         start_time = time.time()
-        # Scalar tag "power": magnitude sweep for charting very large → very small values.
+        # Scalar tag "power": magnitude sweep from very large to very small values.
         power_exp_high = 15.0
         power_exp_low = -15.0
         scalar_log_step = max(1, steps // 100)
@@ -296,20 +274,49 @@ def main() -> None:
             stored_filepath="final/config.yaml",
             default_content_type="application/x-yaml",
         )
+        tracker.log_final_yaml(
+            "run config_helper/asda ! dsf:",
+            {
+                "run": {
+                    "project_name": args.project_name,
+                    "experiment_name": args.experiment_name,
+                    "team_name": args.team_name,
+                    "steps": steps,
+                    "duration_seconds": duration_seconds,
+                }
+            },
+        )
+        installed_packages = _capture_installed_packages()
         tracker.log_final_artifact(
-            "python_packages",
-            _capture_installed_packages(),
+            "python packages",
+            installed_packages,
             stored_filepath="final/pip-freeze.txt",
             default_content_type="text/plain",
         )
-        # Named final artifacts: same display name (`tag`), different stored paths.
+        tracker.log_final_text(
+            "python_packages_helper",
+            installed_packages,
+        )
+        # Two final artifact image paths: local PNG bytes and public SDK helper.
         final_demo = np.random.randint(0, 256, size=(128, 128, 3), dtype=np.uint8)
+        final_checkerboard = _build_checkerboard_image()
+        final_demo_png = _image_data_to_png_bytes(final_demo)
         tracker.log_final_artifact(
             "final_demo_image",
-            image_data_to_png_bytes(final_demo),
+            final_demo_png,
             stored_filepath="final/demo_image_primary.png",
             default_content_type="image/png",
             default_extension=".png",
+        )
+        tracker.log_final_image(
+            "final_demo_image_helper",
+            final_demo_png,
+            stored_filepath="final/demo_image_helper.png",
+        )
+        tracker.log_final_image(
+            "final_checkerboard_numpy",
+            final_checkerboard,
+            stored_filepath="final/checkerboard_numpy.png",
         )
         tracker.log_final_artifact(
             "final_demo_image",
@@ -329,6 +336,11 @@ def main() -> None:
             stored_filepath="final/training_summary_primary.json",
             default_content_type="application/json",
             default_extension=".json",
+        )
+        tracker.log_final_json(
+            "training_summary_json_helper",
+            {**summary_payload, "path_variant": "helper"},
+            stored_filepath="final/training_summary_helper.json",
         )
         tracker.log_final_artifact(
             "training_summary_json",
@@ -377,13 +389,38 @@ def main() -> None:
                 float("NaN") if step % 3 == 0 else float(random.random()),
                 global_step=step,
             )
-            if step % 20 == 0:
-                # Random demo image (HWC, uint8) for object logging examples.
+            if step % 400 == 0:
+                tracker.add_text(
+                    "training_note",
+                    (
+                        f"step={step} progress={progress}% "
+                        f"loss={loss:.4f} accuracy={accuracy:.4f}"
+                    ),
+                    global_step=step,
+                )
+                tracker.add_text(
+                    "large_training_report",
+                    _build_large_training_text(args, steps, duration_seconds),
+                    global_step=step,
+                )
+            if step % 500 == 0:
+                # Direct image logging path: pass HWC uint8 arrays to the tracker.
                 noise_image = np.random.randint(
                     0, 256, size=(256, 256, 3), dtype=np.uint8
                 )
+                checkerboard_image = _build_checkerboard_image(
+                    size=256,
+                    tile_size=16,
+                    color_a=(16, 96, 80),
+                    color_b=(240, 220, 96),
+                )
                 tracker.add_image("generated", noise_image, global_step=step)
                 tracker.add_image("gt", _smooth_image(noise_image), global_step=step)
+                tracker.add_image(
+                    "checkerboard_numpy",
+                    checkerboard_image,
+                    global_step=step,
+                )
             tracker.progress(progress)
             logger.info(
                 "training_progress",
@@ -412,7 +449,8 @@ def main() -> None:
                 label="final",
             )
 
-        # Metrics (Postgres): one row per (name, label); log discrete magnitudes like the scalar sweep.
+        # Metrics (Postgres): one row per (name, label); log discrete magnitudes
+        # like the scalar sweep.
         power_metric_names: list[str] = []
         for exp in range(15, -16, -1):
             name = f"e{exp:+d}"
@@ -434,6 +472,11 @@ def main() -> None:
             stored_filepath="final/training_summary_postrun_primary.json",
             default_content_type="application/json",
             default_extension=".json",
+        )
+        tracker.log_final_json(
+            "training_summary_json_helper",
+            {**summary_payload, "path_variant": "postrun_helper"},
+            stored_filepath="final/training_summary_postrun_helper.json",
         )
         tracker.log_final_artifact(
             "training_summary_json",
@@ -480,7 +523,6 @@ def main() -> None:
     finally:
         if tracker is not None:
             tracker.close()
-        api_client.close()
 
 
 if __name__ == "__main__":

@@ -23,7 +23,11 @@ from .repository import HypothesisRepository
 
 
 class HypothesisService:
-    """Hypotheses linked to projects: create, update, list with RBAC checks."""
+    """Application service for project hypotheses.
+
+    The service coordinates hypothesis persistence, DTO mapping, project-level RBAC,
+    and transaction commits for create, update, and delete operations.
+    """
 
     def __init__(
         self,
@@ -42,6 +46,20 @@ class HypothesisService:
         project_id: UUID_TYPE,
         list_options: ListOptions = ListOptions(),
     ) -> HypothesisListResponseDTO:
+        """List hypotheses attached to a project.
+
+        Args:
+            user: User requesting the list.
+            project_id: Project whose hypotheses should be returned.
+            list_options: Pagination limit and offset.
+
+        Returns:
+            HypothesisListResponseDTO: Paginated hypothesis DTOs.
+
+        Raises:
+            ProjectNotAccessibleError: If the user cannot view hypotheses in the
+                project.
+        """
         if not await self.permission_checker.can_view_hypothesis(user.id, project_id):
             raise ProjectNotAccessibleError(f"Project {project_id} not accessible")
         hypotheses_page = await self.hypothesis_repository.get_hypotheses_by_project(
@@ -57,6 +75,19 @@ class HypothesisService:
     async def get_hypothesis_if_accessible(
         self, user: UserProtocol, hypothesis_id: UUID_TYPE
     ) -> HypothesisDTO:
+        """Load one hypothesis if the user can view its project.
+
+        Args:
+            user: User requesting the hypothesis.
+            hypothesis_id: Hypothesis identifier.
+
+        Returns:
+            HypothesisDTO: Full hypothesis DTO.
+
+        Raises:
+            HypothesisNotFoundError: If the hypothesis row does not exist.
+            HypothesisNotAccessibleError: If the user lacks view permission.
+        """
         try:
             hypothesis = await self.hypothesis_repository.get_by_id(hypothesis_id)
             if not hypothesis:
@@ -72,6 +103,19 @@ class HypothesisService:
     async def create_hypothesis(
         self, user: UserProtocol, data: HypothesisCreateDTO
     ) -> HypothesisDTO:
+        """Create a hypothesis in a project.
+
+        Args:
+            user: User creating the hypothesis.
+            data: Create payload containing the project id and hypothesis fields.
+
+        Returns:
+            HypothesisDTO: Newly persisted hypothesis after commit and reload.
+
+        Raises:
+            HypothesisNotAccessibleError: If the user cannot create hypotheses in the
+                target project.
+        """
         if not await self.permission_checker.can_create_hypothesis(
             user.id, data.project_id
         ):
@@ -87,6 +131,21 @@ class HypothesisService:
     async def update_hypothesis(
         self, user: UserProtocol, hypothesis_id: UUID_TYPE, data: HypothesisUpdateDTO
     ) -> HypothesisDTO:
+        """Update an existing hypothesis.
+
+        Args:
+            user: User editing the hypothesis.
+            hypothesis_id: Hypothesis identifier.
+            data: Update payload; only mapped fields are persisted.
+
+        Returns:
+            HypothesisDTO: Updated hypothesis DTO.
+
+        Raises:
+            HypothesisNotFoundError: If the hypothesis does not exist.
+            HypothesisNotAccessibleError: If the user cannot edit the hypothesis's
+                project.
+        """
         try:
             hypothesis = await self.hypothesis_repository.get_by_id(hypothesis_id)
             if not hypothesis:
@@ -107,6 +166,19 @@ class HypothesisService:
     async def delete_hypothesis(
         self, user: UserProtocol, hypothesis_id: UUID_TYPE
     ) -> bool:
+        """Delete a hypothesis row.
+
+        Args:
+            user: User deleting the hypothesis.
+            hypothesis_id: Hypothesis identifier.
+
+        Returns:
+            bool: Always ``True`` after the repository delete and commit succeed.
+
+        Raises:
+            HypothesisNotFoundError: If the hypothesis does not exist.
+            HypothesisNotAccessibleError: If the user lacks delete permission.
+        """
         hypothesis = await self.hypothesis_repository.get_by_id(hypothesis_id)
         if not hypothesis:
             raise HypothesisNotFoundError(f"Hypothesis {hypothesis_id} not found")

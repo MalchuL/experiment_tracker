@@ -128,6 +128,13 @@ class ExperimentTrackerClient:
         self._queue = RequestQueue(self._http_client, max_queue_size=max_queue_size)
         self._supress_errors = supress_errors
 
+    def probe_http_status(self, method: MethodT, endpoint: str) -> int:
+        """Perform a simple request and return the HTTP status (body discarded)."""
+        with disable_httpx_logging():
+            response = self._http_client.request(method, endpoint)
+        _raise_for_status(response, self._supress_errors)
+        return response.status_code
+
     def _build_http_headers(self) -> dict[str, str]:
         return {
             "Authorization": f"Bearer {self.api_token}",

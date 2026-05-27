@@ -1,3 +1,7 @@
+from datetime import datetime
+
+from experiment_tracker_sdk.client.constants import UNSET
+from experiment_tracker_sdk.client.domain.experiments.dto import ExperimentResponse
 from experiment_tracker_sdk.exp_tracker import ExpTracker
 
 
@@ -27,11 +31,12 @@ class _FakeMetricsService:
 
 class _FakeExperimentsService:
     def __init__(self):
-        self.calls: list[tuple[str, list[dict[str, object]]]] = []
+        self.calls: list[tuple[str, dict[str, object]]] = []
 
-    def update_experiment(self, experiment_id: str, features):
-        self.calls.append((experiment_id, features))
-        return {"kind": "experiment_request"}
+    def update_experiment(self, experiment_id: str, **kwargs):
+        kwargs = {key: value for key, value in kwargs.items() if value is not UNSET}
+        self.calls.append((experiment_id, kwargs))
+        return {"kind": "experiment_request", "experiment_id": experiment_id, **kwargs}
 
 
 class _FakeRegistry:
@@ -48,6 +53,21 @@ class _FakeClient:
 
     def request(self, request_spec):
         self.request_calls.append(request_spec)
+        if (
+            isinstance(request_spec, dict)
+            and request_spec.get("kind") == "experiment_request"
+        ):
+            return ExperimentResponse(
+                id=request_spec["experiment_id"],
+                projectId="proj-id",
+                name=request_spec.get("name", ""),
+                description=request_spec.get("description", ""),
+                status=str(request_spec.get("status", "planned")),
+                features=request_spec.get("features", []),
+                progress=request_spec.get("progress"),
+                tags=request_spec.get("tags"),
+                createdAt=datetime(2026, 1, 1),
+            )
         return {"status": "ok"}
 
     def queued_request(self, request_spec):
@@ -126,26 +146,39 @@ def test_features_updates_experiment_feature_tree() -> None:
 
     tracker.features(features)
 
-    assert registry.experiments.calls == [("exp-id", features)]
+    assert registry.experiments.calls == [("exp-id", {"features": features})]
     assert len(client.request_calls) == 1
     assert client.queued_calls == []
+
+
+def test_context_batches_experiment_metadata_updates() -> None:
+    tracker, registry, client = _create_tracker()
+
+    with tracker:
+        tracker.color("#123456")
+        tracker.progress(100)
+
+    assert registry.experiments.calls == [
+        ("exp-id", {"color": "#123456", "progress": 100})
+    ]
+    assert len(client.request_calls) == 1
 
 
 def test_add_scalar_queues_batch_after_128_steps(monkeypatch) -> None:
     timers = _capture_timers(monkeypatch)
     tracker, registry, client = _create_tracker()
 
-    for step in range(129):
+    for step in range(257):
         tracker.add_scalar("loss", float(step), global_step=step)
 
     assert len(registry.scalars.batch_calls) == 1
     experiment_id, scalars = registry.scalars.batch_calls[0]
     assert experiment_id == "exp-id"
-    assert len(scalars) == 128
+    assert len(scalars) == 256
     assert scalars[0].step == 0
     assert scalars[0].scalars == {"loss": 0.0}
-    assert scalars[-1].step == 127
-    assert scalars[-1].scalars == {"loss": 127.0}
+    assert scalars[-1].step == 255
+    assert scalars[-1].scalars == {"loss": 255.0}
     assert len(client.queued_calls) == 1
     assert timers[0].cancelled is True
 

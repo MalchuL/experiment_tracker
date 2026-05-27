@@ -38,6 +38,23 @@ async def get_dashboard_stats(
     experiment_repository: ExperimentRepository = Depends(get_experiment_repository),
     hypothesis_repository: HypothesisRepository = Depends(get_hypothesis_repository),
 ) -> DashboardStatsDTO:
+    """Return project dashboard counters for experiments and hypotheses.
+
+    Args:
+        project_id: Project identifier from the route path.
+        user: Authenticated user requesting the dashboard.
+        session: Database session used to construct the dashboard service.
+        permission_checker: RBAC helper dependency.
+        experiment_repository: Repository used to load project experiments.
+        hypothesis_repository: Repository used to load project hypotheses.
+
+    Returns:
+        DashboardStatsDTO: Counts grouped by experiment and hypothesis status.
+
+    Raises:
+        ProjectNotAccessibleError: Propagated by ``DashboardService`` when the user
+            lacks project view permission.
+    """
     return await DashboardService(
         session=session,
         permission_checker=permission_checker,

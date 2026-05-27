@@ -12,8 +12,18 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, CircleHelp } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useToast } from "@/lib/hooks/use-toast";
 import { formatLocalDateTime } from "@/lib/format-local-datetime";
 import {
@@ -22,6 +32,12 @@ import {
 } from "@/lib/validation/entity-limits";
 import { apiTokensService } from "@/domain/api-tokens/services";
 import type { ApiTokenCreateResponse, ApiTokenListItem } from "@/domain/api-tokens/types";
+import {
+  buildExperimentTrackerInitCommand,
+  formatSdkInitConfigJson,
+  getSdkConfigPath,
+} from "@/domain/api-tokens/utils/sdk-init-config";
+import { env } from "@/lib/env";
 
 const AVAILABLE_SCOPES = [
   "projects.view",
@@ -93,6 +109,8 @@ export default function ApiTokensPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [createdToken, setCreatedToken] = useState<ApiTokenCreateResponse | null>(null);
+  const [tokenToRevoke, setTokenToRevoke] = useState<ApiTokenListItem | null>(null);
+  const [isRevoking, setIsRevoking] = useState(false);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [expiresInDays, setExpiresInDays] = useState("");
@@ -101,6 +119,24 @@ export default function ApiTokensPage() {
   const scopesByGroup = useMemo(() => {
     return AVAILABLE_SCOPES;
   }, []);
+
+  const sdkInitConfigJson = useMemo(() => {
+    if (!createdToken) return null;
+    return formatSdkInitConfigJson({
+      baseUrl: env.BASE_URL,
+      apiPrefix: env.API_PREFIX,
+      apiToken: createdToken.token,
+    });
+  }, [createdToken]);
+
+  const experimentTrackerInitCommand = useMemo(() => {
+    if (!createdToken) return null;
+    return buildExperimentTrackerInitCommand({
+      baseUrl: env.BASE_URL,
+      apiPrefix: env.API_PREFIX,
+      apiToken: createdToken.token,
+    });
+  }, [createdToken]);
 
   const loadTokens = useCallback(async () => {
     setIsLoading(true);
@@ -169,10 +205,13 @@ export default function ApiTokensPage() {
     }
   };
 
-  const handleRevokeToken = async (tokenId: string) => {
+  const handleRevokeToken = async () => {
+    if (!tokenToRevoke) return;
+    setIsRevoking(true);
     try {
-      await apiTokensService.revoke(tokenId);
+      await apiTokensService.revoke(tokenToRevoke.id);
       await loadTokens();
+      setTokenToRevoke(null);
       toast({
         title: "Token revoked",
         description: "The token has been revoked.",
@@ -183,45 +222,78 @@ export default function ApiTokensPage() {
         description: "Please try again.",
         variant: "destructive",
       });
+    } finally {
+      setIsRevoking(false);
     }
   };
 
-  const handleCopyToken = async () => {
-    if (!createdToken) return;
+  const copyToClipboard = async (text: string, successTitle: string) => {
     try {
-      await navigator.clipboard.writeText(createdToken.token);
+      await navigator.clipboard.writeText(text);
       toast({
-        title: "Token copied",
-        description: "The token has been copied to the clipboard.",
+        title: successTitle,
+        description: "Copied to the clipboard.",
       });
-    } catch (error) {
+    } catch {
       toast({
         title: "Copy failed",
-        description: "Copy the token manually.",
+        description: "Copy the value manually.",
         variant: "destructive",
       });
     }
   };
 
+  const handleCopyToken = async () => {
+    if (!createdToken) return;
+    await copyToClipboard(createdToken.token, "Token copied");
+  };
+
+  const handleCopySdkConfig = async () => {
+    if (!sdkInitConfigJson) return;
+    await copyToClipboard(sdkInitConfigJson, "Config copied");
+  };
+
   return (
-    <div className="space-y-6">
+    <div className="container mx-auto max-w-screen-2xl space-y-6 p-6">
       <PageHeader
         title="API Tokens"
         description="Create personal API tokens for training scripts and SDK usage."
       />
-      {createdToken && (
+      {createdToken && sdkInitConfigJson && experimentTrackerInitCommand && (
         <Alert>
-          <AlertTitle>Token created</AlertTitle>
+          <AlertTitle>Token created — set up experiment-tracker init</AlertTitle>
           <AlertDescription>
-            <div className="space-y-2">
-              <p>Copy this token now. You will not be able to view it again.</p>
+            <div className="space-y-4">
+              <div className="text-sm">Copy this token now. You will not be able to view it again.</div>
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                 <code className="rounded bg-muted px-2 py-1 text-xs break-all">
                   {createdToken.token}
                 </code>
                 <Button type="button" variant="secondary" onClick={handleCopyToken}>
-                  Copy
+                  Copy token
                 </Button>
+              </div>
+
+              <div className="space-y-2 border-t pt-4">
+                <div className="text-sm font-medium">SDK config</div>
+                <div className="inline-flex flex-wrap items-center gap-1 text-sm text-muted-foreground">
+                  Save the following to{" "}
+                  <code className="rounded bg-muted px-1 py-0.5 text-xs">{getSdkConfigPath()}</code>{" "}
+                  or run the CLI command below.
+                  <SdkConfigEnvHintIcon />
+                </div>
+                <pre className="overflow-x-auto rounded-md border bg-muted/40 p-3 text-xs leading-relaxed">
+                  {sdkInitConfigJson}
+                </pre>
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" variant="secondary" onClick={handleCopySdkConfig}>
+                    Copy config
+                  </Button>
+                </div>
+                <div className="text-sm text-muted-foreground">Or run:</div>
+                <pre className="overflow-x-auto rounded-md border bg-muted/40 p-3 text-xs leading-relaxed">
+                  {experimentTrackerInitCommand}
+                </pre>
               </div>
             </div>
           </AlertDescription>
@@ -341,7 +413,7 @@ export default function ApiTokensPage() {
                     ) : (
                       <Button
                         variant="destructive"
-                        onClick={() => handleRevokeToken(token.id)}
+                        onClick={() => setTokenToRevoke(token)}
                       >
                         Revoke
                       </Button>
@@ -353,6 +425,64 @@ export default function ApiTokensPage() {
           )}
         </CardContent>
       </Card>
+
+      <AlertDialog
+        open={tokenToRevoke !== null}
+        onOpenChange={(open) => {
+          if (!open && !isRevoking) {
+            setTokenToRevoke(null);
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Revoke this API token?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {tokenToRevoke ? (
+                <>
+                  Revoking <span className="font-medium text-foreground">{tokenToRevoke.name}</span>{" "}
+                  will immediately stop any scripts or SDK clients using it. This cannot be undone.
+                </>
+              ) : null}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isRevoking}>Cancel</AlertDialogCancel>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={isRevoking}
+              onClick={handleRevokeToken}
+            >
+              {isRevoking ? "Revoking..." : "Revoke token"}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
+  );
+}
+
+function SdkConfigEnvHintIcon() {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          className="inline-flex shrink-0 rounded-full text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          aria-label="SDK config value sources"
+        >
+          <CircleHelp className="h-3.5 w-3.5" />
+        </button>
+      </TooltipTrigger>
+      <TooltipContent side="top" className="max-w-xs p-3 text-xs leading-relaxed">
+        <span className="block">
+          Values use this deployment&apos;s{" "}
+          <code className="rounded bg-muted px-1 py-0.5">NEXT_PUBLIC_BASE_URL</code> and{" "}
+          <code className="rounded bg-muted px-1 py-0.5">NEXT_PUBLIC_API_PREFIX</code> (default{" "}
+          <code className="rounded bg-muted px-1 py-0.5">/api</code>).
+        </span>
+      </TooltipContent>
+    </Tooltip>
   );
 }

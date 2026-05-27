@@ -18,6 +18,12 @@ const envSchema = z.object({
   /** When set (e.g. Docker: `http://backend:8000`), server-side BFF routes use this instead of BASE_URL. */
   SERVER_API_BASE_URL: z.url().optional(),
 
+  /** API path prefix for SDK config hints (matches backend `API_PREFIX`, default `/api`). */
+  API_PREFIX: z
+    .string()
+    .min(1, "API_PREFIX must be non-empty")
+    .describe("API path prefix, e.g. /api"),
+
   NODE_ENV: z
     .enum(["development", "production", "test"], {
       message: "NODE_ENV must be one of: development, production, test",
@@ -32,11 +38,13 @@ const envSchema = z.object({
 function validateEnvironment(): z.infer<typeof envSchema> {
   try {
     const serverApi = process.env.SERVER_API_BASE_URL?.trim();
+    const apiPrefix = process.env.NEXT_PUBLIC_API_PREFIX?.trim();
     const envVariables = {
       // Base URL (browser + default server; use host-reachable URL in Docker for client bundles)
       BASE_URL: process.env.NEXT_PUBLIC_BASE_URL,
       SERVER_API_BASE_URL:
         serverApi && serverApi.length > 0 ? serverApi : undefined,
+      API_PREFIX: apiPrefix && apiPrefix.length > 0 ? apiPrefix : "/api",
       // Node
       NODE_ENV: process.env.NODE_ENV,
     };

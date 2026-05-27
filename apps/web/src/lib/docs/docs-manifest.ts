@@ -29,6 +29,56 @@ export const DOCS_MANIFEST: DocManifestEntry[] = [
     description: "For developers: remark/rehype, directives, sanitize, and React markdown components.",
   },
   {
+    path: "domains",
+    title: "Domains",
+    description: "Product concepts: users, teams, projects, experiments, scalars, metrics, artifacts, reports, and hypotheses.",
+  },
+  {
+    path: "domains/artifacts",
+    title: "Artifacts",
+    description: "At-step outputs, final experiment artifacts, project CAS artifacts, snapshots, and cleanup.",
+  },
+  {
+    path: "domains/experiments",
+    title: "Experiments",
+    description: "Concrete runs: status, progress, colors, tags, parents, feature trees, and owned data.",
+  },
+  {
+    path: "domains/hypotheses",
+    title: "Hypotheses",
+    description: "Project-scoped research claims, target metrics, statuses, and current limitations.",
+  },
+  {
+    path: "domains/metrics",
+    title: "Metrics",
+    description: "Experiment comparison values, labels, tracked metrics, display metrics, and project views.",
+  },
+  {
+    path: "domains/projects",
+    title: "Projects",
+    description: "Experiment containers, members, settings, storage, tracked metrics, and display metrics.",
+  },
+  {
+    path: "domains/reports",
+    title: "Reports",
+    description: "Project report documents for summarizing experiment results and decisions.",
+  },
+  {
+    path: "domains/scalars",
+    title: "Scalars",
+    description: "Time-series values, sampling, plotting behavior, finite-value limits, and logged objects.",
+  },
+  {
+    path: "domains/teams",
+    title: "Teams",
+    description: "Team ownership, roles, members, inherited project access, and cleanup behavior.",
+  },
+  {
+    path: "domains/users",
+    title: "Users",
+    description: "Accounts, profiles, password changes, personal API tokens, and access sources.",
+  },
+  {
     path: "examples/common-patterns",
     title: "Common documentation patterns",
     description: "Recipes: warnings, collapsibles, and structure for onboarding and runbooks.",
@@ -70,6 +120,27 @@ export const DOCS_MANIFEST: DocManifestEntry[] = [
     title: "Metric display: precision & thresholds",
     description:
       "Tune mathjs auto-format (significant digits, exponent band) and comparison epsilon for tables, DAG, and sidebars.",
+  },
+  {
+    path: "sdk",
+    title: "SDK",
+    description: "Install, configure, and choose the right Python SDK interface for experiments.",
+  },
+  {
+    path: "sdk/cli",
+    title: "SDK CLI",
+    description: "Configure credentials, run scripts, and manage resources from the command line.",
+  },
+  {
+    path: "sdk/experiment-logging",
+    title: "Experiment logging with ExpTracker",
+    description:
+      "Use ExpTracker inside training scripts to log scalars, metrics, artifacts, and run status.",
+  },
+  {
+    path: "sdk/low-level-api",
+    title: "Low-level SDK API",
+    description: "Use request registries, clients, builders, and named artifact APIs for custom tooling.",
   },
 ];
 

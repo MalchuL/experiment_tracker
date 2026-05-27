@@ -1,4 +1,4 @@
-import { slugifyHeading } from "./slugify-heading";
+import { plainTextFromMarkdownHeading, slugifyHeading } from "./slugify-heading";
 
 /** One row in the “On this page” sidebar: slug id, heading text, and outline level (1–3). */
 export type DocTocItem = {
@@ -28,7 +28,7 @@ export function extractDocToc(markdown: string): DocTocItem[] {
     if (!m) continue;
 
     const level = m[1].length;
-    let text = m[2].trim().replace(/\s+#+\s*$/, "");
+    let text = plainTextFromMarkdownHeading(m[2].trim().replace(/\s+#+\s*$/, ""));
     const id = slugifyHeading(text, usedIds);
     items.push({ id, text, level });
   }

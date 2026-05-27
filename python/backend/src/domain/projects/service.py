@@ -134,6 +134,17 @@ class ProjectService:
     async def get_accessible_project_ids(
         self, user: UserProtocol, actions: list[str] | str | None
     ) -> list[UUID_TYPE]:
+        """Return project ids where the user has the requested action.
+
+        Args:
+            user: User whose access is queried.
+            actions: Action or actions that must be allowed; ``None`` delegates to the
+                permission service's unfiltered lookup.
+
+        Returns:
+            list[UUID_TYPE]: Project ids accessible directly or through team
+            permissions.
+        """
         permission_project_ids = (
             await self.permission_service.get_user_accessible_project_ids(
                 user.id, actions=actions
@@ -144,6 +155,25 @@ class ProjectService:
     async def create_project(
         self, user: UserProtocol, data: ProjectCreateDTO
     ) -> ProjectDTO:
+        """Create a project and provision its scalars table.
+
+        Team projects inherit ownership from the team owner; standalone projects grant
+        the creator project admin permissions. If any step fails, the database
+        transaction is rolled back.
+
+        Args:
+            user: User creating the project.
+            data: Project create payload, optionally including ``team_id``.
+
+        Returns:
+            ProjectDTO: Created project with zero experiment and hypothesis counts.
+
+        Raises:
+            ProjectNotAccessibleError: If the user cannot create projects in the
+                requested team.
+            Exception: Propagates repository or scalars provisioning failures after
+                rollback.
+        """
         try:
             # Check if the user is allowed to create a project in the team
             if data.team_id and not await self.permission_checker.can_create_project(
@@ -188,7 +218,21 @@ class ProjectService:
     async def update_project(
         self, user: UserProtocol, project_id: UUID_TYPE, data: ProjectUpdateDTO
     ) -> ProjectDTO:
-        """Update a project with partial data from ProjectUpdateDTO"""
+        """Update a project with partial data from ``ProjectUpdateDTO``.
+
+        Args:
+            user: User editing the project.
+            project_id: Project identifier.
+            data: Partial update payload.
+
+        Returns:
+            ProjectDTO: Updated project with loaded counts and configuration.
+
+        Raises:
+            ProjectNotAccessibleError: If the project cannot be loaded.
+            ProjectPermissionError: If the user cannot edit the project.
+            Exception: Propagates repository errors after rollback.
+        """
         try:
             # Convert DTO to update dictionary
             update_dict = self.project_mapper.project_update_dto_to_update_dict(data)
@@ -224,6 +268,20 @@ class ProjectService:
     async def get_project_settings(
         self, user: UserProtocol, project_id: UUID_TYPE
     ) -> list[ProjectSettingDTO]:
+        """Return structured settings for a project.
+
+        Args:
+            user: User requesting settings.
+            project_id: Project identifier.
+
+        Returns:
+            list[ProjectSettingDTO]: Validated setting entries.
+
+        Raises:
+            ProjectNotAccessibleError: If the project is not visible or cannot be
+                loaded.
+            pydantic.ValidationError: If stored setting payloads do not match the DTO.
+        """
         project = await self.get_project_if_accessible(user, project_id)
         if not project:
             raise ProjectNotAccessibleError(f"Project {project_id} not accessible")
@@ -233,6 +291,19 @@ class ProjectService:
     async def get_project_settings_map(
         self, user: UserProtocol, project_id: UUID_TYPE
     ) -> dict[str, Any]:
+        """Return project settings as a name-to-value mapping.
+
+        Args:
+            user: User requesting settings.
+            project_id: Project identifier.
+
+        Returns:
+            dict[str, Any]: Runtime settings keyed by setting name.
+
+        Raises:
+            ProjectNotAccessibleError: If project settings cannot be read.
+            pydantic.ValidationError: If stored settings are invalid.
+        """
         settings = await self.get_project_settings(user, project_id)
         return {setting.name: setting.value for setting in settings}
 
@@ -242,6 +313,22 @@ class ProjectService:
         project_id: UUID_TYPE,
         entries: list[ProjectSettingDTO],
     ) -> list[ProjectSettingDTO]:
+        """Append new typed setting entries to a project.
+
+        Args:
+            user: User editing settings.
+            project_id: Project identifier.
+            entries: New settings to append.
+
+        Returns:
+            list[ProjectSettingDTO]: Full settings list after append.
+
+        Raises:
+            ProjectPermissionError: If the user cannot edit the project.
+            ProjectNotAccessibleError: If the project cannot be loaded.
+            ValueError: If a setting name is duplicated, already exists, or has a
+                value incompatible with its declared type.
+        """
         try:
             project_model = await self.project_repository.get_by_id(project_id)
             if not await self.permission_checker.can_edit_project(user.id, project_id):
@@ -278,6 +365,22 @@ class ProjectService:
     async def update_project_setting_value(
         self, user: UserProtocol, project_id: UUID_TYPE, name: str, value: Any
     ) -> ProjectSettingDTO:
+        """Update the value of one existing project setting.
+
+        Args:
+            user: User editing settings.
+            project_id: Project identifier.
+            name: Setting name to update.
+            value: Replacement value, validated against the stored setting type.
+
+        Returns:
+            ProjectSettingDTO: Updated setting entry.
+
+        Raises:
+            ProjectPermissionError: If the user cannot edit the project.
+            ProjectNotAccessibleError: If the project or setting cannot be loaded.
+            ValueError: If ``value`` is incompatible with the setting type.
+        """
         try:
             project_model = await self.project_repository.get_by_id(project_id)
             if not await self.permission_checker.can_edit_project(user.id, project_id):
@@ -310,6 +413,20 @@ class ProjectService:
     async def delete_project_setting(
         self, user: UserProtocol, project_id: UUID_TYPE, name: str
     ) -> bool:
+        """Remove one setting entry from a project.
+
+        Args:
+            user: User editing settings.
+            project_id: Project identifier.
+            name: Setting name to remove.
+
+        Returns:
+            bool: ``True`` after the setting is removed and committed.
+
+        Raises:
+            ProjectPermissionError: If the user cannot edit the project.
+            ProjectNotAccessibleError: If the project or setting cannot be loaded.
+        """
         try:
             project_model = await self.project_repository.get_by_id(project_id)
             if not await self.permission_checker.can_edit_project(user.id, project_id):
@@ -339,6 +456,17 @@ class ProjectService:
         actions: list[str] | str | None = ProjectActions.VIEW_PROJECT,
         list_options: ListOptions = ListOptions(),
     ) -> ProjectListResponseDTO:
+        """List projects accessible to a user.
+
+        Args:
+            user: User requesting projects.
+            actions: Required action or actions for inclusion.
+            list_options: Pagination limit and offset.
+
+        Returns:
+            ProjectListResponseDTO: Paginated projects with experiment/hypothesis
+            counts.
+        """
         project_ids = await self.get_accessible_project_ids(user, actions)
         if not project_ids:
             return ProjectListResponseDTO(
@@ -382,6 +510,17 @@ class ProjectService:
         project_id: UUID_TYPE,
         actions: list[str] | str | None = ProjectActions.VIEW_PROJECT,
     ) -> ProjectDTO | None:
+        """Load one project if the user has the requested action.
+
+        Args:
+            user: User requesting the project.
+            project_id: Project identifier.
+            actions: Required action or actions; defaults to project view.
+
+        Returns:
+            ProjectDTO | None: Project DTO when accessible and found, otherwise
+            ``None``.
+        """
         if not await self.is_user_accessible_project(user, project_id, actions=actions):
             return None
         project_model = await self.project_repository.get_project_by_id(
@@ -406,6 +545,16 @@ class ProjectService:
         project_id: UUID_TYPE,
         actions: list[str] | str | None = ProjectActions.VIEW_PROJECT,
     ) -> bool:
+        """Check whether a user has the requested access to a project.
+
+        Args:
+            user: User whose permission is checked.
+            project_id: Project identifier.
+            actions: Action or actions to require. ``None`` falls back to project view.
+
+        Returns:
+            bool: ``True`` when the permission service grants any requested action.
+        """
         if actions is None:
             actions = ProjectActions.VIEW_PROJECT
         actions_list = [actions] if isinstance(actions, str) else actions
@@ -420,6 +569,26 @@ class ProjectService:
         *,
         detailed: bool = False,
     ) -> ProjectDeleteResponseDTO:
+        """Delete a project after best-effort satellite teardown.
+
+        The method verifies delete permission, gathers experiment ids, removes
+        experiment/project data from object storage and scalars, deletes the Postgres
+        project row, and returns a structured cleanup outcome. Failures roll back the
+        database transaction.
+
+        Args:
+            user: User deleting the project.
+            project_id: Project identifier.
+            detailed: Whether to include full cleanup result payloads.
+
+        Returns:
+            ProjectDeleteResponseDTO: Satellite and Postgres deletion outcome.
+
+        Raises:
+            ProjectPermissionError: If the user cannot delete the project.
+            ProjectNotAccessibleError: If the project cannot be loaded.
+            Exception: Propagates repository errors after rollback.
+        """
         try:
             if not await self.permission_checker.can_delete_project(
                 user.id, project_id
@@ -467,6 +636,14 @@ class ProjectService:
 
         Raises:
             ProjectNotAccessibleError: If the user cannot view the project.
+
+        Args:
+            user: User requesting usage.
+            project_id: Project identifier.
+
+        Returns:
+            ProjectUsageDTO: Project artifact, snapshot, experiment bucket, scalar,
+            and total usage blocks.
         """
         if not await self.permission_checker.can_view_project(user.id, project_id):
             raise ProjectNotAccessibleError(f"Project {project_id} not accessible")
@@ -543,6 +720,15 @@ class ProjectService:
         Raises:
             ProjectPermissionError: If the user lacks project delete permission.
             ValueError: Unknown ``category`` value.
+
+        Args:
+            user: User requesting cleanup.
+            project_id: Project identifier.
+            category: Storage category to clean.
+
+        Returns:
+            CategoryCleanupResponseDTO: Cleanup success/partial state and per-category
+            results/errors.
         """
         if not await self.permission_checker.can_delete_project(user.id, project_id):
             raise ProjectPermissionError(

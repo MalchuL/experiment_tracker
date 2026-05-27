@@ -425,6 +425,24 @@ class ExperimentArtifactsService:
         experiment_id: UUID,
         name: str,
     ) -> tuple[str, str]:
+        """Create a temporary ZIP archive of tracked artifacts sharing a display name.
+
+        Args:
+            user: User requesting the archive.
+            experiment_id: Experiment whose tracked artifacts should be searched.
+            name: Tracked artifact display name stored in metadata.
+
+        Returns:
+            tuple[str, str]: Local temporary ZIP path and suggested download filename.
+
+        Raises:
+            ExperimentArtifactsNotAccessibleError: If the user cannot view artifacts in
+                the experiment's project.
+            ExperimentArtifactNotFoundError: If no tracked artifacts match ``name``.
+            httpx.HTTPError: Propagated by the object-storage client when downloads
+                fail.
+            OSError: If temporary archive creation or cleanup fails.
+        """
         project_id = await self._ensure_view_permission(user, experiment_id)
         safe_name = self._mapper.validate_artifact_name(name)
         items = [
@@ -570,7 +588,28 @@ class ExperimentArtifactsService:
         start_time: str | None = None,
         end_time: str | None = None,
     ) -> ArtifactsInfoSummaryResultDTO:
-        """Return lightweight artifact summaries for project-level slider rendering."""
+        """Return lightweight at-step artifact summaries for slider rendering.
+
+        Args:
+            user: User requesting summaries.
+            project_id: Project whose artifacts-info table should be queried.
+            experiment_ids: Optional experiment filter.
+            artifact_types: Optional artifact type filter.
+            artifact_names: Optional artifact name filter.
+            list_options: Pagination limit and offset.
+            max_steps: Optional maximum step entries per summary group.
+            start_time: Optional lower timestamp bound serialized for the satellite.
+            end_time: Optional upper timestamp bound serialized for the satellite.
+
+        Returns:
+            ArtifactsInfoSummaryResultDTO: Summary groups for project-level artifact
+            browsing.
+
+        Raises:
+            ExperimentArtifactsNotAccessibleError: If the user cannot view artifacts in
+                the project.
+            httpx.HTTPError: Propagated by the artifacts-info client.
+        """
 
         await self._ensure_project_view_permission(user, project_id)
         return await self._artifacts_info_at_step_client.get_artifacts_summary(
@@ -594,7 +633,24 @@ class ExperimentArtifactsService:
         step: int,
         artifact_type: ArtifactType | None = None,
     ) -> ArtifactsInfoResultDTO:
-        """Return one full artifact metadata row after a summary slider step is selected."""
+        """Return one full artifact metadata row after a summary step is selected.
+
+        Args:
+            user: User requesting artifact detail.
+            project_id: Project whose artifacts-info table should be queried.
+            experiment_id: Experiment identifier.
+            artifact_name: Artifact name.
+            step: Training step.
+            artifact_type: Optional artifact type disambiguator.
+
+        Returns:
+            ArtifactsInfoResultDTO: Detail result from artifacts-info.
+
+        Raises:
+            ExperimentArtifactsNotAccessibleError: If the user cannot view artifacts in
+                the project.
+            httpx.HTTPError: Propagated by the artifacts-info client.
+        """
 
         await self._ensure_project_view_permission(user, project_id)
         return await self._artifacts_info_at_step_client.get_artifact_detail(
@@ -673,7 +729,22 @@ class ExperimentArtifactsService:
         *,
         filepath: str,
     ) -> DeleteExperimentArtifactResponseDTO:
-        """Delete one tracked artifact by stored filepath (relative path in object storage)."""
+        """Delete one tracked artifact by stored filepath.
+
+        Args:
+            user: User deleting the artifact.
+            experiment_id: Experiment that owns the tracked artifact.
+            filepath: Relative stored file path.
+
+        Returns:
+            DeleteExperimentArtifactResponseDTO: Object-storage deletion result.
+
+        Raises:
+            ExperimentArtifactsNotAccessibleError: If the user cannot log artifacts in
+                the experiment's project.
+            ExperimentArtifactNotFoundError: If no tracked artifact exists at the path.
+            httpx.HTTPError: Propagated by the object-storage client.
+        """
         project_id = await self._ensure_log_permission(user, experiment_id)
         tracked_path = self._normalize_filepath(filepath)
         existing = await self._find_tracked_artifact(
@@ -690,7 +761,20 @@ class ExperimentArtifactsService:
     async def delete_experiment_all_artifacts(
         self, user: UserProtocol, experiment_id: UUID
     ) -> DeleteExperimentArtifactsResponseDTO:
-        """Delete all (tracked and untracked) artifacts for an experiment."""
+        """Delete all tracked and untracked artifacts for an experiment.
+
+        Args:
+            user: User deleting artifacts.
+            experiment_id: Experiment whose artifacts should be removed.
+
+        Returns:
+            DeleteExperimentArtifactsResponseDTO: Object-storage bulk deletion result.
+
+        Raises:
+            ExperimentArtifactsNotAccessibleError: If the user cannot log artifacts in
+                the experiment's project.
+            httpx.HTTPError: Propagated by the object-storage client.
+        """
         project_id = await self._ensure_log_permission(user, experiment_id)
         return await self._object_storage.delete_all_experiment_artifacts(
             project_id, experiment_id

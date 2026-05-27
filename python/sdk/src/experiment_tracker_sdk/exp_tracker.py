@@ -1,8 +1,5 @@
 import math
-import mimetypes
-import re
-from pathlib import Path
-from typing import cast
+from datetime import datetime
 from uuid import UUID
 
 from experiment_tracker_sdk.client import (
@@ -16,20 +13,31 @@ from experiment_tracker_sdk.client.scalar_batching_strategy import (
     BatchedScalarLoggingStrategy,
 )
 from experiment_tracker_sdk.client.domain.experiments.dto import (
-    ExperimentListResponse,
     ExperimentResponse,
     FeatureNodeLike,
 )
-from experiment_tracker_sdk.client.domain.projects.dto import (
-    ProjectListResponse,
-)
-from experiment_tracker_sdk.config import load_config
+from experiment_tracker_sdk.client.domain.experiment_artifacts.dto import ArtifactType
+from experiment_tracker_sdk.client.instances import ExperimentInstance
 from experiment_tracker_sdk.error import ExpTrackerAPIError
 from experiment_tracker_sdk.logger import logger
 from experiment_tracker_sdk.utils.content_utils import (
-    _is_existing_file_path,
-    image_data_to_png_bytes,
-    materialize_content,
+    FinalArtifactContent,
+    ImageDataContent,
+    ImageContent,
+    StructuredFinalArtifactContent,
+    prepare_final_artifact_content,
+    prepare_final_image_content,
+    prepare_final_json_content,
+    prepare_final_yaml_content,
+    prepare_step_image_content,
+    prepare_step_text_content,
+)
+from experiment_tracker_sdk.client.fetching_domain_pages import (
+    fetch_all_project_experiments,
+)
+from experiment_tracker_sdk.utils.experiment_init_strategy import (
+    ExperimentInitStrategy,
+    InitParams,
 )
 
 
@@ -57,6 +65,7 @@ class ExpTracker:
         project_id: str | UUID,
         api_requests_registry: APIRequestsRegistry,
         request_client: ExperimentTrackerClient,
+        experiment_instance: ExperimentInstance | None = None,
     ):
         """Initialize the ExpTracker instance.
         Args:
@@ -76,19 +85,27 @@ class ExpTracker:
             registry=api_requests_registry,
             request_client=request_client,
         )
-
-    @staticmethod
-    def _get_api_requests_registry() -> APIRequestsRegistry:
-        return APIRequestsRegistry()
-
-    @staticmethod
-    def _get_request_client() -> ExperimentTrackerClient:
-        config = load_config()
-        return ExperimentTrackerClient(
-            config.base_url,
-            config.api_token,
-            api_prefix=config.api_prefix,
+        self._experiment = experiment_instance or ExperimentInstance._from_response(
+            ExperimentResponse(
+                id=str(experiment_id),
+                projectId=str(project_id),
+                name="",
+                description="",
+                status=ExperimentStatus.PLANNED.value,
+                createdAt=datetime.now(),
+            ),
+            request_client=request_client,
+            api_requests_registry=api_requests_registry,
         )
+
+    def __enter__(self) -> "ExpTracker":
+        """Enter batched experiment metadata update mode."""
+        self._experiment.__enter__()
+        return self
+
+    def __exit__(self, exc_type, exc, tb) -> bool:  # type: ignore[exit-return]
+        """Leave batched experiment metadata update mode."""
+        return self._experiment.__exit__(exc_type, exc, tb)
 
     def _upload_artifact_at_step(
         self,
@@ -97,7 +114,7 @@ class ExpTracker:
         content: bytes,
         content_type: str,
         name: str,
-        artifact_type: str,
+        artifact_type: ArtifactType,
         step: int,
         metadata: dict | None = None,
     ):
@@ -117,68 +134,41 @@ class ExpTracker:
         cls,
         project: str | UUID,
         experiment: str | UUID,
-        try_existing_experiment: bool = True,
-        features: list[FeatureNodeLike] | None = None,
+        team: str | UUID | None = None,
+        init_params: InitParams | None = None,
     ) -> "ExpTracker":
         """Initialize the ExpTracker instance.
+
         Args:
-            project (str | UUID): The ID or name of the project.
-            experiment (str | UUID): The ID or name of the experiment.
+            project: Project ID or name to resolve.
+            experiment: Experiment ID or name to resolve inside the project.
+            team: Optional team ID or name used to resolve team-owned projects
+                and to create a team/project when requested by ``init_params``.
+            init_params: Optional initialization behavior. Controls whether
+                existing team/project/experiment objects are reused, how
+                ambiguous matches are resolved, and whether missing objects are
+                created. When omitted, missing experiments are created by
+                default while projects and teams must already exist.
+
+        Returns:
+            Configured ``ExpTracker`` bound to the resolved experiment.
         """
-        # Convert UUIDs to strings
-        project = str(project)
-        experiment = str(experiment)
-
-        api_requests_registry = cls._get_api_requests_registry()
-        request_client = cls._get_request_client()
-
-        projects = cast(
-            ProjectListResponse,
-            request_client.request(api_requests_registry.projects.get_all_projects()),
-        ).data
-        project_obj = next(
-            (p for p in projects if p.name == project or p.id == project), None
+        resolved_init_params = init_params or InitParams(
+            create_experiment_if_not_exists=True,
         )
-        if project_obj is None:
-            raise ExpTrackerAPIError(f"Project not found: {project}")
-        logger.info(f"Using project: {project_obj.id} with name {project_obj.name}")
-        experiment_obj = None
-        if try_existing_experiment:
-            # Try to find an existing experiment with the given name or ID
-            experiments = cast(
-                ExperimentListResponse,
-                request_client.request(
-                    api_requests_registry.experiments.get_experiments_by_project(
-                        project_obj.id
-                    )
-                ),
-            ).data
-            experiment_obj = next(
-                (e for e in experiments if e.name == experiment or e.id == experiment),
-                None,
-            )
-            if experiment_obj is not None:
-                logger.info(
-                    f"Using experiment: {experiment_obj.id} with name {experiment_obj.name}"
-                )
-        if experiment_obj is None:
-            # Create a new experiment
-            logger.info(f"Creating new experiment: {experiment} for project: {project}")
-            experiment_obj = cast(
-                ExperimentResponse,
-                request_client.request(
-                    api_requests_registry.experiments.create_experiment(
-                        project_obj.id,
-                        experiment,
-                        features=features if features is not None else UNSET,
-                    )
-                ),
-            )
+        strategy = ExperimentInitStrategy()
+        result = strategy.init(
+            experiment_name_or_id=experiment,
+            project_name_or_id=project,
+            team_name_or_id=team,
+            init_params=resolved_init_params,
+        )
         return cls(
-            experiment_obj.id,
-            project_obj.id,
-            api_requests_registry,
-            request_client,
+            result.experiment.id,
+            result.project.id,
+            strategy.api_requests_registry,
+            strategy.request_client,
+            experiment_instance=result.experiment,
         )
 
     def add_scalar(
@@ -229,11 +219,10 @@ class ExpTracker:
             )
         )
 
-    # TODO: Refactor
     def add_image(
         self,
         tag: str,
-        img_tensor,
+        img: ImageDataContent,
         global_step: int = 0,
         walltime: float = 0,
     ):
@@ -243,11 +232,11 @@ class ExpTracker:
         - PIL.Image.Image
         - numpy.ndarray in HW or HWC layout
         """
-        image_bytes = image_data_to_png_bytes(img_tensor)
+        prepared = prepare_step_image_content(tag, img, global_step)
         self._upload_artifact_at_step(
-            filename=f"{tag}_{global_step}.png",  # Only needed for uploading
-            content=image_bytes,
-            content_type="image/png",
+            filename=prepared.filename,
+            content=prepared.content,
+            content_type=prepared.content_type,
             name=tag,
             artifact_type="image",
             step=global_step,
@@ -262,63 +251,60 @@ class ExpTracker:
         walltime: float = 0,
     ):
         """Upload and log text as a text object."""
+        prepared = prepare_step_text_content(tag, text_string, global_step)
         self._upload_artifact_at_step(
-            filename=f"{tag}_{global_step}.txt",  # Only needed for uploading
-            content=text_string.encode("utf-8"),
-            content_type="text/plain",
+            filename=prepared.filename,
+            content=prepared.content,
+            content_type=prepared.content_type,
             name=tag,
             artifact_type="text",
             step=global_step,
             metadata={"encoding": "utf-8"},
         )
 
-    # TODO: Refactor
     def log_final_artifact(
         self,
         tag: str,
-        content,
+        content: FinalArtifactContent,
         stored_filepath: str | None = None,
         default_content_type: str = "application/octet-stream",
         default_extension: str | None = None,
     ) -> None:
         """
         Upload a named final artifact without step-based logging.
-        The logged artifact haven't a step associated with it, used for checkpoints, configs, final exports.
+
+        Final artifacts are named/tracked experiment artifacts with no step
+        associated with them. Use this generic method for checkpoints, configs,
+        final exports, and any content that does not need a typed convenience
+        helper.
+
         Args:
-            tag (str): The name of the artifact (displayed in the ui).
-            content (bytes): The content of the artifact.
-            stored_filepath (str | None): The relative filepath of the artifact in the ui.
-            default_content_type (str): The default content type of the artifact.
+            tag: Logical artifact name displayed in the UI.
+            content: Bytes, text, an existing file path, or a readable file-like
+                object. Existing paths are read from disk; strings that are not
+                paths are uploaded as UTF-8 text.
+            stored_filepath: Relative filepath to store/display in the UI. When
+                omitted, a path is derived from ``tag`` and ``default_extension``.
+            default_content_type: MIME type used when it cannot be inferred from
+                a file name.
+            default_extension: Extension appended to ``tag`` when building the
+                default stored path and multipart filename.
         """
         try:
-            file_name = tag
-            if default_extension and not Path(file_name).suffix:
-                file_name = f"{file_name}{default_extension}"
-            filepath = stored_filepath or (
-                f"final/{file_name}" if default_extension else file_name
-            )
-            resolved_default_content_type = default_content_type
-            guessed_content_type, _ = mimetypes.guess_type(file_name)
-            if guessed_content_type is not None:
-                resolved_default_content_type = guessed_content_type
-            elif isinstance(content, str):
-                resolved_default_content_type = "text/plain"
-            if _is_existing_file_path(content):
-                file_name = Path(content).name
-                filepath = str(Path(content).relative_to(Path.cwd()))
-
-            content_bytes, _, content_type = materialize_content(
+            prepared = prepare_final_artifact_content(
+                tag=tag,
                 content=content,
-                default_file_name=file_name,
-                default_mime_type=resolved_default_content_type,
+                stored_filepath=stored_filepath,
+                default_content_type=default_content_type,
+                default_extension=default_extension,
             )
 
             self._blob_api.upsert_named_experiment_artifact(
                 experiment_id=str(self.experiment_id),
-                filepath=filepath,
-                filename=file_name,
-                content=content_bytes,
-                content_type=content_type,
+                filepath=prepared.filepath,
+                filename=prepared.filename,
+                content=prepared.content,
+                content_type=prepared.content_type,
                 name=tag,
             )
         except Exception as exc:  # noqa: BLE001
@@ -326,6 +312,104 @@ class ExpTracker:
                 f"Failed to log final artifact '{tag}': {exc}", stack_info=True
             )
             raise
+
+    def log_final_image(
+        self,
+        tag: str,
+        content: ImageContent,
+        stored_filepath: str | None = None,
+    ) -> None:
+        """Upload a named final image artifact without step-based logging.
+
+        Bytes, paths, and readable file-like objects are uploaded directly. Other
+        values are treated like ``add_image`` input and converted to PNG bytes
+        with ``image_data_to_png_bytes``; this supports PIL images and numpy
+        arrays when those optional packages are installed.
+
+        Args:
+            tag: Logical artifact name displayed in the UI.
+            content: Image bytes, an existing image file path, a readable
+                file-like object, a PIL image, or a numpy array in HW/HWC layout.
+            stored_filepath: Relative filepath to store/display in the UI.
+        """
+        self.log_final_artifact(
+            tag,
+            prepare_final_image_content(content),
+            stored_filepath=stored_filepath,
+            default_content_type="image/png",
+            default_extension=".png",
+        )
+
+    def log_final_text(
+        self,
+        tag: str,
+        content: FinalArtifactContent,
+        stored_filepath: str | None = None,
+    ) -> None:
+        """Upload a named final text artifact without step-based logging.
+
+        Args:
+            tag: Logical artifact name displayed in the UI.
+            content: Text, bytes, an existing text file path, or a readable
+                file-like object. Text strings that are not paths are encoded as
+                UTF-8 by the generic upload path.
+            stored_filepath: Relative filepath to store/display in the UI.
+        """
+        self.log_final_artifact(
+            tag,
+            content,
+            stored_filepath=stored_filepath,
+            default_content_type="text/plain",
+            default_extension=".txt",
+        )
+
+    def log_final_json(
+        self,
+        tag: str,
+        content: StructuredFinalArtifactContent,
+        stored_filepath: str | None = None,
+        indent: int | None = 2,
+    ) -> None:
+        """Upload a named final JSON artifact without step-based logging.
+
+        Args:
+            tag: Logical artifact name displayed in the UI.
+            content: JSON text, bytes, an existing JSON file path, a readable
+                file-like object, or a structured mapping/list payload. Structured
+                payloads are serialized with ``json.dumps``.
+            stored_filepath: Relative filepath to store/display in the UI.
+            indent: Indentation passed to ``json.dumps`` for structured payloads.
+        """
+        self.log_final_artifact(
+            tag,
+            prepare_final_json_content(content, indent=indent),
+            stored_filepath=stored_filepath,
+            default_content_type="application/json",
+            default_extension=".json",
+        )
+
+    def log_final_yaml(
+        self,
+        tag: str,
+        content: StructuredFinalArtifactContent,
+        stored_filepath: str | None = None,
+    ) -> None:
+        """Upload a named final YAML artifact without step-based logging.
+
+        Args:
+            tag: Logical artifact name displayed in the UI.
+            content: YAML text, bytes, an existing YAML file path, a readable
+                file-like object, or a structured mapping/list payload. Structured
+                payloads are serialized with the SDK's lightweight YAML emitter.
+            stored_filepath: Relative filepath to store/display in the UI.
+        """
+        self.log_final_artifact(
+            tag,
+            prepare_final_yaml_content(content),
+            stored_filepath=stored_filepath,
+            default_content_type="application/x-yaml",
+            default_extension=".yaml",
+        )
 
     def add_histogram(
         self,
@@ -409,73 +493,39 @@ class ExpTracker:
         if isinstance(progress, float):
             progress = min(max(progress, 0), 1)
             progress = round(progress * 100)
-        self._request_client.queued_request(
-            self._api_requests_registry.experiments.update_experiment(
-                self.experiment_id, progress=progress
-            )
-        )
+        self._experiment.progress = int(progress)
 
     def status(self, status: ExperimentStatus):
         """Update the status of the experiment."""
-        self._request_client.queued_request(
-            self._api_requests_registry.experiments.update_experiment(
-                self.experiment_id, status=status
-            )
-        )
+        self._experiment.status = status
 
     def tags(self, *tags: str):
         """Update the tags of the experiment."""
-        self._request_client.request(
-            self._api_requests_registry.experiments.update_experiment(
-                self.experiment_id, tags=list(tags)
-            )
-        )
+        self._experiment.tags = list(tags)
 
     def color(self, color: str):
         """Update the color of the experiment."""
-        if not re.fullmatch(r"^#[0-9a-fA-F]{6}$", color):
-            raise ExpTrackerAPIError(f"Invalid color: {color}")
-        self._request_client.request(
-            self._api_requests_registry.experiments.update_experiment(
-                self.experiment_id, color=color
-            )
-        )
+        self._experiment.color = color
 
     def description(self, description: str):
         """Update the description of the experiment."""
-        self._request_client.request(
-            self._api_requests_registry.experiments.update_experiment(
-                self.experiment_id, description=description
-            )
-        )
+        self._experiment.description = description
 
     def features(self, features: list[FeatureNodeLike]):
         """Update the feature tree for the experiment."""
-        self._request_client.request(
-            self._api_requests_registry.experiments.update_experiment(
-                self.experiment_id, features=features
-            )
-        )
+        self._experiment.features = features
 
     def name(self, name: str):
         """Update the name of the experiment."""
-        self._request_client.request(
-            self._api_requests_registry.experiments.update_experiment(
-                self.experiment_id, name=name
-            )
-        )
+        self._experiment.name = name
 
     def parent_experiment(self, parent_experiment: str | UUID):
         """Update the parent experiment of the experiment."""
-        experiments = cast(
-            ExperimentListResponse,
-            self._request_client.request(
-                self._api_requests_registry.experiments.get_experiments_by_project(
-                    self.project_id
-                )
-            ),
-        ).data
-        # TODO: Must be paginated in the future
+        experiments = fetch_all_project_experiments(
+            self.project_id,
+            request_client=self._request_client,
+            api_requests_registry=self._api_requests_registry,
+        )
         parent_experiment_obj = next(
             (
                 e
@@ -492,11 +542,7 @@ class ExpTracker:
         logger.info(
             f"Using parent experiment: {parent_experiment_obj.id} with name {parent_experiment_obj.name}"
         )
-        self._request_client.request(
-            self._api_requests_registry.experiments.update_experiment(
-                self.experiment_id, parent_experiment_id=parent_experiment_obj.id
-            )
-        )
+        self._experiment.parentExperimentId = parent_experiment_obj.id
 
     def flush(self):
         """Flush the event file to disk/network."""

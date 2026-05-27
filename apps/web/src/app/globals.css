@@ -169,12 +169,17 @@
   }
   .docs-prose code {
     @apply rounded bg-muted px-1.5 py-0.5 text-xs font-mono text-foreground;
+    font-variant-ligatures: none;
+    font-feature-settings: "liga" 0, "calt" 0;
   }
   .docs-prose pre {
-    @apply rounded-md border bg-muted/50 p-4 overflow-x-auto mb-4 text-xs font-mono;
+    @apply rounded-md border bg-muted/50 p-4 overflow-x-auto mb-4 text-xs font-mono whitespace-pre;
+    font-variant-ligatures: none;
+    font-feature-settings: "liga" 0, "calt" 0;
   }
   .docs-prose pre code {
     @apply bg-transparent p-0 text-xs;
+    white-space: inherit;
   }
   .docs-prose table {
     @apply w-full text-sm border-collapse mb-4;

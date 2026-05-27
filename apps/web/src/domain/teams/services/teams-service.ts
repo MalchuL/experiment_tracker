@@ -3,14 +3,21 @@ import { appendPaginationParams } from "@/lib/api/pagination";
 import { API_ROUTES } from "@/lib/constants/api-routes";
 import type { PaginatedResponse, PaginationParams } from "@/lib/types/pagination";
 import type { CategoryCleanupResponse } from "@/domain/experiments/types";
-import type { Team, TeamListItem, TeamMemberRow, TeamMemberWritePayload } from "../types";
+import type {
+  Team,
+  TeamCreateInput,
+  TeamListItem,
+  TeamMemberRow,
+  TeamMemberWritePayload,
+  TeamUpdateInput,
+} from "../types";
 
 export interface TeamsService {
   list: (params?: PaginationParams) => Promise<PaginatedResponse<TeamListItem>>;
   getById: (teamId: string) => Promise<Team>;
   listMembers: (teamId: string) => Promise<TeamMemberRow[]>;
-  create: (data: { name: string; description?: string | null }) => Promise<Team>;
-  update: (data: { id: string; name: string; description?: string | null }) => Promise<Team>;
+  create: (data: TeamCreateInput) => Promise<Team>;
+  update: (data: TeamUpdateInput) => Promise<Team>;
   delete: (teamId: string) => Promise<CategoryCleanupResponse>;
   addMember: (payload: TeamMemberWritePayload) => Promise<TeamMemberRow>;
   updateMember: (payload: TeamMemberWritePayload) => Promise<TeamMemberRow>;

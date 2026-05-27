@@ -126,6 +126,20 @@ class TestTeamControllerCreate:
 
         assert response.status_code == 422
 
+    async def test_create_team_rejects_owner_id(
+        self, client: TestClient, test_user_2: User
+    ):
+        """Clients cannot choose team owner on create."""
+        response = client.post(
+            "/api/v1/teams",
+            json={
+                "name": "Escalation Team",
+                "ownerId": str(test_user_2.id),
+            },
+        )
+
+        assert response.status_code == 422
+
 
 class TestTeamControllerUpdate:
     """Test updating teams via HTTP API."""
@@ -161,6 +175,28 @@ class TestTeamControllerUpdate:
         assert updated_data["id"] == team_id
         assert updated_data["name"] == "Updated Team"
         assert updated_data["description"] == "Updated description"
+
+    async def test_update_team_rejects_owner_id(
+        self, client: TestClient, test_user_2: User
+    ):
+        """Clients cannot change team owner via PATCH."""
+        create_response = client.post(
+            "/api/v1/teams",
+            json={"name": "Patch Target"},
+        )
+        assert create_response.status_code == 200
+        team_id = create_response.json()["id"]
+
+        update_response = client.patch(
+            "/api/v1/teams",
+            json={
+                "id": team_id,
+                "name": "Patch Target",
+                "ownerId": str(test_user_2.id),
+            },
+        )
+
+        assert update_response.status_code == 422
 
     async def test_update_team_without_permission(
         self,

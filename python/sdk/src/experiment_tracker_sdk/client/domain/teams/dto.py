@@ -1,6 +1,9 @@
 from datetime import datetime
 from enum import Enum
-from pydantic import BaseModel
+
+from pydantic import BaseModel, ConfigDict
+
+from ...pagination import PaginatedResponse
 
 
 class TeamRole(str, Enum):
@@ -11,11 +14,17 @@ class TeamRole(str, Enum):
 
 
 class TeamCreateRequest(BaseModel):
+    """POST /teams body. Owner is assigned server-side from the authenticated user."""
+
+    model_config = ConfigDict(extra="forbid")
+
     name: str
     description: str | None = None
 
 
 class TeamUpdateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     id: str
     name: str
     description: str | None = None
@@ -24,9 +33,17 @@ class TeamUpdateRequest(BaseModel):
 class TeamResponse(BaseModel):
     id: str
     createdAt: datetime
-    ownerId: str
+    ownerId: str | None = None
     name: str
     description: str | None = None
+
+
+class TeamListItemResponse(TeamResponse):
+    canCreateProject: bool = False
+
+
+class TeamListResponse(PaginatedResponse[TeamListItemResponse]):
+    pass
 
 
 class TeamMemberCreateRequest(BaseModel):

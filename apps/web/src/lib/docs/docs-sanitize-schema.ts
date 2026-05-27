@@ -8,9 +8,13 @@ import type { Options as SanitizeSchema } from "rehype-sanitize";
  */
 export const docsRehypeSanitizeSchema: SanitizeSchema = {
   ...defaultSchema,
+  clobberPrefix: "",
   tagNames: [...(defaultSchema.tagNames ?? []), "aside", "details", "summary"],
   attributes: {
     ...defaultSchema.attributes,
+    h1: [...((defaultSchema.attributes?.h1 as string[] | undefined) ?? []), "id"],
+    h2: [...((defaultSchema.attributes?.h2 as string[] | undefined) ?? []), "id"],
+    h3: [...((defaultSchema.attributes?.h3 as string[] | undefined) ?? []), "id"],
     aside: ["className"],
     details: ["className", "open"],
     summary: ["className"],

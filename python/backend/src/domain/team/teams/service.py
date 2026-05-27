@@ -56,6 +56,18 @@ class TeamService:
         scalars_service: ScalarsServiceProtocol | None = None,
         object_storage_client: ObjectStorageClientProtocol | None = None,
     ):
+        """Initialize the team service.
+
+        Args:
+            db: Database session used for team and permission commits.
+            team_repository: Repository for team and membership rows.
+            permission_checker: RBAC checker for team actions.
+            permission_service: Service that writes team/project permission rows.
+            project_repository: Optional repository used for team deletion cleanup.
+            scalars_service: Optional scalars facade used to clean team-owned projects.
+            object_storage_client: Optional object-storage client used for project
+                artifact cleanup during team deletion.
+        """
         self.db = db
         self.team_repository = team_repository
         self.permission_service = permission_service
@@ -116,6 +128,15 @@ class TeamService:
 
     # Team
     async def create_team(self, user_id: UUID, dto: TeamCreateDTO) -> TeamReadDTO:
+        """Create a team and grant the creator admin permissions.
+
+        Args:
+            user_id: User who owns/creates the team.
+            dto: Team create payload.
+
+        Returns:
+            TeamReadDTO: Created team metadata.
+        """
         team = self.team_mapper.team_dto_to_schema(
             dto, CreateDTOToSchemaProps(owner_id=user_id)
         )
@@ -128,6 +149,19 @@ class TeamService:
         return self.team_mapper.team_schema_to_dto(team)
 
     async def update_team(self, user_id: UUID, dto: TeamUpdateDTO) -> TeamReadDTO:
+        """Update team metadata.
+
+        Args:
+            user_id: User performing the update.
+            dto: Update payload including the team id.
+
+        Returns:
+            TeamReadDTO: Updated team metadata.
+
+        Raises:
+            TeamAccessDeniedError: If the user cannot manage the team.
+            TeamNotFoundError: If the team does not exist.
+        """
         if not await self.permission_checker.can_manage_team(user_id, dto.id):
             raise TeamAccessDeniedError("You do not have permission to update a team")
         try:
@@ -149,6 +183,18 @@ class TeamService:
         experiment object-storage + scalars deletes, project-level object storage delete,
         scalars ``delete_project_table``, expunge ORM graphs, then delete the project row.
         Finally deletes the team row. Requires team manage permission.
+
+        Args:
+            user_id: User deleting the team.
+            team_id: Team identifier.
+            detailed: Whether to include full per-step cleanup results.
+
+        Returns:
+            TeamDeleteResponseDTO: Structured cleanup outcome.
+
+        Raises:
+            TeamAccessDeniedError: If the user cannot manage the team.
+            TeamNotFoundError: If the team does not exist.
         """
         if not await self.permission_checker.can_manage_team(user_id, team_id):
             raise TeamAccessDeniedError("You do not have permission to delete a team")
@@ -187,6 +233,16 @@ class TeamService:
     async def list_teams(
         self, user_id: UUID, list_options: ListOptions
     ) -> Page[TeamListItemDTO]:
+        """List teams accessible to a user.
+
+        Args:
+            user_id: User whose teams should be listed.
+            list_options: Pagination limit and offset.
+
+        Returns:
+            Page[TeamListItemDTO]: Paginated team rows including whether the user can
+            create projects in each team.
+        """
         teams = await self.team_repository.list_teams_for_user(user_id)
         items: list[TeamListItemDTO] = []
         for team in teams:
@@ -203,6 +259,19 @@ class TeamService:
         return page
 
     async def get_team(self, user_id: UUID, team_id: UUID) -> TeamReadDTO:
+        """Load a team if the user can view it.
+
+        Args:
+            user_id: User requesting the team.
+            team_id: Team identifier.
+
+        Returns:
+            TeamReadDTO: Team metadata.
+
+        Raises:
+            TeamAccessDeniedError: If the user cannot view the team.
+            TeamNotFoundError: If the team does not exist.
+        """
         if not await self.permission_checker.can_view_team(user_id, team_id):
             raise TeamAccessDeniedError("You do not have permission to view this team")
         try:
@@ -214,6 +283,19 @@ class TeamService:
     async def list_team_members(
         self, user_id: UUID, team_id: UUID
     ) -> list[TeamMemberWithUserDTO]:
+        """List team members with user metadata and a synthetic owner row.
+
+        Args:
+            user_id: User requesting members.
+            team_id: Team identifier.
+
+        Returns:
+            list[TeamMemberWithUserDTO]: Owner and non-owner members.
+
+        Raises:
+            TeamAccessDeniedError: If the user cannot view the team.
+            TeamNotFoundError: If the team does not exist.
+        """
         if not await self.permission_checker.can_view_team(user_id, team_id):
             raise TeamAccessDeniedError("You do not have permission to view this team")
         try:
@@ -260,6 +342,21 @@ class TeamService:
     async def lookup_user_by_email(
         self, requester_id: UUID, team_id: UUID, email: str
     ) -> TeamUserLookupDTO:
+        """Look up an active user by email for team membership changes.
+
+        Args:
+            requester_id: User performing the lookup.
+            team_id: Team where membership would be changed.
+            email: Email address to normalize and search.
+
+        Returns:
+            TeamUserLookupDTO: Matching active user's identity.
+
+        Raises:
+            TeamAccessDeniedError: If the requester cannot manage the team.
+            TeamNotFoundError: If the team does not exist.
+            TeamMemberNotFoundError: If no active user matches the email.
+        """
         if not await self.permission_checker.can_manage_team(requester_id, team_id):
             raise TeamAccessDeniedError("You do not have permission to look up users")
         try:
@@ -283,6 +380,21 @@ class TeamService:
     async def add_team_member(
         self, user_id: UUID, team_member: TeamMemberCreateDTO
     ) -> TeamMemberReadDTO:
+        """Add a user to a team and grant role permissions.
+
+        Args:
+            user_id: Manager performing the add.
+            team_member: Target user, team id, and role.
+
+        Returns:
+            TeamMemberReadDTO: Created membership row.
+
+        Raises:
+            TeamAccessDeniedError: If the manager cannot assign the requested role or
+                manage the team.
+            TeamMemberAlreadyExistsError: If the target is already a member.
+            TeamNotFoundError: If role checking cannot load the team.
+        """
         await self._check_role(user_id, team_member.team_id, team_member.role)
         if not await self.permission_checker.can_manage_team(
             user_id, team_member.team_id
@@ -306,6 +418,21 @@ class TeamService:
     async def update_team_member(
         self, user_id: UUID, dto: TeamMemberUpdateDTO
     ) -> TeamMemberReadDTO:
+        """Change a team member's role.
+
+        Args:
+            user_id: Manager performing the update.
+            dto: Target user, team id, and replacement role.
+
+        Returns:
+            TeamMemberReadDTO: Updated membership row.
+
+        Raises:
+            TeamAccessDeniedError: If the manager cannot assign the role, cannot
+                manage the team, or attempts to change an admin.
+            TeamMemberNotFoundError: If the target membership does not exist.
+            TeamNotFoundError: If role checking cannot load the team.
+        """
         await self._check_role(user_id, dto.team_id, dto.role, dto.user_id)
         if not await self.permission_checker.can_manage_team(user_id, dto.team_id):
             raise TeamAccessDeniedError(
@@ -330,6 +457,24 @@ class TeamService:
         return self.team_mapper.team_member_schema_to_dto(team_member)
 
     async def remove_team_member(self, user_id: UUID, dto: TeamMemberDeleteDTO) -> None:
+        """Remove a member from a team and revoke team permissions.
+
+        Members may remove themselves without manage permission; managers can remove
+        other non-owner, non-admin members.
+
+        Args:
+            user_id: User performing the removal.
+            dto: Target user and team id.
+
+        Returns:
+            None: Membership and permission rows are removed and committed.
+
+        Raises:
+            TeamNotFoundError: If the team does not exist.
+            TeamAccessDeniedError: If the target is the owner/admin or the requester
+                cannot remove the member.
+            TeamMemberNotFoundError: If the target membership does not exist.
+        """
         team_id = dto.team_id
         try:
             team = await self.team_repository.get_by_id_with_owner(team_id)

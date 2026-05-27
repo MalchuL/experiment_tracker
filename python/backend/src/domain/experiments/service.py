@@ -72,6 +72,21 @@ class ExperimentService:
         *,
         include_features: bool = True,
     ) -> ExperimentListResponseDTO:
+        """List the latest experiments for a project.
+
+        Args:
+            user: User requesting experiments.
+            project_id: Project whose experiments should be listed.
+            list_options: Pagination limit and offset.
+            include_features: Whether to include feature tree data in each item.
+
+        Returns:
+            ExperimentListResponseDTO: Paginated recent experiment list items.
+
+        Raises:
+            ExperimentNotAccessibleError: If the user cannot view experiments in the
+                project.
+        """
         if not await self.permission_checker.can_view_experiment(user.id, project_id):
             raise ExperimentNotAccessibleError(
                 f"You are not allowed to view experiments in project {project_id}"
@@ -90,6 +105,18 @@ class ExperimentService:
     async def get_experiment_if_accessible(
         self, user: UserProtocol, experiment_id: UUID_TYPE
     ) -> ExperimentDTO | None:
+        """Load one experiment if visible to the user.
+
+        Args:
+            user: User requesting the experiment.
+            experiment_id: Experiment identifier.
+
+        Returns:
+            ExperimentDTO | None: Experiment DTO when accessible.
+
+        Raises:
+            ExperimentNotAccessibleError: If the experiment's project is not visible.
+        """
         experiment = await self.experiment_repository.get_by_id(experiment_id)
         if not await self.permission_checker.can_view_experiment(
             user.id, experiment.project_id
@@ -102,6 +129,19 @@ class ExperimentService:
     async def create_experiment(
         self, user: UserProtocol, data: ExperimentCreateDTO
     ) -> ExperimentDTO:
+        """Create an experiment row.
+
+        Args:
+            user: User creating the experiment.
+            data: Experiment create payload, including project id and optional parent.
+
+        Returns:
+            ExperimentDTO: Created experiment after commit.
+
+        Raises:
+            ExperimentNotAccessibleError: If the user cannot create in the project, the
+                parent does not exist, or the parent belongs to another project.
+        """
         if not await self.permission_checker.can_create_experiment(
             user.id, data.project_id
         ):
@@ -128,6 +168,20 @@ class ExperimentService:
     async def update_experiment(
         self, user: UserProtocol, experiment_id: UUID_TYPE, data: ExperimentUpdateDTO
     ) -> ExperimentDTO:
+        """Update an experiment row.
+
+        Args:
+            user: User editing the experiment.
+            experiment_id: Experiment identifier.
+            data: Update payload containing editable fields.
+
+        Returns:
+            ExperimentDTO: Updated experiment after commit.
+
+        Raises:
+            ExperimentNotAccessibleError: If the user cannot edit the experiment's
+                project.
+        """
         experiment = await self.experiment_repository.get_by_id(experiment_id)
         if not await self.permission_checker.can_edit_experiment(
             user.id, experiment.project_id
@@ -150,6 +204,11 @@ class ExperimentService:
     ) -> ExperimentDeleteResponseDTO:
         """Delete the experiment row after best-effort satellite cleanup.
 
+        Args:
+            user: User deleting the experiment.
+            experiment_id: Experiment identifier.
+            detailed: Whether to include full cleanup result payloads.
+
         Order of operations:
         1. Verify ``DELETE_EXPERIMENT`` (or equivalent) permission for the experiment's project.
         2. Call object storage to remove **all** blobs for this experiment (tracked, at-step,
@@ -163,6 +222,9 @@ class ExperimentService:
         Returns:
             Cleanup-shaped payload with per-step ``results`` / ``errors`` (object storage,
             scalars, Postgres row).
+
+        Raises:
+            ExperimentNotAccessibleError: If the user cannot delete the experiment.
         """
         experiment = await self.experiment_repository.get_by_id(experiment_id)
         if not await self.permission_checker.can_delete_experiment(
@@ -211,6 +273,14 @@ class ExperimentService:
 
         Raises:
             ExperimentNotAccessibleError: If the user cannot view the experiment's project.
+
+        Args:
+            user: User requesting usage.
+            experiment_id: Experiment identifier.
+
+        Returns:
+            ExperimentUsageDTO: Usage grouped by tracked artifacts, at-step artifacts,
+            snapshots placeholder, scalars, and total bytes.
         """
         experiment = await self.experiment_repository.get_by_id(experiment_id)
         if not await self.permission_checker.can_view_experiment(
@@ -292,6 +362,15 @@ class ExperimentService:
         Raises:
             ExperimentNotAccessibleError: Missing delete permission on the experiment.
             ValueError: Unknown ``category`` value.
+
+        Args:
+            user: User requesting cleanup.
+            experiment_id: Experiment identifier.
+            category: Storage category to clean.
+
+        Returns:
+            CategoryCleanupResponseDTO: Cleanup success/partial state and per-category
+            results/errors.
         """
         experiment = await self.experiment_repository.get_by_id(experiment_id)
         if not await self.permission_checker.can_delete_experiment(
@@ -365,6 +444,20 @@ class ExperimentService:
     async def reorder_experiments(
         self, user: UserProtocol, project_id: UUID_TYPE, data: List[UUID_TYPE]
     ) -> bool:
+        """Update ordering for experiments within a project.
+
+        Args:
+            user: User performing the reorder.
+            project_id: Project containing the experiments.
+            data: Ordered experiment ids; index position becomes the persisted order.
+
+        Returns:
+            bool: ``True`` after all order updates are committed.
+
+        Raises:
+            ExperimentNotAccessibleError: If the user cannot edit project experiments
+                or any supplied experiment is not part of the project.
+        """
         if not await self.permission_checker.can_edit_experiment(user.id, project_id):
             raise ExperimentNotAccessibleError(
                 f"You are not allowed to edit experiments in project {project_id}"
@@ -399,6 +492,22 @@ class ExperimentService:
         search: str | None = None,
         include_features: bool = True,
     ) -> ExperimentListResponseDTO:
+        """List experiments in a project.
+
+        Args:
+            user: User requesting the list.
+            project_id: Project whose experiments should be returned.
+            list_options: Pagination limit and offset.
+            search: Optional substring filter over experiment id, name, or description.
+            include_features: Whether to include feature tree data in each item.
+
+        Returns:
+            ExperimentListResponseDTO: Paginated experiment list items.
+
+        Raises:
+            ExperimentNotAccessibleError: If the user cannot view experiments in the
+                project.
+        """
         if not await self.permission_checker.can_view_experiment(user.id, project_id):
             raise ExperimentNotAccessibleError(
                 f"You are not allowed to view experiments in project {project_id}"
@@ -425,6 +534,22 @@ class ExperimentService:
         *,
         include_features: bool = True,
     ) -> ExperimentListResponseDTO:
+        """Load specific experiments from a project in caller-supplied order.
+
+        Args:
+            user: User requesting the batch.
+            project_id: Project all returned experiments must belong to.
+            experiment_ids: Requested experiment ids; duplicates are ignored.
+            include_features: Whether to include feature tree data in each item.
+
+        Returns:
+            ExperimentListResponseDTO: Matching experiments in requested order. Missing
+            or foreign ids are omitted.
+
+        Raises:
+            ExperimentNotAccessibleError: If the user cannot view experiments in the
+                project.
+        """
         if not await self.permission_checker.can_view_experiment(user.id, project_id):
             raise ExperimentNotAccessibleError(
                 f"You are not allowed to view experiments in project {project_id}"

@@ -37,6 +37,10 @@ flowchart LR
 | `python/scalars_service/src/` | FastAPI scalars/artifacts_info service. `GET /scalars/get/...` paginates **experiments** first, then loads each metric column with ClickHouse `IS NOT NULL` + per-(experiment, column) uniform `max_points` sampling (`columns_per_query` controls parallel column queries; default 1). Cross-table ClickHouse work (delete experiment rows across scalars + artifacts_info + last_logged, usage, admin table listing) is under **`/projects`** (`projects` domain); compaction stays **`POST /scalars/projects/{id}/compact-columns`**. |
 | `python/object_storage/src/` | FastAPI storage service (buckets, experiment/project artifacts). |
 | `python/sdk/src/experiment_tracker_sdk/` | Public Python SDK for the tracker API. |
+| `python/sdk/src/experiment_tracker_sdk/api_access.py` | Singleton :class:`ExpTrackerApiAccess` — shared ``APIRequestsRegistry`` / :class:`ExperimentTrackerClient` construction (used by :class:`ExpTracker` and CLI). |
+| `python/sdk/src/experiment_tracker_sdk/constants.py` | Default API base URL and ``/api`` prefix literals shared with settings. |
+| `python/sdk/src/experiment_tracker_sdk/settings.py` | Pydantic ``BaseSettings`` with ``EXP_TRACKER_`` env prefix and optional ``.env`` (CLI init defaults). |
+| `python/sdk/src/experiment_tracker_sdk/console/` | CLI (`experiment-tracker`): **Click** group + `run` command; argv split on `--` via a small `click.Command` subclass; pluggable bootstrap hooks; in-process `runpy` (simple experiments only). |
 | `python/shared/` | Shared package (`experiment-tracker-shared`). |
 | `examples/training/` | Example training integration (optional). |
 | `turbo.json` | Turborepo task graph (`build`, `dev`, etc.). |
@@ -121,6 +125,15 @@ Work from the package root, for example:
 - `cd python/sdk && uv run pytest`
 
 Do **not** assume a single global `python/backend`-only layout; **scalars_service**, **object_storage**, and **sdk** are first-class packages with their own `uv` workflows.
+
+### SDK version
+
+When shipping SDK changes that should be published or consumed with a pinned version, bump **both** of these and keep them identical:
+
+1. `python/sdk/pyproject.toml` — `[project] version` (package metadata for installs/builds)
+2. `python/sdk/src/experiment_tracker_sdk/__init__.py` — `__version__` (runtime; import as `experiment_tracker_sdk.__version__`)
+
+Use [semver](https://semver.org/): **patch** for fixes and small backward-compatible additions, **minor** for larger backward-compatible features, **major** for breaking API changes. Bump the version in the same change set as the SDK feature or fix it describes.
 
 ## Frontend: Turborepo and pnpm
 

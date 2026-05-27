@@ -28,7 +28,17 @@ router = APIRouter(prefix="/scalars", tags=["scalars"])
 
 
 def _raise_scalars_http_error(error: Exception) -> None:
-    """Map scalars access errors and HTTP client failures to API responses."""
+    """Map scalars access errors and HTTP client failures to API responses.
+
+    Args:
+        error: Exception raised by ``ScalarsServiceProtocol`` or the scalars HTTP
+            client.
+
+    Raises:
+        HTTPException: ``403`` for RBAC denial, upstream status codes for scalars
+            ``HTTPStatusError``, ``502`` when the satellite is unavailable, and
+            ``400`` for other errors.
+    """
     if isinstance(error, ScalarsNotAccessibleError):
         raise HTTPException(status_code=403, detail=str(error))
     if isinstance(error, httpx.HTTPStatusError):
@@ -48,6 +58,22 @@ async def log_scalar(
     _: None = Depends(require_api_token_scopes(ProjectActions.CREATE_METRIC)),
     scalars_service: ScalarsServiceProtocol = Depends(get_scalars_service),
 ):
+    """Log one scalar point for an experiment.
+
+    Args:
+        experiment_id: Experiment that owns the scalar row.
+        data: Scalar metric payload.
+        user: Authenticated user logging the scalar.
+        _: API-token scope guard requiring metric creation access.
+        scalars_service: Scalars service dependency.
+
+    Returns:
+        LogScalarResponseDTO: Satellite logging result.
+
+    Raises:
+        HTTPException: ``403`` for permission denial, upstream scalars status codes,
+            ``502`` for satellite unavailability, or ``400`` for other errors.
+    """
     try:
         return await scalars_service.log_scalar(user, experiment_id, data)
     except Exception as exc:  # noqa: BLE001
@@ -65,6 +91,22 @@ async def log_scalars_batch(
     _: None = Depends(require_api_token_scopes(ProjectActions.CREATE_METRIC)),
     scalars_service: ScalarsServiceProtocol = Depends(get_scalars_service),
 ):
+    """Log a batch of scalar points for an experiment.
+
+    Args:
+        experiment_id: Experiment that owns the scalar rows.
+        data: Batch scalar payload.
+        user: Authenticated user logging scalars.
+        _: API-token scope guard requiring metric creation access.
+        scalars_service: Scalars service dependency.
+
+    Returns:
+        LogScalarResponseDTO: Satellite batch logging result.
+
+    Raises:
+        HTTPException: ``403`` for permission denial, upstream scalars status codes,
+            ``502`` for satellite unavailability, or ``400`` for other errors.
+    """
     try:
         return await scalars_service.log_scalars_batch(user, experiment_id, data)
     except Exception as exc:  # noqa: BLE001
@@ -86,6 +128,29 @@ async def get_scalars(
     _: None = Depends(require_api_token_scopes(ProjectActions.VIEW_METRIC)),
     scalars_service: ScalarsServiceProtocol = Depends(get_scalars_service),
 ):
+    """Query scalar series for one experiment.
+
+    Args:
+        experiment_id: Experiment identifier.
+        limit: Maximum number of experiment groups to return.
+        offset: Number of experiment groups to skip.
+        max_points: Optional sampling target per metric column.
+        sampling: Sampling algorithm requested from scalars.
+        columns_per_query: Number of columns the satellite may query concurrently.
+        return_tags: Whether tag metadata should be included.
+        start_time: Optional lower timestamp bound.
+        end_time: Optional upper timestamp bound.
+        user: Authenticated user requesting scalars.
+        _: API-token scope guard requiring metric view access.
+        scalars_service: Scalars service dependency.
+
+    Returns:
+        GetScalarsResponseDTO: Paginated scalar series payload.
+
+    Raises:
+        HTTPException: ``403`` for permission denial, upstream scalars status codes,
+            ``502`` for satellite unavailability, or ``400`` for query errors.
+    """
     try:
         return await scalars_service.get_scalars_for_experiment(
             user,
@@ -118,6 +183,30 @@ async def get_project_scalars(
     _: None = Depends(require_api_token_scopes(ProjectActions.VIEW_METRIC)),
     scalars_service: ScalarsServiceProtocol = Depends(get_scalars_service),
 ):
+    """Query scalar series for a project and optional experiment filter.
+
+    Args:
+        project_id: Project identifier.
+        experiment_id: Optional repeated query parameter of experiment ids.
+        limit: Maximum number of experiment groups to return.
+        offset: Number of experiment groups to skip.
+        max_points: Optional sampling target per metric column.
+        sampling: Sampling algorithm requested from scalars.
+        columns_per_query: Number of columns the satellite may query concurrently.
+        return_tags: Whether tag metadata should be included.
+        start_time: Optional lower timestamp bound.
+        end_time: Optional upper timestamp bound.
+        user: Authenticated user requesting scalars.
+        _: API-token scope guard requiring metric view access.
+        scalars_service: Scalars service dependency.
+
+    Returns:
+        GetScalarsResponseDTO: Paginated scalar series payload.
+
+    Raises:
+        HTTPException: ``403`` for permission denial, upstream scalars status codes,
+            ``502`` for satellite unavailability, or ``400`` for query errors.
+    """
     try:
         return await scalars_service.get_scalars(
             user=user,
@@ -148,6 +237,24 @@ async def get_last_logged_experiments(
     _: None = Depends(require_api_token_scopes(ProjectActions.VIEW_METRIC)),
     scalars_service: ScalarsServiceProtocol = Depends(get_scalars_service),
 ):
+    """Return last-logged scalar timestamps for project experiments.
+
+    Args:
+        project_id: Project identifier.
+        payload: Optional experiment filter payload.
+        limit: Maximum number of experiment rows to return.
+        offset: Number of experiment rows to skip.
+        user: Authenticated user requesting metadata.
+        _: API-token scope guard requiring metric view access.
+        scalars_service: Scalars service dependency.
+
+    Returns:
+        LastLoggedExperimentsResponseDTO: Paginated last-logged rows.
+
+    Raises:
+        HTTPException: ``403`` for permission denial, upstream scalars status codes,
+            ``502`` for satellite unavailability, or ``400`` for query errors.
+    """
     try:
         return await scalars_service.get_last_logged_experiments(
             user=user,
