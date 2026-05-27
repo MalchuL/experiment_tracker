@@ -37,7 +37,15 @@ logger = get_logger(__name__)
 
 
 def _raise_experiment_http_error(error: Exception) -> None:
-    """Translate experiment domain errors into ``HTTPException`` responses."""
+    """Translate experiment domain errors into ``HTTPException`` responses.
+
+    Args:
+        error: Exception raised by experiment or metric services.
+
+    Raises:
+        HTTPException: ``404`` for inaccessible/missing experiments, ``400`` for
+            naming-pattern and other experiment errors.
+    """
     if isinstance(error, ExperimentNotAccessibleError):
         raise HTTPException(status_code=404, detail=str(error))
     if isinstance(error, ExperimentNamePatternNotSetError):
@@ -61,6 +69,24 @@ async def get_recent_experiments(
     _: None = Depends(require_api_token_scopes(ProjectActions.VIEW_EXPERIMENT)),
     experiment_service: ExperimentService = Depends(get_experiment_service),
 ):
+    """List recent experiments for a project.
+
+    Args:
+        limit: Maximum number of experiments to return.
+        offset: Number of experiments to skip.
+        user: Authenticated user requesting the list.
+        project_id: Project identifier supplied as ``projectId``.
+        include_features: Whether feature trees should be included in each item.
+        _: API-token scope guard requiring experiment view access.
+        experiment_service: Experiment application service dependency.
+
+    Returns:
+        ExperimentListResponseDTO: Paginated recent experiments.
+
+    Raises:
+        HTTPException: ``404`` when the project's experiments are inaccessible and
+            ``400`` for other service errors.
+    """
     try:
         return await experiment_service.get_recent_experiments(
             user,
@@ -81,6 +107,23 @@ async def get_experiment_metrics(
     _: None = Depends(require_api_token_scopes(ProjectActions.VIEW_METRIC)),
     metric_service: MetricService = Depends(get_metric_service),
 ):
+    """List aggregated metric definitions for an experiment.
+
+    Args:
+        experiment_id: Experiment identifier.
+        limit: Maximum number of metrics to return.
+        offset: Number of metrics to skip.
+        user: Authenticated user requesting metrics.
+        _: API-token scope guard requiring metric view access.
+        metric_service: Metric service dependency.
+
+    Returns:
+        MetricListResponseDTO: Paginated metrics for the experiment.
+
+    Raises:
+        HTTPException: ``404`` for inaccessible experiments and ``400`` for other
+            metric or experiment service errors.
+    """
     try:
         return await metric_service.get_aggregated_metrics_for_experiment(
             user,
@@ -98,6 +141,21 @@ async def get_experiment(
     _: None = Depends(require_api_token_scopes(ProjectActions.VIEW_EXPERIMENT)),
     experiment_service: ExperimentService = Depends(get_experiment_service),
 ):
+    """Return one experiment by id.
+
+    Args:
+        experiment_id: Experiment identifier.
+        user: Authenticated user requesting the experiment.
+        _: API-token scope guard requiring experiment view access.
+        experiment_service: Experiment application service dependency.
+
+    Returns:
+        ExperimentDTO: Full experiment payload.
+
+    Raises:
+        HTTPException: ``404`` when inaccessible or missing, and ``400`` for other
+            service errors.
+    """
     try:
         return await experiment_service.get_experiment_if_accessible(
             user, experiment_id
@@ -113,6 +171,21 @@ async def create_experiment(
     _: None = Depends(require_api_token_scopes(ProjectActions.CREATE_EXPERIMENT)),
     experiment_service: ExperimentService = Depends(get_experiment_service),
 ):
+    """Create an experiment in a project.
+
+    Args:
+        data: Experiment create payload.
+        user: Authenticated user creating the experiment.
+        _: API-token scope guard requiring experiment creation access.
+        experiment_service: Experiment application service dependency.
+
+    Returns:
+        ExperimentDTO: Created experiment.
+
+    Raises:
+        HTTPException: ``404`` when the project or parent experiment is inaccessible,
+            and ``400`` for validation or persistence errors.
+    """
     try:
         return await experiment_service.create_experiment(user, data)
     except Exception as exc:  # noqa: BLE001
@@ -127,6 +200,22 @@ async def update_experiment(
     _: None = Depends(require_api_token_scopes(ProjectActions.EDIT_EXPERIMENT)),
     experiment_service: ExperimentService = Depends(get_experiment_service),
 ):
+    """Patch an experiment.
+
+    Args:
+        experiment_id: Experiment identifier.
+        data: Update DTO containing editable fields.
+        user: Authenticated user editing the experiment.
+        _: API-token scope guard requiring experiment edit access.
+        experiment_service: Experiment application service dependency.
+
+    Returns:
+        ExperimentDTO: Updated experiment.
+
+    Raises:
+        HTTPException: ``404`` when inaccessible or missing, and ``400`` for other
+            service errors.
+    """
     try:
         return await experiment_service.update_experiment(user, experiment_id, data)
     except Exception as exc:  # noqa: BLE001
@@ -144,6 +233,19 @@ async def get_experiment_usage(
 
     Pulls object-storage and scalars satellites in parallel (best-effort); requires view
     access to the experiment's project.
+
+    Args:
+        experiment_id: Experiment identifier.
+        user: Authenticated user requesting usage.
+        _: API-token scope guard requiring experiment view access.
+        experiment_service: Experiment application service dependency.
+
+    Returns:
+        ExperimentUsageDTO: Object-storage, scalars, snapshot, and total usage blocks.
+
+    Raises:
+        HTTPException: ``404`` when inaccessible or missing, and ``400`` for other
+            service errors.
     """
     try:
         return await experiment_service.get_experiment_usage(user, experiment_id)
@@ -165,6 +267,20 @@ async def cleanup_experiment_category(
     Project snapshots are not cleaned here — use project-level cleanup for snapshots.
 
     See ``ExperimentService.cleanup_experiment_category`` for semantics.
+
+    Args:
+        experiment_id: Experiment identifier.
+        category: Storage category to clean.
+        user: Authenticated user requesting cleanup.
+        _: API-token scope guard requiring experiment delete access.
+        experiment_service: Experiment application service dependency.
+
+    Returns:
+        CategoryCleanupResponseDTO: Structured cleanup results and errors.
+
+    Raises:
+        HTTPException: ``404`` when inaccessible or missing, and ``400`` for unknown
+            categories or cleanup errors.
     """
     try:
         return await experiment_service.cleanup_experiment_category(
@@ -192,6 +308,21 @@ async def delete_experiment(
 
     Response includes structured status for object storage and scalars so clients can
     surface partial failures (e.g. storage down) even when the DB delete succeeded.
+
+    Args:
+        experiment_id: Experiment identifier.
+        detailed: Whether to include full cleanup result payloads.
+        user: Authenticated user deleting the experiment.
+        _: API-token scope guard requiring experiment delete access.
+        experiment_service: Experiment application service dependency.
+
+    Returns:
+        ExperimentDeleteResponseDTO: Structured satellite and Postgres deletion
+        outcome.
+
+    Raises:
+        HTTPException: ``404`` when inaccessible or missing, and ``400`` for other
+            service errors.
     """
     try:
         return await experiment_service.delete_experiment(
@@ -209,6 +340,21 @@ async def reorder_experiments(
     _: None = Depends(require_api_token_scopes(ProjectActions.EDIT_EXPERIMENT)),
     experiment_service: ExperimentService = Depends(get_experiment_service),
 ):
+    """Persist a new display order for project experiments.
+
+    Args:
+        data: Reorder payload containing project id and ordered experiment ids.
+        user: Authenticated user performing the reorder.
+        _: API-token scope guard requiring experiment edit access.
+        experiment_service: Experiment application service dependency.
+
+    Returns:
+        dict[str, bool]: ``{"success": True}`` after all order values are committed.
+
+    Raises:
+        HTTPException: ``404`` for inaccessible or foreign experiments, and ``400`` for
+            other service errors.
+    """
     try:
         await experiment_service.reorder_experiments(
             user, data.project_id, data.experiment_ids

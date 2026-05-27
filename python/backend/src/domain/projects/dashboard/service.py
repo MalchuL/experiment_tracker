@@ -10,7 +10,11 @@ from domain.projects.errors import ProjectNotAccessibleError
 
 
 class DashboardService:
-    """Read-only aggregates for the project dashboard (requires ``VIEW_PROJECT``)."""
+    """Read-only aggregate service for project dashboard statistics.
+
+    The service loads experiments and hypotheses for a project, enforces project view
+    permission, and computes lightweight counts for the dashboard landing view.
+    """
 
     def __init__(
         self,
@@ -27,6 +31,18 @@ class DashboardService:
     async def get_dashboard_stats(
         self, user: User, project_id: UUID_TYPE
     ) -> DashboardStatsDTO:
+        """Compute status counts for a project dashboard.
+
+        Args:
+            user: User requesting dashboard statistics.
+            project_id: Project whose dashboard should be summarized.
+
+        Returns:
+            DashboardStatsDTO: Total and status-specific experiment/hypothesis counts.
+
+        Raises:
+            ProjectNotAccessibleError: If the user cannot view the project.
+        """
         if not await self.permission_checker.can_view_project(user.id, project_id):
             raise ProjectNotAccessibleError(f"Project {project_id} not accessible")
         experiments = (

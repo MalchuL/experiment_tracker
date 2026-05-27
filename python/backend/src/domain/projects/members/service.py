@@ -30,7 +30,12 @@ from models import Permission, Project, Role, User
 
 
 class ProjectMembersService:
-    """Project membership: lookup users, invite by email, override roles, remove overrides."""
+    """Application service for project member management.
+
+    The service combines direct project permission rows with inherited team access,
+    exposes effective member rows for the UI, and writes project-scoped role
+    overrides through ``PermissionService``.
+    """
 
     def __init__(
         self,
@@ -83,6 +88,20 @@ class ProjectMembersService:
     async def list_members(
         self, requester_id: UUID, project_id: UUID
     ) -> list[ProjectMemberRowDTO]:
+        """List effective project members and their editable state.
+
+        Args:
+            requester_id: User requesting the member list.
+            project_id: Project whose membership should be listed.
+
+        Returns:
+            list[ProjectMemberRowDTO]: Direct users, team-inherited users, and
+            override rows with effective roles and UI permissions.
+
+        Raises:
+            ProjectMemberAccessDenied: If the requester cannot view the project.
+            ProjectNotAccessibleError: If the project cannot be loaded.
+        """
         await self._ensure_project_view(requester_id, project_id)
         project = await self.project_repository.get_project_for_member_list(project_id)
         if project is None:
@@ -168,6 +187,21 @@ class ProjectMembersService:
     async def lookup_user_by_email(
         self, requester_id: UUID, project_id: UUID, email: str
     ) -> UserLookupDTO:
+        """Find an active user by email for project invites.
+
+        Args:
+            requester_id: User performing the lookup.
+            project_id: Project where the user would be invited.
+            email: Email address to normalize and search.
+
+        Returns:
+            UserLookupDTO: Basic user identity for invite confirmation.
+
+        Raises:
+            ProjectMemberAccessDenied: If the requester cannot manage the project.
+            ProjectNotAccessibleError: If the project does not exist.
+            ProjectMemberNotFound: If no active user has the email address.
+        """
         await self._ensure_project_edit(requester_id, project_id)
         project = await self.project_repository.get_project_by_id(project_id)
         if project is None:
@@ -192,6 +226,24 @@ class ProjectMembersService:
     async def invite_member(
         self, requester_id: UUID, project_id: UUID, data: ProjectMemberInviteDTO
     ) -> ProjectMemberRowDTO:
+        """Invite an existing active user to a project by email.
+
+        Args:
+            requester_id: User granting access.
+            project_id: Project receiving the new direct permission rows.
+            data: Invite payload containing email and role.
+
+        Returns:
+            ProjectMemberRowDTO: Effective member row after permissions are written.
+
+        Raises:
+            ProjectMemberAccessDenied: If the requester cannot manage the project.
+            ProjectMemberInvalidRole: If the payload attempts to assign owner access
+                or changes the project owner.
+            ProjectNotAccessibleError: If the project cannot be loaded.
+            ProjectMemberNotFound: If the target user does not exist or cannot be
+                found after the invite is written.
+        """
         await self._ensure_project_edit(requester_id, project_id)
         self._reject_owner_role(data.role)
         project = await self.project_repository.get_project_by_id(project_id)
@@ -223,6 +275,23 @@ class ProjectMembersService:
     async def update_member_role(
         self, requester_id: UUID, project_id: UUID, data: ProjectMemberUpdateRoleDTO
     ) -> ProjectMemberRowDTO:
+        """Update a direct project role or create a team-member override.
+
+        Args:
+            requester_id: User changing the role.
+            project_id: Project whose member role should change.
+            data: Target user id and replacement role.
+
+        Returns:
+            ProjectMemberRowDTO: Effective member row after the permission update.
+
+        Raises:
+            ProjectMemberAccessDenied: If the requester cannot manage the project, the
+                target is the owner, or the target has neither team nor direct access.
+            ProjectMemberInvalidRole: If owner role is requested.
+            ProjectNotAccessibleError: If the project cannot be loaded.
+            ProjectMemberNotFound: If the target cannot be found after the update.
+        """
         await self._ensure_project_edit(requester_id, project_id)
         self._reject_owner_role(data.role)
         project = await self.project_repository.get_project_for_member_list(project_id)
@@ -259,6 +328,28 @@ class ProjectMembersService:
     async def remove_member(
         self, requester_id: UUID, project_id: UUID, data: ProjectMemberRemoveDTO
     ) -> None:
+        """Remove a user's direct project permission rows.
+
+        Team-inherited access is not removed here; deleting direct rows causes team
+        members to fall back to their team role. Standalone projects keep at least one
+        editor.
+
+        Args:
+            requester_id: User removing access.
+            project_id: Project whose direct permissions should be removed.
+            data: Target user id.
+
+        Returns:
+            None: Permission rows are removed and committed.
+
+        Raises:
+            ProjectMemberAccessDenied: If the requester cannot manage the project, the
+                target is the owner, there are no direct rows to remove, or removal
+                would leave a standalone project without an editor.
+            ProjectMemberLastEditor: If removing the target would remove the last
+                editor from a non-team project.
+            ProjectNotAccessibleError: If the project cannot be loaded.
+        """
         await self._ensure_project_edit(requester_id, project_id)
         project = await self.project_repository.get_project_for_member_list(project_id)
         if project is None:

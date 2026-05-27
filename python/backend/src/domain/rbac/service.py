@@ -19,6 +19,7 @@ class PermissionService:
 
     Team member roles generate both team-scoped and project-scoped permissions.
     By default, commits are not done automatically.
+
     Args:
         db: The database session.
         permission_repository: The permission repository.
@@ -33,7 +34,14 @@ class PermissionService:
         project_repository: ProjectRepository,
         auto_commit: bool = False,
     ):
-        """Initialize permission service with a database session."""
+        """Initialize permission service with repositories and commit policy.
+
+        Args:
+            db: Async database session used for optional commits.
+            permission_repository: Repository for permission rows.
+            project_repository: Repository used to resolve project/team fallback.
+            auto_commit: When ``True``, mutating helpers commit after writing.
+        """
         self.db = db
         self.repo = permission_repository
         self.project_repo = project_repository
@@ -47,7 +55,18 @@ class PermissionService:
         team_id: UUID | None = None,
         project_id: UUID | None = None,
     ) -> None:
-        """Create a new permission scoped to a team or project."""
+        """Create a single permission row.
+
+        Args:
+            user_id: User receiving the permission.
+            action: Permission action string.
+            allowed: Whether the action is granted or explicitly denied.
+            team_id: Optional team scope.
+            project_id: Optional project scope.
+
+        Returns:
+            None: The row is created; commit is controlled by ``auto_commit``.
+        """
         await self.repo.create_permission(
             Permission(
                 user_id=user_id,
@@ -67,7 +86,17 @@ class PermissionService:
         project_id: UUID | None = None,
         actions: list[str] | str | None = None,
     ) -> PermissionListDTO:
-        """Fetch permissions matching the provided filters."""
+        """Fetch permission rows matching optional filters.
+
+        Args:
+            user_id: Optional user filter.
+            team_id: Optional team-scope filter.
+            project_id: Optional project-scope filter.
+            actions: Optional action or actions to include.
+
+        Returns:
+            PermissionListDTO: DTO wrapper containing matching permission rows.
+        """
         permissions = await self.repo.get_permissions(
             user_id=user_id,
             team_id=team_id,
@@ -95,11 +124,20 @@ class PermissionService:
         project_id: UUID | None = None,
     ) -> bool:
         """Check whether a user is allowed to perform an action.
+
         Args:
-            user_id (UUID): The id of the user.
-            actions (str | list[str] | None): The actions to grant permission for.
-            team_id (UUID | None, optional): The id of the team. Defaults to None.
-            project_id (UUID | None, optional): The id of the project. Defaults to None.
+            user_id: User whose access is checked.
+            actions: Action or actions to require. ``None`` delegates to repository
+                behavior for unfiltered permission lookup.
+            team_id: Optional team scope. Mutually exclusive with ``project_id``.
+            project_id: Optional project scope. Mutually exclusive with ``team_id``.
+
+        Returns:
+            bool: ``True`` if any matching permission allows the action.
+
+        Raises:
+            InvalidScopeError: If both ``team_id`` and ``project_id`` are provided.
+
         Resolution order project_id:
         1) If project_id is provided, check project-scoped permissions first.
            - If any project permissions exist for the action, they decide the result.
@@ -143,7 +181,15 @@ class PermissionService:
     async def get_user_accessible_project_ids(
         self, user_id: UUID, actions: list[str] | str | None = None
     ) -> list[UUID]:
-        """Return project ids accessible via permissions or team permissions."""
+        """Return project ids accessible through direct or team permissions.
+
+        Args:
+            user_id: User whose accessible projects are requested.
+            actions: Optional action or actions that must be allowed.
+
+        Returns:
+            list[UUID]: Project ids granted directly or inherited from team access.
+        """
         project_ids = set(
             await self.repo.get_user_projects_exists_permissions_ids(
                 user_id, actions=actions
@@ -160,7 +206,15 @@ class PermissionService:
     async def get_user_accessible_team_ids(
         self, user_id: UUID, actions: list[str] | str | None = None
     ) -> list[UUID]:
-        """Return team ids where the user has allowed permissions."""
+        """Return team ids where the user has allowed permissions.
+
+        Args:
+            user_id: User whose teams are requested.
+            actions: Optional action or actions that must be allowed.
+
+        Returns:
+            list[UUID]: Team ids matching the permission filter.
+        """
         return await self.repo.get_user_accessible_teams_ids(user_id, actions=actions)
 
     # Team permissions
@@ -171,6 +225,15 @@ class PermissionService:
 
         This creates both team permissions and project permissions so that
         team membership also grants project-level actions by default.
+
+        Args:
+            user_id: User receiving role permissions.
+            team_id: Team scope for the permissions.
+            role: Role whose team and project action map should be applied.
+
+        Returns:
+            None: Existing rows are updated or missing rows are created; commit is
+            controlled by ``auto_commit``.
         """
         # Combine team and project permissions which is default behavior for team members
         team_permissions = role_to_team_permissions(role) | role_to_project_permissions(
@@ -202,7 +265,16 @@ class PermissionService:
     async def remove_user_from_team_permissions(
         self, user_id: UUID, team_id: UUID
     ) -> None:
-        """Remove all team-scoped permissions and related project permissions."""
+        """Remove team-scoped permissions and project overrides for team projects.
+
+        Args:
+            user_id: User whose permissions are removed.
+            team_id: Team being left or managed.
+
+        Returns:
+            None: Matching permission rows are deleted; commit is controlled by
+            ``auto_commit``.
+        """
         permissions = await self.repo.get_permissions(user_id=user_id, team_id=team_id)
         await self.repo.delete_permission(permissions)
 
@@ -219,7 +291,17 @@ class PermissionService:
     async def update_user_team_role_permissions(
         self, user_id: UUID, team_id: UUID, role: Role
     ) -> None:
-        """Update team and project permissions for a team member role."""
+        """Update existing team-scope permissions to match a role.
+
+        Args:
+            user_id: Team member being changed.
+            team_id: Team scope.
+            role: New role whose permission map should be applied.
+
+        Returns:
+            None: Existing permission rows are updated; commit is controlled by
+            ``auto_commit``.
+        """
         permissions = await self.repo.get_permissions(user_id=user_id, team_id=team_id)
         new_permissions = role_to_team_permissions(role) | role_to_project_permissions(
             role
@@ -235,7 +317,17 @@ class PermissionService:
     async def add_user_to_project_permissions(
         self, user_id: UUID, project_id: UUID, role: Role
     ) -> None:
-        """Grant project-scoped permissions for a role."""
+        """Grant or replace project-scoped permissions for a role.
+
+        Args:
+            user_id: User receiving project permissions.
+            project_id: Project scope.
+            role: Role whose project action map should be applied.
+
+        Returns:
+            None: Existing rows are updated or missing rows are created; commit is
+            controlled by ``auto_commit``.
+        """
         project_permissions = role_to_project_permissions(role)
         existing_permissions = await self.repo.get_permissions(
             user_id=user_id, project_id=project_id
@@ -263,7 +355,16 @@ class PermissionService:
     async def remove_user_from_project_permissions(
         self, user_id: UUID, project_id: UUID
     ) -> None:
-        """Remove all project-scoped permissions for a user."""
+        """Remove all direct project-scoped permissions for a user.
+
+        Args:
+            user_id: User whose direct project permissions are removed.
+            project_id: Project scope.
+
+        Returns:
+            None: Matching permission rows are deleted; commit is controlled by
+            ``auto_commit``.
+        """
         permissions = await self.repo.get_permissions(
             user_id=user_id, project_id=project_id
         )
@@ -274,7 +375,17 @@ class PermissionService:
     async def update_user_project_role_permissions(
         self, user_id: UUID, project_id: UUID, role: Role
     ) -> None:
-        """Update project-scoped permissions for a user role."""
+        """Update existing project-scoped permissions to match a role.
+
+        Args:
+            user_id: User whose project role is changing.
+            project_id: Project scope.
+            role: New role whose project action map should be applied.
+
+        Returns:
+            None: Existing permission rows are updated; commit is controlled by
+            ``auto_commit``.
+        """
         permissions = await self.repo.get_permissions(
             user_id=user_id, project_id=project_id
         )

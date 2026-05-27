@@ -23,7 +23,15 @@ router = APIRouter(prefix="/hypotheses", tags=["hypotheses"])
 
 
 def _raise_hypothesis_http_error(error: Exception) -> None:
-    """Map hypothesis domain errors to HTTP status codes."""
+    """Map hypothesis domain errors to HTTP status codes.
+
+    Args:
+        error: Exception raised by ``HypothesisService``.
+
+    Raises:
+        HTTPException: ``403`` for access denial, ``404`` for missing hypotheses,
+            and ``400`` for validation or persistence errors.
+    """
     if isinstance(error, HypothesisNotAccessibleError):
         raise HTTPException(status_code=403, detail=str(error))
     if isinstance(error, HypothesisNotFoundError):
@@ -40,6 +48,23 @@ async def get_recent_hypotheses(
     _: None = Depends(require_api_token_scopes(ProjectActions.VIEW_HYPOTHESIS)),
     hypothesis_service: HypothesisService = Depends(get_hypothesis_service),
 ):
+    """List recent hypotheses for a project.
+
+    Args:
+        projectId: Project identifier supplied as a query parameter.
+        limit: Maximum number of rows to return.
+        offset: Number of rows to skip.
+        user: Authenticated user requesting the list.
+        _: API-token scope guard requiring hypothesis view access.
+        hypothesis_service: Hypothesis application service dependency.
+
+    Returns:
+        HypothesisListResponseDTO: Paginated project hypotheses.
+
+    Raises:
+        ProjectNotAccessibleError: Propagated by the service when the project is not
+            visible to the user.
+    """
     return await hypothesis_service.get_hypotheses_by_project(
         user,
         projectId,
@@ -54,6 +79,21 @@ async def get_hypothesis(
     _: None = Depends(require_api_token_scopes(ProjectActions.VIEW_HYPOTHESIS)),
     hypothesis_service: HypothesisService = Depends(get_hypothesis_service),
 ):
+    """Return one hypothesis visible to the current user.
+
+    Args:
+        hypothesis_id: Identifier of the hypothesis to fetch.
+        user: Authenticated user requesting the hypothesis.
+        _: API-token scope guard requiring hypothesis view access.
+        hypothesis_service: Hypothesis application service dependency.
+
+    Returns:
+        HypothesisDTO: Full hypothesis payload.
+
+    Raises:
+        HTTPException: ``403`` when access is denied, ``404`` when not found, or
+            ``400`` for other service errors.
+    """
     try:
         return await hypothesis_service.get_hypothesis_if_accessible(
             user, hypothesis_id
@@ -69,6 +109,21 @@ async def create_hypothesis(
     _: None = Depends(require_api_token_scopes(ProjectActions.CREATE_HYPOTHESIS)),
     hypothesis_service: HypothesisService = Depends(get_hypothesis_service),
 ):
+    """Create a hypothesis in a project.
+
+    Args:
+        data: Create DTO with project id and hypothesis fields.
+        user: Authenticated user creating the hypothesis.
+        _: API-token scope guard requiring hypothesis creation access.
+        hypothesis_service: Hypothesis application service dependency.
+
+    Returns:
+        HypothesisDTO: Newly created hypothesis.
+
+    Raises:
+        HTTPException: ``403`` when the target project is inaccessible, or ``400`` for
+            validation and repository errors.
+    """
     try:
         return await hypothesis_service.create_hypothesis(user, data)
     except Exception as exc:  # noqa: BLE001
@@ -83,6 +138,22 @@ async def update_hypothesis(
     _: None = Depends(require_api_token_scopes(ProjectActions.EDIT_HYPOTHESIS)),
     hypothesis_service: HypothesisService = Depends(get_hypothesis_service),
 ):
+    """Patch an existing hypothesis.
+
+    Args:
+        hypothesis_id: Identifier of the hypothesis to update.
+        data: Update DTO containing editable fields.
+        user: Authenticated user editing the hypothesis.
+        _: API-token scope guard requiring hypothesis edit access.
+        hypothesis_service: Hypothesis application service dependency.
+
+    Returns:
+        HypothesisDTO: Updated hypothesis.
+
+    Raises:
+        HTTPException: ``403`` for permission failures, ``404`` for missing
+            hypotheses, and ``400`` for other service errors.
+    """
     try:
         return await hypothesis_service.update_hypothesis(user, hypothesis_id, data)
     except Exception as exc:  # noqa: BLE001
@@ -96,6 +167,21 @@ async def delete_hypothesis(
     _: None = Depends(require_api_token_scopes(ProjectActions.DELETE_HYPOTHESIS)),
     hypothesis_service: HypothesisService = Depends(get_hypothesis_service),
 ):
+    """Delete a hypothesis.
+
+    Args:
+        hypothesis_id: Identifier of the hypothesis to delete.
+        user: Authenticated user deleting the hypothesis.
+        _: API-token scope guard requiring hypothesis delete access.
+        hypothesis_service: Hypothesis application service dependency.
+
+    Returns:
+        dict[str, bool]: ``{"success": True}`` after deletion.
+
+    Raises:
+        HTTPException: ``403`` for permission failures, ``404`` when the hypothesis is
+            missing, and ``400`` for other service errors.
+    """
     try:
         success = await hypothesis_service.delete_hypothesis(user, hypothesis_id)
     except Exception as exc:  # noqa: BLE001

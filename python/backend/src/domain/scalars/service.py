@@ -50,27 +50,83 @@ class ScalarsServiceProtocol(Protocol):
 
     async def create_project_table(
         self, project_id: UUID
-    ) -> CreateProjectTableResponseDTO: ...
+    ) -> CreateProjectTableResponseDTO:
+        """Create scalars storage for a project.
+
+        Args:
+            project_id: Project identifier.
+
+        Returns:
+            CreateProjectTableResponseDTO: Table creation result.
+        """
+        ...
 
     async def delete_experiment_data(
         self, project_id: UUID, experiment_id: UUID
-    ) -> ScalarsDeleteExperimentDataResponseDTO: ...
+    ) -> ScalarsDeleteExperimentDataResponseDTO:
+        """Delete scalar-side rows for one experiment.
+
+        Args:
+            project_id: Project identifier.
+            experiment_id: Experiment identifier.
+
+        Returns:
+            ScalarsDeleteExperimentDataResponseDTO: Cleanup result.
+        """
+        ...
 
     async def delete_project_table(
         self, project_id: UUID
-    ) -> ScalarsDeleteProjectTablesResponseDTO: ...
+    ) -> ScalarsDeleteProjectTablesResponseDTO:
+        """Drop scalars storage for a project.
+
+        Args:
+            project_id: Project identifier.
+
+        Returns:
+            ScalarsDeleteProjectTablesResponseDTO: Table deletion result.
+        """
+        ...
 
     async def compact_project_columns(
         self, project_id: UUID
-    ) -> ScalarsCompactColumnsResponseDTO: ...
+    ) -> ScalarsCompactColumnsResponseDTO:
+        """Compact unused scalars columns for a project.
+
+        Args:
+            project_id: Project identifier.
+
+        Returns:
+            ScalarsCompactColumnsResponseDTO: Dropped-column summary.
+        """
+        ...
 
     async def get_project_usage(
         self, project_id: UUID
-    ) -> ScalarsProjectUsageResponseDTO: ...
+    ) -> ScalarsProjectUsageResponseDTO:
+        """Return scalar storage usage for a project.
+
+        Args:
+            project_id: Project identifier.
+
+        Returns:
+            ScalarsProjectUsageResponseDTO: Project usage summary.
+        """
+        ...
 
     async def get_experiment_usage(
         self, project_id: UUID, experiment_id: UUID
-    ) -> ScalarsExperimentUsageResponseDTO: ...
+    ) -> ScalarsExperimentUsageResponseDTO:
+        """Return scalar storage usage for one experiment.
+
+        Args:
+            project_id: Project identifier.
+            experiment_id: Experiment identifier.
+
+        Returns:
+            ScalarsExperimentUsageResponseDTO: Experiment usage summary.
+        """
+        ...
 
     async def list_storage_tables(
         self,
@@ -78,19 +134,61 @@ class ScalarsServiceProtocol(Protocol):
         q: str | None = None,
         limit: int = 50,
         offset: int = 0,
-    ) -> ScalarsListStorageTablesResponseDTO: ...
+    ) -> ScalarsListStorageTablesResponseDTO:
+        """List managed scalars storage tables.
+
+        Args:
+            q: Optional table-name filter.
+            limit: Maximum number of rows.
+            offset: Number of rows to skip.
+
+        Returns:
+            ScalarsListStorageTablesResponseDTO: Paginated table metadata.
+        """
+        ...
 
     async def drop_storage_table(
         self, table_name: str
-    ) -> ScalarsDropStorageTableResponseDTO: ...
+    ) -> ScalarsDropStorageTableResponseDTO:
+        """Drop a managed scalars storage table.
+
+        Args:
+            table_name: Table name to drop.
+
+        Returns:
+            ScalarsDropStorageTableResponseDTO: Drop result.
+        """
+        ...
 
     async def log_scalar(
         self, user: UserProtocol, experiment_id: UUID, payload: LogScalarRequestDTO
-    ) -> LogScalarResponseDTO: ...
+    ) -> LogScalarResponseDTO:
+        """Log one scalar point.
+
+        Args:
+            user: User logging the scalar.
+            experiment_id: Experiment identifier.
+            payload: Scalar payload.
+
+        Returns:
+            LogScalarResponseDTO: Logging result.
+        """
+        ...
 
     async def log_scalars_batch(
         self, user: UserProtocol, experiment_id: UUID, payload: LogScalarsBatchRequestDTO
-    ) -> LogScalarResponseDTO: ...
+    ) -> LogScalarResponseDTO:
+        """Log a batch of scalar points.
+
+        Args:
+            user: User logging scalars.
+            experiment_id: Experiment identifier.
+            payload: Batch scalar payload.
+
+        Returns:
+            LogScalarResponseDTO: Logging result.
+        """
+        ...
 
     async def get_scalars(
         self,
@@ -104,7 +202,25 @@ class ScalarsServiceProtocol(Protocol):
         return_tags: bool = False,
         start_time: datetime | None = None,
         end_time: datetime | None = None,
-    ) -> GetScalarsResponseDTO: ...
+    ) -> GetScalarsResponseDTO:
+        """Query scalar series for a project.
+
+        Args:
+            user: User requesting scalar data.
+            project_id: Project identifier.
+            experiment_ids: Optional experiment filter.
+            list_options: Pagination limit and offset.
+            max_points: Optional sampling target.
+            sampling: Sampling strategy.
+            columns_per_query: Column query parallelism.
+            return_tags: Whether to include tags.
+            start_time: Optional lower timestamp bound.
+            end_time: Optional upper timestamp bound.
+
+        Returns:
+            GetScalarsResponseDTO: Scalar query response.
+        """
+        ...
 
     async def get_scalars_for_experiment(
         self,
@@ -117,7 +233,24 @@ class ScalarsServiceProtocol(Protocol):
         return_tags: bool = False,
         start_time: datetime | None = None,
         end_time: datetime | None = None,
-    ) -> GetScalarsResponseDTO: ...
+    ) -> GetScalarsResponseDTO:
+        """Query scalar series for one experiment.
+
+        Args:
+            user: User requesting scalar data.
+            experiment_id: Experiment identifier.
+            list_options: Pagination limit and offset.
+            max_points: Optional sampling target.
+            sampling: Sampling strategy.
+            columns_per_query: Column query parallelism.
+            return_tags: Whether to include tags.
+            start_time: Optional lower timestamp bound.
+            end_time: Optional upper timestamp bound.
+
+        Returns:
+            GetScalarsResponseDTO: Scalar query response.
+        """
+        ...
 
     async def get_last_logged_experiments(
         self,
@@ -125,7 +258,19 @@ class ScalarsServiceProtocol(Protocol):
         project_id: UUID,
         experiment_ids: Sequence[UUID] | None = None,
         list_options: ListOptions = ListOptions(),
-    ) -> LastLoggedExperimentsResponseDTO: ...
+    ) -> LastLoggedExperimentsResponseDTO:
+        """Return last-logged scalar metadata for project experiments.
+
+        Args:
+            user: User requesting metadata.
+            project_id: Project identifier.
+            experiment_ids: Optional experiment filter.
+            list_options: Pagination limit and offset.
+
+        Returns:
+            LastLoggedExperimentsResponseDTO: Last-logged metadata response.
+        """
+        ...
 
 
 class ScalarsService:
@@ -149,37 +294,99 @@ class ScalarsService:
     async def create_project_table(
         self, project_id: UUID
     ) -> CreateProjectTableResponseDTO:
-        """Provision ClickHouse tables for a new project (called from ``ProjectService``)."""
+        """Provision ClickHouse tables for a new project.
+
+        Args:
+            project_id: Project identifier.
+
+        Returns:
+            CreateProjectTableResponseDTO: Satellite table creation result.
+
+        Raises:
+            httpx.HTTPError: Propagated by the scalars client on upstream failures.
+        """
         return await self.client.create_project_table(project_id)
 
     async def delete_experiment_data(
         self, project_id: UUID, experiment_id: UUID
     ) -> ScalarsDeleteExperimentDataResponseDTO:
-        """Delegate full ClickHouse cleanup for one experiment to the scalars satellite."""
+        """Delete all scalar-side data for one experiment.
+
+        Args:
+            project_id: Project that owns the experiment tables.
+            experiment_id: Experiment whose rows should be removed.
+
+        Returns:
+            ScalarsDeleteExperimentDataResponseDTO: Satellite cleanup result.
+
+        Raises:
+            httpx.HTTPError: Propagated by the scalars client.
+        """
         return await self.client.delete_experiment_data(project_id, experiment_id)
 
     async def delete_project_table(
         self, project_id: UUID
     ) -> ScalarsDeleteProjectTablesResponseDTO:
-        """Drop all per-project ClickHouse tables when the project is removed from Postgres."""
+        """Drop all scalars tables for a project.
+
+        Args:
+            project_id: Project whose managed tables should be dropped.
+
+        Returns:
+            ScalarsDeleteProjectTablesResponseDTO: Satellite table deletion result.
+
+        Raises:
+            httpx.HTTPError: Propagated by the scalars client.
+        """
         return await self.client.delete_project_table(project_id)
 
     async def compact_project_columns(
         self, project_id: UUID
     ) -> ScalarsCompactColumnsResponseDTO:
-        """Optional maintenance: remove unused metric columns after deletes."""
+        """Compact unused metric columns for a project.
+
+        Args:
+            project_id: Project whose scalar columns should be compacted.
+
+        Returns:
+            ScalarsCompactColumnsResponseDTO: Dropped-column summary.
+
+        Raises:
+            httpx.HTTPError: Propagated by the scalars client.
+        """
         return await self.client.compact_project_columns(project_id)
 
     async def get_project_usage(
         self, project_id: UUID
     ) -> ScalarsProjectUsageResponseDTO:
-        """Return satellite usage DTO for ClickHouse-side bytes and per-table stats."""
+        """Return ClickHouse usage for a project.
+
+        Args:
+            project_id: Project identifier.
+
+        Returns:
+            ScalarsProjectUsageResponseDTO: Total bytes and table-level usage stats.
+
+        Raises:
+            httpx.HTTPError: Propagated by the scalars client.
+        """
         return await self.client.get_project_usage(project_id)
 
     async def get_experiment_usage(
         self, project_id: UUID, experiment_id: UUID
     ) -> ScalarsExperimentUsageResponseDTO:
-        """Return satellite usage DTO for one experiment's ClickHouse footprint."""
+        """Return ClickHouse usage for one experiment.
+
+        Args:
+            project_id: Project identifier.
+            experiment_id: Experiment identifier.
+
+        Returns:
+            ScalarsExperimentUsageResponseDTO: Experiment row and byte usage.
+
+        Raises:
+            httpx.HTTPError: Propagated by the scalars client.
+        """
         return await self.client.get_experiment_usage(project_id, experiment_id)
 
     async def list_storage_tables(
@@ -189,13 +396,35 @@ class ScalarsService:
         limit: int = 50,
         offset: int = 0,
     ) -> ScalarsListStorageTablesResponseDTO:
-        """Admin: list managed ClickHouse tables (used from ``/admin/storage/scalars``)."""
+        """List managed ClickHouse tables for admin storage views.
+
+        Args:
+            q: Optional table-name filter.
+            limit: Maximum number of tables to return.
+            offset: Number of tables to skip.
+
+        Returns:
+            ScalarsListStorageTablesResponseDTO: Paginated table metadata.
+
+        Raises:
+            httpx.HTTPError: Propagated by the scalars client.
+        """
         return await self.client.list_storage_tables(q=q, limit=limit, offset=offset)
 
     async def drop_storage_table(
         self, table_name: str
     ) -> ScalarsDropStorageTableResponseDTO:
-        """Admin: drop a named managed table in ClickHouse."""
+        """Drop one managed ClickHouse table by name.
+
+        Args:
+            table_name: Managed table name to drop.
+
+        Returns:
+            ScalarsDropStorageTableResponseDTO: Drop result.
+
+        Raises:
+            httpx.HTTPError: Propagated by the scalars client.
+        """
         return await self.client.drop_storage_table(table_name)
 
     async def log_scalar(
@@ -204,6 +433,21 @@ class ScalarsService:
         experiment_id: UUID,
         payload: LogScalarRequestDTO,
     ) -> LogScalarResponseDTO:
+        """Log one scalar point after experiment-level permission resolution.
+
+        Args:
+            user: User logging the scalar.
+            experiment_id: Experiment receiving the scalar row.
+            payload: Scalar payload to forward to the satellite.
+
+        Returns:
+            LogScalarResponseDTO: Satellite logging result.
+
+        Raises:
+            ScalarsNotAccessibleError: If the user cannot log scalars in the project.
+            DBNotFoundError: If the experiment repository cannot load the experiment.
+            httpx.HTTPError: Propagated by the scalars client.
+        """
         experiment = await self.experiment_repository.get_by_id(experiment_id)
         project_id = _as_uuid(experiment.project_id)
         if not await self.permission_checker.can_log_scalar(user.id, project_id):
@@ -218,6 +462,21 @@ class ScalarsService:
         experiment_id: UUID,
         payload: LogScalarsBatchRequestDTO,
     ) -> LogScalarResponseDTO:
+        """Log multiple scalar points after permission resolution.
+
+        Args:
+            user: User logging scalars.
+            experiment_id: Experiment receiving scalar rows.
+            payload: Batch scalar payload.
+
+        Returns:
+            LogScalarResponseDTO: Satellite logging result.
+
+        Raises:
+            ScalarsNotAccessibleError: If the user cannot log scalars in the project.
+            DBNotFoundError: If the experiment repository cannot load the experiment.
+            httpx.HTTPError: Propagated by the scalars client.
+        """
         experiment = await self.experiment_repository.get_by_id(experiment_id)
         project_id = _as_uuid(experiment.project_id)
         if not await self.permission_checker.can_log_scalar(user.id, project_id):
@@ -241,6 +500,30 @@ class ScalarsService:
         start_time: datetime | None = None,
         end_time: datetime | None = None,
     ) -> GetScalarsResponseDTO:
+        """Query scalar series for a project.
+
+        Args:
+            user: User requesting scalar data.
+            project_id: Project whose scalars should be queried.
+            experiment_ids: Optional experiment filter; all ids must exist in the
+                project.
+            list_options: Pagination limit and offset for experiment groups.
+            max_points: Optional sampling target per metric column.
+            sampling: Sampling algorithm for the satellite.
+            columns_per_query: Column query parallelism hint.
+            return_tags: Whether tag metadata should be included.
+            start_time: Optional lower timestamp bound.
+            end_time: Optional upper timestamp bound.
+
+        Returns:
+            GetScalarsResponseDTO: Paginated scalar series response.
+
+        Raises:
+            ScalarsNotAccessibleError: If the user cannot view scalars in the project.
+            ValueError: If requested experiment ids are missing or belong to another
+                project.
+            httpx.HTTPError: Propagated by the scalars client.
+        """
         if not await self.permission_checker.can_view_scalar(user.id, project_id):
             raise ScalarsNotAccessibleError(
                 f"You are not allowed to view scalars in project {project_id}"
@@ -296,6 +579,29 @@ class ScalarsService:
         start_time: datetime | None = None,
         end_time: datetime | None = None,
     ) -> GetScalarsResponseDTO:
+        """Query scalar series for one experiment.
+
+        Args:
+            user: User requesting scalar data.
+            experiment_id: Experiment identifier.
+            list_options: Pagination limit and offset.
+            max_points: Optional sampling target per metric column.
+            sampling: Sampling algorithm for the satellite.
+            columns_per_query: Column query parallelism hint.
+            return_tags: Whether tag metadata should be included.
+            start_time: Optional lower timestamp bound.
+            end_time: Optional upper timestamp bound.
+
+        Returns:
+            GetScalarsResponseDTO: Scalar series response constrained to the
+            experiment.
+
+        Raises:
+            ScalarsNotAccessibleError: If the user cannot view scalars in the
+                experiment's project.
+            DBNotFoundError: If the experiment repository cannot load the experiment.
+            httpx.HTTPError: Propagated by the scalars client.
+        """
         experiment = await self.experiment_repository.get_by_id(experiment_id)
         project_id = _as_uuid(experiment.project_id)
         return await self.get_scalars(
@@ -318,6 +624,21 @@ class ScalarsService:
         experiment_ids: Sequence[UUID] | None = None,
         list_options: ListOptions = ListOptions(),
     ) -> LastLoggedExperimentsResponseDTO:
+        """Return last-logged scalar metadata for experiments in a project.
+
+        Args:
+            user: User requesting metadata.
+            project_id: Project identifier.
+            experiment_ids: Optional experiment filter.
+            list_options: Pagination limit and offset.
+
+        Returns:
+            LastLoggedExperimentsResponseDTO: Paginated last-logged experiment rows.
+
+        Raises:
+            ScalarsNotAccessibleError: If the user cannot view scalars in the project.
+            httpx.HTTPError: Propagated by the scalars client.
+        """
         if not await self.permission_checker.can_view_scalar(user.id, project_id):
             raise ScalarsNotAccessibleError(
                 f"You are not allowed to view scalars in project {project_id}"
@@ -343,29 +664,70 @@ class NoOpScalarsService:
     async def create_project_table(
         self, project_id: UUID
     ) -> CreateProjectTableResponseDTO:
+        """Return a benign project-table creation result.
+
+        Args:
+            project_id: Project identifier to echo in the response.
+
+        Returns:
+            CreateProjectTableResponseDTO: Empty table name with the project id.
+        """
         return CreateProjectTableResponseDTO(table_name="", project_id=project_id)
 
     async def delete_experiment_data(
         self, project_id: UUID, experiment_id: UUID
     ) -> ScalarsDeleteExperimentDataResponseDTO:
+        """Return a successful no-op experiment cleanup result.
+
+        Args:
+            project_id: Ignored project id.
+            experiment_id: Ignored experiment id.
+
+        Returns:
+            ScalarsDeleteExperimentDataResponseDTO: Benign deleted status.
+        """
         _ = (project_id, experiment_id)
         return ScalarsDeleteExperimentDataResponseDTO(deleted=True)
 
     async def delete_project_table(
         self, project_id: UUID
     ) -> ScalarsDeleteProjectTablesResponseDTO:
+        """Return a successful no-op project table deletion result.
+
+        Args:
+            project_id: Ignored project id.
+
+        Returns:
+            ScalarsDeleteProjectTablesResponseDTO: Benign no-op message.
+        """
         _ = project_id
         return ScalarsDeleteProjectTablesResponseDTO(message="noop")
 
     async def compact_project_columns(
         self, project_id: UUID
     ) -> ScalarsCompactColumnsResponseDTO:
+        """Return an empty compaction result.
+
+        Args:
+            project_id: Ignored project id.
+
+        Returns:
+            ScalarsCompactColumnsResponseDTO: Empty dropped-column list.
+        """
         _ = project_id
         return ScalarsCompactColumnsResponseDTO(dropped_columns=[])
 
     async def get_project_usage(
         self, project_id: UUID
     ) -> ScalarsProjectUsageResponseDTO:
+        """Return zero scalar usage for a project.
+
+        Args:
+            project_id: Project identifier to echo in the response.
+
+        Returns:
+            ScalarsProjectUsageResponseDTO: Zero-byte usage with no tables.
+        """
         return ScalarsProjectUsageResponseDTO(
             project_id=project_id, total_bytes=0, tables=[]
         )
@@ -373,6 +735,15 @@ class NoOpScalarsService:
     async def get_experiment_usage(
         self, project_id: UUID, experiment_id: UUID
     ) -> ScalarsExperimentUsageResponseDTO:
+        """Return zero scalar usage for an experiment.
+
+        Args:
+            project_id: Project identifier to echo in the response.
+            experiment_id: Experiment identifier to echo in the response.
+
+        Returns:
+            ScalarsExperimentUsageResponseDTO: Zero-byte and zero-row usage.
+        """
         return ScalarsExperimentUsageResponseDTO(
             project_id=project_id,
             experiment_id=experiment_id,
@@ -387,6 +758,16 @@ class NoOpScalarsService:
         limit: int = 50,
         offset: int = 0,
     ) -> ScalarsListStorageTablesResponseDTO:
+        """Return an empty managed-table page.
+
+        Args:
+            q: Ignored table-name filter.
+            limit: Limit echoed in the response.
+            offset: Offset echoed in the response.
+
+        Returns:
+            ScalarsListStorageTablesResponseDTO: Empty table list.
+        """
         _ = q
         return ScalarsListStorageTablesResponseDTO(
             tables=[], total=0, limit=limit, offset=offset
@@ -395,17 +776,45 @@ class NoOpScalarsService:
     async def drop_storage_table(
         self, table_name: str
     ) -> ScalarsDropStorageTableResponseDTO:
+        """Return a successful no-op table drop result.
+
+        Args:
+            table_name: Table name echoed in the response.
+
+        Returns:
+            ScalarsDropStorageTableResponseDTO: Benign dropped status.
+        """
         return ScalarsDropStorageTableResponseDTO(dropped=True, table=table_name)
 
     async def log_scalar(
         self, user: UserProtocol, experiment_id: UUID, payload: LogScalarRequestDTO
     ) -> LogScalarResponseDTO:
+        """Return a benign scalar logging result.
+
+        Args:
+            user: Ignored user context.
+            experiment_id: Ignored experiment id.
+            payload: Ignored scalar payload.
+
+        Returns:
+            LogScalarResponseDTO: ``noop`` status.
+        """
         _ = (user, experiment_id, payload)
         return LogScalarResponseDTO(status="noop")
 
     async def log_scalars_batch(
         self, user: UserProtocol, experiment_id: UUID, payload: LogScalarsBatchRequestDTO
     ) -> LogScalarResponseDTO:
+        """Return a benign batch scalar logging result.
+
+        Args:
+            user: Ignored user context.
+            experiment_id: Ignored experiment id.
+            payload: Ignored batch payload.
+
+        Returns:
+            LogScalarResponseDTO: ``noop`` status.
+        """
         _ = (user, experiment_id, payload)
         return LogScalarResponseDTO(status="noop")
 
@@ -422,6 +831,23 @@ class NoOpScalarsService:
         start_time: datetime | None = None,
         end_time: datetime | None = None,
     ) -> GetScalarsResponseDTO:
+        """Return an empty scalar query response.
+
+        Args:
+            user: Ignored user context.
+            project_id: Ignored project id.
+            experiment_ids: Ignored experiment filter.
+            list_options: Ignored pagination options.
+            max_points: Ignored sampling target.
+            sampling: Ignored sampling strategy.
+            columns_per_query: Ignored query parallelism.
+            return_tags: Ignored tag flag.
+            start_time: Ignored lower timestamp bound.
+            end_time: Ignored upper timestamp bound.
+
+        Returns:
+            GetScalarsResponseDTO: Empty page.
+        """
         _ = (
             user,
             project_id,
@@ -448,6 +874,22 @@ class NoOpScalarsService:
         start_time: datetime | None = None,
         end_time: datetime | None = None,
     ) -> GetScalarsResponseDTO:
+        """Return an empty scalar query response for one experiment.
+
+        Args:
+            user: Ignored user context.
+            experiment_id: Ignored experiment id.
+            list_options: Ignored pagination options.
+            max_points: Ignored sampling target.
+            sampling: Ignored sampling strategy.
+            columns_per_query: Ignored query parallelism.
+            return_tags: Ignored tag flag.
+            start_time: Ignored lower timestamp bound.
+            end_time: Ignored upper timestamp bound.
+
+        Returns:
+            GetScalarsResponseDTO: Empty page.
+        """
         _ = (
             user,
             experiment_id,
@@ -468,5 +910,16 @@ class NoOpScalarsService:
         experiment_ids: Sequence[UUID] | None = None,
         list_options: ListOptions = ListOptions(),
     ) -> LastLoggedExperimentsResponseDTO:
+        """Return an empty last-logged metadata response.
+
+        Args:
+            user: Ignored user context.
+            project_id: Ignored project id.
+            experiment_ids: Ignored experiment filter.
+            list_options: Pagination options whose limit/offset are ignored.
+
+        Returns:
+            LastLoggedExperimentsResponseDTO: Empty page.
+        """
         _ = (user, project_id, experiment_ids, list_options)
         return LastLoggedExperimentsResponseDTO(data=[], has_next=False, size=0, total=0)

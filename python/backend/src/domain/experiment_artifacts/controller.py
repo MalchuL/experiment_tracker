@@ -42,6 +42,17 @@ router = APIRouter(prefix="/experiment-artifacts", tags=["experiment-artifacts"]
 
 
 def _raise_http_error(error: Exception) -> None:
+    """Translate experiment-artifact service/client errors to HTTP responses.
+
+    Args:
+        error: Exception raised by the experiment-artifact service, artifacts-info
+            client, or object-storage client.
+
+    Raises:
+        HTTPException: ``403`` for access denial, ``404`` for missing artifacts,
+            ``400`` for ambiguous artifacts or validation errors, upstream status
+            codes for HTTP client errors, and ``502`` when a satellite is unavailable.
+    """
     if isinstance(error, ExperimentArtifactsNotAccessibleError):
         raise HTTPException(status_code=403, detail=str(error))
     if isinstance(error, ExperimentArtifactNotFoundError):
@@ -79,7 +90,23 @@ async def list_experiment_artifacts(
         get_experiment_artifacts_service
     ),
 ) -> ExperimentArtifactListResponseDTO:
-    """List tracked artifacts for one experiment."""
+    """List tracked artifacts for one experiment.
+
+    Args:
+        experiment_id: Experiment whose tracked artifacts should be listed.
+        limit: Maximum number of artifacts to return.
+        offset: Number of artifacts to skip.
+        file_paths: Optional exact stored path filter; repeated query params allowed.
+        user: Authenticated user requesting artifacts.
+        _: API-token scope guard requiring artifact view access.
+        service: Experiment-artifacts service dependency.
+
+    Returns:
+        ExperimentArtifactListResponseDTO: Paginated tracked artifact metadata.
+
+    Raises:
+        HTTPException: Mapped access, not-found, satellite, and validation errors.
+    """
     try:
         return await service.list_experiment_artifacts(
             user=user,
@@ -109,7 +136,28 @@ async def get_experiments_artifacts_at_step(
         get_experiment_artifacts_service
     ),
 ) -> ArtifactsInfoResultDTO:
-    """List project artifacts using experiment-artifacts domain."""
+    """List at-step artifact metadata rows for a project.
+
+    Args:
+        project_id: Project whose artifacts-info table should be queried.
+        experiment_id: Optional repeated experiment filter.
+        artifact_type: Optional repeated artifact type filter.
+        artifact_name: Optional repeated artifact name filter.
+        step: Optional repeated training-step filter.
+        limit: Maximum number of rows to return.
+        offset: Number of rows to skip.
+        start_time: Optional lower timestamp bound.
+        end_time: Optional upper timestamp bound.
+        user: Authenticated user requesting artifacts.
+        _: API-token scope guard requiring artifact view access.
+        service: Experiment-artifacts service dependency.
+
+    Returns:
+        ArtifactsInfoResultDTO: Paginated artifacts-info rows.
+
+    Raises:
+        HTTPException: Mapped access, satellite, and validation errors.
+    """
     try:
         result = await service.get_experiments_artifacts_at_step(
             user=user,
@@ -144,7 +192,28 @@ async def get_experiments_artifacts_summary_at_step(
         get_experiment_artifacts_service
     ),
 ) -> ArtifactsInfoSummaryResultDTO:
-    """List lightweight project artifact summaries for slider construction."""
+    """List at-step artifact summaries for slider construction.
+
+    Args:
+        project_id: Project whose artifacts should be summarized.
+        experiment_id: Optional repeated experiment filter.
+        artifact_type: Optional repeated artifact type filter.
+        artifact_name: Optional repeated artifact name filter.
+        limit: Maximum number of summary groups to return.
+        offset: Number of summary groups to skip.
+        max_steps: Maximum step values per artifact summary.
+        start_time: Optional lower timestamp bound.
+        end_time: Optional upper timestamp bound.
+        user: Authenticated user requesting summaries.
+        _: API-token scope guard requiring artifact view access.
+        service: Experiment-artifacts service dependency.
+
+    Returns:
+        ArtifactsInfoSummaryResultDTO: Lightweight artifact summary groups.
+
+    Raises:
+        HTTPException: Mapped access, satellite, and validation errors.
+    """
     try:
         return await service.get_experiments_artifacts_summary_at_step(
             user=user,
@@ -174,7 +243,24 @@ async def get_experiment_artifact_detail_at_step(
         get_experiment_artifacts_service
     ),
 ) -> ArtifactsInfoResultDTO:
-    """Return one full artifact metadata row for a project/experiment/name/step."""
+    """Return one full at-step artifact metadata row.
+
+    Args:
+        project_id: Project that owns the artifacts-info table.
+        experiment_id: Experiment identifier.
+        artifact_name: Artifact name selected from a summary.
+        step: Training step selected from a summary.
+        artifact_type: Optional artifact type disambiguator.
+        user: Authenticated user requesting details.
+        _: API-token scope guard requiring artifact view access.
+        service: Experiment-artifacts service dependency.
+
+    Returns:
+        ArtifactsInfoResultDTO: Detail row payload from artifacts-info.
+
+    Raises:
+        HTTPException: Mapped access, not-found, satellite, and validation errors.
+    """
     try:
         return await service.get_experiment_artifact_detail_at_step(
             user=user,
@@ -206,7 +292,26 @@ async def upload_and_log_experiment_artifact_at_step(
         get_experiment_artifacts_service
     ),
 ) -> ArtifactsInfoLogArtifactResponseDTO:
-    """Upload file to experiment bucket and log metadata to scalars."""
+    """Upload a file and log at-step artifact metadata.
+
+    Args:
+        experiment_id: Experiment receiving the artifact.
+        file: Multipart file stream.
+        name: Artifact display name.
+        artifact_type: Artifact type used by UI renderers.
+        step: Training step associated with the artifact.
+        metadata: Optional JSON string or raw string metadata.
+        tags: Optional JSON array string or comma-separated tags.
+        user: Authenticated user logging the artifact.
+        _: API-token scope guard requiring artifact logging access.
+        service: Experiment-artifacts service dependency.
+
+    Returns:
+        ArtifactsInfoLogArtifactResponseDTO: Artifacts-info logging result.
+
+    Raises:
+        HTTPException: Mapped access, satellite, and validation errors.
+    """
     metadata_dict: dict[str, str] | None = None
     if metadata:
         try:
@@ -246,7 +351,24 @@ async def download_experiment_artifact_at_step(
         get_experiment_artifacts_service
     ),
 ):
-    """Download artifact bytes for a logged step/name (resolved via scalars)."""
+    """Download artifact bytes for a logged step/name.
+
+    Args:
+        experiment_id: Experiment that owns the logged artifact.
+        step: Training step.
+        name: Artifact name.
+        artifact_type: Optional type disambiguator.
+        user: Authenticated user requesting bytes.
+        _: API-token scope guard requiring artifact view access.
+        service: Experiment-artifacts service dependency.
+
+    Returns:
+        Response: Binary response with content type and download filename.
+
+    Raises:
+        HTTPException: Mapped access, not-found, ambiguous, satellite, and validation
+            errors.
+    """
     try:
         payload = await service.download_experiment_artifact_at_step(
             user=user,
@@ -275,7 +397,21 @@ async def delete_experiment_artifact_by_hash(
         get_experiment_artifacts_service
     ),
 ) -> DeleteExperimentArtifactResponseDTO:
-    """Delete one artifact by hash from experiment bucket."""
+    """Delete one experiment artifact by content hash.
+
+    Args:
+        experiment_id: Experiment whose artifact should be removed.
+        hash: Artifact content hash/path.
+        user: Authenticated user deleting the artifact.
+        _: API-token scope guard requiring artifact logging access.
+        service: Experiment-artifacts service dependency.
+
+    Returns:
+        DeleteExperimentArtifactResponseDTO: Object-storage deletion result.
+
+    Raises:
+        HTTPException: Mapped access, satellite, and validation errors.
+    """
     try:
         result = await service.delete_experiment_artifact_by_hash(
             user=user, experiment_id=experiment_id, hash=hash
@@ -294,7 +430,20 @@ async def delete_experiment_all_artifacts(
         get_experiment_artifacts_service
     ),
 ) -> DeleteExperimentArtifactsResponseDTO:
-    """Delete all artifacts for an experiment."""
+    """Delete all tracked and untracked artifacts for an experiment.
+
+    Args:
+        experiment_id: Experiment whose artifact bucket should be cleaned.
+        user: Authenticated user deleting artifacts.
+        _: API-token scope guard requiring artifact logging access.
+        service: Experiment-artifacts service dependency.
+
+    Returns:
+        DeleteExperimentArtifactsResponseDTO: Object-storage bulk deletion result.
+
+    Raises:
+        HTTPException: Mapped access, satellite, and validation errors.
+    """
     try:
         result = await service.delete_experiment_all_artifacts(
             user=user, experiment_id=experiment_id
@@ -316,12 +465,25 @@ async def upsert_experiment_artifact(
         get_experiment_artifacts_service
     ),
 ) -> ExperimentArtifactDTO:
-    """
-    Upsert one artifact metadata row and object payload.
-    If the artifact already exists, it will be updated.
-    If the artifact does not exist, it will be created.
-    filepath is the path to the artifact in the object storage.
-    If artifact already exists, it will be updated by *filepath*.
+    """Upsert one tracked artifact metadata row and object payload.
+
+    If a tracked artifact already exists at ``filepath``, the service deletes it and
+    uploads the replacement file. Otherwise it creates a new tracked artifact.
+
+    Args:
+        experiment_id: Experiment receiving the tracked artifact.
+        name: Optional display name stored in artifact metadata.
+        filepath: Relative artifact path in object storage.
+        file: Multipart file stream.
+        user: Authenticated user uploading the artifact.
+        _: API-token scope guard requiring artifact logging access.
+        service: Experiment-artifacts service dependency.
+
+    Returns:
+        ExperimentArtifactDTO: Tracked artifact metadata for the stored file.
+
+    Raises:
+        HTTPException: Mapped access, satellite, and validation errors.
     """
     try:
         return await service.upsert_experiment_artifact(
@@ -347,7 +509,24 @@ async def get_experiment_artifact(
         get_experiment_artifacts_service
     ),
 ) -> ExperimentArtifactDTO:
-    """Get one artifact metadata row."""
+    """Get one tracked artifact metadata row.
+
+    Args:
+        experiment_id: Experiment that owns the artifact.
+        filepath: Optional relative path identifier.
+        blob_id: Optional blob identifier.
+        artifact_hash: Optional content hash identifier.
+        user: Authenticated user requesting metadata.
+        _: API-token scope guard requiring artifact view access.
+        service: Experiment-artifacts service dependency.
+
+    Returns:
+        ExperimentArtifactDTO: Matching tracked artifact metadata.
+
+    Raises:
+        HTTPException: ``400`` if no identifier is supplied, plus mapped access,
+            not-found, and satellite errors.
+    """
     try:
         return await service.get_experiment_artifact(
             user=user,
@@ -370,7 +549,21 @@ async def delete_experiment_tracked_artifact(
         get_experiment_artifacts_service
     ),
 ) -> DeleteExperimentArtifactResponseDTO:
-    """Delete one tracked artifact by filepath."""
+    """Delete one tracked artifact by filepath.
+
+    Args:
+        experiment_id: Experiment that owns the artifact.
+        filepath: Relative tracked artifact path.
+        user: Authenticated user deleting the artifact.
+        _: API-token scope guard requiring artifact logging access.
+        service: Experiment-artifacts service dependency.
+
+    Returns:
+        DeleteExperimentArtifactResponseDTO: Object-storage deletion result.
+
+    Raises:
+        HTTPException: Mapped access, not-found, satellite, and validation errors.
+    """
     try:
         return await service.delete_experiment_tracked_artifact(
             user=user,
@@ -393,7 +586,24 @@ async def download_experiment_artifact(
         get_experiment_artifacts_service
     ),
 ):
-    """Download one tracked artifact by filepath/blob_id/hash."""
+    """Download one tracked artifact by filepath, blob id, or hash.
+
+    Args:
+        experiment_id: Experiment that owns the artifact.
+        filepath: Optional relative path identifier.
+        blob_id: Optional blob identifier.
+        artifact_hash: Optional content hash identifier.
+        user: Authenticated user requesting bytes.
+        _: API-token scope guard requiring artifact view access.
+        service: Experiment-artifacts service dependency.
+
+    Returns:
+        Response: Binary response with content type and download filename.
+
+    Raises:
+        HTTPException: ``400`` if no identifier is supplied, plus mapped access,
+            not-found, and satellite errors.
+    """
     try:
         payload = await service.download_experiment_artifact(
             user=user,
@@ -422,7 +632,22 @@ async def download_experiment_artifacts_archive(
         get_experiment_artifacts_service
     ),
 ):
-    """Download all artifacts with same name as ZIP."""
+    """Download tracked artifacts sharing a display name as a ZIP archive.
+
+    Args:
+        experiment_id: Experiment that owns the tracked artifacts.
+        name: Artifact display name stored in metadata.
+        user: Authenticated user requesting the archive.
+        _: API-token scope guard requiring artifact view access.
+        service: Experiment-artifacts service dependency.
+
+    Returns:
+        StreamingResponse: ZIP archive stream with background temp-file cleanup.
+
+    Raises:
+        HTTPException: Mapped access, not-found, satellite, and archive creation
+            errors.
+    """
     try:
         archive_path, filename = await service.download_experiment_artifacts_archive(
             user=user,

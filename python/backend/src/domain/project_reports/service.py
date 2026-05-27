@@ -20,7 +20,12 @@ from .repository import ProjectReportRepository
 
 
 class ProjectReportService:
-    """Persisted Tiptap documents per project with RBAC."""
+    """Application service for persisted project report documents.
+
+    The service owns report CRUD operations, maps ORM rows to API DTOs, enforces
+    project-scoped report permissions before every read or write, and commits
+    successful mutations through the injected database session.
+    """
 
     def __init__(
         self,
@@ -39,6 +44,19 @@ class ProjectReportService:
         project_id: UUID_TYPE,
         list_options: ListOptions = ListOptions(),
     ) -> ProjectReportListResponseDTO:
+        """List report summaries for a project.
+
+        Args:
+            user: User requesting the project reports.
+            project_id: Project whose reports should be listed.
+            list_options: Pagination limit and offset.
+
+        Returns:
+            ProjectReportListResponseDTO: Paginated report summaries.
+
+        Raises:
+            ProjectNotAccessibleError: If the user cannot view reports in the project.
+        """
         if not await self.permission_checker.can_view_report(user.id, project_id):
             raise ProjectNotAccessibleError(f"Project {project_id} not accessible")
         page = await self.report_repository.get_reports_by_project(
@@ -52,6 +70,20 @@ class ProjectReportService:
     async def get_report_if_accessible(
         self, user: UserProtocol, report_id: UUID_TYPE
     ) -> ProjectReportDTO:
+        """Load a full report after verifying visibility.
+
+        Args:
+            user: User requesting the report.
+            report_id: Report identifier.
+
+        Returns:
+            ProjectReportDTO: Full report content and metadata.
+
+        Raises:
+            ReportNotFoundError: If no report row exists for ``report_id``.
+            ReportNotAccessibleError: If the report exists but the user lacks view
+                permission for its project.
+        """
         try:
             report = await self.report_repository.get_by_id(report_id)
             if not report:
@@ -65,6 +97,19 @@ class ProjectReportService:
     async def create_report(
         self, user: UserProtocol, data: ProjectReportCreateDTO
     ) -> ProjectReportDTO:
+        """Create a report in a project.
+
+        Args:
+            user: User creating the report.
+            data: Create DTO containing project id and report fields.
+
+        Returns:
+            ProjectReportDTO: Persisted report after commit and reload.
+
+        Raises:
+            ReportNotAccessibleError: If the user cannot create reports in the
+                target project.
+        """
         if not await self.permission_checker.can_create_report(user.id, data.project_id):
             raise ReportNotAccessibleError(
                 f"Project {data.project_id} not accessible for report create"
@@ -78,6 +123,21 @@ class ProjectReportService:
     async def update_report(
         self, user: UserProtocol, report_id: UUID_TYPE, data: ProjectReportUpdateDTO
     ) -> ProjectReportDTO:
+        """Update editable fields on an existing report.
+
+        Args:
+            user: User editing the report.
+            report_id: Report identifier.
+            data: Update DTO; unset fields are ignored by the mapper.
+
+        Returns:
+            ProjectReportDTO: Updated report after commit and reload.
+
+        Raises:
+            ReportNotFoundError: If the report does not exist.
+            ReportNotAccessibleError: If the user cannot edit reports in the report's
+                project.
+        """
         try:
             report = await self.report_repository.get_by_id(report_id)
             if not report:
@@ -94,6 +154,20 @@ class ProjectReportService:
         return self.mapper.report_to_dto(report)
 
     async def delete_report(self, user: UserProtocol, report_id: UUID_TYPE) -> bool:
+        """Delete a report row.
+
+        Args:
+            user: User deleting the report.
+            report_id: Report identifier.
+
+        Returns:
+            bool: ``True`` when at least one row was deleted, otherwise ``False``.
+
+        Raises:
+            ReportNotFoundError: If the report does not exist.
+            ReportNotAccessibleError: If the user lacks delete permission in the
+                report's project.
+        """
         try:
             report = await self.report_repository.get_by_id(report_id)
             if not report:
