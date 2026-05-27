@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 import random
 from pathlib import Path
-
+import uuid
 import torch
 from PIL import Image, ImageDraw
 from tensorboardX import SummaryWriter
@@ -42,7 +42,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-train-batches", type=int, default=20)
     parser.add_argument("--max-val-batches", type=int, default=5)
     parser.add_argument("--data-dir", type=Path, default=Path("data"))
-    parser.add_argument("--log-dir", type=Path, default=Path("runs/mnist-tensorboardx"))
+    parser.add_argument(
+        "--log-dir",
+        type=Path,
+        default=Path("runs/mnist-tensorboardx" + str(uuid.uuid4())),
+    )
     parser.add_argument("--seed", type=int, default=42)
     return parser.parse_args()
 
