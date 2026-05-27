@@ -27,6 +27,13 @@ def project_get_command(project_id: str) -> None:
     echo_yaml(client.request(registry.projects.get_project(project_id)))
 
 
+@project_group.command("settings")
+@click.argument("project_id")
+def project_settings_command(project_id: str) -> None:
+    client, registry = api()
+    echo_yaml(client.request(registry.projects.get_project_settings_map(project_id)))
+
+
 @project_group.command("create")
 @click.option("-n", "--name", required=True)
 @click.option("-d", "--description", default="")
@@ -76,4 +83,3 @@ def project_delete_command(project_id: str, yes: bool) -> None:
     confirm_delete(yes, f"Delete project {project_id}?")
     client, registry = api()
     echo_yaml(client.request(registry.projects.delete_project(project_id)))
-

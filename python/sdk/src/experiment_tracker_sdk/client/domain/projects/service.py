@@ -1,6 +1,8 @@
-from typing import Any, Callable, cast
+from collections.abc import Callable
+from typing import Any, cast
 from uuid import UUID
 
+from ...request_types import ApiRequestSpec
 from .dto import (
     ProjectCreateRequest,
     ProjectListResponse,
@@ -11,7 +13,6 @@ from .dto import (
     SuccessResponse,
 )
 from .limits import truncate_project_description, truncate_project_name
-from ...request_types import ApiRequestSpec
 
 
 class ProjectRequestSpecFactory:
@@ -19,6 +20,9 @@ class ProjectRequestSpecFactory:
         "get_all_projects": "/projects",
         "create_project": "/projects",
         "get_project": lambda project_id: f"/projects/{project_id}",
+        "get_project_settings_map": (
+            lambda project_id: f"/projects/{project_id}/settings/map"
+        ),
         "update_project": lambda project_id: f"/projects/{project_id}",
         "delete_project": lambda project_id: f"/projects/{project_id}",
     }
@@ -49,6 +53,21 @@ class ProjectRequestSpecFactory:
             method="GET",
             endpoint=endpoint,
             response_model=ProjectResponse,
+        )
+
+    def get_project_settings_map(
+        self, project_id: str | UUID
+    ) -> ApiRequestSpec[Any]:
+        if isinstance(project_id, UUID):
+            project_id = str(project_id)
+        endpoint = cast(
+            Callable[[Any], str],
+            self.ENDPOINTS["get_project_settings_map"],
+        )
+        endpoint = endpoint(project_id)
+        return ApiRequestSpec(
+            method="GET",
+            endpoint=endpoint,
         )
 
     def create_project(
