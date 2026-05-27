@@ -83,7 +83,7 @@ uv pip install "git+https://github.com/MalchuL/experiment_tracker.git@main#subdi
 4. Enter a name for the token
 5. Click on "Create"
 6. Copy the token (It will only be shown once). Or you can copy whole command to initialize the SDK.
-7. (Optional) Run the command (but if you use uv use `uv run command`) `uv run experiment-tracker init --base-url "http://127.0.0.1:8000" --api-prefix "/api" --api-token "pat_nOMwtEGLRZVFI_8IzQi6jmx3YDUGPJL73TgQmxMRBjc"
+7. (Optional) Run the command (but if you use uv use `uv run command`). `uv run experiment-tracker init --base-url "http://127.0.0.1:8000" --api-prefix "/api" --api-token "pat_nOMwtEGLRZVFI_8IzQi6jmx3YDUGPJL73TgQmxMRBjc"`
 
 
 
@@ -137,12 +137,6 @@ This script runs train.py script with args passed after `--` token.
 It will create or fetch project "mnist" and experiment "Experiment 0" if they don't exist.
 After that it captures tensorboardX events and logs them to the backend.
 
-
-
-
-## Local Development
-
-For manual local setup with Postgres, MinIO, ClickHouse, the Python services, and the Next.js frontend, see [LOCAL_RUN.md](LOCAL_RUN.md).
 
 ## Docker (full stack)
 
@@ -265,3 +259,7 @@ Override the in-container BFF target only if needed:
 4. **Reverse proxy / TLS** in front of Compose: the browser must still be able to resolve `NEXT_PUBLIC_BASE_URL` to your API and the UI origin must appear in `ALLOWED_ORIGINS`. Service-to-service URLs inside Compose (`http://backend:8000`, `http://scalars:8001/api`, etc.) stay on the Docker network and do not need to use your public domain.
 
 Docker guide is available in [DOCKER.md](DOCKER.md).
+
+## Local Development
+
+For manual local setup with Postgres, MinIO, ClickHouse, the Python services, and the Next.js frontend, see [LOCAL_RUN.md](LOCAL_RUN.md).
