@@ -77,13 +77,15 @@ uv pip install "git+https://github.com/MalchuL/experiment_tracker.git@main#subdi
 
 ### Get API token
 
-1. Go to the backend UI
-2. Click on "Settings"
-3. Click on "API Tokens"
-4. Click on "Create Token" (Use all permissions for now)
-5. Enter a name for the token
-6. Click on "Create"
-7. Copy the token (It will only be shown once)
+1. Register new user in the web UI at http://127.0.0.1:3000. You can use any email and password (they will not be used for anything and stored in the local database).
+2. Click in top right corner and select "API Tokens"
+3. Click on "Create Token" (Use all permissions for now)
+4. Enter a name for the token
+5. Click on "Create"
+6. Copy the token (It will only be shown once). Or you can copy whole command to initialize the SDK.
+7. (Optional) Run the command (but if you use uv use `uv run command`) `uv run experiment-tracker init --base-url "http://127.0.0.1:8000" --api-prefix "/api" --api-token "pat_nOMwtEGLRZVFI_8IzQi6jmx3YDUGPJL73TgQmxMRBjc"
+
+
 
 ### Configure
 
@@ -107,16 +109,35 @@ and an optional `.env` file in the current working directory (see
 
 Save the base URL and API token for the backend:
 
+**Make attention on the base url. It differs from the UI url. It must point to the backend url. Example: http://127.0.0.1:8000**
 ```
-exp-tracker init --base-url http://127.0.0.1:8000 --api-token <TOKEN>
+uv run exp-tracker init --base-url http://127.0.0.1:8000 --api-token <TOKEN>
 ```
 
-Check connectivity or token validity:
+Check connectivity or token validity (first checks connectivity to the backend and then checks if the token is valid):
 
 ```
-experiment-tracker ping
-experiment-tracker whoami
+uv run experiment-tracker ping
+uv runexperiment-tracker whoami
 ```
+
+### Run a training script
+There is mock training script in `examples/training/train.py`. It is a simple script to show logging capabilities of the SDK.
+```
+cd examples/training
+uv run python train.py --project-name "SDK Training" --team-name "My First Team" --experiment-name "Experiment 0"
+```
+
+If you want to run script and don't change anything in the script of script and have tensorboardX installed, you can use the following command:
+```
+cd examples/pytorch-mnist-tensorboardx
+uv run experiment-tracker run --project mnist --experiment "Experiment 0" train.py -- --epochs 100 --max-train-batches 50 --max-val-batches 50
+```
+This script runs train.py script with args passed after `--` token.
+It will create or fetch project "mnist" and experiment "Experiment 0" if they don't exist.
+After that it captures tensorboardX events and logs them to the backend.
+
+
 
 
 ## Local Development
@@ -242,3 +263,5 @@ Override the in-container BFF target only if needed:
    ```
 
 4. **Reverse proxy / TLS** in front of Compose: the browser must still be able to resolve `NEXT_PUBLIC_BASE_URL` to your API and the UI origin must appear in `ALLOWED_ORIGINS`. Service-to-service URLs inside Compose (`http://backend:8000`, `http://scalars:8001/api`, etc.) stay on the Docker network and do not need to use your public domain.
+
+Docker guide is available in [DOCKER.md](DOCKER.md).
