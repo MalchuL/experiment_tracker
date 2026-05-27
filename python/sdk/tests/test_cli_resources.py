@@ -122,7 +122,7 @@ def _metric_snapshot() -> Any:
 def _install_fake_access(monkeypatch) -> FakeAccess:
     global fake_access
     fake_access = FakeAccess()
-    from experiment_tracker_sdk.console.resources_impl import common
+    from experiment_tracker_sdk.console.domain_cli import common
 
     monkeypatch.setattr(common, "ExpTrackerApiAccess", FakeAccess)
     return fake_access
@@ -202,8 +202,8 @@ def test_metric_single_upsert(monkeypatch) -> None:
     )
 
     assert result.exit_code == 0, result.output
-    assert "domain: \"metrics\"" in result.output
-    assert "displayName: \"Влад Сорокин\"" in result.output
+    assert 'domain: "metrics"' in result.output
+    assert 'displayName: "Влад Сорокин"' in result.output
     assert "\\u0412" not in result.output
     assert '"domain"' not in result.output
     call = access.calls[0]
@@ -331,9 +331,9 @@ def test_experiment_artifact_upsert_download_delete(
     assert upsert.exit_code == 0, upsert.output
     assert download.exit_code == 0, download.output
     assert delete.exit_code == 0, delete.output
-    assert "domain: \"experiment_artifacts\"" in upsert.output
+    assert 'domain: "experiment_artifacts"' in upsert.output
     assert '"domain"' not in upsert.output
-    assert "domain: \"experiment_artifacts\"" in delete.output
+    assert 'domain: "experiment_artifacts"' in delete.output
     assert '"domain"' not in delete.output
     assert (output_dir / "artifact.bin").read_bytes() == b"artifact-bytes"
     assert access.calls[0].method == "upsert_named_experiment_artifact"

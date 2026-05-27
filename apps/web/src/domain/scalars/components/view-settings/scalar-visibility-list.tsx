@@ -2,7 +2,6 @@
 
 import { Eye, EyeOff, Maximize2, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import type { ArtifactViewItem, ChartDomain } from "@/domain/scalars/types";
 
 interface ScalarVisibilityListProps {
@@ -35,7 +34,7 @@ export function ScalarVisibilityList({
   onOpenArtifact,
 }: ScalarVisibilityListProps) {
   return (
-    <div className="space-y-1.5">
+    <div className="space-y-1.5 min-w-0">
       <div className="flex items-center justify-between">
         <span className="text-xs text-muted-foreground">
           {allLoggedMetricNames.length - hiddenMetrics.size}/{allLoggedMetricNames.length} scalars
@@ -46,12 +45,12 @@ export function ScalarVisibilityList({
           </Button>
         ) : null}
       </div>
-      <ScrollArea className="h-[24vh] min-h-40">
-        <div className="space-y-0.5 pr-3">
+      <div className="h-[24vh] min-h-40 min-w-0 overflow-auto">
+        <div className="min-w-max space-y-0.5 pr-3">
           {allLoggedMetricNames.map((metricName) => {
             const isHidden = hiddenMetrics.has(metricName);
             return (
-              <div key={metricName} className="flex items-center gap-1 rounded px-1 py-0.5 hover:bg-muted/50">
+              <div key={metricName} className="flex min-w-0 items-center gap-1 rounded px-1 py-0.5 hover:bg-muted/50">
                 <Button
                   variant="ghost"
                   size="icon"
@@ -63,7 +62,7 @@ export function ScalarVisibilityList({
                 </Button>
                 <button
                   type="button"
-                  className={`min-w-0 flex-1 truncate text-left text-xs ${
+                  className={`min-w-0 flex-1 whitespace-nowrap text-left text-xs ${
                     isHidden ? "text-muted-foreground line-through" : ""
                   }`}
                   title={metricName}
@@ -95,17 +94,17 @@ export function ScalarVisibilityList({
             );
           })}
         </div>
-      </ScrollArea>
+      </div>
 
       {artifactItems.length > 0 ? (
         <div className="space-y-1">
           <div className="text-[11px] font-medium text-muted-foreground">Artifacts</div>
-          <ScrollArea className="h-28">
-            <div className="space-y-0.5 pr-3">
+          <div className="h-28 min-w-0 overflow-auto">
+            <div className="min-w-max space-y-0.5 pr-3">
               {artifactItems.map((artifact) => {
                 const isHidden = hiddenArtifactIds.has(artifact.id);
                 return (
-                  <div key={artifact.id} className="flex items-center gap-1 rounded px-1 py-0.5 hover:bg-muted/50">
+                  <div key={artifact.id} className="flex min-w-0 items-center gap-1 rounded px-1 py-0.5 hover:bg-muted/50">
                     <Button
                       variant="ghost"
                       size="icon"
@@ -116,7 +115,7 @@ export function ScalarVisibilityList({
                     </Button>
                     <button
                       type="button"
-                      className={`min-w-0 flex-1 truncate text-left text-xs ${
+                      className={`min-w-0 flex-1 whitespace-nowrap text-left text-xs ${
                         isHidden ? "text-muted-foreground line-through" : ""
                       }`}
                       title={artifact.label}
@@ -137,7 +136,7 @@ export function ScalarVisibilityList({
                 );
               })}
             </div>
-          </ScrollArea>
+          </div>
         </div>
       ) : null}
     </div>

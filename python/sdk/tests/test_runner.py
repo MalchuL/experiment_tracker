@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from experiment_tracker_sdk import ExperimentStatus
+
 
 def test_runner_init_sets_random_tracker_color(monkeypatch) -> None:
     from types import SimpleNamespace
@@ -32,15 +34,19 @@ def test_runner_init_sets_random_tracker_color(monkeypatch) -> None:
             return False
 
         def color(self, value) -> None:
-            events.append(("color", value))
+            events.append(("color", "#0000ff"))
+
+        def status(self, value) -> None:
+            events.append(("status", value))
+
+        def progress(self, value) -> None:
+            events.append(("progress", value))
 
     import experiment_tracker_sdk.utils.color_utils as color_utils_module
 
     monkeypatch.setattr(runner_module, "ExperimentInitStrategy", FakeStrategy)
     monkeypatch.setattr(runner_module, "ExpTracker", FakeTracker)
-    monkeypatch.setattr(
-        color_utils_module.random, "randint", lambda start, end: 255
-    )
+    monkeypatch.setattr(color_utils_module.random, "randint", lambda start, end: 255)
 
     runner = RunSample(
         request_client=SimpleNamespace(),
@@ -52,7 +58,13 @@ def test_runner_init_sets_random_tracker_color(monkeypatch) -> None:
         project_name_or_id="project",
     )
 
-    assert events == [("enter", None), ("color", "#0000ff"), ("exit", None)]
+    assert events == [
+        ("enter", None),
+        ("status", ExperimentStatus.RUNNING),
+        ("progress", 1),
+        ("color", "#0000ff"),
+        ("exit", None),
+    ]
 
 
 def test_runner_mark_completed_updates_tracker_status_and_progress() -> None:

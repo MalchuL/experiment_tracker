@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect, useState } from "react";
+
 interface ArtifactMediaProps {
   objectType: string;
   src: string;
@@ -19,6 +21,52 @@ export function ArtifactMedia({
   onImagePreview,
   title,
 }: ArtifactMediaProps) {
+  const [textContent, setTextContent] = useState<string | null>(null);
+  const [textLoading, setTextLoading] = useState(false);
+  const [textError, setTextError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (objectType !== "text") {
+      setTextContent(null);
+      setTextLoading(false);
+      setTextError(null);
+      return;
+    }
+
+    const controller = new AbortController();
+    setTextLoading(true);
+    setTextError(null);
+    setTextContent(null);
+
+    void fetch(src, { signal: controller.signal })
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error(`Failed to load text (${response.status})`);
+        }
+        return response.text();
+      })
+      .then((content) => {
+        setTextContent(content);
+      })
+      .catch((error: unknown) => {
+        if (controller.signal.aborted) return;
+        if (error instanceof Error) {
+          setTextError(error.message);
+          return;
+        }
+        setTextError("Failed to load text");
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) {
+          setTextLoading(false);
+        }
+      });
+
+    return () => {
+      controller.abort();
+    };
+  }, [objectType, src]);
+
   if (objectType === "image") {
     return (
       <button type="button" className="flex w-full items-center justify-center" onClick={() => onImagePreview({ src, title })}>
@@ -38,10 +86,20 @@ export function ArtifactMedia({
     return <audio src={src} controls className="w-full" />;
   }
   if (objectType === "text") {
+    if (textLoading) {
+      return <p className="text-xs text-muted-foreground">Loading text...</p>;
+    }
+    if (textError) {
+      return <p className="text-xs text-destructive">{textError}</p>;
+    }
     return (
-      <a href={src} target="_blank" rel="noreferrer" className="text-xs text-primary underline">
-        Open logged text
-      </a>
+      <pre
+        className="w-full overflow-auto whitespace-pre-wrap break-words rounded border bg-muted/30 p-2 text-xs"
+        style={{ maxHeight }}
+        aria-label={`Logged text for ${name}`}
+      >
+        {textContent ?? ""}
+      </pre>
     );
   }
   return (

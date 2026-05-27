@@ -22,7 +22,7 @@ export function ViewSettingsSection({
           <span className="text-xs text-muted-foreground group-open:rotate-180">⌄</span>
         </span>
       </summary>
-      <div>{children}</div>
+      <div className="min-w-0">{children}</div>
     </details>
   );
 }

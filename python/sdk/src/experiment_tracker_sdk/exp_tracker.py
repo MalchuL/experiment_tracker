@@ -1,7 +1,5 @@
 import math
-import mimetypes
 from datetime import datetime
-from pathlib import Path
 from uuid import UUID
 
 from experiment_tracker_sdk.client import (
@@ -23,9 +21,16 @@ from experiment_tracker_sdk.client.instances import ExperimentInstance
 from experiment_tracker_sdk.error import ExpTrackerAPIError
 from experiment_tracker_sdk.logger import logger
 from experiment_tracker_sdk.utils.content_utils import (
-    _is_existing_file_path,
-    image_data_to_png_bytes,
-    materialize_content,
+    FinalArtifactContent,
+    ImageDataContent,
+    ImageContent,
+    StructuredFinalArtifactContent,
+    prepare_final_artifact_content,
+    prepare_final_image_content,
+    prepare_final_json_content,
+    prepare_final_yaml_content,
+    prepare_step_image_content,
+    prepare_step_text_content,
 )
 from experiment_tracker_sdk.client.fetching_domain_pages import (
     fetch_all_project_experiments,
@@ -214,11 +219,10 @@ class ExpTracker:
             )
         )
 
-    # TODO: Refactor
     def add_image(
         self,
         tag: str,
-        img_tensor,
+        img: ImageDataContent,
         global_step: int = 0,
         walltime: float = 0,
     ):
@@ -228,11 +232,11 @@ class ExpTracker:
         - PIL.Image.Image
         - numpy.ndarray in HW or HWC layout
         """
-        image_bytes = image_data_to_png_bytes(img_tensor)
+        prepared = prepare_step_image_content(tag, img, global_step)
         self._upload_artifact_at_step(
-            filename=f"{tag}_{global_step}.png",  # Only needed for uploading
-            content=image_bytes,
-            content_type="image/png",
+            filename=prepared.filename,
+            content=prepared.content,
+            content_type=prepared.content_type,
             name=tag,
             artifact_type="image",
             step=global_step,
@@ -247,63 +251,60 @@ class ExpTracker:
         walltime: float = 0,
     ):
         """Upload and log text as a text object."""
+        prepared = prepare_step_text_content(tag, text_string, global_step)
         self._upload_artifact_at_step(
-            filename=f"{tag}_{global_step}.txt",  # Only needed for uploading
-            content=text_string.encode("utf-8"),
-            content_type="text/plain",
+            filename=prepared.filename,
+            content=prepared.content,
+            content_type=prepared.content_type,
             name=tag,
             artifact_type="text",
             step=global_step,
             metadata={"encoding": "utf-8"},
         )
 
-    # TODO: Refactor
     def log_final_artifact(
         self,
         tag: str,
-        content,
+        content: FinalArtifactContent,
         stored_filepath: str | None = None,
         default_content_type: str = "application/octet-stream",
         default_extension: str | None = None,
     ) -> None:
         """
         Upload a named final artifact without step-based logging.
-        The logged artifact haven't a step associated with it, used for checkpoints, configs, final exports.
+
+        Final artifacts are named/tracked experiment artifacts with no step
+        associated with them. Use this generic method for checkpoints, configs,
+        final exports, and any content that does not need a typed convenience
+        helper.
+
         Args:
-            tag (str): The name of the artifact (displayed in the ui).
-            content (bytes): The content of the artifact.
-            stored_filepath (str | None): The relative filepath of the artifact in the ui.
-            default_content_type (str): The default content type of the artifact.
+            tag: Logical artifact name displayed in the UI.
+            content: Bytes, text, an existing file path, or a readable file-like
+                object. Existing paths are read from disk; strings that are not
+                paths are uploaded as UTF-8 text.
+            stored_filepath: Relative filepath to store/display in the UI. When
+                omitted, a path is derived from ``tag`` and ``default_extension``.
+            default_content_type: MIME type used when it cannot be inferred from
+                a file name.
+            default_extension: Extension appended to ``tag`` when building the
+                default stored path and multipart filename.
         """
         try:
-            file_name = tag
-            if default_extension and not Path(file_name).suffix:
-                file_name = f"{file_name}{default_extension}"
-            filepath = stored_filepath or (
-                f"final/{file_name}" if default_extension else file_name
-            )
-            resolved_default_content_type = default_content_type
-            guessed_content_type, _ = mimetypes.guess_type(file_name)
-            if guessed_content_type is not None:
-                resolved_default_content_type = guessed_content_type
-            elif isinstance(content, str):
-                resolved_default_content_type = "text/plain"
-            if _is_existing_file_path(content):
-                file_name = Path(content).name
-                filepath = str(Path(content).relative_to(Path.cwd()))
-
-            content_bytes, _, content_type = materialize_content(
+            prepared = prepare_final_artifact_content(
+                tag=tag,
                 content=content,
-                default_file_name=file_name,
-                default_mime_type=resolved_default_content_type,
+                stored_filepath=stored_filepath,
+                default_content_type=default_content_type,
+                default_extension=default_extension,
             )
 
             self._blob_api.upsert_named_experiment_artifact(
                 experiment_id=str(self.experiment_id),
-                filepath=filepath,
-                filename=file_name,
-                content=content_bytes,
-                content_type=content_type,
+                filepath=prepared.filepath,
+                filename=prepared.filename,
+                content=prepared.content,
+                content_type=prepared.content_type,
                 name=tag,
             )
         except Exception as exc:  # noqa: BLE001
@@ -311,6 +312,104 @@ class ExpTracker:
                 f"Failed to log final artifact '{tag}': {exc}", stack_info=True
             )
             raise
+
+    def log_final_image(
+        self,
+        tag: str,
+        content: ImageContent,
+        stored_filepath: str | None = None,
+    ) -> None:
+        """Upload a named final image artifact without step-based logging.
+
+        Bytes, paths, and readable file-like objects are uploaded directly. Other
+        values are treated like ``add_image`` input and converted to PNG bytes
+        with ``image_data_to_png_bytes``; this supports PIL images and numpy
+        arrays when those optional packages are installed.
+
+        Args:
+            tag: Logical artifact name displayed in the UI.
+            content: Image bytes, an existing image file path, a readable
+                file-like object, a PIL image, or a numpy array in HW/HWC layout.
+            stored_filepath: Relative filepath to store/display in the UI.
+        """
+        self.log_final_artifact(
+            tag,
+            prepare_final_image_content(content),
+            stored_filepath=stored_filepath,
+            default_content_type="image/png",
+            default_extension=".png",
+        )
+
+    def log_final_text(
+        self,
+        tag: str,
+        content: FinalArtifactContent,
+        stored_filepath: str | None = None,
+    ) -> None:
+        """Upload a named final text artifact without step-based logging.
+
+        Args:
+            tag: Logical artifact name displayed in the UI.
+            content: Text, bytes, an existing text file path, or a readable
+                file-like object. Text strings that are not paths are encoded as
+                UTF-8 by the generic upload path.
+            stored_filepath: Relative filepath to store/display in the UI.
+        """
+        self.log_final_artifact(
+            tag,
+            content,
+            stored_filepath=stored_filepath,
+            default_content_type="text/plain",
+            default_extension=".txt",
+        )
+
+    def log_final_json(
+        self,
+        tag: str,
+        content: StructuredFinalArtifactContent,
+        stored_filepath: str | None = None,
+        indent: int | None = 2,
+    ) -> None:
+        """Upload a named final JSON artifact without step-based logging.
+
+        Args:
+            tag: Logical artifact name displayed in the UI.
+            content: JSON text, bytes, an existing JSON file path, a readable
+                file-like object, or a structured mapping/list payload. Structured
+                payloads are serialized with ``json.dumps``.
+            stored_filepath: Relative filepath to store/display in the UI.
+            indent: Indentation passed to ``json.dumps`` for structured payloads.
+        """
+        self.log_final_artifact(
+            tag,
+            prepare_final_json_content(content, indent=indent),
+            stored_filepath=stored_filepath,
+            default_content_type="application/json",
+            default_extension=".json",
+        )
+
+    def log_final_yaml(
+        self,
+        tag: str,
+        content: StructuredFinalArtifactContent,
+        stored_filepath: str | None = None,
+    ) -> None:
+        """Upload a named final YAML artifact without step-based logging.
+
+        Args:
+            tag: Logical artifact name displayed in the UI.
+            content: YAML text, bytes, an existing YAML file path, a readable
+                file-like object, or a structured mapping/list payload. Structured
+                payloads are serialized with the SDK's lightweight YAML emitter.
+            stored_filepath: Relative filepath to store/display in the UI.
+        """
+        self.log_final_artifact(
+            tag,
+            prepare_final_yaml_content(content),
+            stored_filepath=stored_filepath,
+            default_content_type="application/x-yaml",
+            default_extension=".yaml",
+        )
 
     def add_histogram(
         self,

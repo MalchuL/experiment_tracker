@@ -2,7 +2,6 @@
 
 import { RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { RightSidebarShell } from "@/components/shared/right-sidebar-shell";
 import type {
   ArtifactViewItem,
@@ -110,8 +109,8 @@ export function ScalarViewSettingsSidebar({
         ) : null
       }
     >
-      <ScrollArea className="min-h-0 flex-1">
-        <div className="space-y-2 p-2.5">
+      <div className="min-h-0 flex-1 overflow-auto">
+        <div className="min-w-0 space-y-2 p-2.5">
           <ViewSettingsSection title="Controls">
             <ScalarDisplayControls
               syncMode={syncMode}
@@ -158,7 +157,7 @@ export function ScalarViewSettingsSidebar({
             />
           </ViewSettingsSection>
         </div>
-      </ScrollArea>
+      </div>
     </RightSidebarShell>
   );
 }

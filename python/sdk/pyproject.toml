@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "experiment-tracker-sdk"
-version = "0.9.10"
+version = "0.9.13"
 description = "Python SDK for Experiment Tracker"
 readme = "README.md"
 authors = [
@@ -33,6 +33,8 @@ extraPaths = ["../shared/src"]
 
 [project.optional-dependencies]
 dev = [
+  "numpy",
+  "Pillow",
   "pytest",
   "pyright",
   "ruff",

@@ -1,0 +1,13 @@
+[project]
+name = "experiment-tracker-wrong-logging"
+version = "0.1.0"
+description = "SDK wrong artifact logging example"
+requires-python = ">=3.10"
+dependencies = [
+  "experiment-tracker-sdk",
+  "numpy>=2.2.6",
+  "pillow>=12.1.1",
+]
+
+[tool.uv.sources]
+experiment-tracker-sdk = { path = "../../python/sdk" }
