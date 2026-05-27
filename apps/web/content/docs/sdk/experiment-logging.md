@@ -227,17 +227,7 @@ Default behavior when `init_params` is omitted:
 
 Use explicit `InitParams` for examples, notebooks, and automation where creating missing resources is expected.
 
-### Context manager
-
-```python
-with ExpTracker.init(project="SDK Training", experiment="Run") as tracker:
-    tracker.description("Updated in batched metadata mode")
-    tracker.tags("baseline")
-```
-
-`ExpTracker` implements `__enter__` and `__exit__`. The context manager enters the underlying experiment metadata batching mode, so multiple metadata assignments can be grouped before the context exits.
-
-This is for experiment metadata updates. It does not replace `close()` for long-lived training scripts that log scalars and artifacts.
+---
 
 ### `add_scalar(...)`
 
@@ -257,6 +247,8 @@ Arguments:
 | `walltime` | Kept for TensorBoard-like API parity; currently not used. |
 
 `NaN`, `Inf`, `-Inf`, non-numeric values, and null-like values are skipped with an SDK warning.
+
+---
 
 ### `add_scalars(...)`
 
@@ -281,6 +273,8 @@ Arguments:
 
 The SDK concatenates `main_tag + tag` directly. Include separators yourself, for example `main_tag="train/"`.
 
+---
+
 ### `add_metric(...)`
 
 ```python
@@ -299,6 +293,8 @@ Arguments:
 | `walltime` | Kept for API parity; currently not used. |
 
 Metrics are not time series. Reusing the same `(experiment, name, label)` overwrites the previous metric value.
+
+---
 
 ### `add_image(...)`
 
@@ -319,6 +315,8 @@ Arguments:
 
 The SDK converts supported inputs to PNG and logs artifact metadata with type `image`.
 
+---
+
 ### `add_text(...)`
 
 ```python
@@ -337,6 +335,8 @@ Arguments:
 | `walltime` | Kept for API parity; currently not used. |
 
 Text is uploaded as UTF-8 content and logged with artifact type `text`.
+
+---
 
 ### `log_final_artifact(...)`
 
@@ -363,6 +363,8 @@ Arguments:
 
 The stable key is `stored_filepath`. Uploading another final artifact with the same path replaces the previous file and metadata.
 
+---
+
 ### `log_final_image(...)`
 
 ```python
@@ -377,6 +379,8 @@ Uploads a named final image artifact. It accepts image bytes, an existing image 
 
 Non-file image data is converted to PNG. The default content type is `image/png`.
 
+---
+
 ### `log_final_text(...)`
 
 ```python
@@ -386,6 +390,8 @@ tracker.log_final_text("python_packages", installed_packages)
 Uploads a named final text artifact. It accepts text, bytes, a local text path, or a readable file-like object.
 
 The default content type is `text/plain`, and the default extension is `.txt`.
+
+---
 
 ### `log_final_json(...)`
 
@@ -410,6 +416,8 @@ Arguments:
 
 Structured mappings/lists are serialized with `json.dumps`.
 
+---
+
 ### `log_final_yaml(...)`
 
 ```python
@@ -431,6 +439,8 @@ Arguments:
 
 Structured mappings/lists are serialized with the SDK's lightweight YAML emitter. The default content type is `application/x-yaml`.
 
+---
+
 ### `progress(...)`
 
 ```python
@@ -446,6 +456,8 @@ Accepted values:
 - float `0..1`, converted to percent.
 
 Values outside the range are clamped. Progress is most useful while status is `RUNNING`.
+
+---
 
 ### `status(...)`
 
@@ -463,6 +475,8 @@ Updates experiment status. Supported statuses are:
 
 Use `FAILED` in exception handling so interrupted or crashed runs are visible in the UI.
 
+---
+
 ### `tags(...)`
 
 ```python
@@ -470,6 +484,8 @@ tracker.tags("baseline", "augmentation-v2")
 ```
 
 Replaces the experiment tag list with the provided strings. Calling `tags(...)` again writes a new full tag list.
+
+---
 
 ### `color(...)`
 
@@ -481,6 +497,8 @@ Updates the experiment display color. Use colors to make runs easier to distingu
 
 The backend accepts hex colors such as `#3366cc` or `#3366ccff`.
 
+---
+
 ### `description(...)`
 
 ```python
@@ -490,6 +508,8 @@ tracker.description("Baseline with the new dataset split.")
 Updates the experiment description.
 
 Use this for short run intent, context, or notes that should be visible with the experiment.
+
+---
 
 ### `features(...)`
 
@@ -504,6 +524,8 @@ Updates the experiment feature tree. Features are currently the best place to st
 
 When an experiment has a parent, the sidebar can show feature differences from that parent.
 
+---
+
 ### `name(...)`
 
 ```python
@@ -511,6 +533,8 @@ tracker.name("Baseline v2")
 ```
 
 Updates the experiment display name.
+
+---
 
 ### `parent_experiment(...)`
 
@@ -523,6 +547,8 @@ Sets the current experiment's parent by name or id. The SDK searches experiments
 
 The parent must belong to the same project. Parent links drive the DAG view and parent-diff sidebar.
 
+---
+
 ### `flush()`
 
 ```python
@@ -532,6 +558,8 @@ tracker.flush()
 Flushes queued scalar logging and pending HTTP requests. Call it before marking important lifecycle transitions or before a long process exits.
 
 `close()` also flushes, so most scripts should still call `close()` in a `finally` block.
+
+---
 
 ### `close()`
 
@@ -549,6 +577,20 @@ finally:
         tracker.close()
 ```
 
+---
+
+### Context manager
+
+```python
+with ExpTracker.init(project="SDK Training", experiment="Run") as tracker:
+    tracker.description("Updated in batched metadata mode")
+    tracker.tags("baseline")
+```
+
+`ExpTracker` implements `__enter__` and `__exit__`. The context manager enters the underlying experiment metadata batching mode, so multiple metadata assignments can be grouped before the context exits.
+
+This is for experiment metadata updates. It does not replace `close()` for long-lived training scripts that log scalars and artifacts.
+
 ## Unsupported ExpTracker methods
 
 These methods exist for TensorBoard-like API compatibility, but they are not implemented today. Calling them logs a warning and does not store data.
@@ -557,21 +599,31 @@ These methods exist for TensorBoard-like API compatibility, but they are not imp
 
 Not supported. The method logs a warning and does not store histogram data.
 
+---
+
 ### `add_audio(...)`
 
 Not supported. The method logs a warning and does not upload or store audio data.
+
+---
 
 ### `add_figure(...)`
 
 Not supported. The method logs a warning and does not convert or upload matplotlib figures.
 
+---
+
 ### `add_mesh(...)`
 
 Not supported. The method logs a warning and does not upload mesh or point-cloud payloads.
 
+---
+
 ### `add_video(...)`
 
 Not supported. The method logs a warning and does not upload or store video data.
+
+---
 
 ### `add_embedding(...)`
 
