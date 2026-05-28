@@ -130,13 +130,16 @@ export function PlotlyArtifactMedia({
     objectType === "point_cloud_3d" ||
     !previewPayload;
   const [fullPayload, setFullPayload] = useState<PlotlyArtifactPayload | null>(null);
+  const fullPayloadSrcRef = useRef<string | null>(null);
   const [loadingFull, setLoadingFull] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const lastDisplayedPayloadRef = useRef<PlotlyArtifactPayload | null>(null);
   const prevTraceTypeKeyRef = useRef<string | null>(null);
   const [plotRevision, setPlotRevision] = useState(0);
 
-  const activePayload = fullPayload ?? previewPayload;
+  const fullPayloadForSrc =
+    fullPayloadSrcRef.current === src ? fullPayload : null;
+  const activePayload = fullPayloadForSrc ?? previewPayload;
   if (activePayload) {
     lastDisplayedPayloadRef.current = activePayload;
   }
@@ -190,10 +193,6 @@ export function PlotlyArtifactMedia({
   }, [payload]);
 
   useEffect(() => {
-    setFullPayload(null);
-  }, [src]);
-
-  useEffect(() => {
     if (!needsFullDataInitially) return;
     const controller = new AbortController();
     void loadFullPlotlyPayload(
@@ -201,7 +200,11 @@ export function PlotlyArtifactMedia({
       controller.signal,
       setLoadingFull,
       setError,
-      setFullPayload
+      (payload) => {
+        if (controller.signal.aborted) return;
+        fullPayloadSrcRef.current = src;
+        setFullPayload(payload);
+      }
     );
     return () => {
       controller.abort();
@@ -224,7 +227,10 @@ export function PlotlyArtifactMedia({
             undefined,
             setLoadingFull,
             setError,
-            setFullPayload
+            (payload) => {
+              fullPayloadSrcRef.current = src;
+              setFullPayload(payload);
+            }
           )
         }
       >
@@ -245,7 +251,7 @@ export function PlotlyArtifactMedia({
           revision={plotRevision}
         />
       </div>
-      {(objectType === "histogram" || objectType === "scatter") && !fullPayload ? (
+      {(objectType === "histogram" || objectType === "scatter") && !fullPayloadForSrc ? (
         <Button
           type="button"
           variant="outline"
@@ -257,7 +263,10 @@ export function PlotlyArtifactMedia({
               undefined,
               setLoadingFull,
               setError,
-              setFullPayload
+              (payload) => {
+                fullPayloadSrcRef.current = src;
+                setFullPayload(payload);
+              }
             )
           }
         >

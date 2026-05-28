@@ -13,7 +13,7 @@ export function useLoggedObjectsState() {
     const timer = window.setTimeout(() => {
       setDebouncedObjectStepSelection(objectStepSelection);
       setDebouncedExperimentStepOverrides(experimentStepOverrides);
-    }, 1500);
+    }, 500);
     return () => window.clearTimeout(timer);
   }, [objectStepSelection, experimentStepOverrides]);
 
