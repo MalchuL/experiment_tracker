@@ -76,6 +76,47 @@ def _prepare_image_for_tracker(img_tensor: Any, dataformats: Any) -> Any:
     return image
 
 
+def _histogram_bins_for_tracker(bins: Any) -> int | None:
+    """Map TensorBoard histogram bin specs to tracker ``bins`` (int or settings default)."""
+    if isinstance(bins, int):
+        return bins
+    if bins is None:
+        return None
+    try:
+        return int(bins)
+    except (TypeError, ValueError):
+        return None
+
+
+def _squeeze_batch_dim(value: Any) -> Any:
+    """Drop a leading batch dimension of size 1 from mesh-like tensors."""
+    converted = _tensor_to_numpy_like(value)
+    try:
+        import numpy as np  # type: ignore[import-not-found]
+
+        if isinstance(converted, np.ndarray) and converted.ndim == 3:
+            if converted.shape[0] == 1:
+                return converted[0]
+            return converted
+    except Exception:
+        pass
+    if hasattr(value, "ndim") and getattr(value, "ndim", None) == 3:
+        shape = getattr(value, "shape", None)
+        if shape is not None and shape[0] == 1:
+            return value[0]
+    return converted if converted is not value else value
+
+
+def _prepare_mesh_for_tracker(
+    vertices: Any,
+    colors: Any | None,
+) -> tuple[Any, Any | None]:
+    """Normalize TensorBoard mesh tensors to tracker ``add_mesh`` inputs."""
+    prepared_vertices = _squeeze_batch_dim(vertices)
+    prepared_colors = None if colors is None else _squeeze_batch_dim(colors)
+    return prepared_vertices, prepared_colors
+
+
 def _image_dataformats(args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
     if "dataformats" in kwargs:
         return kwargs["dataformats"]
@@ -249,6 +290,145 @@ def _patch_summary_writer(writer_cls: type[Any]) -> None:
 
         writer_cls.add_hparams = add_hparams  # type: ignore[method-assign]
 
+    original_add_histogram = getattr(writer_cls, "add_histogram", None)
+    if callable(original_add_histogram):
+
+        def add_histogram(  # type: ignore[no-untyped-def]
+            self,
+            tag,
+            values,
+            global_step=None,
+            bins="tensorflow",
+            walltime=None,
+            *args,
+            **kwargs,
+        ):
+            tracker = _active_tracker
+            if tracker is not None:
+                try:
+                    tracker_bins = _histogram_bins_for_tracker(bins)
+                    if tracker_bins is None and "max_bins" in kwargs:
+                        tracker_bins = _histogram_bins_for_tracker(kwargs["max_bins"])
+                    tracker.add_histogram(
+                        tag,
+                        values,
+                        global_step=_global_step_or_zero(global_step),
+                        bins=tracker_bins,
+                        walltime=_walltime_or_zero(walltime),
+                    )
+                except Exception as exc:  # noqa: BLE001
+                    _logger.warning(
+                        "tensorboard_histogram_capture_failed",
+                        extra={"tag": tag, "error": str(exc)},
+                    )
+            return original_add_histogram(
+                self,
+                tag,
+                values,
+                global_step,
+                bins,
+                walltime,
+                *args,
+                **kwargs,
+            )
+
+        writer_cls.add_histogram = add_histogram  # type: ignore[method-assign]
+
+    original_add_scatter = getattr(writer_cls, "add_scatter", None)
+    if callable(original_add_scatter):
+
+        def add_scatter(  # type: ignore[no-untyped-def]
+            self,
+            tag,
+            x,
+            y,
+            global_step=None,
+            walltime=None,
+            *args,
+            **kwargs,
+        ):
+            tracker = _active_tracker
+            if tracker is not None:
+                try:
+                    mode = kwargs.get("mode", "markers")
+                    if args:
+                        mode = args[0]
+                    tracker.add_scatter(
+                        tag,
+                        x,
+                        y,
+                        global_step=_global_step_or_zero(global_step),
+                        mode=str(mode),
+                        walltime=_walltime_or_zero(walltime),
+                    )
+                except Exception as exc:  # noqa: BLE001
+                    _logger.warning(
+                        "tensorboard_scatter_capture_failed",
+                        extra={"tag": tag, "error": str(exc)},
+                    )
+            return original_add_scatter(
+                self,
+                tag,
+                x,
+                y,
+                global_step,
+                walltime,
+                *args,
+                **kwargs,
+            )
+
+        writer_cls.add_scatter = add_scatter  # type: ignore[method-assign]
+
+    original_add_mesh = getattr(writer_cls, "add_mesh", None)
+    if callable(original_add_mesh):
+
+        def add_mesh(  # type: ignore[no-untyped-def]
+            self,
+            tag,
+            vertices,
+            colors=None,
+            faces=None,
+            config_dict=None,
+            global_step=None,
+            walltime=None,
+            *args,
+            **kwargs,
+        ):
+            tracker = _active_tracker
+            if tracker is not None:
+                try:
+                    mesh_vertices, mesh_colors = _prepare_mesh_for_tracker(
+                        vertices, colors
+                    )
+                    tracker.add_mesh(
+                        tag,
+                        mesh_vertices,
+                        colors=mesh_colors,
+                        faces=faces,
+                        config_dict=config_dict,
+                        global_step=_global_step_or_zero(global_step),
+                        walltime=_walltime_or_zero(walltime),
+                    )
+                except Exception as exc:  # noqa: BLE001
+                    _logger.warning(
+                        "tensorboard_mesh_capture_failed",
+                        extra={"tag": tag, "error": str(exc)},
+                    )
+            return original_add_mesh(
+                self,
+                tag,
+                vertices,
+                colors,
+                faces,
+                config_dict,
+                global_step,
+                walltime,
+                *args,
+                **kwargs,
+            )
+
+        writer_cls.add_mesh = add_mesh  # type: ignore[method-assign]
+
     writer_cls._experiment_tracker_sdk_patched = True  # type: ignore[attr-defined]
 
 
@@ -297,8 +477,9 @@ def _tensorboard_bootstrap(ctx: RunCliContext) -> None:
     """TensorBoard / TensorBoardX setup for in-process ``run``.
 
     When a run tracker is initialized, patch installed SummaryWriter
-    implementations so ``add_scalar`` and ``add_image`` are mirrored to the
-    experiment tracker. TensorBoard dependencies stay optional.
+    implementations so ``add_scalar``, ``add_image``, ``add_histogram``, and
+    ``add_mesh`` are mirrored to the experiment tracker (and ``add_scatter`` when
+    the writer exposes it). TensorBoard dependencies stay optional.
     """
     global _active_tracker
     _active_tracker = None if ctx.runner is None else ctx.runner.exp_tracker

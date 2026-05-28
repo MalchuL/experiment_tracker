@@ -92,6 +92,28 @@ def build_loaders(data_dir: Path, batch_size: int) -> tuple[DataLoader, DataLoad
     return train_loader, val_loader
 
 
+def log_conv1_weight_histogram(
+    writer: SummaryWriter,
+    model: MnistClassifier,
+    global_step: int,
+) -> None:
+    writer.add_histogram(
+        "model/conv1/weight",
+        model.conv1.weight.detach(),
+        global_step,
+    )
+
+
+def fc1_embeddings(model: MnistClassifier, images: torch.Tensor) -> torch.Tensor:
+    """Penultimate 64-D features used as embedding vectors."""
+    x = F.relu(model.conv1(images))
+    x = F.max_pool2d(x, 2)
+    x = F.relu(model.conv2(x))
+    x = F.max_pool2d(x, 2)
+    x = torch.flatten(x, 1)
+    return F.relu(model.fc1(x))
+
+
 def limited_batches(loader: DataLoader, max_batches: int):
     for batch_index, batch in enumerate(loader):
         if max_batches > 0 and batch_index >= max_batches:
@@ -134,7 +156,7 @@ def annotated_digit_grid(
 
 
 def train_one_epoch(
-    model: nn.Module,
+    model: MnistClassifier,
     loader: DataLoader,
     optimizer: torch.optim.Optimizer,
     device: torch.device,
@@ -179,12 +201,18 @@ def train_one_epoch(
                 ),
                 global_step,
             )
+    if steps > 0:
+        log_conv1_weight_histogram(
+            writer,
+            model,
+            global_step=epoch * max_batches + steps,
+        )
     return steps
 
 
 @torch.no_grad()
 def validate(
-    model: nn.Module,
+    model: MnistClassifier,
     loader: DataLoader,
     device: torch.device,
     writer: SummaryWriter,
@@ -196,6 +224,9 @@ def validate(
     correct = 0
     total = 0
     steps = 0
+    embedding_vectors: list[torch.Tensor] = []
+    embedding_labels: list[str] = []
+    embedding_images: list[torch.Tensor] = []
     for images, targets in limited_batches(loader, max_batches):
         images = images.to(device)
         targets = targets.to(device)
@@ -207,6 +238,10 @@ def validate(
         correct += (logits.argmax(dim=1) == targets).sum().item()
         total += batch_size
         steps += 1
+
+        embedding_vectors.append(fc1_embeddings(model, images).cpu())
+        embedding_labels.extend(str(int(label)) for label in targets.cpu())
+        embedding_images.append(images.cpu())
 
         if steps == 1:
             writer.add_image(
@@ -221,6 +256,15 @@ def validate(
 
     if total == 0:
         return
+
+    if embedding_vectors:
+        writer.add_embedding(
+            torch.cat(embedding_vectors, dim=0),
+            metadata=embedding_labels,
+            label_img=torch.cat(embedding_images, dim=0),
+            global_step=epoch,
+            tag="val/fc1",
+        )
 
     writer.add_scalar("val/loss", total_loss / total, epoch)
     writer.add_scalar("val/accuracy", correct / total, epoch)

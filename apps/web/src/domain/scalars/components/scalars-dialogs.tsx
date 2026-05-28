@@ -18,6 +18,7 @@ import { ImagePreviewDialog } from "@/domain/scalars/components/artifacts";
 import type { Dispatch, SetStateAction } from "react";
 
 export interface ScalarsDialogsProps {
+  projectId: string;
   fullscreenMetric: string | null;
   setFullscreenMetric: (metricName: string | null) => void;
   fullscreenMetricData: ScalarChartPoint[];
@@ -54,6 +55,7 @@ export interface ScalarsDialogsProps {
 }
 
 export function ScalarsDialogs({
+  projectId,
   fullscreenMetric,
   setFullscreenMetric,
   fullscreenMetricData,
@@ -143,6 +145,7 @@ export function ScalarsDialogs({
           </DialogHeader>
           {fullscreenArtifactId ? (
             <LoggedObjectsSection
+              projectId={projectId}
               objectGroups={objectGroups}
               visibleExperiments={visibleExperiments}
               cardMinWidth={Math.max(cardMinWidth, 420)}

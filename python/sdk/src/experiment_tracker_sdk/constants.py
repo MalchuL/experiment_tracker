@@ -6,3 +6,5 @@ environment variable supplies a value.
 
 DEFAULT_BASE_URL: str = "http://127.0.0.1:8000"
 DEFAULT_API_PREFIX: str = "/api"
+DEFAULT_HISTOGRAM_METADATA_BINS: int = 32
+DEFAULT_SCATTER_METADATA_MAX_POINTS: int = 500

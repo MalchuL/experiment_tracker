@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Any
 from uuid import UUID
 
+from experiment_tracker_shared import ArtifactType
 from pydantic import BaseModel, Field
 from lib.datetime_types import ApiDateTime
 from lib.pagination import PaginatedResponse
-
-ArtifactType = Literal["image", "video", "audio", "text", "point_cloud_3d"]
 
 
 class LogArtifactRequestDTO(BaseModel):

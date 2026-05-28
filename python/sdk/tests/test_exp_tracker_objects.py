@@ -56,11 +56,13 @@ class _FakeRegistry:
 class _FakeClient:
     def __init__(self):
         self.uploaded: list[tuple[str, bytes, str, str, dict]] = []
+        self.uploaded_specs: list[dict] = []
         self.final_uploaded: list[tuple[str, str, str, bytes, str]] = []
 
     def request(self, request_spec):
         if request_spec["kind"] == "upload_at_step":
             file = request_spec["file"]
+            self.uploaded_specs.append(request_spec)
             self.uploaded.append(
                 (
                     file.filename,
@@ -206,6 +208,225 @@ def test_add_image_uploads_pil_and_numpy_inputs_as_png() -> None:
         assert content_type == "image/png"
         assert metadata == {"format": "png"}
         _assert_png_upload(content)
+
+
+class _FakeTorchTensor:
+    __module__ = "torch"
+
+    def __init__(self, values: list[float]) -> None:
+        self._values = values
+
+    def detach(self) -> "_FakeTorchTensor":
+        return self
+
+    def cpu(self) -> "_FakeTorchTensor":
+        return self
+
+    def reshape(self, _size: int) -> "_FakeTorchTensor":
+        return self
+
+    def tolist(self) -> list[float]:
+        return list(self._values)
+
+
+def test_add_histogram_flattens_numpy_2d_array() -> None:
+    tracker, client = _create_tracker()
+
+    tracker.add_histogram(
+        "weights",
+        np.array([[0.0, 1.0], [2.0, 3.0]], dtype=np.float64),
+        global_step=1,
+        bins=2,
+    )
+
+    payload = json.loads(client.uploaded[0][1].decode("utf-8"))
+    assert payload["data"][0]["x"] == [0.0, 1.0, 2.0, 3.0]
+
+
+def test_add_histogram_accepts_torch_like_tensor() -> None:
+    tracker, client = _create_tracker()
+
+    tracker.add_histogram(
+        "weights",
+        _FakeTorchTensor([0.0, 1.0, 2.0]),
+        global_step=2,
+        bins=2,
+    )
+
+    payload = json.loads(client.uploaded[0][1].decode("utf-8"))
+    assert payload["data"][0]["x"] == [0.0, 1.0, 2.0]
+
+
+def test_add_scatter_accepts_numpy_1d_arrays() -> None:
+    tracker, client = _create_tracker()
+
+    tracker.add_scatter(
+        "points",
+        np.array([0.0, 1.0, 2.0]),
+        np.array([10.0, 11.0, 12.0]),
+        global_step=1,
+    )
+
+    trace = json.loads(client.uploaded[0][1].decode("utf-8"))["data"][0]
+    assert trace["x"] == [0.0, 1.0, 2.0]
+    assert trace["y"] == [10.0, 11.0, 12.0]
+
+
+def test_add_mesh_accepts_numpy_vertex_rows() -> None:
+    tracker, client = _create_tracker()
+
+    tracker.add_mesh(
+        "cloud",
+        np.array([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]),
+        global_step=3,
+    )
+
+    trace = json.loads(client.uploaded[0][1].decode("utf-8"))["data"][0]
+    assert trace["x"] == [0.0, 3.0]
+    assert trace["y"] == [1.0, 4.0]
+    assert trace["z"] == [2.0, 5.0]
+
+
+def test_add_histogram_uploads_chart_json_with_metadata_preview() -> None:
+    tracker, client = _create_tracker()
+
+    tracker.add_histogram("weights", [0, 1, 2, 3], global_step=9, bins=2)
+
+    assert len(client.uploaded) == 1
+    filename, content, content_type, name, metadata = client.uploaded[0]
+    assert filename == "weights_9.chart.json"
+    assert content_type == "application/json"
+    assert name == "weights"
+    assert client.uploaded_specs[0]["artifact_type"] == "histogram"
+    payload = json.loads(content.decode("utf-8"))
+    assert payload["schemaVersion"] == 1
+    assert payload["data"][0]["type"] == "histogram"
+    assert payload["data"][0]["x"] == [0.0, 1.0, 2.0, 3.0]
+    assert payload["data"][0]["nbinsx"] == 2
+    assert metadata["preview_kind"] == "histogram_bins"
+    preview = json.loads(metadata["preview_data"])
+    assert preview["counts"] == [2, 2]
+    assert preview["total"] == 4
+
+
+def test_add_scatter_uploads_chart_json_with_env_limited_preview(monkeypatch) -> None:
+    from experiment_tracker_sdk.settings import get_exp_tracker_settings
+
+    get_exp_tracker_settings.cache_clear()
+    monkeypatch.setenv("EXP_TRACKER_SCATTER_METADATA_MAX_POINTS", "3")
+    tracker, client = _create_tracker()
+
+    tracker.add_scatter("points", [0, 1, 2, 3, 4], [10, 11, 12, 13, 14], global_step=3)
+
+    assert len(client.uploaded) == 1
+    filename, content, content_type, name, metadata = client.uploaded[0]
+    assert filename == "points_3.chart.json"
+    assert content_type == "application/json"
+    assert name == "points"
+    assert client.uploaded_specs[0]["artifact_type"] == "scatter"
+    payload = json.loads(content.decode("utf-8"))
+    assert payload["data"][0]["type"] == "scatter"
+    assert payload["data"][0]["x"] == [0.0, 1.0, 2.0, 3.0, 4.0]
+    preview = json.loads(metadata["preview_data"])
+    assert preview == {
+        "x": [0.0, 2.0, 4.0],
+        "y": [10.0, 12.0, 14.0],
+        "total": 5,
+        "sampled": 3,
+    }
+    get_exp_tracker_settings.cache_clear()
+
+
+def test_add_scatter_raises_when_x_and_y_lengths_differ() -> None:
+    tracker, _client = _create_tracker()
+
+    with pytest.raises(ValueError, match="x and y must have the same length"):
+        tracker.add_scatter("points", [0, 1, 2], [10, 11], global_step=1)
+
+
+def test_add_pie_raises_when_labels_and_values_lengths_differ() -> None:
+    tracker, _client = _create_tracker()
+
+    with pytest.raises(ValueError, match="labels and values must have the same length"):
+        tracker.add_pie("classes", ["a", "b"], [1, 2, 3], global_step=1)
+
+
+def test_add_mesh_raises_when_colors_length_differs_from_vertices() -> None:
+    tracker, _client = _create_tracker()
+
+    with pytest.raises(ValueError, match="vertices and colors must have the same length"):
+        tracker.add_mesh(
+            "cloud",
+            [(0, 1, 2), (3, 4, 5)],
+            colors=[1.0, 2.0, 3.0],
+            global_step=1,
+        )
+
+
+def test_add_scatter_skips_non_finite_pairs_without_misaligning() -> None:
+    tracker, client = _create_tracker()
+
+    tracker.add_scatter(
+        "points",
+        [0, float("nan"), 2, 3],
+        [10, 20, 30, 40],
+        global_step=1,
+    )
+
+    payload = json.loads(client.uploaded[0][1].decode("utf-8"))
+    trace = payload["data"][0]
+    assert trace["x"] == [0.0, 2.0, 3.0]
+    assert trace["y"] == [10.0, 30.0, 40.0]
+
+
+def test_add_pie_skips_non_finite_values_without_misaligning_labels() -> None:
+    tracker, client = _create_tracker()
+
+    tracker.add_pie("classes", ["a", "b", "c"], [1, float("nan"), 3], global_step=1)
+
+    payload = json.loads(client.uploaded[0][1].decode("utf-8"))
+    trace = payload["data"][0]
+    assert trace["labels"] == ["a", "c"]
+    assert trace["values"] == [1.0, 3.0]
+    assert client.uploaded[0][4]["total_slices"] == "2"
+
+
+def test_add_pie_uploads_chart_json() -> None:
+    tracker, client = _create_tracker()
+
+    tracker.add_pie("classes", ["cat", "dog"], [4, 6], global_step=2)
+
+    assert len(client.uploaded) == 1
+    filename, content, content_type, name, metadata = client.uploaded[0]
+    assert filename == "classes_2.chart.json"
+    assert content_type == "application/json"
+    assert name == "classes"
+    assert client.uploaded_specs[0]["artifact_type"] == "pie"
+    payload = json.loads(content.decode("utf-8"))
+    assert payload["data"][0]["type"] == "pie"
+    assert payload["data"][0]["labels"] == ["cat", "dog"]
+    assert payload["data"][0]["values"] == [4.0, 6.0]
+    assert metadata["total_slices"] == "2"
+
+
+def test_add_mesh_uploads_point_cloud_chart_json() -> None:
+    tracker, client = _create_tracker()
+
+    tracker.add_mesh("cloud", [(0, 1, 2), (3, 4, 5)], global_step=4)
+
+    assert len(client.uploaded) == 1
+    filename, content, content_type, name, metadata = client.uploaded[0]
+    assert filename == "cloud_4.chart.json"
+    assert content_type == "application/json"
+    assert name == "cloud"
+    assert client.uploaded_specs[0]["artifact_type"] == "point_cloud_3d"
+    payload = json.loads(content.decode("utf-8"))
+    trace = payload["data"][0]
+    assert trace["type"] == "scatter3d"
+    assert trace["x"] == [0.0, 3.0]
+    assert trace["y"] == [1.0, 4.0]
+    assert trace["z"] == [2.0, 5.0]
+    assert metadata["total_points"] == "2"
 
 
 def test_log_final_artifact_uploads_without_step_suffix() -> None:

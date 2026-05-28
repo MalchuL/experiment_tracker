@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { loggedObjectsService } from "@/domain/logged-objects/services";
 import type { LoggedArtifactEntry } from "@/domain/logged-objects/types";
 
@@ -47,6 +47,7 @@ export function useArtifactDetail({
       step !== undefined &&
       enabled,
     staleTime: 30_000,
+    placeholderData: keepPreviousData,
   });
 
   const artifact = useMemo<LoggedArtifactEntry | undefined>(() => {

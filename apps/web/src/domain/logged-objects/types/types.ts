@@ -5,7 +5,11 @@ export type LoggedObjectType =
   | "video"
   | "audio"
   | "text"
-  | "point_cloud_3d";
+  | "histogram"
+  | "pie"
+  | "scatter"
+  | "point_cloud_3d"
+  | "embedding";
 
 export interface LoggedArtifactEntry {
   timestamp: string;

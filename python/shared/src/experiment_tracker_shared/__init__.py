@@ -1,5 +1,6 @@
 """Shared Python helpers used across Experiment Tracker projects."""
 
+from experiment_tracker_shared.artifacts import ArtifactType
 from experiment_tracker_shared.datetime_utc import (
     normalize_for_db,
     to_json_utc_z,
@@ -17,6 +18,7 @@ from experiment_tracker_shared.limits import (
 from experiment_tracker_shared.sqlalchemy_types import UtcNaiveDateTime
 
 __all__ = [
+    "ArtifactType",
     "ENTITY_DESCRIPTION_MAX_LEN",
     "ENTITY_NAME_MAX_LEN",
     "compute_sha256_hexdigest",

@@ -1,5 +1,7 @@
+import json
 import math
 from datetime import datetime
+from typing import Any
 from uuid import UUID
 
 from experiment_tracker_sdk.client import (
@@ -8,22 +10,25 @@ from experiment_tracker_sdk.client import (
 )
 from experiment_tracker_sdk.client.api_registry import APIRequestsRegistry
 from experiment_tracker_sdk.client.blob_api import BlobRequestsStrategy
-from experiment_tracker_sdk.client.constants import UNSET
-from experiment_tracker_sdk.client.scalar_batching_strategy import (
-    BatchedScalarLoggingStrategy,
-)
+from experiment_tracker_sdk.client.domain.experiment_artifacts.dto import ArtifactType
 from experiment_tracker_sdk.client.domain.experiments.dto import (
     ExperimentResponse,
     FeatureNodeLike,
 )
-from experiment_tracker_sdk.client.domain.experiment_artifacts.dto import ArtifactType
+from experiment_tracker_sdk.client.fetching_domain_pages import (
+    fetch_all_project_experiments,
+)
 from experiment_tracker_sdk.client.instances import ExperimentInstance
+from experiment_tracker_sdk.client.scalar_batching_strategy import (
+    BatchedScalarLoggingStrategy,
+)
 from experiment_tracker_sdk.error import ExpTrackerAPIError
 from experiment_tracker_sdk.logger import logger
+from experiment_tracker_sdk.settings import get_exp_tracker_settings
 from experiment_tracker_sdk.utils.content_utils import (
     FinalArtifactContent,
-    ImageDataContent,
     ImageContent,
+    ImageDataContent,
     StructuredFinalArtifactContent,
     prepare_final_artifact_content,
     prepare_final_image_content,
@@ -32,12 +37,29 @@ from experiment_tracker_sdk.utils.content_utils import (
     prepare_step_image_content,
     prepare_step_text_content,
 )
-from experiment_tracker_sdk.client.fetching_domain_pages import (
-    fetch_all_project_experiments,
-)
 from experiment_tracker_sdk.utils.experiment_init_strategy import (
     ExperimentInitStrategy,
     InitParams,
+)
+from experiment_tracker_sdk.utils.chart import (
+    ChartLabelInput,
+    ChartLayoutConfig,
+    ChartNumericInput,
+    ChartVertexInput,
+    chart_artifact_filename,
+    encode_chart_payload,
+    extract_scatter3d_vertices,
+    finite_float_values,
+    finite_pie_slices,
+    finite_scatter_xy,
+    histogram_preview,
+    require_equal_lengths,
+    sample_xy_evenly,
+)
+from experiment_tracker_sdk.utils.chart.tensor_values import (
+    flatten_numeric_values,
+    numeric_sequence_length,
+    vertex_row_count,
 )
 
 
@@ -180,7 +202,8 @@ class ExpTracker:
             scalar_value
         ):
             logger.warning(
-                f"Invalid scalar value: {scalar_value} for tag: {tag}, global_step: {global_step}, not logged"
+                f"Invalid scalar value: {scalar_value} for tag: {tag}, "
+                f"global_step: {global_step}, not logged"
             )
             return
         self._scalar_logging.add_scalar(tag, float(scalar_value), global_step)
@@ -203,7 +226,7 @@ class ExpTracker:
         label: str | None = None,
         walltime: float = 0,
     ):
-        """Create or update a metric row for this (name, label) (sync mode, no queue)."""
+        """Create or update a metric row for this (name, label)."""
         _ = walltime  # Kept for API parity with add_scalar-like signatures.
         if not math.isfinite(value):
             logger.warning(
@@ -260,6 +283,36 @@ class ExpTracker:
             artifact_type="text",
             step=global_step,
             metadata={"encoding": "utf-8"},
+        )
+
+    def _upload_chart_artifact_at_step(
+        self,
+        *,
+        tag: str,
+        artifact_type: ArtifactType,
+        global_step: int,
+        data: list[dict],
+        layout: dict | None,
+        metadata: dict[str, str],
+    ) -> None:
+        """Upload a chart JSON artifact for the current experiment step.
+
+        Args:
+            tag: Logical name shown in the UI.
+            artifact_type: Logged object type (histogram, scatter, pie, etc.).
+            global_step: Training step index.
+            data: Serialized trace payloads.
+            layout: Optional chart layout dict.
+            metadata: String key/value metadata stored alongside the artifact.
+        """
+        self._upload_artifact_at_step(
+            filename=chart_artifact_filename(tag, global_step),
+            content=encode_chart_payload(data, layout),
+            content_type="application/json",
+            name=tag,
+            artifact_type=artifact_type,
+            step=global_step,
+            metadata=metadata,
         )
 
     def log_final_artifact(
@@ -414,13 +467,46 @@ class ExpTracker:
     def add_histogram(
         self,
         tag: str,
-        values,
+        values: ChartNumericInput,
         global_step: int = 0,
-        bins: int = 10,
+        bins: int | None = None,
         walltime: float = 0,
-    ):
-        """Log a histogram of values."""
-        logger.warning("add_histogram is not implemented")
+    ) -> None:
+        """Log a histogram of numeric values as a step chart artifact.
+
+        Args:
+            tag: Logical name shown in the UI.
+            values: Samples (sequence, numpy array, or torch tensor; 2D+ arrays
+                are flattened).
+            global_step: Training step index.
+            bins: Histogram bin count for the trace and preview metadata; uses
+                ``histogram_metadata_bins`` from settings when omitted.
+            walltime: Unused; kept for TensorBoard API compatibility.
+        """
+        _ = walltime
+        numeric_values = finite_float_values(values)
+        metadata_bins = bins or get_exp_tracker_settings().histogram_metadata_bins
+        preview = histogram_preview(numeric_values, metadata_bins)
+        self._upload_chart_artifact_at_step(
+            tag=tag,
+            artifact_type="histogram",
+            global_step=global_step,
+            data=[
+                {
+                    "type": "histogram",
+                    "x": numeric_values,
+                    "nbinsx": metadata_bins,
+                    "name": tag,
+                }
+            ],
+            layout={"title": {"text": tag}, "bargap": 0.05},
+            metadata={
+                "preview_kind": "histogram_bins",
+                "preview_data": json.dumps(
+                    preview, allow_nan=False, separators=(",", ":")
+                ),
+            },
+        )
 
     def add_audio(
         self,
@@ -444,24 +530,153 @@ class ExpTracker:
         """Log a matplotlib figure."""
         logger.warning("add_figure is not implemented")
 
+    def add_pie(
+        self,
+        tag: str,
+        labels: ChartLabelInput,
+        values: ChartNumericInput,
+        global_step: int = 0,
+        walltime: float = 0,
+    ) -> None:
+        """Log a pie chart (labels and slice values) at a training step.
+
+        Args:
+            tag: Logical name shown in the UI.
+            labels: Slice labels (same length as ``values``).
+            values: Slice sizes (sequence, numpy array, or torch tensor).
+            global_step: Training step index.
+            walltime: Unused; kept for TensorBoard API compatibility.
+
+        Raises:
+            ValueError: If ``labels`` and ``values`` lengths differ.
+        """
+        _ = walltime
+        labels_list, numeric_values = finite_pie_slices(labels, values)
+        total = len(labels_list)
+        self._upload_chart_artifact_at_step(
+            tag=tag,
+            artifact_type="pie",
+            global_step=global_step,
+            data=[
+                {
+                    "type": "pie",
+                    "labels": labels_list,
+                    "values": numeric_values,
+                    "name": tag,
+                }
+            ],
+            layout={"title": {"text": tag}},
+            metadata={"total_slices": str(total)},
+        )
+
+    def add_scatter(
+        self,
+        tag: str,
+        x: ChartNumericInput,
+        y: ChartNumericInput,
+        global_step: int = 0,
+        mode: str = "markers",
+        walltime: float = 0,
+    ) -> None:
+        """Log a 2D scatter chart at a training step.
+
+        Args:
+            tag: Logical name shown in the UI.
+            x: X coordinates (sequence, numpy array, or torch tensor).
+            y: Y coordinates (same length as ``x`` after flattening).
+            global_step: Training step index.
+            mode: Trace mode (e.g. ``"markers"``, ``"lines"``).
+            walltime: Unused; kept for TensorBoard API compatibility.
+
+        Raises:
+            ValueError: If ``x`` and ``y`` lengths differ.
+        """
+        _ = walltime
+        x_values, y_values = finite_scatter_xy(x, y)
+        total = len(x_values)
+        max_points = get_exp_tracker_settings().scatter_metadata_max_points
+        preview_x, preview_y = sample_xy_evenly(x_values, y_values, max_points)
+        preview = {
+            "x": preview_x,
+            "y": preview_y,
+            "total": total,
+            "sampled": len(preview_x),
+        }
+        self._upload_chart_artifact_at_step(
+            tag=tag,
+            artifact_type="scatter",
+            global_step=global_step,
+            data=[
+                {
+                    "type": "scatter",
+                    "mode": mode,
+                    "x": x_values,
+                    "y": y_values,
+                    "name": tag,
+                }
+            ],
+            layout={"title": {"text": tag}},
+            metadata={
+                "preview_kind": "scatter_points",
+                "preview_data": json.dumps(
+                    preview, allow_nan=False, separators=(",", ":")
+                ),
+            },
+        )
+
     def add_mesh(
         self,
         tag: str,
-        vertices,
-        colors=None,
-        faces=None,
-        config_dict=None,
+        vertices: ChartVertexInput,
+        colors: ChartNumericInput | None = None,
+        faces: Any | None = None,
+        config_dict: ChartLayoutConfig = None,
         global_step: int = 0,
         walltime: float = 0,
-    ):
-        """Upload and log 3D point cloud/mesh payload."""
-        payload = {
-            "vertices": vertices,
-            "colors": colors,
-            "faces": faces,
-            "config": config_dict,
+    ) -> None:
+        """Log a 3D point cloud (scatter3d trace) at a training step.
+
+        Args:
+            tag: Logical name shown in the UI.
+            vertices: Points as ``(N, 3)`` arrays or sequences of ``(x, y, z)``.
+            colors: Optional per-point colors (same length as ``vertices``).
+            faces: Unused; reserved for future mesh support.
+            config_dict: Optional layout dict passed to the chart payload.
+            global_step: Training step index.
+            walltime: Unused; kept for TensorBoard API compatibility.
+
+        Raises:
+            ValueError: If ``colors`` is set and its length differs from
+                ``vertices``.
+        """
+        _ = walltime, faces
+        xs, ys, zs = extract_scatter3d_vertices(vertices)
+        trace: dict = {
+            "type": "scatter3d",
+            "mode": "markers",
+            "x": xs,
+            "y": ys,
+            "z": zs,
+            "name": tag,
         }
-        logger.warning("add_mesh is not implemented")
+        if colors is not None:
+            require_equal_lengths(
+                vertices,
+                colors,
+                left_name="vertices",
+                right_name="colors",
+                left_length=vertex_row_count,
+                right_length=numeric_sequence_length,
+            )
+            trace["marker"] = {"color": list(flatten_numeric_values(colors))}
+        self._upload_chart_artifact_at_step(
+            tag=tag,
+            artifact_type="point_cloud_3d",
+            global_step=global_step,
+            data=[trace],
+            layout=config_dict or {"title": {"text": tag}},
+            metadata={"total_points": str(len(xs))},
+        )
 
     def add_video(
         self,
@@ -484,6 +699,7 @@ class ExpTracker:
         metadata_header=None,
     ):
         """Log embeddings."""
+        _ = mat, metadata, label_img, global_step, tag, metadata_header
         logger.warning("add_embedding is not implemented")
 
     def progress(self, progress: int | float):
@@ -540,7 +756,8 @@ class ExpTracker:
             )
 
         logger.info(
-            f"Using parent experiment: {parent_experiment_obj.id} with name {parent_experiment_obj.name}"
+            f"Using parent experiment: {parent_experiment_obj.id} "
+            f"with name {parent_experiment_obj.name}"
         )
         self._experiment.parentExperimentId = parent_experiment_obj.id
 

@@ -153,6 +153,8 @@ def _build_feature_tree(
                 {"name": "sparse-scalars-accuracy-map-1-percent"},
                 {"name": "final-metrics-loss-accuracy-precision-recall"},
                 {"name": "at-step-image-artifacts"},
+                {"name": "at-step-histogram-artifacts"},
+                {"name": "at-step-pie-artifacts"},
                 {"name": "named-final-artifacts"},
                 {"name": "direct-numpy-image-artifacts"},
                 {"name": "large-at-step-text-artifacts"},
@@ -419,6 +421,25 @@ def main() -> None:
                 tracker.add_image(
                     "checkerboard_numpy",
                     checkerboard_image,
+                    global_step=step,
+                )
+                loss_residuals = [
+                    loss + random.uniform(-0.15, 0.15) for _ in range(128)
+                ]
+                tracker.add_histogram(
+                    "loss_residuals",
+                    loss_residuals,
+                    global_step=step,
+                    bins=16,
+                )
+                tracker.add_pie(
+                    "class_balance",
+                    ["background", "object", "ignore"],
+                    [
+                        random.uniform(0.4, 0.7),
+                        random.uniform(0.2, 0.5),
+                        random.uniform(0.05, 0.2),
+                    ],
                     global_step=step,
                 )
             tracker.progress(progress)
