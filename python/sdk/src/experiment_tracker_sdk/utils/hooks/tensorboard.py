@@ -31,6 +31,17 @@ def _walltime_or_zero(walltime: Any) -> float:
         return 0
 
 
+def _scalar_to_float(value: Any) -> float:
+    """Convert tensor/numpy scalar-like values to a plain float."""
+    if hasattr(value, "detach") and callable(value.detach):
+        value = value.detach()
+    if hasattr(value, "cpu") and callable(value.cpu):
+        value = value.cpu()
+    if hasattr(value, "item") and callable(value.item):
+        value = value.item()
+    return float(value)
+
+
 def _tensor_to_numpy_like(value: Any) -> Any:
     """Convert tensor-like inputs to numpy arrays when possible."""
     if hasattr(value, "detach") and callable(value.detach):
@@ -145,7 +156,7 @@ def _patch_summary_writer(writer_cls: type[Any]) -> None:
                 try:
                     tracker.add_scalar(
                         tag,
-                        scalar_value,
+                        _scalar_to_float(scalar_value),
                         global_step=_global_step_or_zero(global_step),
                         walltime=_walltime_or_zero(walltime),
                     )
