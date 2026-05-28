@@ -553,4 +553,7 @@ class ExpTracker:
         """Close the logger and free resources."""
         self._scalar_logging.flush()
         self._request_client.flush()
-        self._request_client.close()
+        try:
+            self._request_client.close()
+        except Exception:
+            pass

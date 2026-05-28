@@ -1,4 +1,4 @@
-# Experiment Tracker: Research-First Machine Learning Experiment Tracking
+# Experiment Tracker: Self-Hosted ML Experiment Analysis Workspace
 
 ![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-backend-009688?logo=fastapi&logoColor=white)
@@ -10,18 +10,35 @@
 ![Docker](https://img.shields.io/badge/Docker-self--hosted-2496ED?logo=docker&logoColor=white)
 ![SDK](https://img.shields.io/badge/Python%20SDK-training%20logs-4B8BBE?logo=python&logoColor=white)
 
-Experiment Tracker is an open-source, self-hosted machine learning experiment tracker for researchers who need a clear view of training runs, model metrics, scalar curves, logged artifacts, and experiment lineage. It is built for research analysis: compare models, summarize results, inspect training behavior, and keep the broader picture of many experiments visible in one workspace.
+Experiment Tracker is an open-source, self-hosted ML/DL experiment tracker for research-heavy workflows. It focuses on experiment understanding: compare final metrics, inspect scalar curves, review step-aware artifacts, and navigate experiment lineage in one workspace.
 
-The project focuses on experiment understanding instead of remote execution or production serving. Use it when your team needs better research notes, model comparison, scalar visualization, artifact review, and reproducible experiment history.
+It is intentionally smaller than a full MLOps platform. The goal is not remote execution, infrastructure orchestration, production serving, or a universal training launcher. The goal is a clear research workspace for ML engineers and data scientists who run many experiments and need to understand what changed, which run improved, and why.
 
-## Why Experiment Tracker Can Help in Your Research
+> A self-hosted experiment tracker for research-heavy ML workflows: metrics-first comparison, readable scalar curves, step-aware artifacts, and experiment lineage without turning your setup into a full MLOps platform.
 
-- **Compare machine learning experiments:** review accuracy, loss, precision, recall, mAP, custom scores, and final metric snapshots across many runs.
-- **Analyze scalar curves:** inspect training and validation metrics over time with multi-run charts, smoothing, synced axes, and saved visual views.
-- **Review model artifacts:** view logged images, predictions, generated samples, checkpoints, configs, and project-level files alongside experiment context.
-- **Track experiment lineage:** connect parent and child runs to understand how model variants, hyperparameter changes, and research branches evolved.
-- **Summarize research results:** keep metrics, scalars, artifacts, reports, hypotheses, and project notes together so researchers can see the wide picture of model training.
-- **Run locally or self-host:** use the Python SDK, FastAPI services, Next.js UI, PostgreSQL, ClickHouse, and S3-compatible object storage in a Docker-based stack.
+## What It Is For
+
+- **Metrics-first model selection:** compare final metrics and labeled metric snapshots across many runs before drilling into details.
+- **Readable scalar analysis:** inspect training and validation curves across experiments with smoothing, compare hover, zooming, and backend downsampling.
+- **Step-aware artifact review:** keep generated images, predictions, text outputs, checkpoints, configs, and project files attached to experiment context.
+- **Experiment lineage:** track parent-child research branches, metric deltas, and how one run evolved from another.
+- **Self-hosted research history:** own experiment metadata, scalar series, artifacts, notes, and reports in your own stack.
+
+## What It Is Not
+
+Experiment Tracker is not a training orchestrator, deployment platform, model registry, hyperparameter sweep engine, GPU queue, or agent execution system. If you need a broad AI platform with pipelines, autoscaling infrastructure, registry workflows, automations, and deployment layers, tools like W&B or ClearML cover a larger surface area.
+
+Use Experiment Tracker when you want a focused, self-hosted research workspace for understanding experiments rather than managing infrastructure.
+
+## Why Not Just TensorBoard?
+
+TensorBoard is excellent for local visualization. Experiment Tracker keeps TensorBoard-like logging ergonomics but adds project-level research context around those logs:
+
+- final metric comparison tables for choosing the best run;
+- scalar curves designed for comparing many experiments;
+- step-aware and named artifacts;
+- notes, reports, hypotheses, teams, and project metadata;
+- editable experiment lineage instead of only a flat list of runs.
 
 ## Machine Learning Experiment Comparison
 
@@ -29,8 +46,9 @@ The project focuses on experiment understanding instead of remote execution or p
 
 ### Features for researchers
 
-- **Metrics-first model comparison:** compare final or labeled metric snapshots across experiments in a dense grid, filter runs, export tables, and inspect selected experiment metadata in the side panel.
-- **Research result summaries:** organize project metrics, experiment status, tags, notes, and SDK-driven training logs in one place for faster model selection.
+- **Dense model-selection table:** compare final or labeled metric snapshots across experiments in a project-scoped grid.
+- **Research workflow controls:** filter runs, sort and resize columns, hide rows or metrics, export tables, highlight min/max values, and inspect selected experiment metadata in the side panel.
+- **Clear metric language:** use final metrics and metric snapshots for model selection; use scalar curves for training dynamics.
 
 ## Scalar Metrics and Logged Artifacts
 
@@ -38,8 +56,9 @@ The project focuses on experiment understanding instead of remote execution or p
 
 ### Features for researchers
 
-- **Interactive scalar analysis:** visualize multi-run scalar curves with synchronized axes, smoothing, resizable cards, saved views, and selective visibility for each metric stream.
-- **Artifact review beside metrics:** inspect image and object artifacts next to scalar trends, grouped by type and name, with step-aware controls for model outputs such as predictions or generated samples.
+- **Curves built for comparison:** visualize multi-run scalar curves with synchronized axes, smoothing, compare hover, nearest-point hover, resizable cards, saved views, and selective visibility for each metric stream.
+- **Readable curves at scale:** scalar queries are backed by ClickHouse and sampled per metric and per experiment, so charts stay usable when training logs get large.
+- **Artifacts in training context:** inspect images, predictions, generated samples, text outputs, and other logged objects beside scalar trends, grouped by type and name, with step-aware controls.
 
 ## Experiment Lineage and Research History
 
@@ -47,20 +66,62 @@ The project focuses on experiment understanding instead of remote execution or p
 
 ### Features for researchers
 
-- **Experiment lineage graph:** track parent-child relationships between runs, compare metric deltas along branches, and understand how research iterations evolved.
-- **Iteration analysis:** follow branches from baseline to follow-up runs, compare metric movement at each node, and preserve the context behind research decisions.
+- **Research tree, not just run list:** track parent-child relationships between runs and understand how baselines became follow-up experiments.
+- **Metric deltas along branches:** compare selected metrics against each run's parent directly in the lineage view.
+- **Editable lineage:** search, highlight, persist layout, and update parent links while keeping cycle checks in place.
+
+## Architecture Designed Around Experiment Data
+
+Experiment Tracker separates data by workload instead of forcing everything into one store:
+
+```mermaid
+flowchart LR
+  Web["Next.js web UI"]
+  API["FastAPI backend"]
+  PG["PostgreSQL\nusers, teams, projects, experiments, RBAC"]
+  CH["ClickHouse\nscalar series and step artifact metadata"]
+  S3["MinIO / S3-compatible storage\ncontent-addressed blobs"]
+  SDK["Python SDK / CLI"]
+
+  SDK --> API
+  Web --> API
+  API --> PG
+  API --> CH
+  API --> S3
+```
+
+- **PostgreSQL:** relational state such as users, teams, projects, experiments, permissions, notes, and reports.
+- **ClickHouse:** high-volume scalar time series and step-aware artifact metadata.
+- **S3-compatible object storage:** heavy blobs and content-addressed project artifacts.
+- **FastAPI backend:** orchestration layer between the UI, SDK, relational state, scalar storage, and object storage.
+
+This makes the product lightweight from a workflow perspective while still matching the actual shape of ML experiment data.
 
 ## Core Capabilities
 
 | Area | What it helps researchers do |
 |------|-------------------------------|
 | Experiment tracking | Record runs, status, tags, metadata, notes, and project context. |
-| Metrics comparison | Compare final scores and labeled metric snapshots across models. |
-| Scalar visualization | Explore training curves for loss, accuracy, learning rate, validation metrics, and custom scalars. |
-| Artifact logging | Store and review experiment artifacts and project-level files. |
-| Research organization | Keep hypotheses, reports, kanban items, and lineage connected to experiments. |
-| Self-hosted stack | Run the UI, API, scalars service, and object storage with Docker or local development tools. |
+| Metrics comparison | Compare final scores and labeled metric snapshots across models in a dense table. |
+| Scalar visualization | Explore loss, accuracy, learning rate, validation metrics, and custom scalar curves with comparison-focused chart tools. |
+| Step-aware artifacts | Review images, predictions, generated samples, text outputs, and other objects at the training step where they were logged. |
+| Named artifacts | Store checkpoints, configs, final exports, and other stable experiment files. |
+| Project artifacts | Deduplicate shared project files by content hash for datasets, code snapshots, configs, and reusable assets. |
+| Research lineage | Keep parent-child run relationships and metric deltas connected to experiment history. |
+| Research organization | Keep hypotheses, reports, kanban items, notes, and SDK-driven training logs in one project workspace. |
+| Self-hosted stack | Run the UI, API, scalars service, object storage, PostgreSQL, ClickHouse, and MinIO/S3-compatible storage with Docker or local development tools. |
 
+## Positioning
+
+Experiment Tracker is best described as a **self-hosted ML experiment analysis workspace** or a **research-first experiment tracker for ML/DL workflows**.
+
+- Compared with **W&B**, it is intentionally narrower: focused on metrics, curves, artifacts, and lineage rather than a broad system of record with sweeps, reports, automations, registry, and platform workflows.
+- Compared with **ClearML**, it does not try to be an end-to-end AI platform with infrastructure control, queues, pipelines, and deployment.
+- Compared with **TensorBoard**, it keeps familiar logging ideas while adding project-level comparison, experiment metadata, artifacts, notes, and lineage.
+
+The sharpest summary:
+
+> Experiment Tracker helps ML engineers understand experiment evolution, not just log runs: metrics-first comparison, readable scalar curves, step-aware artifacts, and lineage-aware run history in a self-hosted stack.
 
 ## Python SDK
 
@@ -107,9 +168,9 @@ prefix, for example `EXP_TRACKER_DEFAULT_BASE_URL` and
 and an optional `.env` file in the current working directory (see
 `experiment_tracker_sdk.settings`).
 
-Save the base URL and API token for the backend:
+Save the backend base URL and API token:
 
-**Make attention on the base url. It differs from the UI url. It must point to the backend url. Example: http://127.0.0.1:8000**
+**Use the backend URL here, not the UI URL. Example: http://127.0.0.1:8000**
 ```
 uv run exp-tracker init --base-url http://127.0.0.1:8000 --api-token <TOKEN>
 ```
@@ -118,7 +179,7 @@ Check connectivity or token validity (first checks connectivity to the backend a
 
 ```
 uv run experiment-tracker ping
-uv runexperiment-tracker whoami
+uv run experiment-tracker whoami
 ```
 
 ### Run a training script

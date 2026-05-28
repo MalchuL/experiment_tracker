@@ -92,6 +92,17 @@ def _create_tracker() -> tuple[ExpTracker, _FakeRegistry, _FakeClient]:
     return tracker, registry, client
 
 
+def test_exp_tracker_close_ignores_request_client_close_error() -> None:
+    tracker, _, client = _create_tracker()
+
+    def close() -> None:
+        raise RuntimeError("already closed")
+
+    client.close = close
+
+    tracker.close()
+
+
 class _FakeTimer:
     def __init__(self, interval: float, callback):
         self.interval = interval

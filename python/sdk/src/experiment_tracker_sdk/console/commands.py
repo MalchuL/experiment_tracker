@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import importlib.metadata
 import json
 import os
 import shutil
+from dataclasses import dataclass
 from typing import cast
 
 import click
@@ -168,8 +168,8 @@ def whoami_command() -> None:
     """Call ``GET /users/me/profile`` using saved credentials."""
     try:
         access = ExpTrackerApiAccess.instance()
-        client = access.get_request_client()
-        registry = access.get_api_requests_registry()
+        client = access.request_client
+        registry = access.api_requests_registry
         profile = cast(
             UserResponse,
             client.request(registry.users.get_my_profile()),
@@ -186,8 +186,8 @@ def ping_command() -> None:
     """Request ``GET /`` and print the healthcheck payload."""
     try:
         access = ExpTrackerApiAccess.instance()
-        client = access.get_request_client()
-        registry = access.get_api_requests_registry()
+        client = access.request_client
+        registry = access.api_requests_registry
         health = cast(
             HealthCheckResponse,
             client.request(registry.health.get_healthcheck()),

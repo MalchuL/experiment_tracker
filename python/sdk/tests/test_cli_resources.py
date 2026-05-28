@@ -66,18 +66,12 @@ class FakeClient:
 class FakeAccess:
     def __init__(self) -> None:
         self.calls: list[FakeSpec] = []
-        self.client = FakeClient()
-        self.registry = FakeRegistry(self.calls)
+        self.request_client = FakeClient()
+        self.api_requests_registry = FakeRegistry(self.calls)
 
     @classmethod
     def instance(cls) -> FakeAccess:
         return fake_access
-
-    def get_request_client(self) -> FakeClient:
-        return self.client
-
-    def get_api_requests_registry(self) -> FakeRegistry:
-        return self.registry
 
 
 fake_access = FakeAccess()

@@ -18,7 +18,7 @@ from experiment_tracker_sdk.error import ExpTrackerConfigError
 def api() -> tuple[Any, Any]:
     try:
         access = ExpTrackerApiAccess.instance()
-        return access.get_request_client(), access.get_api_requests_registry()
+        return access.request_client, access.api_requests_registry
     except ExpTrackerConfigError as exc:
         raise click.UsageError(
             "Config not found. Run `experiment-tracker init`."

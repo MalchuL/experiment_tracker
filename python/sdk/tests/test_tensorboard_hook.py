@@ -131,6 +131,30 @@ def test_tensorboard_summary_writer_patch_captures_scalars_and_images(
     tensorboard._active_tracker = None
 
 
+def test_monkey_patch_tensorboard_sets_tracker_and_patches_supported_modules(
+    monkeypatch,
+) -> None:
+    from experiment_tracker_sdk.utils.hooks import tensorboard
+
+    patched_modules = []
+    tracker = object()
+
+    monkeypatch.setattr(tensorboard.importlib.util, "find_spec", lambda name: None)
+    monkeypatch.setattr(
+        tensorboard,
+        "_patch_summary_writer_module",
+        lambda module_name: patched_modules.append(module_name),
+    )
+
+    tensorboard._active_tracker = None
+    tensorboard.monkey_patch_tensorboard(tracker)
+
+    assert tensorboard._active_tracker is tracker
+    assert patched_modules == ["tensorboardX", "torch.utils.tensorboard"]
+
+    tensorboard._active_tracker = None
+
+
 def test_tensorboard_image_prepare_handles_single_channel_chw(monkeypatch) -> None:
     from experiment_tracker_sdk.utils.hooks.tensorboard import (
         _prepare_image_for_tracker,

@@ -1,5 +1,11 @@
-from .exp_tracker import ExpTracker, ExperimentStatus
+from . import config
 from .client.domain.experiments.dto import FeatureNode, FeatureNodeLike
+from .client.fetching_domain_pages import (
+    fetch_all_project_experiments,
+    fetch_all_projects,
+    fetch_all_recent_experiments,
+    fetch_all_teams,
+)
 from .client.instances import (
     ExperimentBuilder,
     ExperimentInstance,
@@ -10,22 +16,17 @@ from .client.instances import (
     TeamBuilder,
     TeamInstance,
 )
-from .client.fetching_domain_pages import (
-    fetch_all_project_experiments,
-    fetch_all_projects,
-    fetch_all_recent_experiments,
-    fetch_all_teams,
-)
 from .error import (
-    ExpTrackerError,
-    ExpTrackerConfigError,
     ExpTrackerAPIError,
+    ExpTrackerConfigError,
+    ExpTrackerError,
     ExpTrackerProgressError,
 )
+from .exp_tracker import ExperimentStatus, ExpTracker
 from .utils.color_utils import random_hex_color
 from .utils.content_utils import image_data_to_png_bytes
 from .utils.experiment_init_strategy import InitParams
-from . import config
+from .utils.hooks.tensorboard import monkey_patch_tensorboard
 
 __all__ = [
     "ExpTracker",
@@ -46,6 +47,7 @@ __all__ = [
     "fetch_all_recent_experiments",
     "fetch_all_teams",
     "image_data_to_png_bytes",
+    "monkey_patch_tensorboard",
     "random_hex_color",
     "ExpTrackerError",
     "ExpTrackerConfigError",
@@ -53,4 +55,4 @@ __all__ = [
     "ExpTrackerProgressError",
     "config",
 ]
-__version__ = "0.9.13"
+__version__ = "0.9.17"

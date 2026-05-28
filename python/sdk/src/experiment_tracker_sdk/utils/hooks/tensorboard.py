@@ -131,7 +131,15 @@ def _patch_summary_writer(writer_cls: type[Any]) -> None:
     original_add_scalar = getattr(writer_cls, "add_scalar", None)
     if callable(original_add_scalar):
 
-        def add_scalar(self, tag, scalar_value, global_step=None, walltime=None, *args, **kwargs):  # type: ignore[no-untyped-def]
+        def add_scalar(  # type: ignore[no-untyped-def]
+            self,
+            tag,
+            scalar_value,
+            global_step=None,
+            walltime=None,
+            *args,
+            **kwargs,
+        ):
             tracker = _active_tracker
             if tracker is not None:
                 try:
@@ -161,7 +169,15 @@ def _patch_summary_writer(writer_cls: type[Any]) -> None:
     original_add_image = getattr(writer_cls, "add_image", None)
     if callable(original_add_image):
 
-        def add_image(self, tag, img_tensor, global_step=None, walltime=None, *args, **kwargs):  # type: ignore[no-untyped-def]
+        def add_image(  # type: ignore[no-untyped-def]
+            self,
+            tag,
+            img_tensor,
+            global_step=None,
+            walltime=None,
+            *args,
+            **kwargs,
+        ):
             tracker = _active_tracker
             if tracker is not None:
                 try:
@@ -238,6 +254,34 @@ def _patch_summary_writer_module(module_name: str) -> None:
         _patch_summary_writer(writer_cls)
 
 
+def monkey_patch_tensorboard(tracker: Any | None = None) -> None:
+    """Patch installed TensorBoard writer implementations.
+
+    Args:
+        tracker: Optional tracker to receive mirrored SummaryWriter calls.
+            When omitted, the currently active tracker is left unchanged.
+    """
+    global _active_tracker
+    if tracker is not None:
+        _active_tracker = tracker
+    for name in ("tensorboard", "tensorboardX"):
+        try:
+            spec = importlib.util.find_spec(name)
+        except ModuleNotFoundError:
+            continue
+        if spec is None:
+            continue
+        importlib.import_module(name)  # noqa: F401 - side effect / warm import
+    for module_name in ("tensorboardX", "torch.utils.tensorboard"):
+        try:
+            _patch_summary_writer_module(module_name)
+        except Exception as exc:  # noqa: BLE001
+            _logger.warning(
+                "tensorboard_summary_writer_patch_failed",
+                extra={"module_name": module_name, "error": str(exc)},
+            )
+
+
 def _tensorboard_bootstrap(ctx: RunCliContext) -> None:
     """TensorBoard / TensorBoardX setup for in-process ``run``.
 
@@ -247,18 +291,7 @@ def _tensorboard_bootstrap(ctx: RunCliContext) -> None:
     """
     global _active_tracker
     _active_tracker = None if ctx.runner is None else ctx.runner.exp_tracker
-    for name in ("tensorboard", "tensorboardX"):
-        if importlib.util.find_spec(name) is None:
-            continue
-        importlib.import_module(name)  # noqa: F401 — side effect / warm import
-    for module_name in ("tensorboardX", "torch.utils.tensorboard"):
-        try:
-            _patch_summary_writer_module(module_name)
-        except Exception as exc:  # noqa: BLE001
-            _logger.warning(
-                "tensorboard_summary_writer_patch_failed",
-                extra={"module_name": module_name, "error": str(exc)},
-            )
+    monkey_patch_tensorboard()
 
 
 def register_default_tensorboard_hooks() -> None:

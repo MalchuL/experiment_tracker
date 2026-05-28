@@ -128,6 +128,11 @@ class ExperimentTrackerClient:
         self._queue = RequestQueue(self._http_client, max_queue_size=max_queue_size)
         self._supress_errors = supress_errors
 
+    @property
+    def is_closed(self) -> bool:
+        """Return whether the underlying HTTP client has been closed."""
+        return self._http_client.is_closed
+
     def probe_http_status(self, method: MethodT, endpoint: str) -> int:
         """Perform a simple request and return the HTTP status (body discarded)."""
         with disable_httpx_logging():
@@ -399,5 +404,12 @@ class ExperimentTrackerClient:
 
     def close(self) -> None:
         """Close the request queue and underlying HTTP client."""
-        self._queue.close()
-        self._http_client.close()
+        try:
+            self._queue.close()
+        except Exception:
+            pass
+        if not self.is_closed:
+            try:
+                self._http_client.close()
+            except Exception:
+                pass

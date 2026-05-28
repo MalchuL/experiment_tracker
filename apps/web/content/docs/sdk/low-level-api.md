@@ -10,13 +10,11 @@ Use `ExpTracker` for normal training scripts. The lower-level SDK APIs are usefu
 from experiment_tracker_sdk.client.api_access import ExpTrackerApiAccess
 
 access = ExpTrackerApiAccess.instance()
-client = access.get_request_client()
-registry = access.get_api_requests_registry()
+client = access.request_client
+registry = access.api_requests_registry
 
 profile = client.request(registry.users.get_my_profile())
 print(profile.email)
-
-client.close()
 ```
 
 The registry creates typed request specs. The client executes them and parses JSON responses into the configured Pydantic response models.
@@ -33,7 +31,9 @@ project = client.request(
 )
 ```
 
-When using the low-level client directly, close it when your script is done.
+When constructing a client directly, close it when your script is done. The
+client returned by `ExpTrackerApiAccess.instance()` is process-wide and should
+not be closed by individual callers.
 
 ## Direct client construction
 

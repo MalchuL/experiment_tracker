@@ -522,7 +522,10 @@ def main() -> None:
         raise
     finally:
         if tracker is not None:
-            tracker.close()
+            try:
+                tracker.close()
+            except Exception:
+                pass
 
 
 if __name__ == "__main__":
