@@ -302,3 +302,41 @@ class PermissionChecker:
             team_id=team_id,
             actions=TeamActions.VIEW_TEAM,
         )
+
+
+def _superuser_allow_method(method_name: str):
+    """Build an async ``can_*`` that grants access when ids are present."""
+
+    async def _method(self, user_id: UUID, scope_id: UUID) -> bool:
+        if scope_id is None or user_id is None:
+            return False
+        return True
+
+    _method.__name__ = method_name
+    _method.__qualname__ = f"SuperuserPermissionChecker.{method_name}"
+    return _method
+
+
+def _inactive_deny_method(method_name: str):
+    """Build an async ``can_*`` that denies all access."""
+
+    async def _method(self, user_id: UUID, scope_id: UUID) -> bool:
+        return False
+
+    _method.__name__ = method_name
+    _method.__qualname__ = f"InactiveUserPermissionChecker.{method_name}"
+    return _method
+
+
+class SuperuserPermissionChecker(PermissionChecker):
+    """Permission checker that grants all actions (for ``User.is_superuser``)."""
+
+
+class InactiveUserPermissionChecker(PermissionChecker):
+    """Permission checker that denies all actions (for inactive users)."""
+
+
+for _name, _attr in PermissionChecker.__dict__.items():
+    if _name.startswith("can_") and callable(_attr):
+        setattr(SuperuserPermissionChecker, _name, _superuser_allow_method(_name))
+        setattr(InactiveUserPermissionChecker, _name, _inactive_deny_method(_name))

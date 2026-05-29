@@ -390,6 +390,33 @@ class TestProjectService:
         project_ids = {project.id for project in projects.data}
         assert team_project.id in project_ids
 
+    async def test_is_user_accessible_project_superuser_without_permissions(
+        self,
+        project_service: ProjectService,
+        db_session: AsyncSession,
+        test_user: User,
+        test_user_2: User,
+    ) -> None:
+        project = await _create_project(db_session, test_user)
+        test_user_2.is_superuser = True
+        assert await project_service.is_user_accessible_project(
+            test_user_2, project.id, actions=ProjectActions.VIEW_PROJECT
+        )
+
+    async def test_is_user_accessible_project_inactive_superuser_denied(
+        self,
+        project_service: ProjectService,
+        db_session: AsyncSession,
+        test_user: User,
+        test_user_2: User,
+    ) -> None:
+        project = await _create_project(db_session, test_user)
+        test_user_2.is_superuser = True
+        test_user_2.is_active = False
+        assert not await project_service.is_user_accessible_project(
+            test_user_2, project.id, actions=ProjectActions.VIEW_PROJECT
+        )
+
     async def test_create_project_sets_team_owner_as_project_owner(
         self,
         project_service: ProjectService,

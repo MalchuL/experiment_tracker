@@ -1,7 +1,6 @@
 import uuid
 from typing import Optional
 
-from api.routes.service_dependencies import get_api_token_service
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fastapi_users import BaseUserManager, FastAPIUsers, UUIDIDMixin
@@ -19,6 +18,7 @@ from domain.api_tokens.error import (
     ApiTokenInvalidError,
     ApiTokenRevokedError,
 )
+from domain.api_tokens.repository import ApiTokenRepository
 from domain.api_tokens.service import ApiTokenService
 from domain.team.users.dto import UserCreate, UserRead, UserUpdate
 from fastapi_users.exceptions import InvalidPasswordException
@@ -73,6 +73,15 @@ current_active_user_optional = fastapi_users.current_user(active=True, optional=
 current_superuser = fastapi_users.current_user(active=True, superuser=True)
 
 bearer_scheme = HTTPBearer(auto_error=False)
+
+
+async def get_api_token_service(
+    session: AsyncSession = Depends(get_async_session),
+) -> ApiTokenService:
+    """Local PAT service wiring (avoids importing service_dependencies from auth)."""
+    return ApiTokenService(
+        db=session, api_token_repository=ApiTokenRepository(session)
+    )
 
 
 async def get_current_user_by_api_token(

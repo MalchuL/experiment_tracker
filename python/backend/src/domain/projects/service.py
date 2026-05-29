@@ -555,6 +555,10 @@ class ProjectService:
         Returns:
             bool: ``True`` when the permission service grants any requested action.
         """
+        if not getattr(user, "is_active", True):
+            return False
+        if getattr(user, "is_superuser", False):
+            return True
         if actions is None:
             actions = ProjectActions.VIEW_PROJECT
         actions_list = [actions] if isinstance(actions, str) else actions
