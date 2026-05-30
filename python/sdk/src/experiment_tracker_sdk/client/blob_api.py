@@ -70,9 +70,7 @@ class BlobRequestsStrategy:
             which are missing from the project artifact store.
         """
         return self.request_client.request(  # type: ignore[return-value]
-            self.registry.project_artifacts.check_project_artifacts(
-                project_id, hashes
-            ),
+            self.registry.project_artifacts.check_project_artifacts(project_id, hashes),
         )
 
     def upload_project_artifact(
