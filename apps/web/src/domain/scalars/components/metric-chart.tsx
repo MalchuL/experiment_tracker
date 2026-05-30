@@ -1,8 +1,8 @@
 "use client";
 
-import { memo, useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
-import Plot from "react-plotly.js";
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 import type { Config, Layout, PlotData, PlotMouseEvent } from "plotly.js";
+import { MemoizedPlot } from "@/domain/scalars/components/plotly/stable-plot";
 
 type RelayoutEvent = Readonly<Record<string, unknown>>;
 type PlotlyGraphDiv = Readonly<HTMLElement> & {
@@ -54,65 +54,6 @@ const TOOLTIP_HORIZONTAL_PADDING_PX = 24;
 const TOOLTIP_ROW_HEIGHT_PX = 18;
 const TOOLTIP_VERTICAL_PADDING_PX = 12;
 const TOOLTIP_EXTRA_TEXT_CHARS = 8;
-const PLOT_STYLE = { width: "100%", height: "100%" };
-
-interface StablePlotProps {
-  data: Partial<PlotData>[];
-  layout: Partial<Layout>;
-  config: Partial<Config>;
-  revision?: number;
-  shouldFreezeUpdates?: () => boolean;
-  onHover: (event: Readonly<PlotMouseEvent>) => void;
-  onUnhover?: () => void;
-  onRelayout: (event: RelayoutEvent) => void;
-  onInitialized: (_figure: unknown, graphDiv: Readonly<HTMLElement>) => void;
-}
-
-function StablePlot({
-  data,
-  layout,
-  config,
-  revision,
-  onHover,
-  onUnhover,
-  onRelayout,
-  onInitialized,
-}: StablePlotProps) {
-  return (
-    <Plot
-      data={data}
-      layout={layout}
-      config={config}
-      revision={revision}
-      style={PLOT_STYLE}
-      useResizeHandler={true}
-      onHover={onHover}
-      onUnhover={onUnhover}
-      onRelayout={onRelayout}
-      onInitialized={onInitialized}
-    />
-  );
-}
-
-const MemoizedPlot = memo(StablePlot, (prev, next) => {
-  // Plotly can leave axes/grid stuck if Plotly.react runs while the user is dragging.
-  // Skip React-driven plot updates during Plotly's relayouting phase; relayout ends the freeze.
-  if (next.shouldFreezeUpdates?.()) {
-    return true;
-  }
-  return (
-    prev.data === next.data &&
-    prev.layout === next.layout &&
-    prev.config === next.config &&
-    prev.revision === next.revision &&
-    prev.onHover === next.onHover &&
-    prev.onUnhover === next.onUnhover &&
-    prev.onRelayout === next.onRelayout &&
-    prev.onInitialized === next.onInitialized &&
-    prev.shouldFreezeUpdates === next.shouldFreezeUpdates
-  );
-});
-
 import type { Experiment } from "@/domain/experiments/types";
 import type {
   ChartDomain,

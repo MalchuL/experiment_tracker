@@ -1,8 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import {
+  isPlotlyArtifactType,
+  PlotlyArtifactMedia,
+} from "@/domain/scalars/components/artifacts/plotly-artifact-media";
 
-interface ArtifactMediaProps {
+export interface ArtifactMediaProps {
   objectType: string;
   src: string;
   name: string;
@@ -10,6 +14,7 @@ interface ArtifactMediaProps {
   maxHeight: number;
   onImagePreview: (payload: { src: string; title: string }) => void;
   title: string;
+  metadata?: Record<string, string>;
 }
 
 export function ArtifactMedia({
@@ -20,23 +25,20 @@ export function ArtifactMedia({
   maxHeight,
   onImagePreview,
   title,
+  metadata,
 }: ArtifactMediaProps) {
   const [textContent, setTextContent] = useState<string | null>(null);
-  const [textLoading, setTextLoading] = useState(false);
   const [textError, setTextError] = useState<string | null>(null);
 
   useEffect(() => {
     if (objectType !== "text") {
       setTextContent(null);
-      setTextLoading(false);
       setTextError(null);
       return;
     }
 
     const controller = new AbortController();
-    setTextLoading(true);
     setTextError(null);
-    setTextContent(null);
 
     void fetch(src, { signal: controller.signal })
       .then(async (response) => {
@@ -55,11 +57,6 @@ export function ArtifactMedia({
           return;
         }
         setTextError("Failed to load text");
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) {
-          setTextLoading(false);
-        }
       });
 
     return () => {
@@ -86,10 +83,7 @@ export function ArtifactMedia({
     return <audio src={src} controls className="w-full" />;
   }
   if (objectType === "text") {
-    if (textLoading) {
-      return <p className="text-xs text-muted-foreground">Loading text...</p>;
-    }
-    if (textError) {
+    if (textError && !textContent) {
       return <p className="text-xs text-destructive">{textError}</p>;
     }
     return (
@@ -100,6 +94,17 @@ export function ArtifactMedia({
       >
         {textContent ?? ""}
       </pre>
+    );
+  }
+  if (isPlotlyArtifactType(objectType)) {
+    return (
+      <PlotlyArtifactMedia
+        objectType={objectType}
+        src={src}
+        title={title}
+        maxHeight={maxHeight}
+        metadata={metadata}
+      />
     );
   }
   return (

@@ -19,7 +19,8 @@ Experiment Tracker is organized around a small set of product domains. Projects 
 
 ## Pages
 
-- [Users](/docs/domains/users) — accounts, profiles, password changes, and personal API tokens.
+- [Users](/docs/domains/users) — accounts, profiles, password changes, superuser, and personal API tokens.
+- [Admin panel](/docs/reference/admin-panel) — bootstrap operator UI (`ADMIN_PANEL_KEY`, `/admin`, storage admin).
 - [Teams](/docs/domains/teams) — team ownership, roles, members, and team-owned projects.
 - [Projects](/docs/domains/projects) — experiment containers, members, settings, tracked metrics, and display metrics.
 - [Experiments](/docs/domains/experiments) — concrete runs, status, progress, colors, tags, parents, and feature trees.

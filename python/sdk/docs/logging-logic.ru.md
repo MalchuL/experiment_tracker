@@ -1,0 +1,53 @@
+- Experiment Tracker
+	- Есть
+		- ArtifactClient
+			- Внутри использует ExperimentTrackerClient
+		- И ExperimentTrackerClient
+	- Logging artifact at step
+		- ArtifactClient.upload_and_log_experiment_artifact_at_step
+			- Строится file_spec - где есть контент, имя файла и тип контента
+			- Строится spec - upload_and_log_experiment_artifact_at_step
+				- Туда передается file_spec и все заполняется как form_data
+				- Там содержится вся информация о запросе, эндпоинт, форм дата (в этом случае) и файлы
+				- `files={"file": file},`
+					- Потом будет использоваться в `build_multipart_files`
+			- этот самый spec вызывает _request у ArtifactClient
+				- вызывает ExperimentTrackerClient.request
+					- Вызывается HttpRequestExecutor.execute. туда передается request_spec и
+						- RequestOptions(verbose: bool = False
+						  stream: bool | None = None  
+						  progress_desc: str | None = None  
+						  progress_position: int | None = None  
+						  progress_leave: bool = True)  
+						- Определяется payload, который либо dict либо None
+						- Определяется  payload_is_json и form_data_is_present
+						- Определяется, а ответ это Download или нет is_download
+						- Вызывается build_multipart_files
+							- там один из аргументов (spec.files, определенный ранее, для загрузки это `files={"file": file},`)
+							- **Если files не определены**, то возвращается ничего
+							- httpx_files - это словарь с ключами  как files.
+								- содержимое это (filename, bytes | ProgressBytesReader, mime type)
+									- ProgressBytesReader - это оверрайд обычного IO который обновляет прогрес бар после чтения
+							- progress_bars - это список прогрес баров, используемых для отображения, их количество не обязано совпадать с httpx_files
+								- Важно понимать, что прогресс бар содержится как в контенте, так и в прогресс баре отдельно
+							- По каждому файлу в словаре
+								- если есть verbose то мы в качестве контента возвращаем ProgressBytesReader, а иначе просто контент
+								- Добавляется прогрес бар дополнительно в список
+						- Если респонс это is_download и нужен стрим
+							- делаем **return** open_streaming_download
+								- Используем httpx stream для скачивания
+						- Отправляем _buffered_request
+							- если **payload_is_json** делает простой запрос
+							- если **form_data_is_present** аналогично, но вместо json отправляются файлы и form data
+							- Делает запрос с файлами, но без данных формы
+						- Делается _parse_response с результатами _buffered_request
+							- Там возвращает что-то из списка ResponseT | dict[str, Any] | FileDownloadResponse
+								- Интересное для файла file_download_response_from_headers
+									- Вернет FileDownloadResponse, где контент это
+										- bytes(скачал чисто)
+										- BytesIO
+										- Iterator[bytes] - имеет итератор и скачивает данные при запуске итератора (но тольк в каком-нибудь download)
+						- В конце закрываем програсс бары
+	- Logging final artifact
+	- Simple json
+	- Logging Project artifact

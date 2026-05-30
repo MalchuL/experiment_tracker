@@ -8,6 +8,7 @@ import type { Experiment } from "@/domain/experiments/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { API_ROUTES } from "@/lib/constants/api-routes";
 import { CHART_COLORS } from "@/domain/scalars/constants";
+import { useArtifactDetail } from "@/domain/logged-objects/hooks/use-artifact-detail";
 import type {
   LoggedObjectGroups,
   LoggedObjectNameGroup,
@@ -17,6 +18,7 @@ import { closestStep } from "@/domain/scalars/utils";
 import { ArtifactMedia } from "@/domain/scalars/components/artifacts";
 
 export interface LoggedObjectsSectionProps {
+  projectId: string;
   objectGroups: LoggedObjectGroups;
   visibleExperiments: Experiment[];
   cardMinWidth: number;
@@ -35,6 +37,7 @@ export interface LoggedObjectsSectionProps {
 }
 
 export function LoggedObjectsSection({
+  projectId,
   objectGroups,
   visibleExperiments,
   cardMinWidth,
@@ -187,6 +190,7 @@ export function LoggedObjectsSection({
                               <p className="text-xs text-muted-foreground">No object for this step</p>
                             ) : (
                               <LoggedObjectArtifactMedia
+                                projectId={projectId}
                                 experimentId={experiment.id}
                                 experimentName={experiment.name}
                                 objectType={objectType}
@@ -216,6 +220,7 @@ export function LoggedObjectsSection({
 }
 
 function LoggedObjectArtifactMedia({
+  projectId,
   experimentId,
   experimentName,
   objectType,
@@ -225,6 +230,7 @@ function LoggedObjectArtifactMedia({
   maxHeight,
   onImagePreview,
 }: {
+  projectId: string;
   experimentId: string;
   experimentName: string;
   objectType: string;
@@ -248,6 +254,14 @@ function LoggedObjectArtifactMedia({
   const objectSrc = objectRef.lastModified
     ? `${baseSrc}&cb=${encodeURIComponent(objectRef.lastModified)}`
     : baseSrc;
+  const { artifact } = useArtifactDetail({
+    projectId,
+    experimentId,
+    objectType,
+    name,
+    step,
+    enabled: objectType === "histogram" || objectType === "scatter",
+  });
 
   return (
     <ArtifactMedia
@@ -258,6 +272,7 @@ function LoggedObjectArtifactMedia({
       maxHeight={maxHeight}
       onImagePreview={onImagePreview}
       title={`${name} · ${experimentName} · step ${step}`}
+      metadata={artifact?.metadata}
     />
   );
 }

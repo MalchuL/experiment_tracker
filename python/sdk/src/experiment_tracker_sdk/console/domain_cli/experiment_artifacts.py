@@ -3,12 +3,11 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import cast
 
 import click
 
-from experiment_tracker_sdk.client.request_types import FileDownloadResponse
-from experiment_tracker_sdk.client.utils.downloading import dump_binary_content_to_path
+from experiment_tracker_sdk.client.artifact_client import ArtifactClient
+from experiment_tracker_sdk.client.transport.options import RequestOptions
 
 from .common import (
     api,
@@ -124,21 +123,13 @@ def experiment_artifact_download_command(
 ) -> None:
     require_identifier(filepath, blob_id, artifact_hash)
     client, registry = api()
-    download = cast(
-        FileDownloadResponse,
-        client.request(
-            registry.experiment_artifacts.download_named_experiment_artifact(
-                experiment_id=experiment_id,
-                filepath=filepath,
-                blob_id=blob_id,
-                artifact_hash=artifact_hash,
-            )
-        ),
-    )
-    destination = dump_binary_content_to_path(
-        download.content,
-        output_path,
-        download.filename,
+    artifacts = ArtifactClient(registry, client)
+    destination = artifacts.download_named_experiment_artifact(
+        experiment_id=experiment_id,
+        filepath=filepath,
+        blob_id=blob_id,
+        artifact_hash=artifact_hash,
+        output_path=output_path,
     )
     click.echo(str(destination))
 

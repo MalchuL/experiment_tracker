@@ -27,6 +27,7 @@ Authors can use **callouts** (warnings, tips, …) and **expandable sections** i
 - [Domains](/docs/domains) — users, teams, projects, experiments, scalars, metrics, artifacts, hypotheses, and reports.
 - [SDK](/docs/sdk) — install the Python SDK, configure the CLI, and log experiments from training scripts.
 - [File descriptors & local services](/docs/getting-started/file-descriptors) — `Too many open files`, local `uvicorn --reload`, and where to look in the repo when scalars or the backend exhaust FDs.
+- [Admin panel](/docs/reference/admin-panel) — `ADMIN_PANEL_KEY`, `/admin` user management, and `/admin/storage` for operators.
 - [Callouts, details & formatting](/docs/reference/doc-features) — warning boxes and collapsible Markdown blocks.
 - [Common documentation patterns](/docs/examples/common-patterns) — practical recipes for authors.
 - [Adding documentation pages](/docs/contributing/adding-pages) — how authors and agents add new `/docs` pages.

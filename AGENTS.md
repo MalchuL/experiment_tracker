@@ -168,8 +168,11 @@ The HTTP API is mounted with a configurable prefix (see `config/settings.py` / `
 
 ### Admin panel and passwords (main API)
 
+In-app docs: **`/docs/reference/admin-panel`** (`apps/web/content/docs/reference/admin-panel.md`).
+
 - **`ADMIN_PANEL_KEY`**: Defaults to insecure `admin` for local dev. On startup the backend logs a **warning** when the key is still `admin`, and an **info** line (without revealing the value) when a custom key was loaded from `ADMIN_PANEL_KEY`.
-- **Admin HTTP API** (no JWT; header **`X-Admin-Key`** must match the configured key): `GET /admin/users?q=&limit=` (default **20**) **`&offset=`** → JSON **`{ items, total, limit, offset }`** (`q` filters email, display name, and user UUID substring), `GET /admin/teams?q=&limit=` **`&offset=`** → same shape (`q` filters team name and description), `POST /admin/users/{user_id}/reset-password` → JSON includes **`temporaryPassword`** once. Storage admin: `GET /admin/storage/buckets` and `GET /admin/storage/scalars` accept **`limit`**, **`offset`**, and optional **`q`** (bucket name / scalar table name filter); responses include **`total`** alongside **`buckets`** or **`tables`**.
+- **Admin HTTP API** (no JWT; header **`X-Admin-Key`** must match the configured key): `GET /admin/users?q=&limit=` (default **20**) **`&offset=`** → JSON **`{ items, total, limit, offset }`** (`q` filters email, display name, and user UUID substring), `GET /admin/teams?q=&limit=` **`&offset=`** → same shape (`q` filters team name and description), `PATCH /admin/users/{user_id}` (partial **`email`**, **`displayName`**, **`isActive`**, **`isSuperuser`**), `POST /admin/users/{user_id}/reset-password` → JSON includes **`temporaryPassword`** once. Storage admin: `GET /admin/storage/buckets` and `GET /admin/storage/scalars` accept **`limit`**, **`offset`**, and optional **`q`** (bucket name / scalar table name filter); responses include **`total`** alongside **`buckets`** or **`tables`**.
+- **Superuser** (`User.is_superuser`): bypasses `PermissionChecker` per-action checks when the user is **active**; inactive users deny all checks first. Not the same as admin-panel key auth.
 - **User password change** (JWT or session cookie auth, not PAT): `POST /users/me/change-password` with JSON **`currentPassword`** and **`newPassword`** (min 8). Web UI: **`/profile`** (collapsible section); legacy **`/profile/password`** redirects there. Bootstrap admin UI: **`/admin`** (stores key in `sessionStorage`).
 
 ## Cross-service configuration

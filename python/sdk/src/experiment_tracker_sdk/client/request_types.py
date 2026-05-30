@@ -25,6 +25,35 @@ class FileUploadSpec:
 
 
 @dataclass(frozen=True)
+class FileUploadItem:
+    """One file in a batched upload (same endpoint/method, per-item params)."""
+
+    params: dict[str, Any]
+    filename: str
+    content: bytes
+    content_type: str = "application/octet-stream"
+    form_data: dict[str, Any] | None = None
+    label: str | None = None
+
+
+@dataclass(frozen=True)
+class FileDownloadItem:
+    """One file in a batched download (same endpoint/method, per-item params)."""
+
+    params: dict[str, Any] | None = None
+    label: str | None = None
+
+
+@dataclass(frozen=True)
+class FileDownloadToPathItem:
+    """Batched download with a fixed local destination path."""
+
+    output_path: str
+    params: dict[str, Any] | None = None
+    label: str | None = None
+
+
+@dataclass(frozen=True)
 class FileDownloadResponse:
     """Response wrapper for binary file downloads.
 

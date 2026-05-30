@@ -445,7 +445,14 @@ export default function Scalars() {
     );
   }
 
-  if (projectLoading || experimentsLoading || scalarsLoading || objectsLoading) {
+  const hasInitialScalars = scalars.length > 0;
+  const hasInitialArtifacts = projectArtifactsAtStep.length > 0;
+  if (
+    projectLoading ||
+    experimentsLoading ||
+    (scalarsLoading && !hasInitialScalars) ||
+    (objectsLoading && !hasInitialArtifacts)
+  ) {
     return (
       <div className="space-y-6 px-6 pt-6">
         <PageHeader title="Scalars" description="Compare scalars across experiments" actions={pageActions} />
@@ -478,13 +485,6 @@ export default function Scalars() {
             description={`Scalars visualization for "${project?.name}" - ${visibleExperiments.length} experiments visible`}
             actions={pageActions}
           />
-          {(experimentsFetchingNextPage ||
-            scalarsFetchingNextPage ||
-            objectsFetchingNextPage) && (
-            <p className="mt-2 text-sm text-muted-foreground">
-              Loading additional experiments, scalars, and logged objects...
-            </p>
-          )}
         </div>
 
         <div className="min-h-0 flex-1 overflow-auto">
@@ -513,6 +513,7 @@ export default function Scalars() {
           />
 
           <LoggedObjectsSection
+            projectId={projectId}
             objectGroups={objectGroups}
             visibleExperiments={visibleExperiments}
             cardMinWidth={cardMinWidth}
@@ -589,6 +590,7 @@ export default function Scalars() {
       />
 
       <ScalarsDialogs
+        projectId={projectId}
         fullscreenMetric={fullscreenMetric}
         setFullscreenMetric={setFullscreenMetric}
         fullscreenMetricData={fullscreenMetricData}

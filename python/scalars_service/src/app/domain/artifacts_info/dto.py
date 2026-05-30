@@ -1,11 +1,10 @@
-from typing import Any, Dict, List, Literal
+from typing import Any, Dict, List
 from uuid import UUID
 
+from experiment_tracker_shared import ArtifactType
 from pydantic import BaseModel, Field
 
 from app.lib.datetime_types import ApiDateTime
-
-ArtifactType = Literal["image", "video", "audio", "text", "point_cloud_3d"]
 
 
 class ArtifactInfoEntryDTO(BaseModel):

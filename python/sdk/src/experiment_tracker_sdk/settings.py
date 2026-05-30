@@ -8,6 +8,11 @@ from pathlib import Path
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from experiment_tracker_sdk.constants import (
+    DEFAULT_HISTOGRAM_METADATA_BINS,
+    DEFAULT_SCATTER_METADATA_MAX_POINTS,
+)
+
 DEFAULT_CONFIG_DIR = Path.home() / ".experiment-tracker"
 DEFAULT_CONFIG_PATH = DEFAULT_CONFIG_DIR / "config.json"
 
@@ -41,6 +46,16 @@ class ExpTrackerSettings(BaseSettings):
     api_token: str | None = Field(
         default=None,
         description="API token override used instead of the token in the config file.",
+    )
+    histogram_metadata_bins: int = Field(
+        default=DEFAULT_HISTOGRAM_METADATA_BINS,
+        ge=1,
+        description="Number of histogram bins stored in artifact metadata previews.",
+    )
+    scatter_metadata_max_points: int = Field(
+        default=DEFAULT_SCATTER_METADATA_MAX_POINTS,
+        ge=1,
+        description="Maximum scatter points stored in artifact metadata previews.",
     )
 
 
