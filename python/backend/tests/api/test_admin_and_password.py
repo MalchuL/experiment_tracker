@@ -73,6 +73,30 @@ class TestAdminRoutes:
         body = r.json()
         assert isinstance(body.get("items"), list)
 
+    def test_admin_patch_user_fields(self, client: TestClient, test_user_2: User):
+        headers = {"X-Admin-Key": "admin", "Content-Type": "application/json"}
+        r = client.patch(
+            f"/api/admin/users/{test_user_2.id}",
+            headers=headers,
+            json={
+                "displayName": "Patched Name",
+                "isActive": False,
+                "isSuperuser": True,
+            },
+        )
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert body["displayName"] == "Patched Name"
+        assert body["isActive"] is False
+        assert body["isSuperuser"] is True
+
+        restore = client.patch(
+            f"/api/admin/users/{test_user_2.id}",
+            headers=headers,
+            json={"isActive": True, "isSuperuser": False, "displayName": None},
+        )
+        assert restore.status_code == 200, restore.text
+
     @pytest.mark.asyncio
     async def test_admin_delete_user_removes_personal_projects_keeps_team_owned(
         self, client: TestClient, db_session: AsyncSession, test_user_2: User
@@ -115,8 +139,12 @@ class TestAdminRoutes:
         personal_id = personal.id
         team_project_id = team_project.id
 
-        headers = {"X-Admin-Key": "admin"}
-        deactivate = client.post(f"/api/admin/users/{test_user_2.id}/deactivate", headers=headers)
+        headers = {"X-Admin-Key": "admin", "Content-Type": "application/json"}
+        deactivate = client.patch(
+            f"/api/admin/users/{test_user_2.id}",
+            headers=headers,
+            json={"isActive": False},
+        )
         assert deactivate.status_code == 200, deactivate.text
         delete = client.delete(f"/api/admin/users/{test_user_2.id}", headers=headers)
         assert delete.status_code == 200, delete.text

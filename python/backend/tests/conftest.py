@@ -367,13 +367,19 @@ def service_constructor_compat(monkeypatch: pytest.MonkeyPatch) -> None:
         api_token_repository = api_token_repository or ApiTokenRepository(db)
         original_api_token_init(self, db, api_token_repository=api_token_repository)
 
-    def _make_permission_checker(db: AsyncSession) -> PermissionChecker:
+    def _make_permission_checker(
+        db: AsyncSession, user: User | None = None
+    ) -> PermissionChecker:
+        from domain.rbac.deps import build_permission_checker
+
         permission_service = PermissionService(
             db,
             permission_repository=PermissionRepository(db),
             project_repository=ProjectRepository(db),
             auto_commit=False,
         )
+        if user is not None:
+            return build_permission_checker(user, db, permission_service)
         return PermissionChecker(db, permission_service)
 
     def _permission_checker_init_compat(

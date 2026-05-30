@@ -9,7 +9,7 @@ from experiment_tracker_sdk.client import (
     ExperimentTrackerClient,
 )
 from experiment_tracker_sdk.client.api_registry import APIRequestsRegistry
-from experiment_tracker_sdk.client.blob_api import BlobRequestsStrategy
+from experiment_tracker_sdk.client.artifact_client import ArtifactClient
 from experiment_tracker_sdk.client.domain.experiment_artifacts.dto import ArtifactType
 from experiment_tracker_sdk.client.domain.experiments.dto import (
     ExperimentResponse,
@@ -88,17 +88,27 @@ class ExpTracker:
         api_requests_registry: APIRequestsRegistry,
         request_client: ExperimentTrackerClient,
         experiment_instance: ExperimentInstance | None = None,
+        *,
+        verbose: bool = False,
     ):
         """Initialize the ExpTracker instance.
+
         Args:
-            log_dir (str): Directory to save logs or use as project/source.
-            **kwargs: Additional arguments as needed.
+            experiment_id: Experiment UUID or string id bound to this tracker.
+            project_id: Project UUID or string id that owns the experiment.
+            api_requests_registry: Registry of API request spec factories.
+            request_client: HTTP client used for API calls and artifact uploads.
+            experiment_instance: Optional pre-built experiment handle; when
+                omitted, a minimal placeholder instance is created.
+            verbose: When ``True``, show tqdm progress bars during artifact
+                uploads (images, text, final artifacts, and similar).
         """
         self.experiment_id = experiment_id
         self.project_id = project_id
         self._api_requests_registry = api_requests_registry
         self._request_client = request_client
-        self._blob_api = BlobRequestsStrategy(
+        self._verbose = verbose
+        self._artifacts = ArtifactClient(
             registry=api_requests_registry,
             request_client=request_client,
         )
@@ -129,27 +139,11 @@ class ExpTracker:
         """Leave batched experiment metadata update mode."""
         return self._experiment.__exit__(exc_type, exc, tb)
 
-    def _upload_artifact_at_step(
-        self,
-        *,
-        filename: str,
-        content: bytes,
-        content_type: str,
-        name: str,
-        artifact_type: ArtifactType,
-        step: int,
-        metadata: dict | None = None,
-    ):
-        return self._blob_api.upload_and_log_experiment_artifact_at_step(
-            experiment_id=str(self.experiment_id),
-            filename=filename,
-            content=content,
-            content_type=content_type,
-            name=name,
-            artifact_type=artifact_type,
-            step=step,
-            metadata=metadata,
-        )
+    def _resolve_verbose(self, verbose: bool | None) -> bool:
+        """Per-call ``verbose`` wins; ``None`` uses :attr:`_verbose` from construction."""
+        if verbose is not None:
+            return verbose
+        return self._verbose
 
     @classmethod
     def init(
@@ -158,6 +152,8 @@ class ExpTracker:
         experiment: str | UUID,
         team: str | UUID | None = None,
         init_params: InitParams | None = None,
+        *,
+        verbose: bool = False,
     ) -> "ExpTracker":
         """Initialize the ExpTracker instance.
 
@@ -171,6 +167,8 @@ class ExpTracker:
                 ambiguous matches are resolved, and whether missing objects are
                 created. When omitted, missing experiments are created by
                 default while projects and teams must already exist.
+            verbose: When ``True``, show tqdm progress bars during artifact
+                uploads performed through this tracker.
 
         Returns:
             Configured ``ExpTracker`` bound to the resolved experiment.
@@ -191,6 +189,7 @@ class ExpTracker:
             strategy.api_requests_registry,
             strategy.request_client,
             experiment_instance=result.experiment,
+            verbose=verbose,
         )
 
     def add_scalar(
@@ -248,15 +247,21 @@ class ExpTracker:
         img: ImageDataContent,
         global_step: int = 0,
         walltime: float = 0,
+        verbose: bool | None = None,
     ):
         """Upload and log a single image object.
 
         Supported inputs:
         - PIL.Image.Image
         - numpy.ndarray in HW or HWC layout
+
+        Args:
+            verbose: Upload progress bar for this call only. ``None`` uses the
+                tracker-level ``verbose`` from construction or :meth:`init`.
         """
         prepared = prepare_step_image_content(tag, img, global_step)
-        self._upload_artifact_at_step(
+        self._artifacts.upload_and_log_experiment_artifact_at_step(
+            experiment_id=str(self.experiment_id),
             filename=prepared.filename,
             content=prepared.content,
             content_type=prepared.content_type,
@@ -264,6 +269,7 @@ class ExpTracker:
             artifact_type="image",
             step=global_step,
             metadata={"format": "png"},
+            verbose=self._resolve_verbose(verbose),
         )
 
     def add_text(
@@ -272,10 +278,17 @@ class ExpTracker:
         text_string: str,
         global_step: int = 0,
         walltime: float = 0,
+        verbose: bool | None = None,
     ):
-        """Upload and log text as a text object."""
+        """Upload and log text as a text object.
+
+        Args:
+            verbose: Upload progress bar for this call only. ``None`` uses the
+                tracker-level ``verbose`` from construction or :meth:`init`.
+        """
         prepared = prepare_step_text_content(tag, text_string, global_step)
-        self._upload_artifact_at_step(
+        self._artifacts.upload_and_log_experiment_artifact_at_step(
+            experiment_id=str(self.experiment_id),
             filename=prepared.filename,
             content=prepared.content,
             content_type=prepared.content_type,
@@ -283,6 +296,7 @@ class ExpTracker:
             artifact_type="text",
             step=global_step,
             metadata={"encoding": "utf-8"},
+            verbose=self._resolve_verbose(verbose),
         )
 
     def _upload_chart_artifact_at_step(
@@ -305,7 +319,8 @@ class ExpTracker:
             layout: Optional chart layout dict.
             metadata: String key/value metadata stored alongside the artifact.
         """
-        self._upload_artifact_at_step(
+        self._artifacts.upload_and_log_experiment_artifact_at_step(
+            experiment_id=str(self.experiment_id),
             filename=chart_artifact_filename(tag, global_step),
             content=encode_chart_payload(data, layout),
             content_type="application/json",
@@ -313,6 +328,7 @@ class ExpTracker:
             artifact_type=artifact_type,
             step=global_step,
             metadata=metadata,
+            verbose=self._resolve_verbose(None),
         )
 
     def log_final_artifact(
@@ -322,6 +338,7 @@ class ExpTracker:
         stored_filepath: str | None = None,
         default_content_type: str = "application/octet-stream",
         default_extension: str | None = None,
+        verbose: bool | None = None,
     ) -> None:
         """
         Upload a named final artifact without step-based logging.
@@ -342,6 +359,8 @@ class ExpTracker:
                 a file name.
             default_extension: Extension appended to ``tag`` when building the
                 default stored path and multipart filename.
+            verbose: Upload progress bar for this call only. ``None`` uses the
+                tracker-level ``verbose`` from construction or :meth:`init`.
         """
         try:
             prepared = prepare_final_artifact_content(
@@ -352,13 +371,14 @@ class ExpTracker:
                 default_extension=default_extension,
             )
 
-            self._blob_api.upsert_named_experiment_artifact(
+            self._artifacts.upsert_named_experiment_artifact(
                 experiment_id=str(self.experiment_id),
                 filepath=prepared.filepath,
                 filename=prepared.filename,
                 content=prepared.content,
                 content_type=prepared.content_type,
                 name=tag,
+                verbose=self._resolve_verbose(verbose),
             )
         except Exception as exc:  # noqa: BLE001
             logger.error(
@@ -371,6 +391,7 @@ class ExpTracker:
         tag: str,
         content: ImageContent,
         stored_filepath: str | None = None,
+        verbose: bool | None = None,
     ) -> None:
         """Upload a named final image artifact without step-based logging.
 
@@ -384,6 +405,7 @@ class ExpTracker:
             content: Image bytes, an existing image file path, a readable
                 file-like object, a PIL image, or a numpy array in HW/HWC layout.
             stored_filepath: Relative filepath to store/display in the UI.
+            verbose: Passed through to :meth:`log_final_artifact`.
         """
         self.log_final_artifact(
             tag,
@@ -391,6 +413,7 @@ class ExpTracker:
             stored_filepath=stored_filepath,
             default_content_type="image/png",
             default_extension=".png",
+            verbose=verbose,
         )
 
     def log_final_text(
@@ -398,6 +421,7 @@ class ExpTracker:
         tag: str,
         content: FinalArtifactContent,
         stored_filepath: str | None = None,
+        verbose: bool | None = None,
     ) -> None:
         """Upload a named final text artifact without step-based logging.
 
@@ -407,6 +431,7 @@ class ExpTracker:
                 file-like object. Text strings that are not paths are encoded as
                 UTF-8 by the generic upload path.
             stored_filepath: Relative filepath to store/display in the UI.
+            verbose: Passed through to :meth:`log_final_artifact`.
         """
         self.log_final_artifact(
             tag,
@@ -414,6 +439,7 @@ class ExpTracker:
             stored_filepath=stored_filepath,
             default_content_type="text/plain",
             default_extension=".txt",
+            verbose=verbose,
         )
 
     def log_final_json(
@@ -422,6 +448,7 @@ class ExpTracker:
         content: StructuredFinalArtifactContent,
         stored_filepath: str | None = None,
         indent: int | None = 2,
+        verbose: bool | None = None,
     ) -> None:
         """Upload a named final JSON artifact without step-based logging.
 
@@ -432,6 +459,7 @@ class ExpTracker:
                 payloads are serialized with ``json.dumps``.
             stored_filepath: Relative filepath to store/display in the UI.
             indent: Indentation passed to ``json.dumps`` for structured payloads.
+            verbose: Passed through to :meth:`log_final_artifact`.
         """
         self.log_final_artifact(
             tag,
@@ -439,6 +467,7 @@ class ExpTracker:
             stored_filepath=stored_filepath,
             default_content_type="application/json",
             default_extension=".json",
+            verbose=verbose,
         )
 
     def log_final_yaml(
@@ -446,6 +475,7 @@ class ExpTracker:
         tag: str,
         content: StructuredFinalArtifactContent,
         stored_filepath: str | None = None,
+        verbose: bool | None = None,
     ) -> None:
         """Upload a named final YAML artifact without step-based logging.
 
@@ -455,6 +485,7 @@ class ExpTracker:
                 file-like object, or a structured mapping/list payload. Structured
                 payloads are serialized with the SDK's lightweight YAML emitter.
             stored_filepath: Relative filepath to store/display in the UI.
+            verbose: Passed through to :meth:`log_final_artifact`.
         """
         self.log_final_artifact(
             tag,
@@ -462,6 +493,7 @@ class ExpTracker:
             stored_filepath=stored_filepath,
             default_content_type="application/x-yaml",
             default_extension=".yaml",
+            verbose=verbose,
         )
 
     def add_histogram(

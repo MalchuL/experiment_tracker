@@ -47,6 +47,34 @@ type AdminPaginated<T> = {
   offset: number;
 };
 
+type UserDraft = {
+  email: string;
+  displayName: string;
+  isActive: boolean;
+  isSuperuser: boolean;
+};
+
+function draftFromUser(u: AdminUserRow): UserDraft {
+  return {
+    email: u.email,
+    displayName: u.displayName ?? "",
+    isActive: u.isActive,
+    isSuperuser: u.isSuperuser,
+  };
+}
+
+function draftsEqual(a: UserDraft, b: UserDraft): boolean {
+  return (
+    a.email === b.email &&
+    a.displayName === b.displayName &&
+    a.isActive === b.isActive &&
+    a.isSuperuser === b.isSuperuser
+  );
+}
+
+const ROW_SELECT_CLASS =
+  "border-input bg-background h-9 w-full min-w-[5.5rem] rounded-md border px-2 text-sm";
+
 function adminBaseUrl() {
   return env.BASE_URL.replace(/\/$/, "");
 }
@@ -105,6 +133,8 @@ export default function AdminPage() {
   const [resetResult, setResetResult] = useState<{ email: string; password: string } | null>(null);
   const [unlockError, setUnlockError] = useState<string | null>(null);
   const [unlocking, setUnlocking] = useState(false);
+  const [userDrafts, setUserDrafts] = useState<Record<string, UserDraft>>({});
+  const [savingUserId, setSavingUserId] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -137,6 +167,8 @@ export default function AdminPage() {
     setResetResult(null);
     setLoadError(null);
     setUnlockError(message);
+    setUserDrafts({});
+    setSavingUserId(null);
   }, []);
 
   const tryUnlock = useCallback(async () => {
@@ -171,6 +203,8 @@ export default function AdminPage() {
     setResetResult(null);
     setUnlockError(null);
     setLoadError(null);
+    setUserDrafts({});
+    setSavingUserId(null);
   };
 
   const loadTeams = useCallback(
@@ -213,11 +247,21 @@ export default function AdminPage() {
       }
       setLoadError(null);
       const body = (await r.json()) as AdminPaginated<AdminUserRow>;
-      setUsers(body.items ?? []);
+      const items = body.items ?? [];
+      setUsers(items);
       setUserTotal(body.total ?? 0);
+      setUserDrafts(Object.fromEntries(items.map((u) => [u.id, draftFromUser(u)])));
     },
     [invalidateAdminSession],
   );
+
+  const updateUserDraft = useCallback((userId: string, patch: Partial<UserDraft>) => {
+    setUserDrafts((prev) => {
+      const current = prev[userId];
+      if (!current) return prev;
+      return { ...prev, [userId]: { ...current, ...patch } };
+    });
+  }, []);
 
   useEffect(() => {
     if (!unlocked) return;
@@ -268,6 +312,13 @@ export default function AdminPage() {
   };
 
   const onReset = async (userId: string, email: string) => {
+    if (
+      !window.confirm(
+        `Reset password for ${email}? The current password will stop working and a new temporary password will be shown once.`,
+      )
+    ) {
+      return;
+    }
     setResetResult(null);
     const r = await adminFetch(API_ROUTES.ADMIN.RESET_PASSWORD(userId), { method: "POST" });
     if (r.status === 403) {
@@ -283,16 +334,34 @@ export default function AdminPage() {
     void loadUsers(search, userOffset, userPageSize);
   };
 
-  const onSetUserActive = async (userId: string, active: boolean) => {
-    const route = active
-      ? API_ROUTES.ADMIN.REACTIVATE_USER(userId)
-      : API_ROUTES.ADMIN.DEACTIVATE_USER(userId);
-    const r = await adminFetch(route, { method: "POST" });
-    if (!r.ok) {
-      setLoadError(await r.text());
-      return;
+  const onSaveUser = async (user: AdminUserRow) => {
+    const draft = userDrafts[user.id];
+    if (!draft) return;
+    setSavingUserId(user.id);
+    setLoadError(null);
+    try {
+      const r = await adminFetch(API_ROUTES.ADMIN.UPDATE_USER(user.id), {
+        method: "PATCH",
+        body: JSON.stringify({
+          email: draft.email.trim(),
+          displayName: draft.displayName.trim() || null,
+          isActive: draft.isActive,
+          isSuperuser: draft.isSuperuser,
+        }),
+      });
+      if (r.status === 403) {
+        invalidateAdminSession("Admin key was rejected. Unlock again.");
+        return;
+      }
+      if (!r.ok) {
+        setLoadError(await r.text());
+        return;
+      }
+      toast({ title: "User saved", description: user.email });
+      void loadUsers(search, userOffset, userPageSize);
+    } finally {
+      setSavingUserId(null);
     }
-    void loadUsers(search, userOffset, userPageSize);
   };
 
   const onDeleteUser = async (userId: string) => {
@@ -364,7 +433,7 @@ export default function AdminPage() {
   }
 
   return (
-    <div className="mx-auto max-w-5xl space-y-8 p-6">
+    <div className="mx-auto max-w-7xl space-y-8 p-6">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-2xl font-semibold tracking-tight">Admin</h1>
         <Button variant="outline" onClick={lock}>
@@ -401,8 +470,8 @@ export default function AdminPage() {
         <CardHeader>
           <CardTitle>Users</CardTitle>
           <CardDescription>
-            Search by email, display name, or user UUID (partial match). Server-side pagination with total
-            count.
+            Search by email, display name, or user UUID. Edit fields in each row and click Save. Reset
+            password and delete are separate actions.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -438,48 +507,101 @@ export default function AdminPage() {
                 <TableHead className="w-[280px] min-w-[200px]">UUID</TableHead>
                 <TableHead>Email</TableHead>
                 <TableHead>Display name</TableHead>
-                <TableHead>Active</TableHead>
-                <TableHead className="w-[120px]" />
+                <TableHead className="min-w-[7rem]">Active</TableHead>
+                <TableHead className="min-w-[7rem]">Superuser</TableHead>
+                <TableHead className="min-w-[12rem]">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {users.map((u) => (
-                <TableRow key={u.id}>
-                  <TableCell className="font-mono text-xs break-all text-muted-foreground">
-                    {u.id}
-                  </TableCell>
-                  <TableCell>{u.email}</TableCell>
-                  <TableCell>{u.displayName ?? "—"}</TableCell>
-                  <TableCell>{u.isActive ? "yes" : "no"}</TableCell>
-                  <TableCell className="space-x-2">
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      size="sm"
-                      onClick={() => void onReset(u.id, u.email)}
-                    >
-                      Reset password
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => void onSetUserActive(u.id, !u.isActive)}
-                    >
-                      {u.isActive ? "Deactivate" : "Reactivate"}
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="destructive"
-                      size="sm"
-                      disabled={u.isActive}
-                      onClick={() => void onDeleteUser(u.id)}
-                    >
-                      Delete
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
+              {users.map((u) => {
+                const draft = userDrafts[u.id] ?? draftFromUser(u);
+                const saved = draftFromUser(u);
+                const dirty = !draftsEqual(draft, saved);
+                const saving = savingUserId === u.id;
+                return (
+                  <TableRow key={u.id}>
+                    <TableCell className="font-mono text-xs break-all text-muted-foreground align-top">
+                      {u.id}
+                    </TableCell>
+                    <TableCell className="align-top">
+                      <Input
+                        type="email"
+                        className="min-w-[12rem]"
+                        value={draft.email}
+                        disabled={saving}
+                        onChange={(e) => updateUserDraft(u.id, { email: e.target.value })}
+                      />
+                    </TableCell>
+                    <TableCell className="align-top">
+                      <Input
+                        className="min-w-[10rem]"
+                        placeholder="Display name"
+                        value={draft.displayName}
+                        disabled={saving}
+                        onChange={(e) => updateUserDraft(u.id, { displayName: e.target.value })}
+                      />
+                    </TableCell>
+                    <TableCell className="align-top">
+                      <select
+                        className={ROW_SELECT_CLASS}
+                        value={draft.isActive ? "yes" : "no"}
+                        disabled={saving}
+                        aria-label={`Active status for ${u.email}`}
+                        onChange={(e) =>
+                          updateUserDraft(u.id, { isActive: e.target.value === "yes" })
+                        }
+                      >
+                        <option value="yes">Yes</option>
+                        <option value="no">No</option>
+                      </select>
+                    </TableCell>
+                    <TableCell className="align-top">
+                      <select
+                        className={ROW_SELECT_CLASS}
+                        value={draft.isSuperuser ? "yes" : "no"}
+                        disabled={saving}
+                        aria-label={`Superuser status for ${u.email}`}
+                        onChange={(e) =>
+                          updateUserDraft(u.id, { isSuperuser: e.target.value === "yes" })
+                        }
+                      >
+                        <option value="yes">Yes</option>
+                        <option value="no">No</option>
+                      </select>
+                    </TableCell>
+                    <TableCell className="align-top">
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          type="button"
+                          size="sm"
+                          disabled={!dirty || saving}
+                          onClick={() => void onSaveUser(u)}
+                        >
+                          {saving ? "Saving…" : "Save"}
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="sm"
+                          disabled={saving}
+                          onClick={() => void onReset(u.id, u.email)}
+                        >
+                          Reset password
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="sm"
+                          disabled={draft.isActive || saving}
+                          onClick={() => void onDeleteUser(u.id)}
+                        >
+                          Delete
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
           <div className="flex flex-col gap-2 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">

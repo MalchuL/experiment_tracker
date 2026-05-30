@@ -30,7 +30,8 @@ from clients.scalars.dto import (
 )
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from fastapi_users import BaseUserManager, exceptions
-from pydantic import BaseModel
+from experiment_tracker_shared.limits import ENTITY_NAME_MAX_LEN
+from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import String, cast, func, literal, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -80,6 +81,28 @@ class AdminUserRowDTO(BaseModel):
     is_active: bool
     is_superuser: bool
     created_at: Optional[str] = None
+
+
+class AdminUserUpdateDTO(BaseModel):
+    """Admin panel patch payload for editable user fields."""
+
+    model_config = dto_model_config()
+
+    email: EmailStr | None = None
+    display_name: Optional[str] = Field(default=None, max_length=ENTITY_NAME_MAX_LEN)
+    is_active: bool | None = None
+    is_superuser: bool | None = None
+
+
+def _admin_user_row_dto(user: User) -> AdminUserRowDTO:
+    return AdminUserRowDTO(
+        id=user.id,
+        email=user.email,
+        display_name=user.display_name,
+        is_active=user.is_active,
+        is_superuser=user.is_superuser,
+        created_at=user.created_at.isoformat() if user.created_at else None,
+    )
 
 
 class AdminTeamRowDTO(BaseModel):
@@ -159,17 +182,7 @@ async def admin_panel_list_all_users(
     total = int((await db.execute(count_stmt)).scalar_one() or 0)
     result = await db.execute(stmt.offset(offset).limit(limit))
     rows = result.scalars().all()
-    items = [
-        AdminUserRowDTO(
-            id=u.id,
-            email=u.email,
-            display_name=u.display_name,
-            is_active=u.is_active,
-            is_superuser=u.is_superuser,
-            created_at=u.created_at.isoformat() if u.created_at else None,
-        )
-        for u in rows
-    ]
+    items = [_admin_user_row_dto(u) for u in rows]
     return AdminUserListResponse(items=items, total=total, limit=limit, offset=offset)
 
 
@@ -252,48 +265,43 @@ async def admin_panel_reset_user_password(
     )
 
 
-@router.post("/users/{user_id}/deactivate", response_model=AdminUserRowDTO)
-async def admin_panel_deactivate_user(
+@router.patch(
+    "/users/{user_id}",
+    response_model=AdminUserRowDTO,
+    response_model_by_alias=True,
+)
+async def admin_panel_update_user(
     user_id: uuid.UUID,
+    body: AdminUserUpdateDTO,
     _: None = Depends(require_admin_panel_key),
     db: AsyncSession = Depends(get_async_session),
 ) -> AdminUserRowDTO:
+    """Update editable user fields from the admin panel."""
     user = await db.get(User, user_id)
     if user is None:
         raise HTTPException(status_code=404, detail="User not found")
-    user.is_active = False
+
+    if body.email is not None:
+        email = str(body.email).strip()
+        conflict = await db.execute(
+            select(User.id).where(User.email == email, User.id != user_id).limit(1)
+        )
+        if conflict.scalar_one_or_none() is not None:
+            raise HTTPException(status_code=400, detail="Email already in use")
+        user.email = email
+
+    if body.display_name is not None:
+        user.display_name = body.display_name.strip() or None
+
+    if body.is_active is not None:
+        user.is_active = body.is_active
+
+    if body.is_superuser is not None:
+        user.is_superuser = body.is_superuser
+
     await db.commit()
     await db.refresh(user)
-    return AdminUserRowDTO(
-        id=user.id,
-        email=user.email,
-        display_name=user.display_name,
-        is_active=user.is_active,
-        is_superuser=user.is_superuser,
-        created_at=user.created_at.isoformat() if user.created_at else None,
-    )
-
-
-@router.post("/users/{user_id}/reactivate", response_model=AdminUserRowDTO)
-async def admin_panel_reactivate_user(
-    user_id: uuid.UUID,
-    _: None = Depends(require_admin_panel_key),
-    db: AsyncSession = Depends(get_async_session),
-) -> AdminUserRowDTO:
-    user = await db.get(User, user_id)
-    if user is None:
-        raise HTTPException(status_code=404, detail="User not found")
-    user.is_active = True
-    await db.commit()
-    await db.refresh(user)
-    return AdminUserRowDTO(
-        id=user.id,
-        email=user.email,
-        display_name=user.display_name,
-        is_active=user.is_active,
-        is_superuser=user.is_superuser,
-        created_at=user.created_at.isoformat() if user.created_at else None,
-    )
+    return _admin_user_row_dto(user)
 
 
 @router.delete("/users/{user_id}", response_model=AdminUserDeleteResponseDTO)

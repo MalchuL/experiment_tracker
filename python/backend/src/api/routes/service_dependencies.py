@@ -19,9 +19,12 @@ from domain.scalars.service import (
 )
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
+from api.routes.auth import get_current_user_dual
 from db.database import get_async_session
 from domain.api_tokens.repository import ApiTokenRepository
 from domain.api_tokens.service import ApiTokenService
+from domain.rbac.deps import build_permission_checker
+from models import User
 
 from domain.rbac.repository import PermissionRepository
 from domain.rbac.wrapper import PermissionChecker
@@ -76,10 +79,11 @@ async def get_permission_service(
 
 
 async def get_permission_checker(
+    user: User = Depends(get_current_user_dual),
     session: AsyncSession = Depends(get_async_session),
     permission_service: PermissionService = Depends(get_permission_service),
 ) -> PermissionChecker:
-    return PermissionChecker(session, permission_service)
+    return build_permission_checker(user, session, permission_service)
 
 
 # API Token Service Dependencies

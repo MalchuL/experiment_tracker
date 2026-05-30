@@ -43,7 +43,7 @@ class FakeClient:
     def __init__(self) -> None:
         self.requests: list[FakeSpec] = []
 
-    def request(self, spec: FakeSpec) -> Any:
+    def request(self, spec: FakeSpec, **kwargs: object) -> Any:
         self.requests.append(spec)
         if spec.method == "get_project_metrics_by_label":
             return _metric_snapshot()

@@ -60,8 +60,17 @@ A user can access a project through:
 
 User lookup for teams and projects is email-based and only returns active users.
 
+## Superuser
+
+A user with **`is_superuser`** set bypasses per-action RBAC checks in the backend `PermissionChecker` after a normal login. Superuser does **not** grant access to the bootstrap admin UI or admin HTTP routes.
+
+Inactive accounts are denied before superuser is considered: deactivated users fail all permission checks even if they remain superusers in the database.
+
+Operators can set **`is_superuser`** and **`is_active`** from the bootstrap [Admin panel](/docs/reference/admin-panel) (`/admin`), not from the regular profile page.
+
 ## Related
 
+- [Admin panel](/docs/reference/admin-panel)
 - [Teams](/docs/domains/teams)
 - [Projects: members](/docs/domains/projects#members)
 - [SDK CLI](/docs/sdk/cli)

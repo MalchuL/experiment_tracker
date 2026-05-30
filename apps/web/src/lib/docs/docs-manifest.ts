@@ -105,6 +105,12 @@ export const DOCS_MANIFEST: DocManifestEntry[] = [
     description: "Creating projects, the project dashboard, and where settings live.",
   },
   {
+    path: "reference/admin-panel",
+    title: "Admin panel",
+    description:
+      "Bootstrap operator UI and X-Admin-Key API: users, teams, superuser, storage buckets, and scalar tables.",
+  },
+  {
     path: "reference/dag-view",
     title: "DAG view: metrics on nodes",
     description:
