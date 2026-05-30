@@ -7,6 +7,7 @@ from pathlib import Path
 
 from experiment_tracker_sdk import ExpTracker, ExperimentStatus, InitParams, config
 from experiment_tracker_sdk.client.request_types import FileDownloadToPathItem
+from experiment_tracker_sdk.client.transport.options import RequestOptions
 
 from structured_json import (
     StructuredJsonInfo,
@@ -259,7 +260,7 @@ def main() -> None:
         saved_paths = client.download_files_batch_to_paths(
             endpoint=DOWNLOAD_ENDPOINT,
             items=download_items,
-            verbose=True,
+            options=RequestOptions(verbose=True),
         )
 
         _verify_download(local_paths, saved_paths, json_infos)

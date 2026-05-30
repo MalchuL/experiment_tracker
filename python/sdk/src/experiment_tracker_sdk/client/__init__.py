@@ -5,7 +5,7 @@ from .api_access import (
     ResolvedClientAndRegistry,
     resolve_client_and_registry,
 )
-from .blob_api import BlobRequestsStrategy, BlobUploadResult
+from .artifact_client import ArtifactClient, BlobUploadResult
 from .constants import UNSET, Unset
 from .domain import (
     ExperimentArtifactsRequestSpecFactory,
@@ -40,6 +40,7 @@ from .instances import (
     TeamBuilder,
     TeamInstance,
 )
+from .transport.options import RequestOptions
 from .request_types import (
     ApiRequestSpec,
     FileDownloadItem,
@@ -55,8 +56,9 @@ __all__ = [
     "ExpTrackerApiAccess",
     "ResolvedClientAndRegistry",
     "resolve_client_and_registry",
-    "BlobRequestsStrategy",
+    "ArtifactClient",
     "BlobUploadResult",
+    "RequestOptions",
     "ApiRequestSpec",
     "FileDownloadResponse",
     "FileDownloadItem",

@@ -6,9 +6,13 @@ import pytest
 
 from experiment_tracker_sdk.client.client import ExperimentTrackerClient
 from experiment_tracker_sdk.client.request_types import (
+    ApiRequestSpec,
+    FileDownloadResponse,
     FileDownloadToPathItem,
     FileUploadItem,
+    FileUploadSpec,
 )
+from experiment_tracker_sdk.client.transport.options import RequestOptions
 from experiment_tracker_sdk.client.utils.transfer_progress import (
     ProgressBytesReader,
     content_length_from_headers,
@@ -33,7 +37,7 @@ def test_content_length_from_headers() -> None:
     assert content_length_from_headers({"content-length": "nope"}) is None
 
 
-def test_upload_file_uses_progress_reader_when_verbose(
+def test_executor_upload_uses_progress_reader_when_verbose(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     captured: dict[str, object] = {}
@@ -44,6 +48,8 @@ def test_upload_file_uses_progress_reader_when_verbose(
 
         def json(self) -> dict[str, str]:
             return {"ok": "true"}
+
+        headers: dict[str, str] = {}
 
     class FakeClient:
         def request(self, *_args: object, **kwargs: object) -> FakeResponse:
@@ -60,13 +66,19 @@ def test_upload_file_uses_progress_reader_when_verbose(
     monkeypatch.setattr(client, "_http_client", FakeClient())
 
     payload = b"hello-world"
-    client.upload_file(
+    spec = ApiRequestSpec(
+        method="POST",
         endpoint="/upload",
-        params={"hash": "abc"},
-        filename="demo.bin",
-        content=payload,
-        verbose=True,
+        query_params={"hash": "abc"},
+        files={
+            "file": FileUploadSpec(
+                filename="demo.bin",
+                content=payload,
+                content_type="application/octet-stream",
+            )
+        },
     )
+    client.request(spec, options=RequestOptions(verbose=True))
 
     file_field = captured["file_field"]
     assert isinstance(file_field, tuple)
@@ -76,7 +88,7 @@ def test_upload_file_uses_progress_reader_when_verbose(
     assert reader.read() == payload
 
 
-def test_download_file_verbose_streams_with_progress(
+def test_executor_download_verbose_streams_with_progress(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     chunks = [b"part-a", b"part-b"]
@@ -107,25 +119,34 @@ def test_download_file_verbose_streams_with_progress(
     )
     monkeypatch.setattr(client, "_http_client", FakeClient())
 
-    download = client.download_file(
+    spec = ApiRequestSpec(
+        method="GET",
         endpoint="/download",
-        params={"name": "weights"},
-        verbose=True,
+        query_params={"name": "weights"},
+        response_model=FileDownloadResponse,
     )
+    download = client.request(
+        spec,
+        options=RequestOptions(verbose=True),
+    )
+    assert isinstance(download, FileDownloadResponse)
     assert download.filename == "x.bin"
     assert b"".join(download.content) == b"part-apart-b"
 
 
-def test_upload_files_batch_calls_upload_per_item(
+def test_upload_files_batch_calls_executor_per_item(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     calls: list[str] = []
 
-    def fake_upload_file(self: ExperimentTrackerClient, **kwargs: object) -> dict[str, str]:
-        calls.append(str(kwargs["filename"]))
-        return {"filename": str(kwargs["filename"])}
+    def fake_execute(self, _http_client, spec: ApiRequestSpec, options=None):  # noqa: ANN001
+        assert spec.files is not None
+        calls.append(spec.files["file"].filename)
+        return {"filename": spec.files["file"].filename}
 
-    monkeypatch.setattr(ExperimentTrackerClient, "upload_file", fake_upload_file)
+    from experiment_tracker_sdk.client.transport.executor import HttpRequestExecutor
+
+    monkeypatch.setattr(HttpRequestExecutor, "execute", fake_execute)
     client = ExperimentTrackerClient(
         base_url="http://127.0.0.1:8000",
         api_token="token",
@@ -144,23 +165,16 @@ def test_upload_files_batch_calls_upload_per_item(
 def test_download_files_batch_to_paths_writes_files(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    def fake_download(
-        self: ExperimentTrackerClient,
-        **_kwargs: object,
-    ):
-        from experiment_tracker_sdk.client.request_types import FileDownloadResponse
-
+    def fake_execute(self, _http_client, spec: ApiRequestSpec, options=None):  # noqa: ANN001
         return FileDownloadResponse(
             content=b"payload",
             filename="saved.bin",
             content_type="application/octet-stream",
         )
 
-    monkeypatch.setattr(
-        ExperimentTrackerClient,
-        "_download_file_response",
-        fake_download,
-    )
+    from experiment_tracker_sdk.client.transport.executor import HttpRequestExecutor
+
+    monkeypatch.setattr(HttpRequestExecutor, "execute", fake_execute)
     client = ExperimentTrackerClient(
         base_url="http://127.0.0.1:8000",
         api_token="token",

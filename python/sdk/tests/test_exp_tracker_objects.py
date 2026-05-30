@@ -59,7 +59,8 @@ class _FakeClient:
         self.final_uploaded: list[tuple[str, str, str, bytes, str]] = []
         self.request_verbose: list[bool] = []
 
-    def request(self, request_spec, verbose: bool = False, **_kwargs):
+    def request(self, request_spec, *, options=None, **_kwargs):
+        verbose = options.verbose if options is not None else False
         self.request_verbose.append(verbose)
         if request_spec["kind"] == "upload_at_step":
             file = request_spec["file"]

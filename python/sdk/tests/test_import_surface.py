@@ -127,7 +127,7 @@ def test_client_exports_request_and_access_symbols() -> None:
         UNSET,
         ApiRequestSpec,
         APIRequestsRegistry,
-        BlobRequestsStrategy,
+        ArtifactClient,
         BlobUploadResult,
         ExperimentTrackerClient,
         ExpTrackerApiAccess,
@@ -149,10 +149,10 @@ def test_client_exports_request_and_access_symbols() -> None:
     from experiment_tracker_sdk.client.api_registry import (
         APIRequestsRegistry as SourceAPIRequestsRegistry,
     )
-    from experiment_tracker_sdk.client.blob_api import (
-        BlobRequestsStrategy as SourceBlobRequestsStrategy,
+    from experiment_tracker_sdk.client.artifact_client import (
+        ArtifactClient as SourceArtifactClient,
     )
-    from experiment_tracker_sdk.client.blob_api import (
+    from experiment_tracker_sdk.client.artifact_client import (
         BlobUploadResult as SourceBlobUploadResult,
     )
     from experiment_tracker_sdk.client.client import (
@@ -172,7 +172,7 @@ def test_client_exports_request_and_access_symbols() -> None:
 
     assert ExperimentTrackerClient is SourceExperimentTrackerClient
     assert APIRequestsRegistry is SourceAPIRequestsRegistry
-    assert BlobRequestsStrategy is SourceBlobRequestsStrategy
+    assert ArtifactClient is SourceArtifactClient
     assert BlobUploadResult is SourceBlobUploadResult
     assert ExpTrackerApiAccess is SourceApiAccess
     assert ResolvedClientAndRegistry is SourceResolvedClientAndRegistry

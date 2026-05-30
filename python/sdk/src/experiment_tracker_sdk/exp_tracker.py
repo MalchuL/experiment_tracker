@@ -7,7 +7,7 @@ from experiment_tracker_sdk.client import (
     ExperimentTrackerClient,
 )
 from experiment_tracker_sdk.client.api_registry import APIRequestsRegistry
-from experiment_tracker_sdk.client.blob_api import BlobRequestsStrategy
+from experiment_tracker_sdk.client.artifact_client import ArtifactClient
 from experiment_tracker_sdk.client.constants import UNSET
 from experiment_tracker_sdk.client.scalar_batching_strategy import (
     BatchedScalarLoggingStrategy,
@@ -86,7 +86,7 @@ class ExpTracker:
         self._api_requests_registry = api_requests_registry
         self._request_client = request_client
         self._verbose = verbose
-        self._blob_api = BlobRequestsStrategy(
+        self._artifacts = ArtifactClient(
             registry=api_requests_registry,
             request_client=request_client,
         )
@@ -122,30 +122,6 @@ class ExpTracker:
         if verbose is not None:
             return verbose
         return self._verbose
-
-    def _upload_artifact_at_step(
-        self,
-        *,
-        filename: str,
-        content: bytes,
-        content_type: str,
-        name: str,
-        artifact_type: ArtifactType,
-        step: int,
-        metadata: dict | None = None,
-        verbose: bool | None = None,
-    ):
-        return self._blob_api.upload_and_log_experiment_artifact_at_step(
-            experiment_id=str(self.experiment_id),
-            filename=filename,
-            content=content,
-            content_type=content_type,
-            name=name,
-            artifact_type=artifact_type,
-            step=step,
-            metadata=metadata,
-            verbose=self._resolve_verbose(verbose),
-        )
 
     @classmethod
     def init(
@@ -261,7 +237,8 @@ class ExpTracker:
                 tracker-level ``verbose`` from construction or :meth:`init`.
         """
         prepared = prepare_step_image_content(tag, img, global_step)
-        self._upload_artifact_at_step(
+        self._artifacts.upload_and_log_experiment_artifact_at_step(
+            experiment_id=str(self.experiment_id),
             filename=prepared.filename,
             content=prepared.content,
             content_type=prepared.content_type,
@@ -269,7 +246,7 @@ class ExpTracker:
             artifact_type="image",
             step=global_step,
             metadata={"format": "png"},
-            verbose=verbose,
+            verbose=self._resolve_verbose(verbose),
         )
 
     def add_text(
@@ -287,7 +264,8 @@ class ExpTracker:
                 tracker-level ``verbose`` from construction or :meth:`init`.
         """
         prepared = prepare_step_text_content(tag, text_string, global_step)
-        self._upload_artifact_at_step(
+        self._artifacts.upload_and_log_experiment_artifact_at_step(
+            experiment_id=str(self.experiment_id),
             filename=prepared.filename,
             content=prepared.content,
             content_type=prepared.content_type,
@@ -295,7 +273,7 @@ class ExpTracker:
             artifact_type="text",
             step=global_step,
             metadata={"encoding": "utf-8"},
-            verbose=verbose,
+            verbose=self._resolve_verbose(verbose),
         )
 
     def log_final_artifact(
@@ -338,7 +316,7 @@ class ExpTracker:
                 default_extension=default_extension,
             )
 
-            self._blob_api.upsert_named_experiment_artifact(
+            self._artifacts.upsert_named_experiment_artifact(
                 experiment_id=str(self.experiment_id),
                 filepath=prepared.filepath,
                 filename=prepared.filename,
