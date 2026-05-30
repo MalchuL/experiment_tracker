@@ -57,8 +57,10 @@ class _FakeClient:
     def __init__(self):
         self.uploaded: list[tuple[str, bytes, str, str, dict]] = []
         self.final_uploaded: list[tuple[str, str, str, bytes, str]] = []
+        self.request_verbose: list[bool] = []
 
-    def request(self, request_spec):
+    def request(self, request_spec, verbose: bool = False, **_kwargs):
+        self.request_verbose.append(verbose)
         if request_spec["kind"] == "upload_at_step":
             file = request_spec["file"]
             self.uploaded.append(
@@ -95,15 +97,41 @@ class _FakeClient:
         pass
 
 
-def _create_tracker() -> tuple[ExpTracker, _FakeClient]:
+def _create_tracker(*, verbose: bool = False) -> tuple[ExpTracker, _FakeClient]:
     client = _FakeClient()
     tracker = ExpTracker(
         "exp-id",
         "proj-id",
         _FakeRegistry(),  # type: ignore[arg-type]
         client,  # type: ignore[arg-type]
+        verbose=verbose,
     )
     return tracker, client
+
+
+def test_exp_tracker_verbose_passes_flag_on_upload() -> None:
+    tracker, client = _create_tracker(verbose=True)
+
+    tracker.add_text("summary", "hello", global_step=1)
+
+    assert client.request_verbose == [True]
+    assert len(client.uploaded) == 1
+
+
+def test_exp_tracker_per_call_verbose_overrides_tracker_default() -> None:
+    tracker, client = _create_tracker(verbose=False)
+
+    tracker.add_text("summary", "hello", global_step=1, verbose=True)
+
+    assert client.request_verbose == [True]
+
+
+def test_exp_tracker_per_call_verbose_false_overrides_tracker_true() -> None:
+    tracker, client = _create_tracker(verbose=True)
+
+    tracker.log_final_artifact("cfg", "yaml: true\n", verbose=False)
+
+    assert client.request_verbose == [False]
 
 
 def _checkerboard_array(

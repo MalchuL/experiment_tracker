@@ -42,7 +42,10 @@ from .instances import (
 )
 from .request_types import (
     ApiRequestSpec,
+    FileDownloadItem,
     FileDownloadResponse,
+    FileDownloadToPathItem,
+    FileUploadItem,
     FileUploadSpec,
 )
 
@@ -56,6 +59,9 @@ __all__ = [
     "BlobUploadResult",
     "ApiRequestSpec",
     "FileDownloadResponse",
+    "FileDownloadItem",
+    "FileDownloadToPathItem",
+    "FileUploadItem",
     "FileUploadSpec",
     "UNSET",
     "Unset",

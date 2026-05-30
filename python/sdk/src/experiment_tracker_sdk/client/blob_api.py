@@ -36,10 +36,16 @@ class BlobRequestsStrategy:
     Args:
         registry: The API requests registry.
         request_client: The HTTP client.
+
+    Upload methods accept an explicit ``verbose`` bool (tqdm progress). Callers such
+    as :class:`~experiment_tracker_sdk.exp_tracker.ExpTracker` resolve per-call
+    ``verbose=None`` against the tracker default before calling here.
     """
 
     def __init__(
-        self, registry: APIRequestsRegistry, request_client: ExperimentTrackerClient
+        self,
+        registry: APIRequestsRegistry,
+        request_client: ExperimentTrackerClient,
     ):
         self.registry = registry
         self.request_client = request_client
@@ -63,10 +69,11 @@ class BlobRequestsStrategy:
             Response describing which requested hashes are already present and
             which are missing from the project artifact store.
         """
-        response: CheckProjectArtifactsResponse = self.request_client.request(
-            self.registry.project_artifacts.check_project_artifacts(project_id, hashes)  # type: ignore[assignment]
+        return self.request_client.request(  # type: ignore[return-value]
+            self.registry.project_artifacts.check_project_artifacts(
+                project_id, hashes
+            ),
         )
-        return response
 
     def upload_project_artifact(
         self,
@@ -74,6 +81,8 @@ class BlobRequestsStrategy:
         filename: str,
         content: bytes,
         content_type: str,
+        *,
+        verbose: bool = False,
     ) -> BlobUploadResult:
         """Upload bytes into project content-addressed storage when needed.
 
@@ -90,6 +99,7 @@ class BlobRequestsStrategy:
             content: Raw artifact bytes whose hash determines the storage key.
             content_type: MIME type describing the uploaded bytes for storage
                 metadata and later download responses.
+            verbose: When ``True``, show a tqdm byte progress bar for the upload.
 
         Returns:
             Upload summary containing the computed hash, whether the blob already
@@ -116,7 +126,9 @@ class BlobRequestsStrategy:
             artifact_hash=artifact_hash,
             file=file_spec,
         )
-        upload_result: UploadProjectArtifactResponse = self.request_client.request(spec)  # type: ignore[assignment]
+        upload_result: UploadProjectArtifactResponse = self.request_client.request(  # type: ignore[assignment]
+            spec, verbose=verbose
+        )
         return BlobUploadResult(
             status="ok",
             detail="uploaded",
@@ -192,6 +204,8 @@ class BlobRequestsStrategy:
         step: int,
         metadata: dict[str, str] | None = None,
         tags: list[str] | None = None,
+        *,
+        verbose: bool = False,
     ) -> LogArtifactAtStepResponse:
         """Upload file to experiment bucket and log metadata in one call.
 
@@ -212,6 +226,7 @@ class BlobRequestsStrategy:
             metadata: Optional string metadata stored with the artifact info row.
             tags: Optional labels stored with the artifact info row for later
                 filtering or organization.
+            verbose: When ``True``, show a tqdm byte progress bar for the upload.
 
         Returns:
             Response from the experiment artifact log endpoint, including the
@@ -231,8 +246,7 @@ class BlobRequestsStrategy:
             metadata=metadata,
             tags=tags,
         )
-        result: LogArtifactAtStepResponse = self.request_client.request(spec)  # type: ignore[assignment]
-        return result
+        return self.request_client.request(spec, verbose=verbose)  # type: ignore[return-value]
 
     def download_experiment_artifact_at_step(
         self,
@@ -302,6 +316,8 @@ class BlobRequestsStrategy:
         content: bytes,
         content_type: str,
         name: str | None = None,
+        *,
+        verbose: bool = False,
     ) -> dict[str, Any]:
         """Create or replace a tracked experiment artifact that is not step-based.
 
@@ -316,6 +332,7 @@ class BlobRequestsStrategy:
             content_type: MIME type describing the uploaded bytes.
             name: Optional display or logical name stored with the tracked
                 artifact record in addition to ``filepath``.
+            verbose: When ``True``, show a tqdm byte progress bar for the upload.
 
         Returns:
             Artifact record returned by the API as a dictionary.
@@ -331,7 +348,7 @@ class BlobRequestsStrategy:
             file=file_spec,
             name=name,
         )
-        result = self.request_client.request(spec)
+        result = self.request_client.request(spec, verbose=verbose)
         if isinstance(result, BaseModel):
             return result.model_dump()
         return cast(dict[str, Any], result)

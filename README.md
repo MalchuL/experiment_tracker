@@ -189,6 +189,13 @@ cd examples/training
 uv run python train.py --project-name "SDK Training" --team-name "My First Team" --experiment-name "Experiment 0"
 ```
 
+For **large artifact upload/download with tqdm progress** (files >= 50 MiB), see `examples/verbose-artifact-transfer/`:
+```
+cd examples/verbose-artifact-transfer
+uv sync
+uv run python train.py --project-name "SDK Verbose Artifacts" --experiment-name "Large transfer demo"
+```
+
 If you want to run script and don't change anything in the script of script and have tensorboardX installed, you can use the following command:
 ```
 cd examples/pytorch-mnist-tensorboardx
