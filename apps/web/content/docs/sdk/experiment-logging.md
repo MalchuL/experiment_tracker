@@ -23,6 +23,13 @@ tracker = ExpTracker.init(
 
 `project`, `experiment`, and `team` can be names or ids. If `init_params` is omitted, missing experiments are created by default, while projects and teams must already exist.
 
+After initialization, call `get_project_settings()` to fetch the current project's runtime settings as a plain dictionary:
+
+```python
+settings = tracker.get_project_settings()
+batch_size = settings.get("batch_size", 32)
+```
+
 For examples and local smoke tests, it is common to create everything on demand:
 
 ```python
@@ -226,6 +233,18 @@ Default behavior when `init_params` is omitted:
 - missing team is not created.
 
 Use explicit `InitParams` for examples, notebooks, and automation where creating missing resources is expected.
+
+---
+
+### `get_project_settings()`
+
+```python
+settings = tracker.get_project_settings()
+```
+
+Fetches the current project's settings from `GET /projects/{project_id}/settings/map` and returns them as a `dict` keyed by setting name.
+
+Use this for runtime configuration values that should be controlled at the project level, such as dataset identifiers, feature flags, or external resource names.
 
 ---
 

@@ -156,6 +156,19 @@ class ExpTracker:
             return verbose
         return self._verbose
 
+    def get_project_settings(self) -> dict[str, Any]:
+        """Fetch runtime project settings as a name-to-value mapping."""
+        response = self._request_client.request(
+            self._api_requests_registry.projects.get_project_settings_map(
+                self.project_id
+            )
+        )
+        if not isinstance(response, dict):
+            raise ExpTrackerAPIError(
+                "Unexpected project settings response: expected a dictionary"
+            )
+        return dict(response)
+
     @classmethod
     def init(
         cls,

@@ -29,6 +29,15 @@ class _FakeMetricsService:
         return {"kind": "metric_request"}
 
 
+class _FakeProjectsService:
+    def __init__(self):
+        self.calls: list[str] = []
+
+    def get_project_settings_map(self, project_id: str):
+        self.calls.append(project_id)
+        return {"kind": "project_settings_request"}
+
+
 class _FakeExperimentsService:
     def __init__(self):
         self.calls: list[tuple[str, dict[str, object]]] = []
@@ -43,6 +52,7 @@ class _FakeRegistry:
     def __init__(self):
         self.scalars = _FakeScalarsService()
         self.metrics = _FakeMetricsService()
+        self.projects = _FakeProjectsService()
         self.experiments = _FakeExperimentsService()
 
 
@@ -53,6 +63,11 @@ class _FakeClient:
 
     def request(self, request_spec):
         self.request_calls.append(request_spec)
+        if (
+            isinstance(request_spec, dict)
+            and request_spec.get("kind") == "project_settings_request"
+        ):
+            return {"batch_size": 32, "use_amp": True, "notes": "baseline"}
         if (
             isinstance(request_spec, dict)
             and request_spec.get("kind") == "experiment_request"
@@ -142,6 +157,17 @@ def test_add_metric_is_sync_and_uses_label() -> None:
     tracker.add_metric(name="accuracy", value=0.97, label="dataset/train")
 
     assert registry.metrics.calls == [("exp-id", "accuracy", 0.97, "dataset/train")]
+    assert len(client.request_calls) == 1
+    assert client.queued_calls == []
+
+
+def test_get_project_settings_fetches_current_project_settings_map() -> None:
+    tracker, registry, client = _create_tracker()
+
+    settings = tracker.get_project_settings()
+
+    assert settings == {"batch_size": 32, "use_amp": True, "notes": "baseline"}
+    assert registry.projects.calls == ["proj-id"]
     assert len(client.request_calls) == 1
     assert client.queued_calls == []
 
