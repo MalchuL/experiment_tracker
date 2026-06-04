@@ -37,6 +37,13 @@ class SnapshotCreateResponseDTO(BaseModel):
     snapshot_id: str
 
 
+class SnapshotManifestResponseDTO(BaseModel):
+    """Response DTO containing a snapshot's stored file manifest."""
+
+    snapshot_id: UUID
+    files: list[SnapshotFileEntryDTO] = Field(default_factory=list)
+
+
 class UploadBlobResponseDTO(BaseModel):
     """Response DTO describing the result of a blob upload."""
 

@@ -23,6 +23,7 @@ from .dto import (
     ReconcileStorageBucketResponseDTO,
     SnapshotCreateRequestDTO,
     SnapshotCreateResponseDTO,
+    SnapshotManifestResponseDTO,
     UploadBlobResponseDTO,
 )
 from .service import ObjectStorageService
@@ -85,6 +86,20 @@ async def create_project_snapshot(
     """Create a snapshot that links an experiment to existing CAS artifacts."""
 
     return await service.create_project_snapshot(payload)
+
+
+@router.get(
+    "/{project_id}/snapshots/{snapshot_id}/manifest",
+    response_model=SnapshotManifestResponseDTO,
+)
+async def get_project_snapshot_manifest(
+    project_id: UUID,
+    snapshot_id: UUID,
+    service: ObjectStorageService = Depends(get_project_artifacts_service),
+):
+    """Return a snapshot manifest without materializing a ZIP archive."""
+
+    return await service.get_project_snapshot_manifest(project_id, snapshot_id)
 
 
 @router.get("/{project_id}/snapshots/{snapshot_id}/download")

@@ -10,9 +10,11 @@ from fastapi_users.models import UserProtocol
 from clients.object_storage import (
     CheckProjectArtifactsResponseDTO,
     DeleteProjectArtifactResponseDTO,
+    DeleteProjectSnapshotResponseDTO,
     DeleteProjectResponseDTO,
     SnapshotCreateRequestDTO,
     SnapshotCreateResponseDTO,
+    SnapshotManifestResponseDTO,
     UploadProjectArtifactResponseDTO,
 )
 
@@ -22,9 +24,20 @@ from .error import ProjectArtifactsNotAccessibleError
 class NoOpProjectArtifactsService:
     """Fallback project-artifacts service used when object storage is disabled.
 
-    Write-like methods return benign DTOs so callers can run in reduced local/test
-    environments; read methods that require bytes raise an accessibility error.
+    Basic CAS check/upload/delete methods return benign DTOs so callers can run
+    in reduced local/test environments; snapshot and byte reads raise an
+    accessibility error because they require object storage state.
     """
+
+    async def ensure_view_project_artifacts(
+        self, user: UserProtocol, project_id: UUID
+    ) -> None:
+        """Allow metadata-only authorization checks in no-storage environments."""
+
+    async def ensure_log_project_artifacts(
+        self, user: UserProtocol, project_id: UUID
+    ) -> None:
+        """Allow metadata-only authorization checks in no-storage environments."""
 
     async def check_project_artifacts(
         self, user: UserProtocol, project_id: UUID, hashes: list[str]
@@ -79,35 +92,29 @@ class NoOpProjectArtifactsService:
     async def create_project_snapshot(
         self, user: UserProtocol, project_id: UUID, payload: SnapshotCreateRequestDTO
     ) -> SnapshotCreateResponseDTO:
-        """Return a benign no-op snapshot creation result.
+        """Reject snapshot creation when storage is disabled.
 
         Args:
             user: Ignored user context.
             project_id: Ignored project id.
             payload: Ignored snapshot payload.
 
-        Returns:
-            SnapshotCreateResponseDTO: Empty snapshot identifier.
-        """
-        return SnapshotCreateResponseDTO(snapshot_id="")
-
-    async def download_project_snapshot(
-        self, user: UserProtocol, project_id: UUID, snapshot_id: UUID
-    ) -> bytes:
-        """Reject project snapshot downloads when storage is disabled.
-
-        Args:
-            user: Ignored user context.
-            project_id: Ignored project id.
-            snapshot_id: Ignored snapshot id.
-
         Raises:
-            ProjectArtifactsNotAccessibleError: Always raised because archive bytes are
-                not available without object storage.
-
-        Returns:
-            Never returns successfully.
+            ProjectArtifactsNotAccessibleError: Always raised because snapshots
+                require object-storage metadata.
         """
+        raise ProjectArtifactsNotAccessibleError("Project artifacts unavailable")
+
+    async def get_project_snapshot_manifest(
+        self, user: UserProtocol, project_id: UUID, snapshot_id: UUID
+    ) -> SnapshotManifestResponseDTO:
+        """Reject snapshot manifest reads when storage is disabled."""
+        raise ProjectArtifactsNotAccessibleError("Project artifacts unavailable")
+
+    async def delete_project_snapshot(
+        self, user: UserProtocol, project_id: UUID, snapshot_id: UUID
+    ) -> DeleteProjectSnapshotResponseDTO:
+        """Reject snapshot deletion when storage is disabled."""
         raise ProjectArtifactsNotAccessibleError("Project artifacts unavailable")
 
     async def delete_project_artifact(

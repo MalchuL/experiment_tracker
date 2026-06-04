@@ -18,6 +18,7 @@ export const QUERY_KEYS = {
         RECENT: (projectId: string, limit?: number | undefined, offset?: number | undefined) => `experiments/recent?projectId=${projectId}&limit=${limit}&offset=${offset}`,
         BY_PROJECT: (projectId: string) => `projects/${projectId}/experiments`,
         BY_ID: (experimentId: string) => `experiments/${experimentId}`,
+        SNAPSHOTS: (experimentIds: string[]) => `experiments/snapshots:${experimentIds.join(",")}`,
     },
     HYPOTHESES: {
         RECENT: (projectId: string, limit?: number | undefined, offset?: number | undefined) => `hypotheses/recent?projectId=${projectId}&limit=${limit}&offset=${offset}`,
@@ -49,5 +50,15 @@ export const QUERY_KEYS = {
     },
     DAG: {
         GET: (projectId: string) => `projects/${projectId}/dag`,
+    },
+    COMPARE: {
+        SNAPSHOT_FILES: (experimentIds: string[]) =>
+            `compare/snapshot-files:${experimentIds.join(",")}`,
+        SNAPSHOT_FILE_CONTENT: (
+            experimentId: string | undefined,
+            snapshotId: string | undefined,
+            path: string | undefined,
+            hash: string | undefined
+        ) => `compare/snapshot-file-content:${experimentId ?? ""}:${snapshotId ?? ""}:${path ?? ""}:${hash ?? ""}`,
     },
 };

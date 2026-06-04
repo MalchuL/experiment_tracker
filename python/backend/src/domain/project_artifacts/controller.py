@@ -3,6 +3,7 @@
 from uuid import UUID
 
 import httpx
+from experiment_tracker_shared import compute_sha256_hexdigest
 from fastapi import (
     APIRouter,
     Body,
@@ -96,7 +97,7 @@ async def check_project_artifacts(
 @router.post("/{project_id}/upload")
 async def upload_project_artifact(
     project_id: UUID,
-    hash: str = Query(..., min_length=64, max_length=64),
+    hash: str | None = Query(default=None, min_length=64, max_length=64),
     file: UploadFile = File(...),
     user: User = Depends(get_current_user_dual),
     _: None = Depends(require_api_token_scopes(ProjectActions.LOG_ARTIFACT)),
@@ -120,6 +121,10 @@ async def upload_project_artifact(
             unavailability, upstream HTTP status codes, or ``400`` for other errors.
     """
     try:
+        if hash is None:
+            content = await file.read()
+            hash = compute_sha256_hexdigest(content)
+            await file.seek(0)
         return await service.upload_project_artifact(
             user=user, project_id=project_id, artifact_hash=hash, file=file
         )
@@ -190,45 +195,6 @@ async def create_project_snapshot(
     try:
         return await service.create_project_snapshot(
             user=user, project_id=project_id, payload=payload
-        )
-    except Exception as exc:  # noqa: BLE001
-        _raise_http_error(exc)
-
-
-@router.get("/{project_id}/snapshots/{snapshot_id}/download")
-async def download_project_snapshot(
-    project_id: UUID,
-    snapshot_id: UUID,
-    user: User = Depends(get_current_user_dual),
-    _: None = Depends(require_api_token_scopes(ProjectActions.VIEW_ARTIFACT)),
-    service: ProjectArtifactsServiceProtocol = Depends(get_project_artifacts_service),
-):
-    """Download a project snapshot as a ZIP archive.
-
-    Args:
-        project_id: Project that owns the snapshot.
-        snapshot_id: Snapshot identifier to reconstruct.
-        user: Authenticated user requesting the archive.
-        _: API-token scope guard requiring artifact view access.
-        service: Project-artifacts service dependency.
-
-    Returns:
-        Response: ``application/zip`` archive response with download headers.
-
-    Raises:
-        HTTPException: ``403`` for insufficient permission, ``502`` for storage
-            unavailability, upstream HTTP status codes, or ``400`` for other errors.
-    """
-    try:
-        content = await service.download_project_snapshot(
-            user=user, project_id=project_id, snapshot_id=snapshot_id
-        )
-        return Response(
-            content=content,
-            media_type="application/zip",
-            headers={
-                "Content-Disposition": f'attachment; filename="snapshot-{snapshot_id}.zip"'
-            },
         )
     except Exception as exc:  # noqa: BLE001
         _raise_http_error(exc)

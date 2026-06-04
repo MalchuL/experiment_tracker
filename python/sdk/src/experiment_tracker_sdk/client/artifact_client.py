@@ -2,7 +2,8 @@
 
 Builds :class:`~experiment_tracker_sdk.client.request_types.ApiRequestSpec`
 instances from :class:`~experiment_tracker_sdk.client.api_registry.APIRequestsRegistry`
-and delegates HTTP I/O to :class:`~experiment_tracker_sdk.client.client.ExperimentTrackerClient`.
+and delegates HTTP I/O to
+:class:`~experiment_tracker_sdk.client.client.ExperimentTrackerClient`.
 """
 
 from __future__ import annotations
@@ -10,11 +11,13 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Literal, TypeVar, cast
 
+from pydantic import BaseModel, Field
+
 from experiment_tracker_sdk.client.domain.project_artifacts.dto import (
     CheckProjectArtifactsResponse,
 )
+from experiment_tracker_sdk.client.request_types import FileUploadContent
 from experiment_tracker_sdk.client.utils.downloading import dump_binary_content_to_path
-from pydantic import BaseModel, Field
 
 from .api_registry import APIRequestsRegistry
 from .client import ExperimentTrackerClient
@@ -93,18 +96,25 @@ class ArtifactClient:
         self,
         project_id: str,
         filename: str,
-        content: bytes,
+        content: FileUploadContent,
         content_type: str,
         *,
+        artifact_hash: str | None = None,
+        size: int | None = None,
         verbose: bool = False,
     ) -> BlobUploadResult:
-        """Upload bytes into project CAS when the hash is not already stored.
+        """Upload content into project CAS when the hash is not already stored.
 
         Skips the upload HTTP call when the SHA-256 hash already exists.
         """
         from experiment_tracker_shared import compute_sha256_hexdigest  # type: ignore
 
-        artifact_hash = compute_sha256_hexdigest(content)
+        if artifact_hash is None:
+            if not isinstance(content, bytes):
+                raise ValueError(
+                    "artifact_hash is required when uploading file-like content"
+                )
+            artifact_hash = compute_sha256_hexdigest(content)
         check_result = self.check_project_artifacts(project_id, [artifact_hash])
         if artifact_hash not in set(check_result.missing):
             return BlobUploadResult(
@@ -112,7 +122,10 @@ class ArtifactClient:
             )
 
         file_spec = FileUploadSpec(
-            filename=filename, content=content, content_type=content_type
+            filename=filename,
+            content=content,
+            content_type=content_type,
+            size=size,
         )
         spec = self.registry.project_artifacts.upload_project_artifact(
             project_id=project_id,
@@ -165,7 +178,8 @@ class ArtifactClient:
         file_spec = FileUploadSpec(
             filename=filename, content=content, content_type=content_type
         )
-        spec = self.registry.experiment_artifacts.upload_and_log_experiment_artifact_at_step(
+        factory = self.registry.experiment_artifacts
+        spec = factory.upload_and_log_experiment_artifact_at_step(
             experiment_id=experiment_id,
             file=file_spec,
             name=name,
@@ -185,7 +199,7 @@ class ArtifactClient:
         stream: bool | None = None,
         output_path: str | Path | None = None,
     ) -> FileDownloadResponse | Path:
-        """Download a step-based experiment artifact by ``step`` and logical ``name``."""
+        """Download a step-based artifact by ``step`` and logical ``name``."""
         spec = self.registry.experiment_artifacts.download_experiment_artifact_at_step(
             experiment_id=experiment_id, step=step, name=name
         )

@@ -35,7 +35,7 @@ Use `-y` to skip the confirmation prompt:
 experiment-tracker clean-config -y
 ```
 
-The CLI reads saved config plus `EXP_TRACKER_` environment overrides, including `EXP_TRACKER_BASE_URL`, `EXP_TRACKER_API_PREFIX`, `EXP_TRACKER_API_TOKEN`, and `EXP_TRACKER_CONFIG_PATH`.
+The CLI reads saved config plus `EXP_TRACKER_` environment overrides, including `EXP_TRACKER_BASE_URL`, `EXP_TRACKER_API_PREFIX`, `EXP_TRACKER_API_TOKEN`, `EXP_TRACKER_CONFIG_PATH`, and `EXP_TRACKER_SNAPSHOT_MAX_FILE_SIZE`.
 
 ## Run a script
 
@@ -62,6 +62,31 @@ Use offline mode when you only want local bootstrap behavior and do not want the
 ```bash
 experiment-tracker run --project mnist --offline train.py -- --epochs 1
 ```
+
+Add `--snapshot` to upload a code snapshot after a successful run:
+
+```bash
+experiment-tracker run --project mnist --snapshot train.py -- --epochs 10
+```
+
+Snapshot paths are rooted at the nearest `.gitignore` or `.exp_tracker_ignore` above the script directory. Files larger than `EXP_TRACKER_SNAPSHOT_MAX_FILE_SIZE` are skipped; the default is 5 MiB. Use `--snapshot-max-file-size -1` to disable the size limit for one run:
+
+```bash
+experiment-tracker run --project mnist --snapshot --snapshot-max-file-size -1 train.py
+```
+
+Preview what a snapshot would include:
+
+```bash
+experiment-tracker check-files --show-skipped .
+experiment-tracker check-files --max-file-size 1048576 --show-skipped .
+```
+
+Skipped rows include a reason: `ignored`, `too_large`, or `not_file`.
+
+:::warning
+Snapshot storage is currently intended for small code/config snapshots, not large repository archives or dataset-like trees. The current implementation does not store very large snapshots efficiently and is practically limited to about 250k files per snapshot.
+:::
 
 :::warning
 `experiment-tracker run` uses Python `runpy` in the current process. It is intended for simple single-process or lightly threaded scripts, local debugging, and one-off research runs. It is not a general launcher for distributed PyTorch, elastic multi-node jobs, or heavy multiprocessing.

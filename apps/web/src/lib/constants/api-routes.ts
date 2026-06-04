@@ -152,7 +152,15 @@ export const API_ROUTES = {
   
         METRICS: (experimentId: string) =>
           `/api/experiments/${experimentId}/metrics`,
+        UPSERT_SNAPSHOT: (experimentId: string) =>
+          `/api/experiments/${experimentId}/data/snapshot`,
+        DELETE_SNAPSHOT: (experimentId: string) =>
+          `/api/experiments/${experimentId}/data/snapshot`,
+        SNAPSHOT_FILE: (experimentId: string) =>
+          `/api/experiments/${experimentId}/data/snapshot/file`,
       },
+      SNAPSHOTS: "/api/experiments/data/snapshots",
+      SNAPSHOT_FILES: "/api/experiments/data/snapshots/files",
     },
   
     HYPOTHESES: {

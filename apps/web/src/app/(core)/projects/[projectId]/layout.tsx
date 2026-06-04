@@ -27,10 +27,11 @@ export default function ProjectLayout({
   const isExperimentsPage = pathname?.endsWith("/experiments");
   const isKanbanPage = pathname?.endsWith("/kanban");
   const isScalarsPage = pathname?.endsWith("/scalars");
+  const isComparePage = pathname?.endsWith("/compare");
 
   const containerClassName = isDagPage
     ? "flex h-full min-h-0 w-full max-w-none flex-col p-0"
-    : isMetricsPage || isExperimentsPage || isKanbanPage || isScalarsPage
+    : isMetricsPage || isExperimentsPage || isKanbanPage || isScalarsPage || isComparePage
       ? "flex h-full min-h-0 w-full max-w-none flex-col p-0"
       : "container max-w-screen-2xl mx-auto p-6";
 

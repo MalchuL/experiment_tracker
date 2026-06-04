@@ -2,6 +2,10 @@ from .experiment_artifacts.service import (
     ExperimentArtifactsRequestSpecFactory,
     ExperimentArtifactsService,
 )
+from .experiment_data.service import (
+    ExperimentDataRequestSpecFactory,
+    ExperimentDataService,
+)
 from .experiments.service import ExperimentRequestSpecFactory, ExperimentService
 from .health.service import HealthRequestSpecFactory, HealthService
 from .hypotheses.service import HypothesisRequestSpecFactory, HypothesisService
@@ -22,6 +26,8 @@ __all__ = [
     "ExperimentService",
     "ExperimentArtifactsRequestSpecFactory",
     "ExperimentArtifactsService",
+    "ExperimentDataRequestSpecFactory",
+    "ExperimentDataService",
     "HypothesisRequestSpecFactory",
     "HypothesisService",
     "MetricRequestSpecFactory",

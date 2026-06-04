@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
@@ -23,12 +24,41 @@ def test_save_and_load_config(tmp_path, monkeypatch):
 
 
 def test_exp_tracker_settings_reads_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Verify environment variables populate SDK runtime settings.
+
+    Args:
+        monkeypatch: Pytest helper used to set base URL, API prefix, and
+            snapshot size environment variables.
+
+    Returns:
+        None. The assertions check the parsed settings values.
+    """
     from experiment_tracker_sdk.settings import get_exp_tracker_settings
 
     monkeypatch.setenv("EXP_TRACKER_BASE_URL", "http://from-env.example")
     monkeypatch.setenv("EXP_TRACKER_API_PREFIX", "/v1")
+    monkeypatch.setenv("EXP_TRACKER_SNAPSHOT_MAX_FILE_SIZE", "123")
     assert get_exp_tracker_settings().base_url == "http://from-env.example"
     assert get_exp_tracker_settings().api_prefix == "/v1"
+    assert get_exp_tracker_settings().snapshot_max_file_size == 123
+
+
+def test_exp_tracker_settings_allows_unlimited_snapshot_size(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify SDK settings preserve ``-1`` as unlimited snapshot size.
+
+    Args:
+        monkeypatch: Pytest helper used to set the environment variable.
+
+    Returns:
+        None. The assertion checks the parsed settings value.
+    """
+    from experiment_tracker_sdk.settings import get_exp_tracker_settings
+
+    monkeypatch.setenv("EXP_TRACKER_SNAPSHOT_MAX_FILE_SIZE", "-1")
+
+    assert get_exp_tracker_settings().snapshot_max_file_size == -1
 
 
 def test_exp_tracker_settings_reads_config_path_and_api_token(
@@ -185,6 +215,95 @@ def test_init_command_falls_back_to_settings_when_existing_config_is_invalid(
     assert "Base URL (default: http://from-env.example):" in result.output
     assert "API prefix (default: /v2):" in result.output
     assert "API token (default: pat_env*********90_tail):" in result.output
+
+
+def test_init_ignore_command_creates_default_file() -> None:
+    """Verify ``init-ignore`` writes the default snapshot ignore file.
+
+    Args:
+        None. The test uses Click's isolated filesystem.
+
+    Returns:
+        None. The assertions check command success and key default patterns.
+    """
+    runner = CliRunner()
+
+    with runner.isolated_filesystem():
+        result = runner.invoke(cli, ["init-ignore"])
+
+        assert result.exit_code == 0
+        content = Path(".exp_tracker_ignore").read_text(encoding="utf-8")
+        assert ".venv/" in content
+        assert ".env" in content
+        assert "logs/" in content
+
+
+def test_check_files_show_skipped_prints_reasons() -> None:
+    """Verify ``check-files --show-skipped`` includes skip reasons and sizes.
+
+    Args:
+        None. The test creates files inside Click's isolated filesystem.
+
+    Returns:
+        None. The assertions check ignored and oversized entries in CLI output.
+    """
+    runner = CliRunner()
+
+    with runner.isolated_filesystem():
+        Path(".exp_tracker_ignore").write_text("ignored.txt\n", encoding="utf-8")
+        Path("ignored.txt").write_text("skip", encoding="utf-8")
+        Path("large.txt").write_text("123456", encoding="utf-8")
+        result = runner.invoke(
+            cli,
+            [
+                "check-files",
+                "--max-file-size",
+                "5",
+                "--show-skipped",
+                ".",
+            ],
+        )
+
+        assert result.exit_code == 0
+        assert "ignored\t.exp_tracker_ignore" in result.output
+        assert "ignored\tignored.txt" in result.output
+        assert "too_large\tlarge.txt\t6" in result.output
+
+
+def test_init_command_can_create_ignore_file(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify ``init --create-ignore-file`` creates ``.exp_tracker_ignore``.
+
+    Args:
+        tmp_path: Temporary path used for the SDK config file location.
+        monkeypatch: Pytest helper used to point settings at that config path.
+
+    Returns:
+        None. The assertions check command success and ignore-file creation.
+    """
+    config_path = tmp_path / "config.json"
+    monkeypatch.setenv("EXP_TRACKER_CONFIG_PATH", str(config_path))
+
+    runner = CliRunner()
+    with runner.isolated_filesystem():
+        result = runner.invoke(
+            cli,
+            [
+                "init",
+                "--base-url",
+                "http://localhost:8000",
+                "--api-prefix",
+                "/api",
+                "--api-token",
+                "pat_token",
+                "--create-ignore-file",
+            ],
+        )
+
+        assert result.exit_code == 0
+        assert Path(".exp_tracker_ignore").is_file()
 
 
 def test_clean_config_requires_confirmation(

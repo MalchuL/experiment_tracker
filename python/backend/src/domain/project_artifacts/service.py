@@ -10,10 +10,12 @@ from fastapi_users.models import UserProtocol
 from clients.object_storage import (
     CheckProjectArtifactsResponseDTO,
     DeleteProjectArtifactResponseDTO,
+    DeleteProjectSnapshotResponseDTO,
     DeleteProjectResponseDTO,
     ObjectStorageClientProtocol,
     SnapshotCreateRequestDTO,
     SnapshotCreateResponseDTO,
+    SnapshotManifestResponseDTO,
     UploadProjectArtifactResponseDTO,
 )
 from domain.rbac.wrapper import PermissionChecker
@@ -52,6 +54,18 @@ class ProjectArtifactsService:
             raise ProjectArtifactsNotAccessibleError(
                 f"You are not allowed to log artifacts in project {project_id}"
             )
+
+    async def ensure_view_project_artifacts(
+        self, user: UserProtocol, project_id: UUID
+    ) -> None:
+        """Authorize project artifact reads without performing a storage request."""
+        await self._ensure_view_permission(user, project_id)
+
+    async def ensure_log_project_artifacts(
+        self, user: UserProtocol, project_id: UUID
+    ) -> None:
+        """Authorize project artifact writes without performing a storage request."""
+        await self._ensure_log_permission(user, project_id)
 
     async def _ensure_delete_project_permission(
         self, user: UserProtocol, project_id: UUID
@@ -148,28 +162,21 @@ class ProjectArtifactsService:
         await self._ensure_log_permission(user, project_id)
         return await self._object_storage.create_project_snapshot(project_id, payload)
 
-    async def download_project_snapshot(
+    async def get_project_snapshot_manifest(
         self, user: UserProtocol, project_id: UUID, snapshot_id: UUID
-    ) -> bytes:
-        """Download a project snapshot archive.
-
-        Args:
-            user: User requesting the snapshot.
-            project_id: Project that owns the snapshot.
-            snapshot_id: Snapshot identifier.
-
-        Returns:
-            bytes: ZIP archive content returned by object storage.
-
-        Raises:
-            ProjectArtifactsNotAccessibleError: If the user cannot view artifacts.
-            httpx.HTTPError: Propagated by the object-storage client.
-        """
+    ) -> SnapshotManifestResponseDTO:
+        """Return snapshot manifest metadata after project artifact view checks."""
         await self._ensure_view_permission(user, project_id)
-        response = await self._object_storage.download_project_snapshot(
+        return await self._object_storage.get_project_snapshot_manifest(
             project_id, snapshot_id
         )
-        return response.content
+
+    async def delete_project_snapshot(
+        self, user: UserProtocol, project_id: UUID, snapshot_id: UUID
+    ) -> DeleteProjectSnapshotResponseDTO:
+        """Delete one project snapshot after project artifact log checks."""
+        await self._ensure_log_permission(user, project_id)
+        return await self._object_storage.delete_project_snapshot(project_id, snapshot_id)
 
     async def delete_project_artifact(
         self, user: UserProtocol, project_id: UUID, artifact_hash: str

@@ -28,6 +28,8 @@ from .dto import (
     ReconcileStorageBucketResponseDTO,
     SnapshotCreateRequestDTO,
     SnapshotCreateResponseDTO,
+    SnapshotFileEntryDTO,
+    SnapshotManifestResponseDTO,
     UploadBlobResponseDTO,
 )
 from .repository import ObjectStorageRepository
@@ -274,6 +276,19 @@ class ObjectStorageService:
             deleted=True,
             deleted_blobs=deleted_blobs,
         )
+
+    async def get_project_snapshot_manifest(
+        self, project_id: UUID, snapshot_id: UUID
+    ) -> SnapshotManifestResponseDTO:
+        """Return snapshot manifest metadata without reading blob contents."""
+
+        snapshot = await self._repository.fetch_snapshot(snapshot_id)
+        if snapshot is None:
+            raise HTTPException(status_code=404, detail="Snapshot not found")
+        if snapshot.project_id != project_id:
+            raise HTTPException(status_code=404, detail="Snapshot not found")
+        files = [SnapshotFileEntryDTO.model_validate(entry) for entry in snapshot.manifest]
+        return SnapshotManifestResponseDTO(snapshot_id=snapshot.id, files=files)
 
     async def get_project_usage(self, project_id: UUID) -> ProjectUsageResponseDTO:
         """Return combined project usage across CAS, snapshots, and experiment buckets.

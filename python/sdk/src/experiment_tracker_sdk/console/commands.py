@@ -7,6 +7,7 @@ import json
 import os
 import shutil
 from dataclasses import dataclass
+from pathlib import Path
 from typing import cast
 
 import click
@@ -18,6 +19,13 @@ from ..config import load_config, save_config
 from ..constants import DEFAULT_API_PREFIX, DEFAULT_BASE_URL
 from ..error import ExpTrackerConfigError
 from ..settings import DEFAULT_CONFIG_DIR, get_exp_tracker_settings
+from ..snapshot import (
+    DEFAULT_IGNORE_FILES,
+    create_exp_tracker_ignore,
+    format_scan_summary,
+    format_skipped_lines,
+    scan_snapshot_files,
+)
 from .domains import DOMAIN_COMMANDS
 from .run import run_command
 
@@ -89,6 +97,22 @@ def _get_init_defaults() -> CliInitDefaults:
     )
 
 
+def _create_exp_tracker_ignore(directory: str | Path, *, force: bool) -> Path:
+    """Create the default tracker ignore file and convert path errors to Click.
+
+    Args:
+        directory: Directory where ``.exp_tracker_ignore`` should be created.
+        force: Whether an existing ignore file should be overwritten.
+
+    Returns:
+        Path to the created or existing ignore file.
+    """
+    try:
+        return create_exp_tracker_ignore(directory, force=force)
+    except (FileNotFoundError, NotADirectoryError) as exc:
+        raise click.ClickException(str(exc)) from exc
+
+
 @click.group(
     "experiment-tracker",
     context_settings={"help_option_names": ["-h", "--help"]},
@@ -109,10 +133,16 @@ def cli() -> None:
 @click.option("--base-url", "base_url", default=None)
 @click.option("--api-prefix", "api_prefix", default=None)
 @click.option("--api-token", "api_token", default=None)
+@click.option(
+    "--create-ignore-file",
+    is_flag=True,
+    help="Also create .exp_tracker_ignore in the current directory.",
+)
 def init_command(
     base_url: str | None,
     api_prefix: str | None,
     api_token: str | None,
+    create_ignore_file: bool,
 ) -> None:
     """Store base URL, API prefix, and API token for later SDK use."""
     defaults = _get_init_defaults()
@@ -138,6 +168,18 @@ def init_command(
         api_prefix=resolved_prefix,
     )
     click.echo(f"Config saved to {config_path}")
+    if create_ignore_file:
+        ignore_path = _create_exp_tracker_ignore(".", force=False)
+        click.echo(f"Ignore file ready at {ignore_path}")
+
+
+@cli.command("init-ignore", short_help="Create .exp_tracker_ignore")
+@click.argument("directory", required=False, default=".")
+@click.option("-f", "--force", is_flag=True, help="Overwrite an existing file.")
+def init_ignore_command(directory: str, force: bool) -> None:
+    """Create a default ``.exp_tracker_ignore`` for snapshot uploads."""
+    ignore_path = _create_exp_tracker_ignore(directory, force=force)
+    click.echo(f"Ignore file ready at {ignore_path}")
 
 
 @cli.command("clean-config", short_help="Remove SDK configuration directory")
@@ -197,6 +239,61 @@ def ping_command() -> None:
             "Config not found. Run `experiment-tracker init`."
         ) from exc
     click.echo(json.dumps(health.model_dump(mode="json"), indent=2, default=str))
+
+
+@cli.command("check-files", short_help="Preview snapshot files")
+@click.argument("paths", nargs=-1)
+@click.option(
+    "--ignore-file",
+    multiple=True,
+    default=DEFAULT_IGNORE_FILES,
+    show_default=True,
+    help="Gitignore-compatible ignore file to apply. Repeat to use several.",
+)
+@click.option(
+    "--root",
+    default=None,
+    metavar="ABSOLUTE_PATH",
+    help="Absolute snapshot root. Defaults to discovery via ignore files.",
+)
+@click.option(
+    "--show-skipped",
+    is_flag=True,
+    help="Also print skipped paths.",
+)
+@click.option(
+    "--max-file-size",
+    type=int,
+    default=None,
+    metavar="BYTES",
+    help=(
+        "Maximum file size to include. Defaults to settings; use -1 to disable."
+    ),
+)
+def check_files_command(
+    paths: tuple[str, ...],
+    ignore_file: tuple[str, ...],
+    root: str | None,
+    show_skipped: bool,
+    max_file_size: int | None,
+) -> None:
+    """Print files that would be included in ``ExpTracker.log_snapshot``."""
+    scan = scan_snapshot_files(
+        paths or ".",
+        root=root,
+        ignore_file=ignore_file,
+        max_file_size=(
+            get_exp_tracker_settings().snapshot_max_file_size
+            if max_file_size is None
+            else max_file_size
+        ),
+    )
+    for line in format_scan_summary(scan):
+        click.echo(line)
+    if show_skipped and scan.skipped_details:
+        click.echo("skipped paths:")
+        for line in format_skipped_lines(scan.skipped_details):
+            click.echo(line)
 
 
 # Add the run command to the CLI via `experiment-tracker run`

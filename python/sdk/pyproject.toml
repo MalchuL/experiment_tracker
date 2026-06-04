@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "experiment-tracker-sdk"
-version = "0.10.3"
+version = "0.11.3"
 description = "Python SDK for Experiment Tracker"
 readme = "README.md"
 authors = [
@@ -17,6 +17,8 @@ dependencies = [
   "pydantic>=2.6.0",
   "pydantic-settings>=2.2.0",
   "experiment-tracker-shared",
+  "pathspec>=0.12,<1",
+  "pyrootutils>=1.0.4,<2",
   "tqdm>=4.66.0",
 ]
 

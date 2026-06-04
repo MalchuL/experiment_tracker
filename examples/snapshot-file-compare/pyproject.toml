@@ -1,0 +1,11 @@
+[project]
+name = "experiment-tracker-snapshot-file-compare"
+version = "0.1.0"
+description = "SDK example: generate training files, mutate them, and log snapshots for Compare"
+requires-python = ">=3.10"
+dependencies = [
+  "experiment-tracker-sdk",
+]
+
+[tool.uv.sources]
+experiment-tracker-sdk = { path = "../../python/sdk" }

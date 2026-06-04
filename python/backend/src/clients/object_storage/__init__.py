@@ -5,6 +5,7 @@ from .dto import (
     DeleteExperimentArtifactsResponseDTO,
     DeleteProjectArtifactResponseDTO,
     DeleteProjectResponseDTO,
+    DeleteProjectSnapshotResponseDTO,
     ExperimentTrackedArtifactListDTO,
     ExperimentTrackedArtifactInfoDTO,
     ExperimentTrackedArtifactItemDTO,
@@ -13,6 +14,7 @@ from .dto import (
     SnapshotCreateRequestDTO,
     SnapshotCreateResponseDTO,
     SnapshotFileEntryDTO,
+    SnapshotManifestResponseDTO,
     UploadProjectArtifactResponseDTO,
 )
 from .protocol import ObjectStorageClientProtocol
@@ -23,6 +25,7 @@ __all__ = [
     "DeleteExperimentArtifactsResponseDTO",
     "DeleteProjectArtifactResponseDTO",
     "DeleteProjectResponseDTO",
+    "DeleteProjectSnapshotResponseDTO",
     "ExperimentTrackedArtifactListDTO",
     "ExperimentTrackedArtifactInfoDTO",
     "ExperimentTrackedArtifactItemDTO",
@@ -33,5 +36,6 @@ __all__ = [
     "SnapshotCreateRequestDTO",
     "SnapshotCreateResponseDTO",
     "SnapshotFileEntryDTO",
+    "SnapshotManifestResponseDTO",
     "UploadProjectArtifactResponseDTO",
 ]

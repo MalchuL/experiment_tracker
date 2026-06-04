@@ -22,7 +22,7 @@ uses it when ``verbose=True``.
 from __future__ import annotations
 
 from collections.abc import Callable, Iterator, Mapping
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, BinaryIO
 
 if TYPE_CHECKING:
     from tqdm.std import tqdm as TqdmBar
@@ -88,9 +88,64 @@ class ProgressBytesReader:
         return len(self._data)
 
 
+class ProgressFileReader:
+    """Wrap a binary file object and update tqdm whenever httpx reads from it."""
+
+    def __init__(self, file_obj: Any, on_read: Callable[[int], None]) -> None:
+        """Store the wrapped stream and callback used for progress updates.
+
+        Args:
+            file_obj: Binary file-like object passed through to httpx.
+            on_read: Callback invoked with the number of bytes read.
+
+        Returns:
+            None.
+        """
+        self._file_obj = file_obj
+        self._on_read = on_read
+
+    def read(self, size: int = -1) -> bytes:
+        """Read bytes from the wrapped stream and update the progress callback.
+
+        Args:
+            size: Maximum number of bytes to read, or ``-1`` for all remaining
+                bytes as expected by file-like objects.
+
+        Returns:
+            Bytes returned by the wrapped stream.
+        """
+        chunk = self._file_obj.read(size)
+        if chunk:
+            self._on_read(len(chunk))
+        return chunk
+
+    def seek(self, offset: int, whence: int = 0) -> int:
+        """Move the wrapped stream position.
+
+        Args:
+            offset: Byte offset passed to the wrapped stream.
+            whence: Seek mode using standard file-object constants.
+
+        Returns:
+            New stream position reported by the wrapped object.
+        """
+        return self._file_obj.seek(offset, whence)
+
+    def tell(self) -> int:
+        """Return the wrapped stream's current position.
+
+        Args:
+            None.
+
+        Returns:
+            Current byte offset reported by the wrapped object.
+        """
+        return self._file_obj.tell()
+
+
 # Shape httpx expects for one file field in a multipart upload:
 #   (filename shown to the server, body bytes or ProgressBytesReader, MIME type)
-UploadMultipartBody = bytes | ProgressBytesReader
+UploadMultipartBody = bytes | BinaryIO | ProgressBytesReader | ProgressFileReader
 UploadMultipartFilePart = tuple[str, UploadMultipartBody, str]
 
 
@@ -117,9 +172,53 @@ def progress_file_reader(
     )
 
     def on_read(num_bytes: int) -> None:
+        """Advance the upload progress bar after a stream read.
+
+        Args:
+            num_bytes: Number of bytes just read from the wrapped stream.
+
+        Returns:
+            None.
+        """
         bar.update(num_bytes)
 
     return ProgressBytesReader(content, on_read), bar
+
+
+def progress_stream_reader(
+    file_obj: Any,
+    *,
+    desc: str,
+    total: int | None,
+    disable: bool = False,
+    position: int | None = None,
+    leave: bool = True,
+) -> tuple[ProgressFileReader, TqdmBar]:
+    """Wrap a binary stream for upload progress without reading it into memory."""
+    tqdm = _get_tqdm()
+    bar = tqdm(
+        total=total,
+        unit="B",
+        unit_scale=True,
+        unit_divisor=1024,
+        desc=desc,
+        disable=disable,
+        position=position,
+        leave=leave,
+    )
+
+    def on_read(num_bytes: int) -> None:
+        """Advance the upload progress bar after a stream read.
+
+        Args:
+            num_bytes: Number of bytes just read from the wrapped stream.
+
+        Returns:
+            None.
+        """
+        bar.update(num_bytes)
+
+    return ProgressFileReader(file_obj, on_read), bar
 
 
 def iter_download_chunks_with_progress(
@@ -155,7 +254,7 @@ def batch_items_progress(
     desc: str,
     disable: bool,
 ) -> TqdmBar:
-    """One tqdm bar that counts finished files (e.g. ``2/5 files``) in a batch transfer."""
+    """One tqdm bar that counts finished files in a batch transfer."""
     tqdm = _get_tqdm()
     return tqdm(total=total, unit="file", desc=desc, disable=disable)
 

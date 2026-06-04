@@ -1,7 +1,7 @@
 import json
 import math
 from datetime import datetime
-from typing import Any
+from typing import Any, cast
 from uuid import UUID
 
 from experiment_tracker_sdk.client import (
@@ -25,21 +25,14 @@ from experiment_tracker_sdk.client.scalar_batching_strategy import (
 from experiment_tracker_sdk.error import ExpTrackerAPIError
 from experiment_tracker_sdk.logger import logger
 from experiment_tracker_sdk.settings import get_exp_tracker_settings
-from experiment_tracker_sdk.utils.content_utils import (
-    FinalArtifactContent,
-    ImageContent,
-    ImageDataContent,
-    StructuredFinalArtifactContent,
-    prepare_final_artifact_content,
-    prepare_final_image_content,
-    prepare_final_json_content,
-    prepare_final_yaml_content,
-    prepare_step_image_content,
-    prepare_step_text_content,
-)
-from experiment_tracker_sdk.utils.experiment_init_strategy import (
-    ExperimentInitStrategy,
-    InitParams,
+from experiment_tracker_sdk.snapshot import (
+    DEFAULT_IGNORE_FILES,
+    IgnoreFileInput,
+    SnapshotPathInput,
+    SnapshotRootInput,
+    SnapshotUploader,
+    SnapshotUploadResult,
+    normalize_snapshot_max_file_size,
 )
 from experiment_tracker_sdk.utils.chart import (
     ChartLabelInput,
@@ -61,6 +54,24 @@ from experiment_tracker_sdk.utils.chart.tensor_values import (
     numeric_sequence_length,
     vertex_row_count,
 )
+from experiment_tracker_sdk.utils.content_utils import (
+    FinalArtifactContent,
+    ImageContent,
+    ImageDataContent,
+    StructuredFinalArtifactContent,
+    prepare_final_artifact_content,
+    prepare_final_image_content,
+    prepare_final_json_content,
+    prepare_final_yaml_content,
+    prepare_step_image_content,
+    prepare_step_text_content,
+)
+from experiment_tracker_sdk.utils.experiment_init_strategy import (
+    ExperimentInitStrategy,
+    InitParams,
+)
+
+_SNAPSHOT_MAX_FILE_SIZE_UNSET = object()
 
 
 class ExpTracker:
@@ -140,7 +151,7 @@ class ExpTracker:
         return self._experiment.__exit__(exc_type, exc, tb)
 
     def _resolve_verbose(self, verbose: bool | None) -> bool:
-        """Per-call ``verbose`` wins; ``None`` uses :attr:`_verbose` from construction."""
+        """Resolve per-call or tracker-level verbosity."""
         if verbose is not None:
             return verbose
         return self._verbose
@@ -496,6 +507,35 @@ class ExpTracker:
             verbose=verbose,
         )
 
+    def log_snapshot(
+        self,
+        path: SnapshotPathInput = ".",
+        *,
+        root: SnapshotRootInput = None,
+        ignore_file: IgnoreFileInput = DEFAULT_IGNORE_FILES,
+        max_file_size: int | None | object = _SNAPSHOT_MAX_FILE_SIZE_UNSET,
+        verbose: bool | None = None,
+    ) -> SnapshotUploadResult:
+        """Upload a file snapshot for the current experiment."""
+        resolved_max_file_size = (
+            get_exp_tracker_settings().snapshot_max_file_size
+            if max_file_size is _SNAPSHOT_MAX_FILE_SIZE_UNSET
+            else normalize_snapshot_max_file_size(cast(int | None, max_file_size))
+        )
+        uploader = SnapshotUploader(
+            registry=self._api_requests_registry,
+            request_client=self._request_client,
+        )
+        return uploader.log_snapshot(
+            project_id=str(self.project_id),
+            experiment_id=str(self.experiment_id),
+            path=path,
+            root=root,
+            ignore_file=ignore_file,
+            max_file_size=resolved_max_file_size,
+            verbose=self._resolve_verbose(verbose),
+        )
+
     def add_histogram(
         self,
         tag: str,
@@ -706,7 +746,7 @@ class ExpTracker:
             artifact_type="point_cloud_3d",
             global_step=global_step,
             data=[trace],
-            layout=config_dict or {"title": {"text": tag}},
+            layout=dict(config_dict) if config_dict else {"title": {"text": tag}},
             metadata={"total_points": str(len(xs))},
         )
 

@@ -441,6 +441,39 @@ Structured mappings/lists are serialized with the SDK's lightweight YAML emitter
 
 ---
 
+### `log_snapshot(...)`
+
+```python
+result = tracker.log_snapshot(".")
+
+# Pin manifest paths to a known project root.
+result = tracker.log_snapshot(
+    "src",
+    root="/absolute/path/to/project",
+)
+```
+
+Uploads a file snapshot for the current experiment. Use this for source code, lightweight configs, and other files that should be comparable between runs.
+
+Arguments:
+
+| Argument | Meaning |
+|----------|---------|
+| `path` | File, directory, or iterable of files/directories to scan. Defaults to `"."`. |
+| `root` | Optional absolute directory used for manifest-relative paths. When omitted, the SDK discovers the root from ignore files. |
+| `ignore_file` | Ignore file names to apply. Defaults to `.gitignore` and `.exp_tracker_ignore`. |
+| `max_file_size` | Maximum file size in bytes. Omit to use `EXP_TRACKER_SNAPSHOT_MAX_FILE_SIZE`; pass `None` or `-1` to disable. |
+
+When `root` is `None`, the SDK searches upward from the scanned path for `.gitignore` or `.exp_tracker_ignore` and uses the nearest matching directory as the snapshot root. If no ignore file is found, the scanned path or common parent is used. When `root` is provided, it must be an absolute path to an existing directory, and every scanned path must be inside it.
+
+The default snapshot size limit is 5 MiB per file. Skipped files are counted in the result, and `experiment-tracker check-files --show-skipped` reports reasons: `ignored`, `too_large`, or `not_file`. To preview a pinned root, pass `--root /absolute/path/to/project` to `check-files`.
+
+:::warning
+Snapshot storage is currently intended for small code/config snapshots, not large repository archives or dataset-like trees. The current implementation does not store very large snapshots efficiently and is practically limited to about 250k files per snapshot.
+:::
+
+---
+
 ### `progress(...)`
 
 ```python

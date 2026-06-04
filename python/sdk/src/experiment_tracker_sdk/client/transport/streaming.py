@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterator
-from typing import Any
+from typing import Any, cast
 
 import httpx
 
@@ -23,7 +23,7 @@ def file_download_response_from_headers(
     response: httpx.Response,
     content: bytes | Iterator[bytes],
 ) -> FileDownloadResponse:
-    """Wrap response bytes or a chunk iterator with filename and content-type metadata."""
+    """Wrap response bytes or chunks with filename and content-type metadata."""
     return FileDownloadResponse(
         content=content,
         filename=parse_content_disposition(response.headers.get("content-disposition")),
@@ -43,7 +43,7 @@ def open_streaming_download(
     params: dict[str, Any] | None = None,
     options: RequestOptions,
 ) -> FileDownloadResponse:
-    """Open a streaming request and return a :class:`FileDownloadResponse` with a managed iterator.
+    """Open a streaming request and return a managed file response.
 
     The HTTP connection stays open until the returned ``content`` iterator is
     fully consumed (or garbage-collected). The iterator's ``finally`` block
@@ -57,7 +57,7 @@ def open_streaming_download(
         endpoint,
         json=json_payload,
         data=form_data,
-        files=files,
+        files=cast(Any, files),
         params=params,
     )
     with disable_httpx_logging():

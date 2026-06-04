@@ -11,6 +11,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from experiment_tracker_sdk.constants import (
     DEFAULT_HISTOGRAM_METADATA_BINS,
     DEFAULT_SCATTER_METADATA_MAX_POINTS,
+    DEFAULT_SNAPSHOT_MAX_FILE_SIZE_BYTES,
 )
 
 DEFAULT_CONFIG_DIR = Path.home() / ".experiment-tracker"
@@ -56,6 +57,13 @@ class ExpTrackerSettings(BaseSettings):
         default=DEFAULT_SCATTER_METADATA_MAX_POINTS,
         ge=1,
         description="Maximum scatter points stored in artifact metadata previews.",
+    )
+    snapshot_max_file_size: int = Field(
+        default=DEFAULT_SNAPSHOT_MAX_FILE_SIZE_BYTES,
+        ge=-1,
+        description=(
+            "Maximum file size in bytes included in snapshots. Use -1 to disable."
+        ),
     )
 
 

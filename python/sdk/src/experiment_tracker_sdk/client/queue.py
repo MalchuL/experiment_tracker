@@ -1,30 +1,58 @@
-import json
 import logging
 import queue
 import threading
-from dataclasses import dataclass
 import traceback
-from typing import Any, Optional
+from dataclasses import dataclass
+from typing import Any, cast
+
+import httpx
 
 from .request_types import FileUploadSpec
 from .utils import log_error_response
-import httpx
 from .utils.logging import disable_httpx_logging
+from .utils.transfer_progress import UploadMultipartFilePart
 
 logger = logging.getLogger("experiment_tracker_sdk")
 
 
 @dataclass(frozen=True)
 class RequestItem:
+    """Queued SDK HTTP request payload.
+
+    Args:
+        method: HTTP method to execute.
+        path: API path relative to the configured base URL.
+        json: Optional JSON body.
+        form_data: Optional multipart form fields.
+        files: Optional multipart file specifications.
+        params: Optional query parameters.
+
+    Result:
+        Immutable item consumed by ``RequestQueue`` worker threads.
+    """
+
     method: str
     path: str
-    json: Optional[dict[str, Any]] = None
-    form_data: Optional[dict[str, Any]] = None
-    files: Optional[dict[str, FileUploadSpec]] = None
-    params: Optional[dict[str, Any]] = None
+    json: dict[str, Any] | None = None
+    form_data: dict[str, Any] | None = None
+    files: dict[str, FileUploadSpec] | None = None
+    params: dict[str, Any] | None = None
 
 
 class RequestQueue:
+    """Background FIFO queue for fire-and-forget SDK requests.
+
+    Args:
+        client: ``httpx.Client`` used to send queued requests.
+        max_queue_size: Maximum buffered request count before producers block.
+        poll_interval: Worker polling interval in seconds while waiting for
+            items or shutdown.
+
+    Result:
+        Queue object that accepts request items and drains them on a daemon
+        worker thread.
+    """
+
     def __init__(
         self,
         client: httpx.Client,
@@ -57,7 +85,7 @@ class RequestQueue:
             self._queue.join()
         self._queue.put(item, block=True)
 
-    def flush(self, timeout: Optional[float] = None) -> None:
+    def flush(self, timeout: float | None = None) -> None:
         """Wait for all queued requests to finish sending.
 
         Args:
@@ -84,10 +112,11 @@ class RequestQueue:
                         item.form_data is not None or item.files is not None
                     ):
                         raise ValueError(
-                            "RequestItem cannot contain both json and data/files payloads"
+                            "RequestItem cannot contain both json and "
+                            "data/files payloads"
                         )
 
-                    files_payload: dict[str, tuple[str, bytes, str]] | None = None
+                    files_payload: dict[str, UploadMultipartFilePart] | None = None
                     if item.files is not None:
                         # TODO: Test this with actual files.
                         files_payload = {
@@ -104,13 +133,13 @@ class RequestQueue:
                         item.path,
                         json=item.json,
                         data=item.form_data,
-                        files=files_payload,
+                        files=cast(Any, files_payload),
                         params=item.params,
                     )
                 response.raise_for_status()
             except httpx.HTTPStatusError as exc:
                 log_error_response(exc.response, logger)
-            except Exception as exc:  # noqa: BLE001
+            except Exception:  # noqa: BLE001
                 traceback.print_exc()
             finally:
                 self._queue.task_done()

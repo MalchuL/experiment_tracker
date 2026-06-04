@@ -38,7 +38,7 @@ import { useToast } from "@/lib/hooks/use-toast";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { useExperiment } from "@/domain/experiments/hooks/experiment-hook";
 import { useExperiments } from "@/domain/experiments/hooks/experiments-hook";
-import { GitBranch, RefreshCw, X, ChevronDown } from "lucide-react";
+import { GitBranch, GitCompare, RefreshCw, X, ChevronDown } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import type { Experiment } from "@/domain/experiments/types";
 import type { Metric } from "@/domain/metrics/types";
@@ -137,6 +137,15 @@ function accordionItemValueForLoggedLabelGroup(label: string | null): string {
 /** Single-line label for parent dropdown rows (name + short id prefix). */
 function formatExperimentParentOption(exp: Pick<Experiment, "name" | "id">): string {
   return `${exp.name} (${exp.id.slice(0, 7)})`;
+}
+
+function buildCodeCompareHref(experiment: Pick<Experiment, "id" | "projectId" | "parentExperimentId">): string {
+  const params = new URLSearchParams();
+  params.append("exp", experiment.id);
+  if (experiment.parentExperimentId) {
+    params.append("exp", experiment.parentExperimentId);
+  }
+  return `${FRONTEND_ROUTES.PROJECT_PAGES.COMPARE(experiment.projectId)}?${params.toString()}`;
 }
 
 function readStoredSidebarTab(): ExperimentSidebarTab {
@@ -904,9 +913,24 @@ export function ExperimentSidebar({
               </TabsContent>
 
               <TabsContent value="code" className="space-y-2">
-                <p className="text-sm text-muted-foreground text-center py-4">
-                  Coming Soon
-                </p>
+                <div className="rounded-md border bg-muted/20 p-3">
+                  <Button
+                    asChild
+                    variant="outline"
+                    size="sm"
+                    className="w-full justify-start"
+                    data-testid="button-open-code-compare"
+                  >
+                    <Link
+                      href={buildCodeCompareHref(experiment)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <GitCompare className="h-4 w-4" />
+                      <span>{experiment.parentExperimentId ? "Open code compare" : "Open files"}</span>
+                    </Link>
+                  </Button>
+                </div>
               </TabsContent>
             </Tabs>
           </div>

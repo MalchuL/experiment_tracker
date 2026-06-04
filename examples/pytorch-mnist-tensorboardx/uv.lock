@@ -90,14 +90,16 @@ requires-dist = [
 
 [[package]]
 name = "experiment-tracker-sdk"
-version = "0.8.7"
+version = "0.11.2"
 source = { directory = "../../python/sdk" }
 dependencies = [
     { name = "click" },
     { name = "experiment-tracker-shared" },
     { name = "httpx" },
+    { name = "pathspec" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
+    { name = "tqdm" },
 ]
 
 [package.metadata]
@@ -105,11 +107,15 @@ requires-dist = [
     { name = "click", specifier = ">=8.0,<9" },
     { name = "experiment-tracker-shared", editable = "../../python/shared" },
     { name = "httpx", specifier = ">=0.27.0" },
+    { name = "numpy", marker = "extra == 'dev'" },
+    { name = "pathspec", specifier = ">=0.12,<1" },
+    { name = "pillow", marker = "extra == 'dev'" },
     { name = "pydantic", specifier = ">=2.6.0" },
     { name = "pydantic-settings", specifier = ">=2.2.0" },
     { name = "pyright", marker = "extra == 'dev'" },
     { name = "pytest", marker = "extra == 'dev'" },
     { name = "ruff", marker = "extra == 'dev'" },
+    { name = "tqdm", specifier = ">=4.66.0" },
 ]
 provides-extras = ["dev"]
 
@@ -391,6 +397,15 @@ wheels = [
 ]
 
 [[package]]
+name = "pathspec"
+version = "0.12.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/ca/bc/f35b8446f4531a7cb215605d100cd88b7ac6f44ab3fc94870c120ab3adbf/pathspec-0.12.1.tar.gz", hash = "sha256:a482d51503a1ab33b1c67a6c3813a26953dbdc71c31dacaef9a838c4e29f5712", size = 51043 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/cc/20/ff623b09d963f88bfde16306a54e12ee5ea43e9b597108672ff3a408aad6/pathspec-0.12.1-py3-none-any.whl", hash = "sha256:a0d503e138a4c123b27490a4f7beda6a01c6f288df0e4a8b79c7eb0dc7b4cc08", size = 31191 },
+]
+
+[[package]]
 name = "pendulum"
 version = "3.2.0"
 source = { registry = "https://pypi.org/simple" }
@@ -623,6 +638,18 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/1a/e8/13432ae6be567b577a4c89d1bd50084e4d989b379a7be8050380b5ab3a6e/torchvision-0.17.1-cp310-cp310-manylinux1_x86_64.whl", hash = "sha256:aaefef2be6a02f206085ce4bb6c0078b03ebf48cb6ff82bd762ff6248475e08e", size = 6915662 },
     { url = "https://files.pythonhosted.org/packages/a2/c8/79d6a72f3e4a99a7ffd0179cc6a6e450178f19bcdc2ee148e7ff1ad6162d/torchvision-0.17.1-cp310-cp310-manylinux2014_aarch64.whl", hash = "sha256:ebe5fdb466aff8a8e8e755de84a843418b6f8d500624752c05eaa638d7700f3d", size = 14008557 },
     { url = "https://files.pythonhosted.org/packages/69/66/3b7392a52bb541efc95afebf72c8574e2530fee39153cb02efc8fc97d82c/torchvision-0.17.1-cp310-cp310-win_amd64.whl", hash = "sha256:9d4d45a996f4313e9c5db4da71d31508d44f7ccfbf29d3442bdcc2ad13e0b6f3", size = 1165528 },
+]
+
+[[package]]
+name = "tqdm"
+version = "4.67.3"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "colorama", marker = "sys_platform == 'win32'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/09/a9/6ba95a270c6f1fbcd8dac228323f2777d886cb206987444e4bce66338dd4/tqdm-4.67.3.tar.gz", hash = "sha256:7d825f03f89244ef73f1d4ce193cb1774a8179fd96f31d7e1dcde62092b960bb", size = 169598 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/16/e1/3079a9ff9b8e11b846c6ac5c8b5bfb7ff225eee721825310c91b3b50304f/tqdm-4.67.3-py3-none-any.whl", hash = "sha256:ee1e4c0e59148062281c49d80b25b67771a127c85fc9676d3be5f243206826bf", size = 78374 },
 ]
 
 [[package]]

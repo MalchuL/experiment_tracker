@@ -46,6 +46,13 @@ class SnapshotFileEntryDTO(BaseModel):
     hash: str
 
 
+class SnapshotManifestResponseDTO(BaseModel):
+    model_config = model_config()
+
+    snapshot_id: UUID
+    files: list[SnapshotFileEntryDTO] = Field(default_factory=list)
+
+
 class SnapshotCreateRequestDTO(BaseModel):
     model_config = model_config()
 
