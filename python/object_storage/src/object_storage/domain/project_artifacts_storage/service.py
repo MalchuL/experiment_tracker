@@ -28,6 +28,8 @@ from .dto import (
     ReconcileStorageBucketResponseDTO,
     SnapshotCreateRequestDTO,
     SnapshotCreateResponseDTO,
+    SnapshotFileEntryDTO,
+    SnapshotManifestResponseDTO,
     UploadBlobResponseDTO,
 )
 from .repository import ObjectStorageRepository
@@ -221,10 +223,10 @@ class ObjectStorageService:
             raise HTTPException(status_code=400, detail="\n".join(errors))
         hashes = [entry.hash for entry in normalized_files]
         if hashes:
-            existing = await self._repository.fetch_existing_blob_hashes(
+            existing_hashes = await self._repository.fetch_existing_blob_hashes(
                 payload.project_id, hashes
             )
-            missing = [blob_hash for blob_hash in hashes if blob_hash not in existing]
+            missing = [blob_hash for blob_hash in hashes if blob_hash not in existing_hashes]
             if missing:
                 raise HTTPException(
                     status_code=400, detail=f"Missing blobs: {', '.join(missing)}"
@@ -274,6 +276,27 @@ class ObjectStorageService:
             deleted=True,
             deleted_blobs=deleted_blobs,
         )
+
+    async def get_project_snapshot_manifest(
+        self, project_id: UUID, snapshot_id: UUID
+    ) -> SnapshotManifestResponseDTO:
+        """Return snapshot manifest metadata without reading blob contents."""
+
+        snapshot = await self._repository.fetch_snapshot(snapshot_id)
+        if snapshot is None:
+            raise HTTPException(status_code=404, detail="Snapshot not found")
+        if snapshot.project_id != project_id:
+            raise HTTPException(status_code=404, detail="Snapshot not found")
+        files = [
+            SnapshotFileEntryDTO.model_validate(
+                {
+                    **entry,
+                    "hash": self._normalize_hash(str(entry["hash"])),
+                }
+            )
+            for entry in snapshot.manifest
+        ]
+        return SnapshotManifestResponseDTO(snapshot_id=snapshot.id, files=files)
 
     async def get_project_usage(self, project_id: UUID) -> ProjectUsageResponseDTO:
         """Return combined project usage across CAS, snapshots, and experiment buckets.
@@ -473,6 +496,8 @@ class ObjectStorageService:
 
         snapshot = await self._repository.fetch_snapshot(snapshot_id)
         if snapshot is None:
+            raise HTTPException(status_code=404, detail="Snapshot not found")
+        if snapshot.project_id != project_id:
             raise HTTPException(status_code=404, detail="Snapshot not found")
         await self._buckets_service.ensure_bucket(project_id, None)
         zip_path = await anyio.to_thread.run_sync(

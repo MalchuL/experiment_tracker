@@ -16,6 +16,12 @@ Save the backend URL and API token:
 experiment-tracker init --base-url http://127.0.0.1:8000 --api-token <TOKEN>
 ```
 
+Create the default snapshot ignore file while saving config:
+
+```bash
+experiment-tracker init --base-url http://127.0.0.1:8000 --api-token <TOKEN> --create-ignore-file
+```
+
 Check the API and current token:
 
 ```bash
@@ -35,7 +41,29 @@ Use `-y` to skip the confirmation prompt:
 experiment-tracker clean-config -y
 ```
 
-The CLI reads saved config plus `EXP_TRACKER_` environment overrides, including `EXP_TRACKER_BASE_URL`, `EXP_TRACKER_API_PREFIX`, `EXP_TRACKER_API_TOKEN`, and `EXP_TRACKER_CONFIG_PATH`.
+The CLI reads saved config plus `EXP_TRACKER_` environment overrides, including `EXP_TRACKER_BASE_URL`, `EXP_TRACKER_API_PREFIX`, `EXP_TRACKER_API_TOKEN`, `EXP_TRACKER_CONFIG_PATH`, and `EXP_TRACKER_SNAPSHOT_MAX_FILE_SIZE`.
+
+## Snapshot ignore files
+
+Snapshots read `.gitignore` and `.exp_tracker_ignore` using gitignore-compatible patterns. The tracker-specific ignore file is useful for local training outputs that should not be uploaded, such as logs, runs, checkpoints, virtual environments, and build artifacts.
+
+Create one in the current directory:
+
+```bash
+experiment-tracker init-ignore
+```
+
+Create one in another directory:
+
+```bash
+experiment-tracker init-ignore ./experiments
+```
+
+Overwrite an existing `.exp_tracker_ignore`:
+
+```bash
+experiment-tracker init-ignore --force
+```
 
 ## Run a script
 
@@ -62,6 +90,51 @@ Use offline mode when you only want local bootstrap behavior and do not want the
 ```bash
 experiment-tracker run --project mnist --offline train.py -- --epochs 1
 ```
+
+Add `--snapshot` to upload a code snapshot before a run:
+
+```bash
+experiment-tracker run --project mnist --snapshot train.py -- --epochs 10
+```
+
+Snapshot paths are rooted at the nearest `.gitignore` or `.exp_tracker_ignore` above the script directory. Files larger than `EXP_TRACKER_SNAPSHOT_MAX_FILE_SIZE` are skipped; the default is 5 MiB. Use `--snapshot-max-file-size -1` to disable the size limit for one run:
+
+```bash
+experiment-tracker run --project mnist --snapshot --snapshot-max-file-size -1 train.py
+```
+
+## Preview snapshot files
+
+Use `check-files` before a snapshot run to inspect which local files would be uploaded:
+
+```bash
+experiment-tracker check-files .
+```
+
+Preview what a snapshot would include:
+
+```bash
+experiment-tracker check-files --show-skipped .
+experiment-tracker check-files --max-file-size 1048576 --show-skipped .
+```
+
+Pin the snapshot root explicitly when discovery from `.gitignore` or `.exp_tracker_ignore` is not what you want:
+
+```bash
+experiment-tracker check-files --root /absolute/path/to/project .
+```
+
+Apply additional ignore file names or paths:
+
+```bash
+experiment-tracker check-files --ignore-file .gitignore --ignore-file .exp_tracker_ignore --show-skipped .
+```
+
+Skipped rows include a reason: `ignored`, `too_large`, or `not_file`. Use `--max-file-size -1` to disable the size limit for the preview.
+
+:::warning
+Snapshot storage is currently intended for small code/config snapshots, not large repository archives or dataset-like trees. The current implementation does not store very large snapshots efficiently and is practically limited to about 250k files per snapshot.
+:::
 
 :::warning
 `experiment-tracker run` uses Python `runpy` in the current process. It is intended for simple single-process or lightly threaded scripts, local debugging, and one-off research runs. It is not a general launcher for distributed PyTorch, elastic multi-node jobs, or heavy multiprocessing.

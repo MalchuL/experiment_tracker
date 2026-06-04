@@ -41,7 +41,7 @@ experiment-tracker ping
 experiment-tracker whoami
 ```
 
-The SDK also reads environment overrides with the `EXP_TRACKER_` prefix, including `EXP_TRACKER_BASE_URL`, `EXP_TRACKER_API_PREFIX`, `EXP_TRACKER_API_TOKEN`, and `EXP_TRACKER_CONFIG_PATH`.
+The SDK also reads environment overrides with the `EXP_TRACKER_` prefix, including `EXP_TRACKER_BASE_URL`, `EXP_TRACKER_API_PREFIX`, `EXP_TRACKER_API_TOKEN`, `EXP_TRACKER_CONFIG_PATH`, and `EXP_TRACKER_SNAPSHOT_MAX_FILE_SIZE`.
 
 ## Choose an API
 

@@ -9,6 +9,7 @@ from experiment_tracker_sdk.client.utils.transfer_progress import (
     UploadMultipartBody,
     UploadMultipartFilePart,
     progress_file_reader,
+    progress_stream_reader,
 )
 
 
@@ -29,12 +30,11 @@ def build_multipart_files(
     """Convert SDK file specs into the tuple shape httpx expects for multipart uploads.
 
     Returns ``(httpx_files, progress_bars)``. The caller must close
-    ``progress_bars`` after the HTTP request completes (see :func:`close_progress_bars`).
+    ``progress_bars`` after the HTTP request completes.
 
-    When ``verbose`` is ``False``, each part body is raw ``bytes`` (sent in one
-    shot). When ``verbose`` is ``True``, bytes are wrapped in
-    :class:`~experiment_tracker_sdk.client.utils.transfer_progress.ProgressBytesReader`
-    so httpx reads in slices and tqdm can update.
+    When ``verbose`` is ``False``, each part body is passed through unchanged.
+    When ``verbose`` is ``True``, bytes or binary file objects are wrapped so
+    httpx reads in slices and tqdm can update.
     """
     if files is None:
         return None, []
@@ -45,12 +45,21 @@ def build_multipart_files(
     for field_name, spec in files.items():
         body: UploadMultipartBody = spec.content
         if verbose:
-            body, bar = progress_file_reader(
-                spec.content,
-                desc=f"{progress_desc_prefix} {spec.filename}",
-                position=progress_position,
-                leave=progress_leave,
-            )
+            if isinstance(spec.content, bytes):
+                body, bar = progress_file_reader(
+                    spec.content,
+                    desc=f"{progress_desc_prefix} {spec.filename}",
+                    position=progress_position,
+                    leave=progress_leave,
+                )
+            else:
+                body, bar = progress_stream_reader(
+                    spec.content,
+                    desc=f"{progress_desc_prefix} {spec.filename}",
+                    total=spec.size,
+                    position=progress_position,
+                    leave=progress_leave,
+                )
             progress_bars.append(bar)
         httpx_files[field_name] = (spec.filename, body, spec.content_type)
 

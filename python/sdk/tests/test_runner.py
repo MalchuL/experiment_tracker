@@ -133,3 +133,88 @@ def test_runner_mark_methods_ignore_uninitialized_tracker() -> None:
 
     runner.mark_completed()
     runner.mark_failed()
+
+
+def test_runner_log_snapshot_uses_tracker_default_when_size_omitted(tmp_path) -> None:
+    """Verify runner snapshot logging omits size when no override is supplied.
+
+    Args:
+        tmp_path: Temporary path passed as the snapshot directory.
+
+    Returns:
+        None. The assertion checks the fake tracker saw no explicit size limit.
+    """
+    from experiment_tracker_sdk.console.utils.run.runner import RunSample
+
+    events = []
+    runner = object.__new__(RunSample)
+
+    class FakeTracker:
+        """Tracker fake that records snapshot calls without a size override.
+
+        Args:
+            None. Instances use the surrounding ``events`` list.
+
+        Result:
+            Test double for ``RunSample.exp_tracker``.
+        """
+
+        def log_snapshot(self, path) -> None:
+            """Record snapshot path and implicit default size behavior.
+
+            Args:
+                path: Directory passed by ``RunSample.log_snapshot``.
+
+            Returns:
+                None.
+            """
+            events.append((path, None))
+
+    runner.exp_tracker = FakeTracker()
+
+    runner.log_snapshot(tmp_path)
+
+    assert events == [(tmp_path, None)]
+
+
+def test_runner_log_snapshot_passes_size_override(tmp_path) -> None:
+    """Verify runner snapshot logging forwards an explicit size override.
+
+    Args:
+        tmp_path: Temporary path passed as the snapshot directory.
+
+    Returns:
+        None. The assertion checks the fake tracker receives ``max_file_size``.
+    """
+    from experiment_tracker_sdk.console.utils.run.runner import RunSample
+
+    events = []
+    runner = object.__new__(RunSample)
+
+    class FakeTracker:
+        """Tracker fake that records snapshot calls with a size override.
+
+        Args:
+            None. Instances use the surrounding ``events`` list.
+
+        Result:
+            Test double for ``RunSample.exp_tracker``.
+        """
+
+        def log_snapshot(self, path, *, max_file_size) -> None:
+            """Record snapshot path and explicit maximum file size.
+
+            Args:
+                path: Directory passed by ``RunSample.log_snapshot``.
+                max_file_size: Size override forwarded to the tracker.
+
+            Returns:
+                None.
+            """
+            events.append((path, max_file_size))
+
+    runner.exp_tracker = FakeTracker()
+
+    runner.log_snapshot(tmp_path, max_file_size=-1)
+
+    assert events == [(tmp_path, -1)]

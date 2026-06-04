@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useMutation, useQueries, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { PageHeader } from "@/components/shared/page-header";
 import { EntityIdDisplay } from "@/components/shared/entity-id-display";
 import {
@@ -74,10 +74,11 @@ import {
 } from "@/lib/metrics/metric-value-display";
 import { MetricNameValueDiffRow } from "@/components/shared/metric-name-value-diff-row";
 import { useToast } from "@/lib/hooks/use-toast";
-import { GitBranch, ChevronDown, X } from "lucide-react";
+import { GitBranch, ChevronDown, Trash2, X } from "lucide-react";
 import { format, parseISO } from "date-fns";
-import { experimentsService } from "@/domain/experiments/services";
+import { experimentsService, experimentSnapshotsService } from "@/domain/experiments/services";
 import { ExperimentDangerZoneCard } from "@/domain/experiments/components/experiment-danger-zone-card";
+import type { ExperimentSnapshot } from "@/domain/experiments/services";
 function formatExperimentParentOption(exp: Pick<Experiment, "name" | "id">): string {
   return `${exp.name} (${exp.id.slice(0, 7)})`;
 }
@@ -123,6 +124,17 @@ export function ExperimentDetailsView({ projectId }: { projectId: string }) {
     })),
   });
 
+  const snapshotsQuery = useQuery({
+    queryKey: [QUERY_KEYS.EXPERIMENTS.SNAPSHOTS(experimentIdsOrdered)],
+    queryFn: () => experimentSnapshotsService.list(experimentIdsOrdered),
+    enabled: experimentIdsOrdered.length > 0,
+  });
+
+  const snapshotsByExperiment = useMemo(() => {
+    return new Map((snapshotsQuery.data ?? []).map((snapshot) => [snapshot.experimentId, snapshot]));
+  }, [snapshotsQuery.data]);
+
+
   const updateExperimentMutation = useMutation({
     mutationFn: async ({
       experimentId,
@@ -152,6 +164,18 @@ export function ExperimentDetailsView({ projectId }: { projectId: string }) {
         queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.METRICS.GET(id)] });
       }
       queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.METRICS.BY_PROJECT(projectId)] });
+    },
+  });
+
+  const deleteSnapshotMutation = useMutation({
+    mutationFn: experimentSnapshotsService.delete,
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: [QUERY_KEYS.EXPERIMENTS.SNAPSHOTS(experimentIdsOrdered)],
+      });
+      queryClient.invalidateQueries({
+        queryKey: [QUERY_KEYS.COMPARE.SNAPSHOT_FILES(experimentIdsOrdered)],
+      });
     },
   });
 
@@ -230,6 +254,15 @@ export function ExperimentDetailsView({ projectId }: { projectId: string }) {
     toast({ title: "Tags updated" });
   };
 
+  const handleDeleteSnapshot = async (experimentId: string) => {
+    try {
+      await deleteSnapshotMutation.mutateAsync(experimentId);
+      toast({ title: "Snapshot deleted" });
+    } catch {
+      toast({ title: "Failed to delete snapshot", variant: "destructive" });
+    }
+  };
+
   if (experimentIdsOrdered.length === 0) {
     return (
       <div className="space-y-4">
@@ -276,6 +309,13 @@ export function ExperimentDetailsView({ projectId }: { projectId: string }) {
           onStatusChange={(s) => handleStatusChange(experiment.id, s)}
           onTagsChange={(tags) => handleTagsChange(experiment.id, tags)}
           isSaving={updateExperimentMutation.isPending}
+          snapshot={snapshotsByExperiment.get(experiment.id) ?? null}
+          isSnapshotLoading={snapshotsQuery.isLoading}
+          isDeletingSnapshot={
+            deleteSnapshotMutation.isPending &&
+            deleteSnapshotMutation.variables === experiment.id
+          }
+          onDeleteSnapshot={() => handleDeleteSnapshot(experiment.id)}
         />
       ))}
 
@@ -498,6 +538,10 @@ function ExperimentDetailsMetadataCard({
   onStatusChange,
   onTagsChange,
   isSaving,
+  snapshot,
+  isSnapshotLoading,
+  isDeletingSnapshot,
+  onDeleteSnapshot,
 }: {
   experiment: Experiment;
   project: Project | null | undefined;
@@ -506,8 +550,13 @@ function ExperimentDetailsMetadataCard({
   onStatusChange: (status: Experiment["status"]) => void;
   onTagsChange: (tags: string[]) => void;
   isSaving: boolean;
+  snapshot: ExperimentSnapshot | null;
+  isSnapshotLoading: boolean;
+  isDeletingSnapshot: boolean;
+  onDeleteSnapshot: () => Promise<void>;
 }) {
   const [parentMenuOpen, setParentMenuOpen] = useState(false);
+  const [deleteSnapshotOpen, setDeleteSnapshotOpen] = useState(false);
   const [parentFilter, setParentFilter] = useState("");
   const parentFilterInputRef = useRef<HTMLInputElement>(null);
   const [draftParentExperimentId, setDraftParentExperimentId] = useState<string | null>(
@@ -559,6 +608,19 @@ function ExperimentDetailsMetadataCard({
             />
           </div>
           <EntityIdDisplay label="ID" value={experiment.id} />
+        </div>
+        <div className="flex shrink-0 flex-wrap justify-end gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="gap-2 border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+            disabled={isSnapshotLoading || !snapshot?.snapshotId || isDeletingSnapshot}
+            onClick={() => setDeleteSnapshotOpen(true)}
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+            {isDeletingSnapshot ? "Deleting..." : "Delete Snapshot"}
+          </Button>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -675,6 +737,36 @@ function ExperimentDetailsMetadataCard({
           </div>
         </div>
       </CardContent>
+      <Dialog open={deleteSnapshotOpen} onOpenChange={setDeleteSnapshotOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete snapshot?</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            This removes the file snapshot for {experiment.name}. Project artifacts used by other
+            snapshots are kept when still referenced.
+          </p>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setDeleteSnapshotOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={isDeletingSnapshot}
+              onClick={() => {
+                void onDeleteSnapshot().then(() => setDeleteSnapshotOpen(false));
+              }}
+            >
+              Delete Snapshot
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }

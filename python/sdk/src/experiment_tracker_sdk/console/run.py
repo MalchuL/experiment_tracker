@@ -11,11 +11,11 @@ import click
 
 from experiment_tracker_sdk.utils.experiment_init_strategy import InitParams
 
+from ..utils.hooks.tensorboard import register_default_tensorboard_hooks
 from .utils.argv import split_on_first_double_dash
 from .utils.bootstrap import apply_run_bootstrap
 from .utils.context import RunCliContext
 from .utils.run.runner import RunSample
-from ..utils.hooks.tensorboard import register_default_tensorboard_hooks
 
 _EXPERIMENT_ARGV_META_KEY = "experiment_tracker_sdk.console.run.experiment_argv"
 DEFAULT_PROJECT_NAME = "Default"
@@ -88,6 +88,21 @@ class RunCommand(click.Command):
     is_flag=True,
     help="Offline mode flag for future tracker bootstrap (wrapper only).",
 )
+@click.option(
+    "--snapshot",
+    is_flag=True,
+    help="Log a snapshot rooted at the nearest ignore file above SCRIPT.",
+)
+@click.option(
+    "--snapshot-max-file-size",
+    type=int,
+    default=None,
+    metavar="BYTES",
+    help=(
+        "Maximum file size included in --snapshot. Defaults to settings; "
+        "use -1 to disable."
+    ),
+)
 @click.argument(
     "script",
     type=click.Path(
@@ -102,9 +117,13 @@ def run_command(
     team: str | None,
     experiment: str | None,
     offline: bool,
+    snapshot: bool,
+    snapshot_max_file_size: int | None,
     script: Path,
 ) -> None:
     """Run SCRIPT with ``__name__ == '__main__'`` after optional tracker bootstrap."""
+    if snapshot and offline:
+        raise click.UsageError("--snapshot requires online mode.")
     ctx = click.get_current_context()
     experiment_tokens: list[str] = list(
         ctx.meta.get(_EXPERIMENT_ARGV_META_KEY, ()),
@@ -138,6 +157,21 @@ def run_command(
     )
     apply_run_bootstrap(ctx_obj)
     sys.argv = [script_display, *experiment_tokens]
+
+    if runner is not None and snapshot:
+        snapshot_path = script.resolve().parent
+        click.echo(f"Logging snapshot for {snapshot_path}")
+        if snapshot_max_file_size is None:
+            runner.log_snapshot(
+                snapshot_path,
+                verbose=True,
+            )
+        else:
+            runner.log_snapshot(
+                snapshot_path,
+                max_file_size=snapshot_max_file_size,
+                verbose=True,
+            )
     click.echo(f"Running script {resolved} with arguments context: {ctx_obj}")
     try:
         runpy.run_path(resolved, run_name="__main__")

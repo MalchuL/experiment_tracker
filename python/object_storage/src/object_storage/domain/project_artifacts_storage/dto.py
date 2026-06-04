@@ -21,6 +21,7 @@ class SnapshotFileEntryDTO(BaseModel):
 
     path: str = Field(..., min_length=1, max_length=_ARTIFACT_FILE_PATH_MAX_LEN)
     hash: str = Field(..., min_length=64, max_length=64)
+    size: int | None = Field(default=None, ge=0)
 
 
 class SnapshotCreateRequestDTO(BaseModel):
@@ -35,6 +36,13 @@ class SnapshotCreateResponseDTO(BaseModel):
     """Response DTO containing the created snapshot identifier."""
 
     snapshot_id: str
+
+
+class SnapshotManifestResponseDTO(BaseModel):
+    """Response DTO containing a snapshot's stored file manifest."""
+
+    snapshot_id: UUID
+    files: list[SnapshotFileEntryDTO] = Field(default_factory=list)
 
 
 class UploadBlobResponseDTO(BaseModel):

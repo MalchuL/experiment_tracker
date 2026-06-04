@@ -8,6 +8,7 @@ from experiment_tracker_shared.datetime_utc import (
     utc_now_naive,
 )
 from experiment_tracker_shared.hash_utils import (
+    compute_file_sha256_hexdigest,
     compute_sha256_hexdigest,
     create_sha256_hasher,
 )
@@ -21,6 +22,7 @@ __all__ = [
     "ArtifactType",
     "ENTITY_DESCRIPTION_MAX_LEN",
     "ENTITY_NAME_MAX_LEN",
+    "compute_file_sha256_hexdigest",
     "compute_sha256_hexdigest",
     "create_sha256_hasher",
     "normalize_for_db",

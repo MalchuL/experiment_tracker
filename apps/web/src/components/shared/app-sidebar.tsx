@@ -20,6 +20,7 @@ import {
   Settings,
   Home,
   BarChart3,
+  GitCompare,
   LayoutDashboard,
   LineChart,
   FileText,
@@ -65,6 +66,11 @@ const getProjectItems = (projectId: string) => [
     title: "Scalars",
     url: FRONTEND_ROUTES.PROJECT_PAGES.SCALARS(projectId),
     icon: BarChart3,
+  },
+  {
+    title: "Compare",
+    url: FRONTEND_ROUTES.PROJECT_PAGES.COMPARE(projectId),
+    icon: GitCompare,
   },
   {
     title: "DAG View",

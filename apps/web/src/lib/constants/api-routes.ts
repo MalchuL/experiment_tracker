@@ -152,7 +152,21 @@ export const API_ROUTES = {
   
         METRICS: (experimentId: string) =>
           `/api/experiments/${experimentId}/metrics`,
+        UPSERT_SNAPSHOT: (experimentId: string) =>
+          `/api/experiments/${experimentId}/data/snapshot`,
+        DELETE_SNAPSHOT: (experimentId: string) =>
+          `/api/experiments/${experimentId}/data/snapshot`,
+        SNAPSHOT_FILES: (experimentId: string) =>
+          `/api/experiments/${experimentId}/data/snapshot/files`,
+        SNAPSHOT_DOWNLOAD: (experimentId: string, snapshotId?: string) => {
+          const base = `/api/experiments/${experimentId}/data/snapshot/download`;
+          if (!snapshotId) return base;
+          const params = new URLSearchParams({ snapshot_id: snapshotId });
+          return `${base}?${params.toString()}`;
+        },
       },
+      SNAPSHOTS: "/api/experiments/data/snapshots",
+      SNAPSHOT_FILES: "/api/experiments/data/snapshots/files",
     },
   
     HYPOTHESES: {
@@ -187,6 +201,11 @@ export const API_ROUTES = {
         GET: (projectId: string) => `/api/scalars/get/project/${projectId}`,
         LAST_LOGGED: (projectId: string) => `/api/scalars/last_logged/${projectId}`,
       },
+    },
+
+    PROJECT_ARTIFACTS: {
+      DOWNLOAD: (projectId: string, artifactHash: string) =>
+        `/api/project-artifacts/${projectId}/artifacts/${encodeURIComponent(artifactHash)}`,
     },
 
     EXPERIMENT_ARTIFACTS: {

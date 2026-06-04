@@ -7,6 +7,8 @@ from clients.artifacts_info import (
 from domain.experiment_artifacts.noop_service import NoOpExperimentArtifactsService
 from domain.experiment_artifacts.protocol import ExperimentArtifactsServiceProtocol
 from domain.experiment_artifacts.service import ExperimentArtifactsService
+from domain.experiment_data.repository import ExperimentDataRepository
+from domain.experiment_data.service import ExperimentDataService
 from domain.project_artifacts.noop_service import NoOpProjectArtifactsService
 from domain.project_artifacts.protocol import ProjectArtifactsServiceProtocol
 from domain.project_artifacts.service import ProjectArtifactsService
@@ -141,6 +143,20 @@ async def get_experiment_service(
     return service
 
 
+async def get_experiment_data_repository(
+    session: AsyncSession = Depends(get_async_session),
+) -> ExperimentDataRepository:
+    """Build the repository used to persist per-experiment data records.
+
+    Args:
+        session: Request-scoped SQLAlchemy async session supplied by FastAPI.
+
+    Returns:
+        An ``ExperimentDataRepository`` bound to the current database session.
+    """
+    return ExperimentDataRepository(db=session)
+
+
 async def get_scalars_service(
     permission_checker: PermissionChecker = Depends(get_permission_checker),
     experiment_repository: ExperimentRepository = Depends(get_experiment_repository),
@@ -189,6 +205,27 @@ async def get_project_artifacts_service(
             permission_checker=permission_checker,
         )
     return NoOpProjectArtifactsService()
+
+
+async def get_experiment_data_service(
+    experiment_repository: ExperimentRepository = Depends(get_experiment_repository),
+    experiment_data_repository: ExperimentDataRepository = Depends(
+        get_experiment_data_repository
+    ),
+    project_artifacts_service: ProjectArtifactsServiceProtocol = Depends(
+        get_project_artifacts_service
+    ),
+) -> ExperimentDataService:
+    """Build the service that manages experiment snapshot metadata.
+
+    Experiment data owns only the backend metadata table. Snapshot/CAS operations
+    are delegated to the project-artifacts domain service.
+    """
+    return ExperimentDataService(
+        experiment_repository=experiment_repository,
+        experiment_data_repository=experiment_data_repository,
+        project_artifacts_service=project_artifacts_service,
+    )
 
 
 # Hypothesis Service Dependencies

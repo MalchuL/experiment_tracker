@@ -25,6 +25,7 @@ from .dto import (
     ProjectUsageResponseDTO,
     SnapshotCreateRequestDTO,
     SnapshotCreateResponseDTO,
+    SnapshotManifestResponseDTO,
     UploadProjectArtifactResponseDTO,
 )
 
@@ -80,18 +81,15 @@ class ObjectStorageClientProtocol(Protocol):
             The response from the object storage.
         """
 
+    async def get_project_snapshot_manifest(
+        self, project_id: UUID, snapshot_id: UUID
+    ) -> SnapshotManifestResponseDTO:
+        """Return snapshot manifest metadata without downloading the ZIP archive."""
+
     async def download_project_snapshot(
         self, project_id: UUID, snapshot_id: UUID
     ) -> httpx.Response:
-        """Download a project snapshot from the object storage.
-
-        Args:
-            project_id: The ID of the project.
-            snapshot_id: The ID of the project snapshot.
-
-        Returns:
-            The response from the object storage.
-        """
+        """Download a project snapshot ZIP archive."""
 
     async def delete_project_snapshot(
         self, project_id: UUID, snapshot_id: UUID

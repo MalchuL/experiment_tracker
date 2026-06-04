@@ -1,0 +1,12 @@
+# Ignore transient runtime output from the generated training workspace.
+logs/
+cache/
+tmp/
+*.tmp
+*.log
+
+# Keep generated source/config/report files so Compare can show differences.
+!src/
+!configs/
+!reports/
+!checkpoints/

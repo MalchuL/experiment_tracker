@@ -9,6 +9,7 @@ import subprocess
 import sys
 import time
 from io import BytesIO
+from pprint import pprint
 from typing import Any
 
 import numpy as np
@@ -250,6 +251,9 @@ def main() -> None:
                 "experiment_id": experiment_id,
             },
         )
+        project_settings = tracker.get_project_settings()
+        print("Project settings:")
+        pprint(project_settings)
 
         tracker.features(_build_feature_tree(args, steps, duration_seconds))
         tracker.tags("training-example")

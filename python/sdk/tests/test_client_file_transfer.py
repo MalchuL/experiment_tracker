@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from io import BytesIO
 from pathlib import Path
 
 import pytest
@@ -15,6 +16,7 @@ from experiment_tracker_sdk.client.request_types import (
 from experiment_tracker_sdk.client.transport.options import RequestOptions
 from experiment_tracker_sdk.client.utils.transfer_progress import (
     ProgressBytesReader,
+    ProgressFileReader,
     content_length_from_headers,
 )
 
@@ -86,6 +88,69 @@ def test_executor_upload_uses_progress_reader_when_verbose(
     reader = file_field[1]
     assert isinstance(reader, ProgressBytesReader)
     assert reader.read() == payload
+
+
+def test_executor_upload_accepts_file_like_content_without_materializing() -> None:
+    """Verify multipart uploads can pass through file-like content unchanged.
+
+    Args:
+        None. The test builds an in-memory stream directly.
+
+    Returns:
+        None. The assertions prove non-verbose upload construction does not
+        materialize or wrap the stream.
+    """
+    from experiment_tracker_sdk.client.transport.multipart import build_multipart_files
+
+    stream = BytesIO(b"streamed")
+    files, bars = build_multipart_files(
+        {
+            "file": FileUploadSpec(
+                filename="stream.bin",
+                content=stream,
+                content_type="application/octet-stream",
+                size=8,
+            )
+        }
+    )
+
+    assert bars == []
+    assert files is not None
+    assert files["file"][1] is stream
+
+
+def test_executor_upload_wraps_file_like_content_when_verbose() -> None:
+    """Verify verbose multipart uploads wrap streams with progress readers.
+
+    Args:
+        None. The test builds an in-memory stream directly.
+
+    Returns:
+        None. The assertions prove verbose upload construction creates a
+        progress bar and a ``ProgressFileReader`` that preserves bytes.
+    """
+    from experiment_tracker_sdk.client.transport.multipart import build_multipart_files
+
+    stream = BytesIO(b"streamed")
+    files, bars = build_multipart_files(
+        {
+            "file": FileUploadSpec(
+                filename="stream.bin",
+                content=stream,
+                content_type="application/octet-stream",
+                size=8,
+            )
+        },
+        verbose=True,
+    )
+
+    assert len(bars) == 1
+    assert files is not None
+    reader = files["file"][1]
+    assert isinstance(reader, ProgressFileReader)
+    assert reader.read() == b"streamed"
+    for bar in bars:
+        bar.close()
 
 
 def test_executor_download_verbose_streams_with_progress(

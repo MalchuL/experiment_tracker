@@ -28,6 +28,7 @@ from .dto import (
     ProjectUsageResponseDTO,
     SnapshotCreateRequestDTO,
     SnapshotCreateResponseDTO,
+    SnapshotManifestResponseDTO,
     UploadProjectArtifactResponseDTO,
 )
 
@@ -136,7 +137,10 @@ class ObjectStorageClient:
         "upload_project_artifact": lambda project_id: f"/project-artifacts/{project_id}/upload",
         "download_project_artifact": lambda project_id, artifact_hash: f"/project-artifacts/{project_id}/artifacts/{artifact_hash}",
         "create_project_snapshot": lambda project_id: f"/project-artifacts/{project_id}/snapshots",
-        "download_project_snapshot": lambda project_id, snapshot_id: f"/project-artifacts/{project_id}/snapshots/{snapshot_id}/download",
+        "get_project_snapshot_manifest": lambda project_id, snapshot_id: f"/project-artifacts/{project_id}/snapshots/{snapshot_id}/manifest",
+        "download_project_snapshot": lambda project_id, snapshot_id: (
+            f"/project-artifacts/{project_id}/snapshots/{snapshot_id}/download"
+        ),
         "delete_project_snapshot": lambda project_id, snapshot_id: f"/project-artifacts/{project_id}/snapshots/{snapshot_id}",
         "get_project_usage": lambda project_id: f"/project-artifacts/{project_id}/usage",
         "delete_project_artifact": lambda project_id, artifact_hash: f"/project-artifacts/{project_id}/artifacts/{artifact_hash}",
@@ -229,7 +233,7 @@ class ObjectStorageClient:
             base_url=self.base_url,
             path=self.ENDPOINTS["upload_project_artifact"](project_id),
             upload=upload,
-            params={"artifact_hash": artifact_hash},
+            params={"hash": artifact_hash},
             timeout=None,
         )
         return UploadProjectArtifactResponseDTO.model_validate(response)
@@ -272,24 +276,25 @@ class ObjectStorageClient:
         )
         return SnapshotCreateResponseDTO.model_validate(response)
 
+    async def get_project_snapshot_manifest(
+        self, project_id: UUID, snapshot_id: UUID
+    ) -> SnapshotManifestResponseDTO:
+        """Return snapshot manifest metadata without downloading a ZIP archive."""
+        response = await self._request(
+            "GET",
+            self.ENDPOINTS["get_project_snapshot_manifest"](project_id, snapshot_id),
+        )
+        return SnapshotManifestResponseDTO.model_validate(response)
+
     async def download_project_snapshot(
         self, project_id: UUID, snapshot_id: UUID
     ) -> httpx.Response:
-        """Download a project snapshot from the object storage.
-
-        Args:
-            project_id: The ID of the project.
-            snapshot_id: The ID of the project snapshot.
-
-        Returns:
-            The response from the object storage.
-        """
-        response = await self._request(
-            "GET",
-            self.ENDPOINTS["download_project_snapshot"](project_id, snapshot_id),
-            return_response=True,
+        """Download a project snapshot ZIP archive from object storage."""
+        return await self._transfer_strategy.download_response(
+            base_url=self.base_url,
+            path=self.ENDPOINTS["download_project_snapshot"](project_id, snapshot_id),
+            timeout=None,
         )
-        return cast(httpx.Response, response)
 
     async def delete_project_snapshot(
         self, project_id: UUID, snapshot_id: UUID

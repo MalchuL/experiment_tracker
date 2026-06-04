@@ -23,6 +23,13 @@ tracker = ExpTracker.init(
 
 `project`, `experiment`, and `team` can be names or ids. If `init_params` is omitted, missing experiments are created by default, while projects and teams must already exist.
 
+After initialization, call `get_project_settings()` to fetch the current project's runtime settings as a plain dictionary:
+
+```python
+settings = tracker.get_project_settings()
+batch_size = settings.get("batch_size", 32)
+```
+
 For examples and local smoke tests, it is common to create everything on demand:
 
 ```python
@@ -226,6 +233,18 @@ Default behavior when `init_params` is omitted:
 - missing team is not created.
 
 Use explicit `InitParams` for examples, notebooks, and automation where creating missing resources is expected.
+
+---
+
+### `get_project_settings()`
+
+```python
+settings = tracker.get_project_settings()
+```
+
+Fetches the current project's settings from `GET /projects/{project_id}/settings/map` and returns them as a `dict` keyed by setting name.
+
+Use this for runtime configuration values that should be controlled at the project level, such as dataset identifiers, feature flags, or external resource names.
 
 ---
 
@@ -438,6 +457,39 @@ Arguments:
 | `stored_filepath` | Optional relative artifact path. |
 
 Structured mappings/lists are serialized with the SDK's lightweight YAML emitter. The default content type is `application/x-yaml`.
+
+---
+
+### `log_snapshot(...)`
+
+```python
+result = tracker.log_snapshot(".")
+
+# Pin manifest paths to a known project root.
+result = tracker.log_snapshot(
+    "src",
+    root="/absolute/path/to/project",
+)
+```
+
+Uploads a file snapshot for the current experiment. Use this for source code, lightweight configs, and other files that should be comparable between runs.
+
+Arguments:
+
+| Argument | Meaning |
+|----------|---------|
+| `path` | File, directory, or iterable of files/directories to scan. Defaults to `"."`. |
+| `root` | Optional absolute directory used for manifest-relative paths. When omitted, the SDK discovers the root from ignore files. |
+| `ignore_file` | Ignore file names to apply. Defaults to `.gitignore` and `.exp_tracker_ignore`. |
+| `max_file_size` | Maximum file size in bytes. Omit to use `EXP_TRACKER_SNAPSHOT_MAX_FILE_SIZE`; pass `None` or `-1` to disable. |
+
+When `root` is `None`, the SDK searches upward from the scanned path for `.gitignore` or `.exp_tracker_ignore` and uses the nearest matching directory as the snapshot root. If no ignore file is found, the scanned path or common parent is used. When `root` is provided, it must be an absolute path to an existing directory, and every scanned path must be inside it.
+
+The default snapshot size limit is 5 MiB per file. Skipped files are counted in the result, and `experiment-tracker check-files --show-skipped` reports reasons: `ignored`, `too_large`, or `not_file`. To preview a pinned root, pass `--root /absolute/path/to/project` to `check-files`.
+
+:::warning
+Snapshot storage is currently intended for small code/config snapshots, not large repository archives or dataset-like trees. The current implementation does not store very large snapshots efficiently and is practically limited to about 250k files per snapshot.
+:::
 
 ---
 

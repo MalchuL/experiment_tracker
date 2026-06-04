@@ -70,6 +70,17 @@ TensorBoard is excellent for local visualization. Experiment Tracker keeps Tenso
 - **Metric deltas along branches:** compare selected metrics against each run's parent directly in the lineage view.
 - **Editable lineage:** search, highlight, persist layout, and update parent links while keeping cycle checks in place.
 
+
+## Files comparison
+
+<img src="mics/diff_example.png" alt="Machine learning files comparison view showing side by side diff of two files" width="100%">
+
+### Features for researchers
+
+- **Side by side diff:** compare two files side by side with diff highlighting.
+- **Inline highlighting:** highlight changed lines in the file.
+- **Experiment to experiment comparison:** compare two experiments side by side with diff highlighting.
+
 ## Architecture Designed Around Experiment Data
 
 Experiment Tracker separates data by workload instead of forcing everything into one store:

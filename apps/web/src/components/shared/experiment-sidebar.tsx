@@ -38,7 +38,7 @@ import { useToast } from "@/lib/hooks/use-toast";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { useExperiment } from "@/domain/experiments/hooks/experiment-hook";
 import { useExperiments } from "@/domain/experiments/hooks/experiments-hook";
-import { GitBranch, RefreshCw, X, ChevronDown } from "lucide-react";
+import { Download, FileCode2, GitBranch, GitCompare, Loader2, RefreshCw, X, ChevronDown } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import type { Experiment } from "@/domain/experiments/types";
 import type { Metric } from "@/domain/metrics/types";
@@ -65,6 +65,16 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { compareService } from "@/domain/compare/service";
+import { downloadBlob, sanitizeDownloadName } from "@/domain/compare/downloads";
 
 /** One bucket of logged scalars sharing the same label (or “unlabeled”). */
 type LoggedMetricsLabelGroup = { label: string | null; items: Metric[] };
@@ -139,6 +149,23 @@ function formatExperimentParentOption(exp: Pick<Experiment, "name" | "id">): str
   return `${exp.name} (${exp.id.slice(0, 7)})`;
 }
 
+function buildCodeCompareHref(experiment: Pick<Experiment, "id" | "projectId" | "parentExperimentId">): string {
+  const params = new URLSearchParams();
+  if (experiment.parentExperimentId) {
+    params.append("exp", experiment.parentExperimentId);
+    params.append("exp", experiment.id);
+  } else {
+    params.append("exp", experiment.id);
+  }
+  return `${FRONTEND_ROUTES.PROJECT_PAGES.COMPARE(experiment.projectId)}?${params.toString()}`;
+}
+
+function buildCodeFilesHref(experiment: Pick<Experiment, "id" | "projectId">): string {
+  const params = new URLSearchParams();
+  params.append("exp", experiment.id);
+  return `${FRONTEND_ROUTES.PROJECT_PAGES.COMPARE(experiment.projectId)}?${params.toString()}`;
+}
+
 function readStoredSidebarTab(): ExperimentSidebarTab {
   if (typeof window === "undefined") return "metrics";
   const storedValue = window.localStorage.getItem(EXPERIMENT_SIDEBAR_ACTIVE_TAB_STORAGE_KEY);
@@ -185,6 +212,8 @@ export function ExperimentSidebar({
   const parentSearchInputRef = useRef<HTMLInputElement>(null);
   const [draftParentExperimentId, setDraftParentExperimentId] = useState<string | null>(null);
   const [featuresModalOpen, setFeaturesModalOpen] = useState(false);
+  const [downloadSnapshotOpen, setDownloadSnapshotOpen] = useState(false);
+  const [snapshotDownloadPending, setSnapshotDownloadPending] = useState(false);
   const [activeTab, setActiveTab] = useState<ExperimentSidebarTab>(() => readStoredSidebarTab());
   const [featureDiffsEnabled, setFeatureDiffsEnabled] = useState<boolean>(() =>
     readStoredBoolean(EXPERIMENT_SIDEBAR_FEATURE_DIFFS_STORAGE_KEY, true)
@@ -386,6 +415,25 @@ export function ExperimentSidebar({
   const selectParentExperimentFromMenu = (parentId: string) => {
     setDraftParentExperimentId(parentId);
     setParentMenuOpen(false);
+  };
+
+  const handleDownloadCurrentSnapshot = async () => {
+    if (!experiment) return;
+    setSnapshotDownloadPending(true);
+    try {
+      const { blob, filename } = await compareService.downloadExperimentSnapshot(experiment.id);
+      downloadBlob(blob, filename || `${sanitizeDownloadName(experiment.name)}-snapshot.zip`);
+      setDownloadSnapshotOpen(false);
+      toast({ title: "Snapshot download started" });
+    } catch {
+      toast({
+        title: "Failed to download snapshot",
+        description: "The experiment may not have a logged snapshot yet.",
+        variant: "destructive",
+      });
+    } finally {
+      setSnapshotDownloadPending(false);
+    }
   };
 
   const updateExperimentStatus = async (status: Experiment["status"]) => {
@@ -904,9 +952,53 @@ export function ExperimentSidebar({
               </TabsContent>
 
               <TabsContent value="code" className="space-y-2">
-                <p className="text-sm text-muted-foreground text-center py-4">
-                  Coming Soon
-                </p>
+                <div className="space-y-2 rounded-md border bg-muted/20 p-3">
+                  <Button
+                    asChild
+                    variant="outline"
+                    size="sm"
+                    className="w-full justify-start"
+                    data-testid="button-open-code-compare"
+                  >
+                    <Link
+                      href={buildCodeCompareHref(experiment)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <GitCompare className="h-4 w-4" />
+                      <span>{experiment.parentExperimentId ? "Open code compare" : "Open files"}</span>
+                    </Link>
+                  </Button>
+                  {experiment.parentExperimentId ? (
+                    <Button
+                      asChild
+                      variant="outline"
+                      size="sm"
+                      className="w-full justify-start"
+                      data-testid="button-open-code-files"
+                    >
+                      <Link
+                        href={buildCodeFilesHref(experiment)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        <FileCode2 className="h-4 w-4" />
+                        <span>Open files</span>
+                      </Link>
+                    </Button>
+                  ) : null}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="w-full justify-start"
+                    data-testid="button-download-snapshot"
+                    onClick={() => setDownloadSnapshotOpen(true)}
+                  >
+                    <Download className="h-4 w-4" />
+                    <span>Download snapshot</span>
+                  </Button>
+                </div>
               </TabsContent>
             </Tabs>
           </div>
@@ -916,6 +1008,46 @@ export function ExperimentSidebar({
           Experiment not found
         </div>
       )}
+      <Dialog
+        open={downloadSnapshotOpen}
+        onOpenChange={(open) => !snapshotDownloadPending && setDownloadSnapshotOpen(open)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Download snapshot?</DialogTitle>
+            <DialogDescription>
+              This will download the current file snapshot for{" "}
+              {experiment?.name ?? "this experiment"} as a ZIP archive.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="rounded-md bg-muted/40 p-3 text-xs text-muted-foreground">
+            <div className="truncate font-medium text-foreground">{experiment?.name}</div>
+            <div className="break-all">{experiment?.id}</div>
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={snapshotDownloadPending}
+              onClick={() => setDownloadSnapshotOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              disabled={snapshotDownloadPending}
+              onClick={handleDownloadCurrentSnapshot}
+            >
+              {snapshotDownloadPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Download className="h-4 w-4" />
+              )}
+              Download
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </RightSidebarShell>
   );
 }
