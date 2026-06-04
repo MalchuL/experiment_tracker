@@ -223,25 +223,14 @@ class ObjectStorageService:
             raise HTTPException(status_code=400, detail="\n".join(errors))
         hashes = [entry.hash for entry in normalized_files]
         if hashes:
-            blob_sizes = await self._repository.fetch_blob_sizes(
+            existing_hashes = await self._repository.fetch_existing_blob_hashes(
                 payload.project_id, hashes
             )
-            missing = [blob_hash for blob_hash in hashes if blob_hash not in blob_sizes]
+            missing = [blob_hash for blob_hash in hashes if blob_hash not in existing_hashes]
             if missing:
                 raise HTTPException(
                     status_code=400, detail=f"Missing blobs: {', '.join(missing)}"
                 )
-            size_errors = [
-                f"Size mismatch for {entry.path}: expected {blob_sizes[entry.hash]}, got {entry.size}"
-                for entry in normalized_files
-                if entry.size is not None and entry.size != blob_sizes[entry.hash]
-            ]
-            if size_errors:
-                raise HTTPException(status_code=400, detail="\n".join(size_errors))
-            normalized_files = [
-                entry.model_copy(update={"size": blob_sizes[entry.hash]})
-                for entry in normalized_files
-            ]
 
         manifest = self._mapper.snapshot_files_to_manifest(normalized_files)
         snapshot = await self._repository.create_snapshot(payload.project_id, manifest)
