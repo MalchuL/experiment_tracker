@@ -7,9 +7,10 @@ from api.routes.auth import get_current_user_dual, require_api_token_scopes
 from api.routes.service_dependencies import get_experiment_data_service
 from domain.project_artifacts.error import ProjectArtifactsNotAccessibleError
 from domain.rbac.permissions import ProjectActions
-from fastapi import APIRouter, Body, Depends, HTTPException
+from fastapi import APIRouter, Body, Depends, HTTPException, Query
 from lib.db.error import DBNotFoundError
 from models import User
+from starlette.responses import Response
 
 from .dto import (
     ExperimentSnapshotDTO,
@@ -61,6 +62,23 @@ def _raise_experiment_data_http_error(error: Exception) -> None:
     if isinstance(error, httpx.RequestError):
         raise HTTPException(status_code=502, detail="Object storage unavailable")
     raise HTTPException(status_code=400, detail=str(error))
+
+
+def _snapshot_download_response(
+    response: httpx.Response, fallback_filename: str
+) -> Response:
+    """Map an upstream snapshot ZIP response to the public experiment-data response."""
+
+    return Response(
+        content=response.content,
+        media_type=response.headers.get("content-type", "application/zip"),
+        headers={
+            "Content-Disposition": response.headers.get(
+                "content-disposition",
+                f'attachment; filename="{fallback_filename}"',
+            )
+        },
+    )
 
 
 @router.post("/{experiment_id}/data/snapshot", response_model=ExperimentSnapshotDTO)
@@ -183,6 +201,31 @@ async def get_experiment_snapshot_files(
 
     try:
         return await service.get_experiment_snapshot_files(user, experiment_id)
+    except Exception as exc:  # noqa: BLE001
+        _raise_experiment_data_http_error(exc)
+
+
+@router.get("/{experiment_id}/data/snapshot/download")
+async def download_experiment_snapshot(
+    experiment_id: UUID,
+    snapshot_id: UUID | None = Query(
+        default=None,
+        description="Optional snapshot ID; when omitted, uses the experiment's current snapshot.",
+    ),
+    user: User = Depends(get_current_user_dual),
+    _: None = Depends(require_api_token_scopes(ProjectActions.VIEW_ARTIFACT)),
+    service: ExperimentDataService = Depends(get_experiment_data_service),
+):
+    """Download a snapshot ZIP; defaults to the experiment's current snapshot."""
+
+    try:
+        response = await service.download_snapshot(
+            user,
+            experiment_id,
+            snapshot_id=snapshot_id,
+        )
+        filename_id = snapshot_id or experiment_id
+        return _snapshot_download_response(response, f"snapshot-{filename_id}.zip")
     except Exception as exc:  # noqa: BLE001
         _raise_experiment_data_http_error(exc)
 

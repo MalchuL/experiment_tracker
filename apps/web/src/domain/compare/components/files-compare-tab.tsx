@@ -2,8 +2,16 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeftRight, GitBranch, MoreHorizontal } from "lucide-react";
+import { ArrowLeftRight, Download, GitBranch, Loader2, MoreHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -25,8 +33,10 @@ import {
 } from "@/components/ui/tooltip";
 import type { Experiment } from "@/domain/experiments/types";
 import { QUERY_KEYS } from "@/lib/constants/query-keys";
+import { useToast } from "@/lib/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { compareService } from "../service";
+import { downloadBlob } from "../downloads";
 import type { ExperimentSnapshotFiles } from "../types";
 import { FileCompareView } from "./file-compare-view";
 
@@ -37,16 +47,25 @@ interface FilesCompareTabProps {
 }
 
 const NONE_VALUE = "__none";
+type SnapshotDownloadTarget = {
+  experimentId: string;
+  experimentName: string;
+  snapshotId: string;
+  side: "left" | "right";
+} | null;
 
 export function FilesCompareTab({
   allExperiments,
   selectedExperiments,
   onEnsureExperimentSelected,
 }: FilesCompareTabProps) {
+  const { toast } = useToast();
   const [leftExperimentId, setLeftExperimentId] = useState<string | null>(null);
   const [rightExperimentId, setRightExperimentId] = useState<string | null>(null);
   const [displayedLeft, setDisplayedLeft] = useState<ExperimentSnapshotFiles | null>(null);
   const [displayedRight, setDisplayedRight] = useState<ExperimentSnapshotFiles | null>(null);
+  const [downloadTarget, setDownloadTarget] = useState<SnapshotDownloadTarget>(null);
+  const [snapshotDownloadPending, setSnapshotDownloadPending] = useState(false);
 
   const experimentsById = useMemo(() => {
     return new Map(allExperiments.map((experiment) => [experiment.id, experiment]));
@@ -198,6 +217,10 @@ export function FilesCompareTab({
       selectedExperiments={selectedExperiments}
       leftExperimentId={leftExperimentId}
       rightExperimentId={rightExperimentId}
+      leftExperimentName={renderedLeftExperiment?.name ?? left?.experimentId ?? "Left"}
+      rightExperimentName={renderedRightExperiment?.name ?? right?.experimentId ?? "Right"}
+      leftSnapshotId={left?.snapshotId ?? null}
+      rightSnapshotId={right?.snapshotId ?? null}
       leftParentExperiment={leftParentExperiment}
       rightParentExperiment={rightParentExperiment}
       onLeftChange={setLeftExperimentId}
@@ -212,6 +235,7 @@ export function FilesCompareTab({
         onEnsureExperimentSelected(experimentId);
         setLeftExperimentId(experimentId);
       }}
+      onDownloadSnapshot={setDownloadTarget}
       onSwap={() => {
         if (!rightExperimentId) {
           return;
@@ -221,6 +245,28 @@ export function FilesCompareTab({
       }}
     />
   );
+
+  const handleDownloadSnapshot = async () => {
+    if (!downloadTarget) return;
+    setSnapshotDownloadPending(true);
+    try {
+      const { blob, filename } = await compareService.downloadExperimentSnapshot(
+        downloadTarget.experimentId,
+        downloadTarget.snapshotId
+      );
+      downloadBlob(blob, filename);
+      setDownloadTarget(null);
+      toast({ title: "Snapshot download started" });
+    } catch {
+      toast({
+        title: "Failed to download snapshot",
+        description: "The selected snapshot could not be downloaded.",
+        variant: "destructive",
+      });
+    } finally {
+      setSnapshotDownloadPending(false);
+    }
+  };
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -244,6 +290,48 @@ export function FilesCompareTab({
             !right.snapshotId
         )}
       />
+      <Dialog
+        open={downloadTarget !== null}
+        onOpenChange={(open) => {
+          if (!open && !snapshotDownloadPending) setDownloadTarget(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Download snapshot?</DialogTitle>
+            <DialogDescription>
+              This will download the {downloadTarget?.side} snapshot for{" "}
+              {downloadTarget?.experimentName ?? "this experiment"} as a ZIP archive.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="rounded-md bg-muted/40 p-3 text-xs text-muted-foreground">
+            <div className="truncate font-medium text-foreground">{downloadTarget?.experimentName}</div>
+            <div className="break-all">{downloadTarget?.snapshotId}</div>
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={snapshotDownloadPending}
+              onClick={() => setDownloadTarget(null)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              disabled={snapshotDownloadPending}
+              onClick={handleDownloadSnapshot}
+            >
+              {snapshotDownloadPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Download className="h-4 w-4" />
+              )}
+              Download
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -252,23 +340,33 @@ function FilesCompareControls({
   selectedExperiments,
   leftExperimentId,
   rightExperimentId,
+  leftExperimentName,
+  rightExperimentName,
+  leftSnapshotId,
+  rightSnapshotId,
   leftParentExperiment,
   rightParentExperiment,
   onLeftChange,
   onRightChange,
   onUseLeftParentAsRight,
   onUseRightParentAsLeft,
+  onDownloadSnapshot,
   onSwap,
 }: {
   selectedExperiments: Experiment[];
   leftExperimentId: string | null;
   rightExperimentId: string | null;
+  leftExperimentName: string;
+  rightExperimentName: string;
+  leftSnapshotId: string | null;
+  rightSnapshotId: string | null;
   leftParentExperiment: Experiment | null;
   rightParentExperiment: Experiment | null;
   onLeftChange: (experimentId: string) => void;
   onRightChange: (experimentId: string) => void;
   onUseLeftParentAsRight: (experimentId: string) => void;
   onUseRightParentAsLeft: (experimentId: string) => void;
+  onDownloadSnapshot: (target: NonNullable<SnapshotDownloadTarget>) => void;
   onSwap: () => void;
 }) {
   return (
@@ -282,10 +380,15 @@ function FilesCompareControls({
             disabledExperimentId={rightExperimentId}
             onValueChange={onLeftChange}
           />
-          <ParentExperimentMenu
+          <SideActionsMenu
             side="right"
+            sourceSide="left"
+            experimentId={leftExperimentId}
+            experimentName={leftExperimentName}
+            snapshotId={leftSnapshotId}
             parentExperiment={leftParentExperiment}
             onChooseParent={onUseLeftParentAsRight}
+            onDownloadSnapshot={onDownloadSnapshot}
           />
         </div>
 
@@ -319,10 +422,15 @@ function FilesCompareControls({
             includeNone
             onValueChange={onRightChange}
           />
-          <ParentExperimentMenu
+          <SideActionsMenu
             side="left"
+            sourceSide="right"
+            experimentId={rightExperimentId}
+            experimentName={rightExperimentName}
+            snapshotId={rightSnapshotId}
             parentExperiment={rightParentExperiment}
             onChooseParent={onUseRightParentAsLeft}
+            onDownloadSnapshot={onDownloadSnapshot}
           />
         </div>
       </div>
@@ -330,23 +438,35 @@ function FilesCompareControls({
   );
 }
 
-function ParentExperimentMenu({
+function SideActionsMenu({
   side,
+  sourceSide,
+  experimentId,
+  experimentName,
+  snapshotId,
   parentExperiment,
   onChooseParent,
+  onDownloadSnapshot,
 }: {
   side: "left" | "right";
+  sourceSide: "left" | "right";
+  experimentId: string | null;
+  experimentName: string;
+  snapshotId: string | null;
   parentExperiment: Experiment | null;
   onChooseParent: (experimentId: string) => void;
+  onDownloadSnapshot: (target: NonNullable<SnapshotDownloadTarget>) => void;
 }) {
   const hasParent = Boolean(parentExperiment);
+  const canDownload = Boolean(experimentId && snapshotId);
+  const hasActions = hasParent || canDownload;
   const tooltip =
     side === "right"
-      ? hasParent
-        ? "Choose parent in right"
+      ? hasActions
+        ? "Left actions"
         : "Left experiment has no parent"
-      : hasParent
-        ? "Choose parent in left"
+      : hasActions
+        ? "Right actions"
         : "Right experiment has no parent";
 
   return (
@@ -354,17 +474,17 @@ function ParentExperimentMenu({
       <Tooltip>
         <TooltipTrigger asChild>
           <span className="shrink-0">
-            <DropdownMenuTrigger asChild disabled={!hasParent}>
+            <DropdownMenuTrigger asChild disabled={!hasActions}>
               <Button
                 type="button"
                 variant="outline"
                 size="icon"
                 className={cn(
                   "h-8 w-8",
-                  !hasParent &&
+                  !hasActions &&
                     "border-dashed border-amber-300 bg-amber-50 text-amber-700 opacity-100 disabled:opacity-100 dark:border-amber-900/70 dark:bg-amber-950/30 dark:text-amber-400"
                 )}
-                disabled={!hasParent}
+                disabled={!hasActions}
                 aria-label={tooltip}
               >
                 <MoreHorizontal className="h-4 w-4" />
@@ -381,6 +501,21 @@ function ParentExperimentMenu({
             <span className="min-w-0 truncate">
               Choose parent in {side}: {parentExperiment.name}
             </span>
+          </DropdownMenuItem>
+        ) : null}
+        {experimentId && snapshotId ? (
+          <DropdownMenuItem
+            onSelect={() =>
+              onDownloadSnapshot({
+                experimentId,
+                experimentName,
+                snapshotId,
+                side: sourceSide,
+              })
+            }
+          >
+            <Download className="h-4 w-4" />
+            <span className="min-w-0 truncate">Download snapshot</span>
           </DropdownMenuItem>
         ) : null}
       </DropdownMenuContent>

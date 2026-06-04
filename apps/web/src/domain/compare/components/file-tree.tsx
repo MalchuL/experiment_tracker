@@ -5,6 +5,7 @@ import {
   ChevronRight,
   CircleDot,
   Copy,
+  Download,
   File,
   Folder,
   FolderOpen,
@@ -29,6 +30,7 @@ interface FileTreeProps {
   data: FileTreeData;
   selectedFile?: string | null;
   onFileSelect?: (path: string) => void;
+  onFileDownload?: (path: string) => void;
   className?: string;
   diffStatusByPath?: Map<string, FileDiffStatus>;
 }
@@ -38,6 +40,7 @@ function TreeNode({
   level,
   selectedFile,
   onFileSelect,
+  onFileDownload,
   diffStatusByPath,
   collapsedPaths,
   onToggleDirectory,
@@ -51,6 +54,7 @@ function TreeNode({
   level: number;
   selectedFile?: string | null;
   onFileSelect?: (path: string) => void;
+  onFileDownload?: (path: string) => void;
   diffStatusByPath?: Map<string, FileDiffStatus>;
   collapsedPaths: Set<string>;
   onToggleDirectory: (path: string) => void;
@@ -121,9 +125,17 @@ function TreeNode({
               </ContextMenuItem>
             </>
           ) : (
-            <ContextMenuItem onSelect={() => onFileSelect?.(node.path)}>
-              Open file
-            </ContextMenuItem>
+            <>
+              <ContextMenuItem onSelect={() => onFileSelect?.(node.path)}>
+                Open file
+              </ContextMenuItem>
+              {onFileDownload ? (
+                <ContextMenuItem onSelect={() => onFileDownload(node.path)}>
+                  <Download className="mr-2 h-3.5 w-3.5" />
+                  Download file
+                </ContextMenuItem>
+              ) : null}
+            </>
           )}
           <ContextMenuItem onSelect={() => onCopyPath(node.path)}>
             <Copy className="mr-2 h-3.5 w-3.5" />
@@ -143,6 +155,7 @@ function TreeNode({
               level={level + 1}
               selectedFile={selectedFile}
               onFileSelect={onFileSelect}
+              onFileDownload={onFileDownload}
               diffStatusByPath={diffStatusByPath}
               collapsedPaths={collapsedPaths}
               onToggleDirectory={onToggleDirectory}
@@ -163,6 +176,7 @@ export function FileTree({
   data,
   selectedFile,
   onFileSelect,
+  onFileDownload,
   className,
   diffStatusByPath,
 }: FileTreeProps) {
@@ -193,6 +207,7 @@ export function FileTree({
               level={0}
               selectedFile={selectedFile}
               onFileSelect={onFileSelect}
+              onFileDownload={onFileDownload}
               diffStatusByPath={diffStatusByPath}
               collapsedPaths={collapsedPaths}
               onToggleDirectory={(path) =>

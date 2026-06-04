@@ -15,9 +15,11 @@ import {
 import { SNAPSHOT_PREVIEW_MAX_BYTES } from "@/lib/constants/snapshot-preview";
 import { formatBytes } from "@/lib/format-storage-usage";
 import { QUERY_KEYS } from "@/lib/constants/query-keys";
+import { useToast } from "@/lib/hooks/use-toast";
 import { buildFileTree, findNodeByPath, type FileNode } from "../lib/file-tree";
 import { compareService } from "../service";
 import type { SnapshotFile, SnapshotFileContent } from "../types";
+import { basenameFromPath, downloadBlob } from "../downloads";
 import { CollapsibleSidebar } from "./collapsible-sidebar";
 import { DiffViewer } from "./diff-viewer";
 import { FileComparison } from "./file-comparison";
@@ -91,6 +93,7 @@ export function FileCompareView({
   leftSnapshotMissing = false,
   rightSnapshotMissing = false,
 }: FileCompareViewProps) {
+  const { toast } = useToast();
   const [leftSelectedFile, setLeftSelectedFile] = useState<FileNode | null>(null);
   const [rightSelectedFile, setRightSelectedFile] = useState<FileNode | null>(null);
   const [mode, setMode] = useState<CompareMode>("side-by-side");
@@ -287,6 +290,50 @@ export function FileCompareView({
     }
   };
 
+  const downloadFile = async ({
+    experimentId,
+    snapshotId,
+    files,
+    path,
+  }: {
+    experimentId?: string;
+    snapshotId?: string;
+    files: SnapshotFile[];
+    path: string;
+  }) => {
+    if (!experimentId || !snapshotId) {
+      toast({
+        title: "Failed to download file",
+        description: "Snapshot is not available for this side.",
+        variant: "destructive",
+      });
+      return;
+    }
+    const file = files.find((item) => item.path === path);
+    if (!file) {
+      toast({
+        title: "Failed to download file",
+        description: "File is not present in the loaded snapshot.",
+        variant: "destructive",
+      });
+      return;
+    }
+    try {
+      const result = await compareService.getSnapshotFileContent(experimentId, snapshotId, file);
+      downloadBlob(
+        new Blob([result.content], { type: "text/plain;charset=utf-8" }),
+        basenameFromPath(result.path)
+      );
+      toast({ title: "File download started" });
+    } catch {
+      toast({
+        title: "Failed to download file",
+        description: "Only text files available through snapshot preview can be downloaded here.",
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
     <div className="flex min-h-0 flex-1 overflow-hidden bg-background">
       <CollapsibleSidebar title={leftLabel} side="left">
@@ -298,6 +345,14 @@ export function FileCompareView({
               data={leftTree}
               selectedFile={visibleLeftSelectedFile?.path}
               onFileSelect={selectLeftFile}
+              onFileDownload={(path) =>
+                downloadFile({
+                  experimentId: leftExperimentId,
+                  snapshotId: leftSnapshotId,
+                  files: leftFiles,
+                  path,
+                })
+              }
               diffStatusByPath={diffStatusBySide.left}
             />
           )}
@@ -463,6 +518,14 @@ export function FileCompareView({
                 data={rightTree}
                 selectedFile={visibleRightSelectedFile?.path}
                 onFileSelect={selectRightFile}
+                onFileDownload={(path) =>
+                  downloadFile({
+                    experimentId: rightExperimentId,
+                    snapshotId: rightSnapshotId,
+                    files: rightFiles ?? [],
+                    path,
+                  })
+                }
                 diffStatusByPath={diffStatusBySide.right}
               />
             )}

@@ -508,6 +508,8 @@ class ObjectStorageService:
         snapshot = await self._repository.fetch_snapshot(snapshot_id)
         if snapshot is None:
             raise HTTPException(status_code=404, detail="Snapshot not found")
+        if snapshot.project_id != project_id:
+            raise HTTPException(status_code=404, detail="Snapshot not found")
         await self._buckets_service.ensure_bucket(project_id, None)
         zip_path = await anyio.to_thread.run_sync(
             self._build_zip,

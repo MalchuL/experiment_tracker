@@ -61,6 +61,23 @@ def _raise_http_error(error: Exception) -> None:
     raise HTTPException(status_code=400, detail=str(error))
 
 
+def _snapshot_download_response(
+    response: httpx.Response, fallback_filename: str
+) -> Response:
+    """Map an upstream snapshot ZIP response to the public backend response."""
+
+    return Response(
+        content=response.content,
+        media_type=response.headers.get("content-type", "application/zip"),
+        headers={
+            "Content-Disposition": response.headers.get(
+                "content-disposition",
+                f'attachment; filename="{fallback_filename}"',
+            )
+        },
+    )
+
+
 @router.post("/{project_id}/check")
 async def check_project_artifacts(
     project_id: UUID,
@@ -196,6 +213,24 @@ async def create_project_snapshot(
         return await service.create_project_snapshot(
             user=user, project_id=project_id, payload=payload
         )
+    except Exception as exc:  # noqa: BLE001
+        _raise_http_error(exc)
+
+
+@router.get("/{project_id}/snapshots/{snapshot_id}/download")
+async def download_project_snapshot(
+    project_id: UUID,
+    snapshot_id: UUID,
+    user: User = Depends(get_current_user_dual),
+    _: None = Depends(require_api_token_scopes(ProjectActions.VIEW_ARTIFACT)),
+    service: ProjectArtifactsServiceProtocol = Depends(get_project_artifacts_service),
+):
+    """Download one project snapshot as a ZIP archive."""
+    try:
+        response = await service.download_project_snapshot(
+            user=user, project_id=project_id, snapshot_id=snapshot_id
+        )
+        return _snapshot_download_response(response, f"snapshot-{snapshot_id}.zip")
     except Exception as exc:  # noqa: BLE001
         _raise_http_error(exc)
 

@@ -4,6 +4,7 @@ from collections.abc import Sequence
 from pathlib import PurePosixPath
 from uuid import UUID
 
+import httpx
 from domain.experiments.repository import ExperimentRepository
 from domain.project_artifacts.protocol import ProjectArtifactsServiceProtocol
 from lib.logger import get_logger
@@ -314,6 +315,35 @@ class ExperimentDataService:
             snapshot_id=snapshot_id,
             path=path,
             file_hash=file_hash,
+        )
+
+    async def download_snapshot(
+        self,
+        user: UserProtocol,
+        experiment_id: UUID,
+        *,
+        snapshot_id: UUID | None = None,
+    ) -> httpx.Response:
+        """Download a snapshot ZIP for an experiment.
+
+        When ``snapshot_id`` is omitted, resolves the ID from experiment snapshot metadata.
+        When provided, downloads that snapshot directly without a current-snapshot check.
+        """
+
+        experiment = await self._get_experiment_for_view(user, experiment_id)
+        if snapshot_id is not None:
+            resolved_snapshot_id = snapshot_id
+        else:
+            row = await self._data.get_by_experiment_and_type(
+                experiment_id, ExperimentDataType.SNAPSHOT
+            )
+            resolved_snapshot_id = self._mapper.snapshot_id_from_data(row)
+            if resolved_snapshot_id is None:
+                raise ExperimentSnapshotNotFoundError(
+                    f"No snapshot found for experiment {experiment_id}"
+                )
+        return await self._project_artifacts.download_project_snapshot(
+            user, experiment.project_id, resolved_snapshot_id
         )
 
     async def delete_snapshot(

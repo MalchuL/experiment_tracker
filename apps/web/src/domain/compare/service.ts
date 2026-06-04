@@ -1,10 +1,16 @@
 import { serviceClients } from "@/lib/api/clients/axios-client";
 import { API_ROUTES } from "@/lib/constants/api-routes";
+import { filenameFromContentDisposition } from "./downloads";
 import type {
   ExperimentSnapshotFiles,
   ExperimentSnapshotFilesResponse,
   SnapshotFileContent,
 } from "./types";
+
+export interface SnapshotDownload {
+  blob: Blob;
+  filename: string;
+}
 
 export const compareService = {
   getSnapshotFiles: async (
@@ -36,5 +42,23 @@ export const compareService = {
       file
     );
     return response.data;
+  },
+
+  downloadExperimentSnapshot: async (
+    experimentId: string,
+    snapshotId?: string
+  ): Promise<SnapshotDownload> => {
+    const url = API_ROUTES.EXPERIMENTS.BY_ID.SNAPSHOT_DOWNLOAD(experimentId, snapshotId);
+    const response = await serviceClients.api.get<Blob>(url, {
+      responseType: "blob",
+    });
+    const fallback = `snapshot-${snapshotId ?? experimentId}.zip`;
+    return {
+      blob: response.data,
+      filename: filenameFromContentDisposition(
+        response.headers["content-disposition"],
+        fallback
+      ),
+    };
   },
 };

@@ -138,6 +138,9 @@ class ObjectStorageClient:
         "download_project_artifact": lambda project_id, artifact_hash: f"/project-artifacts/{project_id}/artifacts/{artifact_hash}",
         "create_project_snapshot": lambda project_id: f"/project-artifacts/{project_id}/snapshots",
         "get_project_snapshot_manifest": lambda project_id, snapshot_id: f"/project-artifacts/{project_id}/snapshots/{snapshot_id}/manifest",
+        "download_project_snapshot": lambda project_id, snapshot_id: (
+            f"/project-artifacts/{project_id}/snapshots/{snapshot_id}/download"
+        ),
         "delete_project_snapshot": lambda project_id, snapshot_id: f"/project-artifacts/{project_id}/snapshots/{snapshot_id}",
         "get_project_usage": lambda project_id: f"/project-artifacts/{project_id}/usage",
         "delete_project_artifact": lambda project_id, artifact_hash: f"/project-artifacts/{project_id}/artifacts/{artifact_hash}",
@@ -282,6 +285,16 @@ class ObjectStorageClient:
             self.ENDPOINTS["get_project_snapshot_manifest"](project_id, snapshot_id),
         )
         return SnapshotManifestResponseDTO.model_validate(response)
+
+    async def download_project_snapshot(
+        self, project_id: UUID, snapshot_id: UUID
+    ) -> httpx.Response:
+        """Download a project snapshot ZIP archive from object storage."""
+        return await self._transfer_strategy.download_response(
+            base_url=self.base_url,
+            path=self.ENDPOINTS["download_project_snapshot"](project_id, snapshot_id),
+            timeout=None,
+        )
 
     async def delete_project_snapshot(
         self, project_id: UUID, snapshot_id: UUID

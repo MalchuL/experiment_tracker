@@ -158,6 +158,12 @@ export const API_ROUTES = {
           `/api/experiments/${experimentId}/data/snapshot`,
         SNAPSHOT_FILES: (experimentId: string) =>
           `/api/experiments/${experimentId}/data/snapshot/files`,
+        SNAPSHOT_DOWNLOAD: (experimentId: string, snapshotId?: string) => {
+          const base = `/api/experiments/${experimentId}/data/snapshot/download`;
+          if (!snapshotId) return base;
+          const params = new URLSearchParams({ snapshot_id: snapshotId });
+          return `${base}?${params.toString()}`;
+        },
         SNAPSHOT_FILE: (experimentId: string) =>
           `/api/experiments/${experimentId}/data/snapshot/file`,
         SNAPSHOT_FILE_FOR_SNAPSHOT: (experimentId: string, snapshotId: string) =>

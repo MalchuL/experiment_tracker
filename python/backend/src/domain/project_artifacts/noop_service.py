@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
+import httpx
 from fastapi import UploadFile
 from fastapi_users.models import UserProtocol
 
@@ -109,6 +110,12 @@ class NoOpProjectArtifactsService:
         self, user: UserProtocol, project_id: UUID, snapshot_id: UUID
     ) -> SnapshotManifestResponseDTO:
         """Reject snapshot manifest reads when storage is disabled."""
+        raise ProjectArtifactsNotAccessibleError("Project artifacts unavailable")
+
+    async def download_project_snapshot(
+        self, user: UserProtocol, project_id: UUID, snapshot_id: UUID
+    ) -> httpx.Response:
+        """Reject snapshot downloads when storage is disabled."""
         raise ProjectArtifactsNotAccessibleError("Project artifacts unavailable")
 
     async def delete_project_snapshot(

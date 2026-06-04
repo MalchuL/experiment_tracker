@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Protocol
 from uuid import UUID
 
+import httpx
 from fastapi import UploadFile
 from fastapi_users.models import UserProtocol
 
@@ -48,6 +49,10 @@ class ProjectArtifactsServiceProtocol(Protocol):
     async def get_project_snapshot_manifest(
         self, user: UserProtocol, project_id: UUID, snapshot_id: UUID
     ) -> SnapshotManifestResponseDTO: ...
+
+    async def download_project_snapshot(
+        self, user: UserProtocol, project_id: UUID, snapshot_id: UUID
+    ) -> httpx.Response: ...
 
     async def delete_project_snapshot(
         self, user: UserProtocol, project_id: UUID, snapshot_id: UUID

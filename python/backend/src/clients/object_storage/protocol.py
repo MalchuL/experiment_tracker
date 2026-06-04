@@ -86,6 +86,11 @@ class ObjectStorageClientProtocol(Protocol):
     ) -> SnapshotManifestResponseDTO:
         """Return snapshot manifest metadata without downloading the ZIP archive."""
 
+    async def download_project_snapshot(
+        self, project_id: UUID, snapshot_id: UUID
+    ) -> httpx.Response:
+        """Download a project snapshot ZIP archive."""
+
     async def delete_project_snapshot(
         self, project_id: UUID, snapshot_id: UUID
     ) -> DeleteProjectSnapshotResponseDTO: ...

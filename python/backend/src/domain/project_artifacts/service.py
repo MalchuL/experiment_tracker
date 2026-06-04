@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
+import httpx
 from fastapi import UploadFile
 from fastapi_users.models import UserProtocol
 
@@ -168,6 +169,15 @@ class ProjectArtifactsService:
         """Return snapshot manifest metadata after project artifact view checks."""
         await self._ensure_view_permission(user, project_id)
         return await self._object_storage.get_project_snapshot_manifest(
+            project_id, snapshot_id
+        )
+
+    async def download_project_snapshot(
+        self, user: UserProtocol, project_id: UUID, snapshot_id: UUID
+    ) -> httpx.Response:
+        """Download a snapshot ZIP archive after project artifact view checks."""
+        await self._ensure_view_permission(user, project_id)
+        return await self._object_storage.download_project_snapshot(
             project_id, snapshot_id
         )
 
