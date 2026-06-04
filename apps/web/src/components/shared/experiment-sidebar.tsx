@@ -38,7 +38,7 @@ import { useToast } from "@/lib/hooks/use-toast";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { useExperiment } from "@/domain/experiments/hooks/experiment-hook";
 import { useExperiments } from "@/domain/experiments/hooks/experiments-hook";
-import { GitBranch, GitCompare, RefreshCw, X, ChevronDown } from "lucide-react";
+import { FileCode2, GitBranch, GitCompare, RefreshCw, X, ChevronDown } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import type { Experiment } from "@/domain/experiments/types";
 import type { Metric } from "@/domain/metrics/types";
@@ -145,6 +145,12 @@ function buildCodeCompareHref(experiment: Pick<Experiment, "id" | "projectId" | 
   if (experiment.parentExperimentId) {
     params.append("exp", experiment.parentExperimentId);
   }
+  return `${FRONTEND_ROUTES.PROJECT_PAGES.COMPARE(experiment.projectId)}?${params.toString()}`;
+}
+
+function buildCodeFilesHref(experiment: Pick<Experiment, "id" | "projectId">): string {
+  const params = new URLSearchParams();
+  params.append("exp", experiment.id);
   return `${FRONTEND_ROUTES.PROJECT_PAGES.COMPARE(experiment.projectId)}?${params.toString()}`;
 }
 
@@ -913,7 +919,7 @@ export function ExperimentSidebar({
               </TabsContent>
 
               <TabsContent value="code" className="space-y-2">
-                <div className="rounded-md border bg-muted/20 p-3">
+                <div className="space-y-2 rounded-md border bg-muted/20 p-3">
                   <Button
                     asChild
                     variant="outline"
@@ -930,6 +936,24 @@ export function ExperimentSidebar({
                       <span>{experiment.parentExperimentId ? "Open code compare" : "Open files"}</span>
                     </Link>
                   </Button>
+                  {experiment.parentExperimentId ? (
+                    <Button
+                      asChild
+                      variant="outline"
+                      size="sm"
+                      className="w-full justify-start"
+                      data-testid="button-open-code-files"
+                    >
+                      <Link
+                        href={buildCodeFilesHref(experiment)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        <FileCode2 className="h-4 w-4" />
+                        <span>Open files</span>
+                      </Link>
+                    </Button>
+                  ) : null}
                 </div>
               </TabsContent>
             </Tabs>
