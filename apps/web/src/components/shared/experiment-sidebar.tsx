@@ -151,9 +151,11 @@ function formatExperimentParentOption(exp: Pick<Experiment, "name" | "id">): str
 
 function buildCodeCompareHref(experiment: Pick<Experiment, "id" | "projectId" | "parentExperimentId">): string {
   const params = new URLSearchParams();
-  params.append("exp", experiment.id);
   if (experiment.parentExperimentId) {
     params.append("exp", experiment.parentExperimentId);
+    params.append("exp", experiment.id);
+  } else {
+    params.append("exp", experiment.id);
   }
   return `${FRONTEND_ROUTES.PROJECT_PAGES.COMPARE(experiment.projectId)}?${params.toString()}`;
 }

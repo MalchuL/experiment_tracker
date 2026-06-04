@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { AlertTriangle, GitCompare, LoaderCircle } from "lucide-react";
+import { AlertTriangle, FileX2, GitCompare, LoaderCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -244,6 +244,16 @@ export function FileCompareView({
       leftContentMatches &&
       rightContentMatches
   );
+  const leftPanePath = visibleLeftSelectedFile?.path;
+  const rightPanePath = visibleRightSelectedFile?.path;
+  const leftFileMissingOnRight =
+    hasRightSnapshot &&
+    Boolean(leftPanePath) &&
+    !snapshotHasFileAtPath(rightFiles ?? [], leftPanePath);
+  const rightFileMissingOnLeft =
+    hasRightSnapshot &&
+    Boolean(rightPanePath) &&
+    !snapshotHasFileAtPath(leftFiles, rightPanePath);
 
   const allowLargeFetch = (key: string | null) => {
     if (!key) {
@@ -263,6 +273,8 @@ export function FileCompareView({
     const matchingRightFile = autoSelectMatchingFile ? findFileInTree(rightTree, path) : null;
     if (matchingRightFile) {
       setRightSelectedFile(matchingRightFile);
+    } else if (autoSelectMatchingFile) {
+      setRightSelectedFile(null);
     }
   };
 
@@ -277,6 +289,8 @@ export function FileCompareView({
     const matchingLeftFile = autoSelectMatchingFile ? findFileInTree(leftTree, path) : null;
     if (matchingLeftFile) {
       setLeftSelectedFile(matchingLeftFile);
+    } else if (autoSelectMatchingFile) {
+      setLeftSelectedFile(null);
     }
   };
 
@@ -385,7 +399,12 @@ export function FileCompareView({
               <div className={hasRightSide ? "min-w-0 flex-1 border-r" : "min-w-0 flex-1"}>
                 {leftSnapshotMissing ? (
                   <MissingSnapshotPane label={leftMissingLabel} />
-                ) : visibleLeftSelectedFile || leftDisplayedContent ? (
+                ) : rightFileMissingOnLeft && rightPanePath ? (
+                  <MissingFileOnOtherSidePane
+                    snapshotLabel={leftLabel}
+                    filePath={rightPanePath}
+                  />
+                ) : selectedLeftMetadata && visibleLeftSelectedFile ? (
                   <FileContentPane
                     file={selectedLeftMetadata}
                     displayedContent={leftDisplayedContent}
@@ -403,7 +422,12 @@ export function FileCompareView({
                 <div className="min-w-0 flex-1">
                   {rightSnapshotMissing ? (
                     <MissingSnapshotPane label="Right experiment has no logged snapshot." />
-                  ) : visibleRightSelectedFile || rightDisplayedContent ? (
+                  ) : leftFileMissingOnRight && leftPanePath ? (
+                    <MissingFileOnOtherSidePane
+                      snapshotLabel={rightLabel ?? "Right"}
+                      filePath={leftPanePath}
+                    />
+                  ) : selectedRightMetadata && visibleRightSelectedFile ? (
                     <FileContentPane
                       file={selectedRightMetadata}
                       displayedContent={rightDisplayedContent}
@@ -420,7 +444,7 @@ export function FileCompareView({
               )}
             </>
           ) : activeMode === "diff" ? (
-            <div className="relative min-w-0 flex-1">
+            <div className="relative min-h-0 min-w-0 flex-1">
               {canCompare ? (
                 <DiffViewer
                   oldContent={leftContent}
@@ -430,6 +454,53 @@ export function FileCompareView({
                   oldExtension={visibleLeftSelectedFile?.extension}
                   newExtension={visibleRightSelectedFile?.extension}
                 />
+              ) : leftFileMissingOnRight || rightFileMissingOnLeft ? (
+                <div className="flex h-full min-h-0">
+                  <div className="min-w-0 flex-1 overflow-hidden border-r">
+                    {leftSnapshotMissing ? (
+                      <MissingSnapshotPane label={leftMissingLabel} />
+                    ) : rightFileMissingOnLeft && rightPanePath ? (
+                      <MissingFileOnOtherSidePane
+                        snapshotLabel={leftLabel}
+                        filePath={rightPanePath}
+                      />
+                    ) : selectedLeftMetadata && visibleLeftSelectedFile ? (
+                      <FileContentPane
+                        file={selectedLeftMetadata}
+                        displayedContent={leftDisplayedContent}
+                        contentLoaded={leftContentMatches}
+                        isLoading={leftContentQuery.isFetching}
+                        isError={leftContentQuery.isError}
+                        largeFetchAllowed={leftLargeFetchAllowed}
+                        onFetchLarge={() => allowLargeFetch(leftLargeKey)}
+                      />
+                    ) : (
+                      <EmptySelection label="Select a file from the snapshot" />
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1 overflow-hidden">
+                    {rightSnapshotMissing ? (
+                      <MissingSnapshotPane label="Right experiment has no logged snapshot." />
+                    ) : leftFileMissingOnRight && leftPanePath ? (
+                      <MissingFileOnOtherSidePane
+                        snapshotLabel={rightLabel ?? "Right"}
+                        filePath={leftPanePath}
+                      />
+                    ) : selectedRightMetadata && visibleRightSelectedFile ? (
+                      <FileContentPane
+                        file={selectedRightMetadata}
+                        displayedContent={rightDisplayedContent}
+                        contentLoaded={rightContentMatches}
+                        isLoading={rightContentQuery.isFetching}
+                        isError={rightContentQuery.isError}
+                        largeFetchAllowed={rightLargeFetchAllowed}
+                        onFetchLarge={() => allowLargeFetch(rightLargeKey)}
+                      />
+                    ) : (
+                      <EmptySelection label="Select a file from the right snapshot" />
+                    )}
+                  </div>
+                </div>
               ) : leftDisplayedContent && rightDisplayedContent ? (
                 <DiffViewer
                   oldContent={leftDisplayedContent.content}
@@ -445,7 +516,7 @@ export function FileCompareView({
               {comparisonIsFetching && hasDisplayedComparison ? <LoadingOverlay /> : null}
             </div>
           ) : (
-            <div className="relative min-w-0 flex-1">
+            <div className="relative min-h-0 min-w-0 flex-1">
               {canCompare && visibleLeftSelectedFile && visibleRightSelectedFile ? (
                 <FileComparison
                   leftFile={{
@@ -459,6 +530,53 @@ export function FileCompareView({
                     extension: visibleRightSelectedFile.extension,
                   }}
                 />
+              ) : leftFileMissingOnRight || rightFileMissingOnLeft ? (
+                <div className="flex h-full min-h-0">
+                  <div className="min-w-0 flex-1 overflow-hidden border-r">
+                    {leftSnapshotMissing ? (
+                      <MissingSnapshotPane label={leftMissingLabel} />
+                    ) : rightFileMissingOnLeft && rightPanePath ? (
+                      <MissingFileOnOtherSidePane
+                        snapshotLabel={leftLabel}
+                        filePath={rightPanePath}
+                      />
+                    ) : selectedLeftMetadata && visibleLeftSelectedFile ? (
+                      <FileContentPane
+                        file={selectedLeftMetadata}
+                        displayedContent={leftDisplayedContent}
+                        contentLoaded={leftContentMatches}
+                        isLoading={leftContentQuery.isFetching}
+                        isError={leftContentQuery.isError}
+                        largeFetchAllowed={leftLargeFetchAllowed}
+                        onFetchLarge={() => allowLargeFetch(leftLargeKey)}
+                      />
+                    ) : (
+                      <EmptySelection label="Select a file from the snapshot" />
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1 overflow-hidden">
+                    {rightSnapshotMissing ? (
+                      <MissingSnapshotPane label="Right experiment has no logged snapshot." />
+                    ) : leftFileMissingOnRight && leftPanePath ? (
+                      <MissingFileOnOtherSidePane
+                        snapshotLabel={rightLabel ?? "Right"}
+                        filePath={leftPanePath}
+                      />
+                    ) : selectedRightMetadata && visibleRightSelectedFile ? (
+                      <FileContentPane
+                        file={selectedRightMetadata}
+                        displayedContent={rightDisplayedContent}
+                        contentLoaded={rightContentMatches}
+                        isLoading={rightContentQuery.isFetching}
+                        isError={rightContentQuery.isError}
+                        largeFetchAllowed={rightLargeFetchAllowed}
+                        onFetchLarge={() => allowLargeFetch(rightLargeKey)}
+                      />
+                    ) : (
+                      <EmptySelection label="Select a file from the right snapshot" />
+                    )}
+                  </div>
+                </div>
               ) : leftDisplayedContent && rightDisplayedContent ? (
                 <FileComparison
                   leftFile={{
@@ -615,6 +733,36 @@ function MissingSnapshotPane({ label }: { label: string }) {
       <MissingSnapshotWarning label={label} />
     </div>
   );
+}
+
+function MissingFileOnOtherSidePane({
+  snapshotLabel,
+  filePath,
+}: {
+  snapshotLabel: string;
+  filePath: string;
+}) {
+  return (
+    <div className="flex h-full items-center justify-center p-6">
+      <div className="max-w-md rounded-md border border-border bg-muted/30 p-4 text-sm text-muted-foreground shadow-sm">
+        <div className="flex items-start gap-3">
+          <FileX2 className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
+          <div className="min-w-0 space-y-2">
+            <p className="font-medium text-foreground">File not in this snapshot</p>
+            <p>
+              <span className="break-all font-mono text-xs">{filePath}</span> is not present in{" "}
+              <span className="font-medium text-foreground">{snapshotLabel}</span>.
+            </p>
+            <p>Choose another file from the tree.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function snapshotHasFileAtPath(files: SnapshotFile[], path: string | undefined): boolean {
+  return Boolean(path && files.some((file) => file.path === path));
 }
 
 function isLargeSnapshotFile(file: SnapshotFile | null): boolean {
