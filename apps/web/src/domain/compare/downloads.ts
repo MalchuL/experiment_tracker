@@ -39,3 +39,8 @@ export function basenameFromPath(path: string): string {
   const normalized = path.replace(/\\/g, "/");
   return sanitizeDownloadName(normalized.split("/").filter(Boolean).at(-1) ?? "snapshot-file");
 }
+
+export async function decodeUtf8Blob(blob: Blob): Promise<string> {
+  const buffer = await blob.arrayBuffer();
+  return new TextDecoder("utf-8", { fatal: true }).decode(buffer);
+}

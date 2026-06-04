@@ -180,3 +180,4 @@ class ExperimentSnapshotFileContentDTO(BaseModel):
     hash: str
     content: str
     size: int
+

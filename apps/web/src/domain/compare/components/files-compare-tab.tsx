@@ -41,6 +41,7 @@ import type { ExperimentSnapshotFiles } from "../types";
 import { FileCompareView } from "./file-compare-view";
 
 interface FilesCompareTabProps {
+  projectId: string;
   allExperiments: Experiment[];
   selectedExperiments: Experiment[];
   onEnsureExperimentSelected: (experimentId: string) => void;
@@ -55,6 +56,7 @@ type SnapshotDownloadTarget = {
 } | null;
 
 export function FilesCompareTab({
+  projectId,
   allExperiments,
   selectedExperiments,
   onEnsureExperimentSelected,
@@ -272,6 +274,7 @@ export function FilesCompareTab({
     <div className="flex min-h-0 flex-1 flex-col">
       {controls}
       <FileCompareView
+        projectId={projectId}
         leftFiles={left?.snapshotId ? left.files : []}
         rightFiles={rightExperimentId ? (right?.snapshotId ? right.files : []) : undefined}
         leftLabel={renderedLeftExperiment?.name ?? left?.experimentId ?? "Left"}

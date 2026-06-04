@@ -1,9 +1,10 @@
 import { serviceClients } from "@/lib/api/clients/axios-client";
 import { API_ROUTES } from "@/lib/constants/api-routes";
-import { filenameFromContentDisposition } from "./downloads";
+import { decodeUtf8Blob, filenameFromContentDisposition } from "./downloads";
 import type {
   ExperimentSnapshotFiles,
   ExperimentSnapshotFilesResponse,
+  SnapshotFile,
   SnapshotFileContent,
 } from "./types";
 
@@ -32,16 +33,30 @@ export const compareService = {
     return response.data;
   },
 
-  getSnapshotFileContent: async (
-    experimentId: string,
-    snapshotId: string,
-    file: { path: string; hash: string }
-  ): Promise<SnapshotFileContent> => {
-    const response = await serviceClients.api.post<SnapshotFileContent>(
-      API_ROUTES.EXPERIMENTS.BY_ID.SNAPSHOT_FILE_FOR_SNAPSHOT(experimentId, snapshotId),
-      file
+  downloadProjectArtifact: async (
+    projectId: string,
+    artifactHash: string
+  ): Promise<Blob> => {
+    const response = await serviceClients.api.get<Blob>(
+      API_ROUTES.PROJECT_ARTIFACTS.DOWNLOAD(projectId, artifactHash),
+      { responseType: "blob" }
     );
     return response.data;
+  },
+
+  /** Preview text via project CAS download (not POST .../data/snapshot/file). */
+  getSnapshotFileContent: async (
+    projectId: string,
+    file: Pick<SnapshotFile, "path" | "hash">
+  ): Promise<SnapshotFileContent> => {
+    const blob = await compareService.downloadProjectArtifact(projectId, file.hash);
+    const content = await decodeUtf8Blob(blob);
+    return {
+      path: file.path,
+      hash: file.hash,
+      content,
+      size: blob.size,
+    };
   },
 
   downloadExperimentSnapshot: async (

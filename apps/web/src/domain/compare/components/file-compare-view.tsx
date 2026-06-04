@@ -27,6 +27,7 @@ import { FileTree, type FileDiffStatus } from "./file-tree";
 import { FileViewer } from "./file-viewer";
 
 interface FileCompareViewProps {
+  projectId: string;
   leftFiles: SnapshotFile[];
   rightFiles?: SnapshotFile[];
   leftLabel: string;
@@ -48,40 +49,31 @@ interface DisplayedFileContent {
 }
 
 function useSnapshotFileContentQuery({
-  experimentId,
-  snapshotId,
+  projectId,
   file,
   allowFetch,
 }: {
-  experimentId?: string;
-  snapshotId?: string;
+  projectId: string;
   file: SnapshotFile | null;
   allowFetch: boolean;
 }) {
   return useQuery({
     queryKey: [
-      QUERY_KEYS.COMPARE.SNAPSHOT_FILE_CONTENT(
-        experimentId,
-        snapshotId,
-        file?.path,
-        file?.hash
-      ),
+      QUERY_KEYS.COMPARE.SNAPSHOT_FILE_CONTENT(projectId, file?.path, file?.hash),
     ],
     queryFn: () => {
-      if (!experimentId || !snapshotId || !file) {
+      if (!file) {
         throw new Error("Snapshot file selection is incomplete");
       }
-      return compareService.getSnapshotFileContent(experimentId, snapshotId, {
-        path: file.path,
-        hash: file.hash,
-      });
+      return compareService.getSnapshotFileContent(projectId, file);
     },
-    enabled: Boolean(experimentId && snapshotId && file && allowFetch),
+    enabled: Boolean(file && allowFetch),
     placeholderData: keepPreviousData,
   });
 }
 
 export function FileCompareView({
+  projectId,
   leftFiles,
   rightFiles,
   leftLabel,
@@ -215,14 +207,12 @@ export function FileCompareView({
   );
 
   const leftContentQuery = useSnapshotFileContentQuery({
-    experimentId: leftExperimentId,
-    snapshotId: leftSnapshotId,
+    projectId,
     file: selectedLeftMetadata,
     allowFetch: leftLargeFetchAllowed,
   });
   const rightContentQuery = useSnapshotFileContentQuery({
-    experimentId: rightExperimentId,
-    snapshotId: rightSnapshotId,
+    projectId,
     file: selectedRightMetadata,
     allowFetch: rightLargeFetchAllowed,
   });
@@ -291,24 +281,12 @@ export function FileCompareView({
   };
 
   const downloadFile = async ({
-    experimentId,
-    snapshotId,
     files,
     path,
   }: {
-    experimentId?: string;
-    snapshotId?: string;
     files: SnapshotFile[];
     path: string;
   }) => {
-    if (!experimentId || !snapshotId) {
-      toast({
-        title: "Failed to download file",
-        description: "Snapshot is not available for this side.",
-        variant: "destructive",
-      });
-      return;
-    }
     const file = files.find((item) => item.path === path);
     if (!file) {
       toast({
@@ -319,16 +297,13 @@ export function FileCompareView({
       return;
     }
     try {
-      const result = await compareService.getSnapshotFileContent(experimentId, snapshotId, file);
-      downloadBlob(
-        new Blob([result.content], { type: "text/plain;charset=utf-8" }),
-        basenameFromPath(result.path)
-      );
+      const blob = await compareService.downloadProjectArtifact(projectId, file.hash);
+      downloadBlob(blob, basenameFromPath(file.path));
       toast({ title: "File download started" });
     } catch {
       toast({
         title: "Failed to download file",
-        description: "Only text files available through snapshot preview can be downloaded here.",
+        description: "The file could not be downloaded from project storage.",
         variant: "destructive",
       });
     }
@@ -347,8 +322,6 @@ export function FileCompareView({
               onFileSelect={selectLeftFile}
               onFileDownload={(path) =>
                 downloadFile({
-                  experimentId: leftExperimentId,
-                  snapshotId: leftSnapshotId,
                   files: leftFiles,
                   path,
                 })
@@ -520,8 +493,6 @@ export function FileCompareView({
                 onFileSelect={selectRightFile}
                 onFileDownload={(path) =>
                   downloadFile({
-                    experimentId: rightExperimentId,
-                    snapshotId: rightSnapshotId,
                     files: rightFiles ?? [],
                     path,
                   })

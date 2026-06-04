@@ -164,10 +164,6 @@ export const API_ROUTES = {
           const params = new URLSearchParams({ snapshot_id: snapshotId });
           return `${base}?${params.toString()}`;
         },
-        SNAPSHOT_FILE: (experimentId: string) =>
-          `/api/experiments/${experimentId}/data/snapshot/file`,
-        SNAPSHOT_FILE_FOR_SNAPSHOT: (experimentId: string, snapshotId: string) =>
-          `/api/experiments/${experimentId}/data/snapshots/${snapshotId}/file`,
       },
       SNAPSHOTS: "/api/experiments/data/snapshots",
       SNAPSHOT_FILES: "/api/experiments/data/snapshots/files",
@@ -205,6 +201,11 @@ export const API_ROUTES = {
         GET: (projectId: string) => `/api/scalars/get/project/${projectId}`,
         LAST_LOGGED: (projectId: string) => `/api/scalars/last_logged/${projectId}`,
       },
+    },
+
+    PROJECT_ARTIFACTS: {
+      DOWNLOAD: (projectId: string, artifactHash: string) =>
+        `/api/project-artifacts/${projectId}/artifacts/${encodeURIComponent(artifactHash)}`,
     },
 
     EXPERIMENT_ARTIFACTS: {

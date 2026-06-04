@@ -28,19 +28,25 @@ from .error import (
 )
 from .service import ExperimentDataService
 
-router = APIRouter(prefix="/experiments", tags=["experiment-data"])
+router = APIRouter(
+    prefix="/experiments",
+    tags=["experiment-data"],
+)
 
 
 def _raise_experiment_data_http_error(error: Exception) -> None:
-    """Translate domain and transport failures into FastAPI HTTP errors.
+    """Map experiment-data and object-storage failures to HTTP status codes.
+
+    Purpose:
+        Keeps route handlers thin: domain ``404``/``502`` types and ``httpx`` errors
+        from the storage client become consistent FastAPI responses for the web BFF
+        and SDK.
 
     Args:
-        error: Exception raised by the experiment-data service or downstream
-            object-storage HTTP client.
+        error: Any exception bubbled out of a service call.
 
-    Returns:
-        None. This function always raises ``HTTPException`` with a status code
-        suitable for the public API.
+    Raises:
+        HTTPException: Always raised; never returns normally.
     """
     if isinstance(
         error,
@@ -67,8 +73,20 @@ def _raise_experiment_data_http_error(error: Exception) -> None:
 def _snapshot_download_response(
     response: httpx.Response, fallback_filename: str
 ) -> Response:
-    """Map an upstream snapshot ZIP response to the public experiment-data response."""
+    """Wrap object-storage ZIP bytes as a browser-friendly attachment response.
 
+    Purpose:
+        ``download_snapshot`` returns a raw ``httpx.Response``; this helper copies
+        body, ``Content-Type``, and ``Content-Disposition`` (with a safe fallback
+        filename) for experiment snapshot download routes.
+
+    Args:
+        response: Upstream ZIP response from project-artifacts / object storage.
+        fallback_filename: Used when upstream omits ``Content-Disposition``.
+
+    Returns:
+        Starlette ``Response`` suitable for FastAPI to return to clients.
+    """
     return Response(
         content=response.content,
         media_type=response.headers.get("content-type", "application/zip"),
@@ -89,18 +107,24 @@ async def upsert_experiment_snapshot(
     _: None = Depends(require_api_token_scopes(ProjectActions.LOG_ARTIFACT)),
     service: ExperimentDataService = Depends(get_experiment_data_service),
 ) -> ExperimentSnapshotDTO:
-    """Create or replace the snapshot manifest for one experiment.
+    """Log or replace an experiment's code snapshot manifest (SDK / training).
+
+    Purpose:
+        Primary write entry point after files are uploaded to project CAS. Stores
+        the new snapshot UUID on the experiment and replaces any previous archive.
 
     Args:
-        experiment_id: Experiment whose snapshot manifest should be written.
-        payload: Manifest entries containing relative paths and content hashes.
-        user: Authenticated user or API-token owner injected by FastAPI.
-        _: Scope dependency enforcing artifact logging permission for PATs.
-        service: Experiment-data service dependency.
+        experiment_id: Experiment receiving the manifest.
+        payload: Full file list (path + hash per entry).
+        user: Session user or API token.
+        _: PAT scope guard (``LOG_ARTIFACT``).
+        service: Injected :class:`ExperimentDataService`.
 
     Returns:
-        Snapshot metadata for the experiment, including the object-storage
-        snapshot identifier when the upsert succeeds.
+        ``ExperimentSnapshotDTO`` with the new ``snapshot_id``.
+
+    Raises:
+        HTTPException: Via :func:`_raise_experiment_data_http_error` on failure.
     """
     try:
         return await service.upsert_snapshot(user, experiment_id, payload.files)
@@ -115,17 +139,23 @@ async def delete_experiment_snapshot(
     _: None = Depends(require_api_token_scopes(ProjectActions.LOG_ARTIFACT)),
     service: ExperimentDataService = Depends(get_experiment_data_service),
 ) -> ExperimentSnapshotDTO:
-    """Delete the current snapshot for one experiment.
+    """Delete the experiment's current code snapshot from storage and metadata.
+
+    Purpose:
+        Removes the archive and clears the ``ExperimentData`` snapshot pointer so
+        the experiment no longer appears in file-compare or download flows.
 
     Args:
-        experiment_id: Experiment whose snapshot metadata and archive should be
-            removed.
-        user: Authenticated user or API-token owner injected by FastAPI.
-        _: Scope dependency enforcing artifact logging permission for PATs.
-        service: Experiment-data service dependency.
+        experiment_id: Experiment to clear.
+        user: Session user or API token.
+        _: PAT scope guard (``LOG_ARTIFACT``).
+        service: Injected :class:`ExperimentDataService`.
 
     Returns:
-        Snapshot DTO with ``snapshot_id`` cleared after successful deletion.
+        Snapshot DTO with ``snapshot_id=None``.
+
+    Raises:
+        HTTPException: ``404`` when no snapshot exists; other codes from the mapper.
     """
     try:
         return await service.delete_snapshot(user, experiment_id)
@@ -140,17 +170,23 @@ async def list_experiment_snapshots(
     _: None = Depends(require_api_token_scopes(ProjectActions.VIEW_ARTIFACT)),
     service: ExperimentDataService = Depends(get_experiment_data_service),
 ) -> list[ExperimentSnapshotDTO]:
-    """List snapshot metadata for multiple experiments in request order.
+    """Bulk-read snapshot IDs for compare selection and dashboards.
+
+    Purpose:
+        ``POST /experiments/data/snapshots`` resolves many experiments in one round
+        trip without loading per-file manifests—only ``snapshot_id`` and row metadata.
 
     Args:
-        payload: Body containing one or more experiment IDs to resolve.
-        user: Authenticated user or API-token owner injected by FastAPI.
-        _: Scope dependency enforcing artifact view permission for PATs.
-        service: Experiment-data service dependency.
+        payload: ``experiment_ids`` list (order preserved in the response).
+        user: Session user or API token.
+        _: PAT scope guard (``VIEW_ARTIFACT``).
+        service: Injected :class:`ExperimentDataService`.
 
     Returns:
-        One snapshot metadata item per requested experiment ID, with missing
-        snapshots represented by ``snapshot_id=None``.
+        List of ``ExperimentSnapshotDTO`` aligned with the request order.
+
+    Raises:
+        HTTPException: Authorization or storage failures per experiment.
     """
     try:
         return await service.list_snapshots(user, payload.experiment_ids)
@@ -168,17 +204,24 @@ async def get_experiment_snapshot_files(
     _: None = Depends(require_api_token_scopes(ProjectActions.VIEW_ARTIFACT)),
     service: ExperimentDataService = Depends(get_experiment_data_service),
 ) -> ExperimentSnapshotFilesResponseDTO:
-    """Return metadata-only file manifests from one or more experiment snapshots.
+    """Bulk-read file trees (path, hash, size) for multi-experiment file compare.
+
+    Purpose:
+        ``POST /experiments/data/snapshots/files`` feeds the compare page when several
+        experiments are selected: builds left/right trees and diff badges without
+        downloading file bodies.
 
     Args:
-        payload: Body containing experiment IDs whose snapshot manifests should be
-            listed.
-        user: Authenticated user or API-token owner injected by FastAPI.
-        _: Scope dependency enforcing artifact view permission for PATs.
-        service: Experiment-data service dependency.
+        payload: ``experiment_ids`` to list manifests for.
+        user: Session user or API token.
+        _: PAT scope guard (``VIEW_ARTIFACT``).
+        service: Injected :class:`ExperimentDataService`.
 
     Returns:
-        A response wrapper containing per-experiment metadata-only file entries.
+        ``ExperimentSnapshotFilesResponseDTO`` with one manifest item per experiment.
+
+    Raises:
+        HTTPException: On permission or upstream storage errors.
     """
     try:
         items = await service.get_snapshot_files(user, payload.experiment_ids)
@@ -197,8 +240,25 @@ async def get_experiment_snapshot_files(
     _: None = Depends(require_api_token_scopes(ProjectActions.VIEW_ARTIFACT)),
     service: ExperimentDataService = Depends(get_experiment_data_service),
 ) -> ExperimentSnapshotFilesDTO:
-    """Return metadata-only file manifest for one experiment snapshot."""
+    """Read the current snapshot file tree for one experiment.
 
+    Purpose:
+        ``GET .../data/snapshot/files`` supports compare UI when a single side's
+        experiment changes—lighter than the bulk POST and cache-friendly per
+        experiment ID.
+
+    Args:
+        experiment_id: Experiment whose manifest is listed.
+        user: Session user or API token.
+        _: PAT scope guard (``VIEW_ARTIFACT``).
+        service: Injected :class:`ExperimentDataService`.
+
+    Returns:
+        ``ExperimentSnapshotFilesDTO`` (empty ``files`` if no snapshot logged).
+
+    Raises:
+        HTTPException: On permission or storage errors.
+    """
     try:
         return await service.get_experiment_snapshot_files(user, experiment_id)
     except Exception as exc:  # noqa: BLE001
@@ -216,8 +276,26 @@ async def download_experiment_snapshot(
     _: None = Depends(require_api_token_scopes(ProjectActions.VIEW_ARTIFACT)),
     service: ExperimentDataService = Depends(get_experiment_data_service),
 ):
-    """Download a snapshot ZIP; defaults to the experiment's current snapshot."""
+    """Download an experiment code snapshot as a ZIP attachment.
 
+    Purpose:
+        Used by the experiment sidebar and compare tab "Download snapshot" actions.
+        Optional ``snapshot_id`` query param downloads a specific archive UUID; omit
+        it to use the experiment's current pointer from metadata.
+
+    Args:
+        experiment_id: Experiment context for RBAC and default snapshot resolution.
+        snapshot_id: Optional explicit archive UUID (no "must match current" check).
+        user: Session user or API token.
+        _: PAT scope guard (``VIEW_ARTIFACT``).
+        service: Injected :class:`ExperimentDataService`.
+
+    Returns:
+        ZIP file ``Response`` with ``Content-Disposition`` attachment headers.
+
+    Raises:
+        HTTPException: ``404`` when no snapshot is available for download.
+    """
     try:
         response = await service.download_snapshot(
             user,
@@ -241,8 +319,28 @@ async def get_experiment_snapshot_file_content(
     _: None = Depends(require_api_token_scopes(ProjectActions.VIEW_ARTIFACT)),
     service: ExperimentDataService = Depends(get_experiment_data_service),
 ) -> ExperimentSnapshotFileContentDTO:
-    """Return UTF-8 content for one file in an experiment's current snapshot."""
+    """Preview one UTF-8 text file from the experiment's current snapshot.
 
+    Purpose:
+        Server-side text preview for API clients that send manifest ``path`` and
+        ``hash`` together. Validates the pair against the logged snapshot, then
+        returns decoded content. The web compare UI typically downloads CAS blobs
+        by hash instead; this route is kept for future features and non-browser
+        consumers.
+
+    Args:
+        experiment_id: Experiment whose *current* snapshot is read.
+        payload: ``path`` and ``hash`` identifying one manifest entry.
+        user: Session user or API token.
+        _: PAT scope guard (``VIEW_ARTIFACT``).
+        service: Injected :class:`ExperimentDataService`.
+
+    Returns:
+        ``ExperimentSnapshotFileContentDTO`` with UTF-8 ``content``.
+
+    Raises:
+        HTTPException: ``404`` for missing snapshot, unknown file, or non-UTF-8 data.
+    """
     try:
         return await service.get_snapshot_file_content(
             user=user,
@@ -253,28 +351,3 @@ async def get_experiment_snapshot_file_content(
     except Exception as exc:  # noqa: BLE001
         _raise_experiment_data_http_error(exc)
 
-
-@router.post(
-    "/{experiment_id}/data/snapshots/{snapshot_id}/file",
-    response_model=ExperimentSnapshotFileContentDTO,
-)
-async def get_experiment_snapshot_file_content_for_snapshot(
-    experiment_id: UUID,
-    snapshot_id: UUID,
-    payload: ExperimentSnapshotFileContentRequestDTO = Body(...),
-    user: User = Depends(get_current_user_dual),
-    _: None = Depends(require_api_token_scopes(ProjectActions.VIEW_ARTIFACT)),
-    service: ExperimentDataService = Depends(get_experiment_data_service),
-) -> ExperimentSnapshotFileContentDTO:
-    """Return UTF-8 content for one file in an exact current snapshot."""
-
-    try:
-        return await service.get_snapshot_file_content_for_snapshot(
-            user=user,
-            experiment_id=experiment_id,
-            snapshot_id=snapshot_id,
-            path=payload.path,
-            file_hash=payload.hash,
-        )
-    except Exception as exc:  # noqa: BLE001
-        _raise_experiment_data_http_error(exc)

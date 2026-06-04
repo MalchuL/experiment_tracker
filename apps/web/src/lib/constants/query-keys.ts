@@ -57,10 +57,9 @@ export const QUERY_KEYS = {
         SNAPSHOT_FILES: (experimentIds: string[]) =>
             `compare/snapshot-files:${experimentIds.join(",")}`,
         SNAPSHOT_FILE_CONTENT: (
-            experimentId: string | undefined,
-            snapshotId: string | undefined,
+            projectId: string | undefined,
             path: string | undefined,
             hash: string | undefined
-        ) => `compare/snapshot-file-content:${experimentId ?? ""}:${snapshotId ?? ""}:${path ?? ""}:${hash ?? ""}`,
+        ) => `compare/snapshot-file-content:${projectId ?? ""}:${path ?? ""}:${hash ?? ""}`,
     },
 };

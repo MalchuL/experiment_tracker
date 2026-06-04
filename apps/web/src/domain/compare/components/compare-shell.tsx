@@ -100,6 +100,7 @@ export function CompareShell({ projectId }: CompareShellProps) {
         </div>
         <TabsContent value="files" className="m-0 flex min-h-0 flex-1">
           <FilesCompareTab
+            projectId={projectId}
             allExperiments={experiments}
             selectedExperiments={selectedExperiments}
             onEnsureExperimentSelected={(experimentId) => {

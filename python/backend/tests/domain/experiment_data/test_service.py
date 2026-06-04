@@ -6,7 +6,6 @@ from uuid import uuid4
 import pytest
 
 from clients.object_storage import SnapshotFileEntryDTO, SnapshotManifestResponseDTO
-from domain.experiment_data.error import ExperimentSnapshotNotFoundError
 from domain.experiment_data.service import ExperimentDataService
 from models import ExperimentDataType
 
@@ -88,24 +87,3 @@ async def test_get_experiment_snapshot_files_returns_single_manifest_with_size()
     assert result.files[0].hash == "a" * 64
     assert result.files[0].size == 12
 
-
-@pytest.mark.asyncio
-async def test_exact_snapshot_file_content_rejects_stale_snapshot_id() -> None:
-    project_id = uuid4()
-    experiment_id = uuid4()
-    current_snapshot_id = uuid4()
-    stale_snapshot_id = uuid4()
-    service = ExperimentDataService(
-        FakeExperimentRepository(project_id),
-        FakeExperimentDataRepository(current_snapshot_id),
-        FakeProjectArtifactsService(project_id, current_snapshot_id),
-    )
-
-    with pytest.raises(ExperimentSnapshotNotFoundError):
-        await service.get_snapshot_file_content_for_snapshot(
-            user=SimpleNamespace(id=uuid4()),
-            experiment_id=experiment_id,
-            snapshot_id=stale_snapshot_id,
-            path="src/train.py",
-            file_hash="a" * 64,
-        )
