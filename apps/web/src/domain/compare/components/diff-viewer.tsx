@@ -146,14 +146,32 @@ export function DiffViewer({
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b bg-muted/30 px-4 py-2">
-        <div className="min-w-0 truncate text-sm">
-          <span className="font-medium">Comparing: </span>
-          <span className="text-muted-foreground">{oldFileName}</span>
-          <span className="px-2 text-muted-foreground">/</span>
-          <span className="text-muted-foreground">{newFileName}</span>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b bg-muted/30 px-4 py-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
+          <div className="min-w-0 truncate text-sm">
+            <span className="font-medium">Comparing: </span>
+            <span className="text-muted-foreground">{oldFileName}</span>
+            <span className="px-2 text-muted-foreground">/</span>
+            <span className="text-muted-foreground">{newFileName}</span>
+          </div>
+          <div className="flex shrink-0 flex-nowrap items-center gap-2">
+            {stats.changes === 0 ? (
+              <Badge variant="outline" className="text-muted-foreground">
+                Files equal
+              </Badge>
+            ) : (
+              <>
+                <Badge variant="outline" className="border-green-500/20 bg-green-500/10 text-green-600">
+                  +{stats.additions}
+                </Badge>
+                <Badge variant="outline" className="border-red-500/20 bg-red-500/10 text-red-600">
+                  -{stats.deletions}
+                </Badge>
+              </>
+            )}
+          </div>
         </div>
-        <div className="flex shrink-0 items-center gap-3">
+        <div className="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-x-4 gap-y-2">
           <ExpandUnchangedControl
             id="compare-expand-unchanged-lines"
             expanded={expandUnchanged}
@@ -189,20 +207,6 @@ export function DiffViewer({
               {activeChangeNumber}/{changeLineIndexes.length}
             </span>
           </div>
-          {stats.changes === 0 ? (
-            <Badge variant="outline" className="text-muted-foreground">
-              Files equal
-            </Badge>
-          ) : (
-            <>
-              <Badge variant="outline" className="border-green-500/20 bg-green-500/10 text-green-600">
-                +{stats.additions}
-              </Badge>
-              <Badge variant="outline" className="border-red-500/20 bg-red-500/10 text-red-600">
-                -{stats.deletions}
-              </Badge>
-            </>
-          )}
         </div>
       </div>
       <ScrollArea className="flex-1">
@@ -336,33 +340,13 @@ function CollapsedDiffRows({
   const canExpandPartially = count > PARTIAL_EXPAND_LINES;
 
   return (
-    <div className="flex items-center gap-3 border-y bg-muted/25 px-4 py-1 text-xs text-muted-foreground">
-      <div className="flex shrink-0 select-none gap-3">
-        <span className="w-8" />
-        <span className="w-8" />
-        <span className="w-4 text-center">...</span>
-      </div>
-      <span>{count} unchanged {count === 1 ? "line" : "lines"} hidden</span>
-      <div className="ml-2 flex items-center gap-1">
-        {canExpandPartially && (
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="h-7 px-2 text-xs"
-            onClick={() => onExpandRange(firstIndex, firstSliceEnd)}
-            aria-label={`Show first ${PARTIAL_EXPAND_LINES} hidden unchanged lines`}
-            title={`Show first ${PARTIAL_EXPAND_LINES} hidden lines`}
-          >
-            <ChevronsDown className="h-3.5 w-3.5" />
-            Top
-          </Button>
-        )}
+    <div className="compare-diff-collapsed flex items-center gap-3 px-4 py-1 text-xs">
+      <div className="flex items-center gap-1">
         <Button
           type="button"
           variant="ghost"
           size="sm"
-          className="h-7 px-2 text-xs"
+          className="compare-diff-collapsed-btn"
           onClick={() => onExpandRange(firstIndex, lastIndex)}
           aria-label="Show all hidden unchanged lines in this block"
           title="Show all hidden lines"
@@ -375,7 +359,21 @@ function CollapsedDiffRows({
             type="button"
             variant="ghost"
             size="sm"
-            className="h-7 px-2 text-xs"
+            className="compare-diff-collapsed-btn"
+            onClick={() => onExpandRange(firstIndex, firstSliceEnd)}
+            aria-label={`Show first ${PARTIAL_EXPAND_LINES} hidden unchanged lines`}
+            title={`Show first ${PARTIAL_EXPAND_LINES} hidden lines`}
+          >
+            <ChevronsDown className="h-3.5 w-3.5" />
+            Top
+          </Button>
+        )}
+        {canExpandPartially && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="compare-diff-collapsed-btn"
             onClick={() => onExpandRange(lastSliceStart, lastIndex)}
             aria-label={`Show last ${PARTIAL_EXPAND_LINES} hidden unchanged lines`}
             title={`Show last ${PARTIAL_EXPAND_LINES} hidden lines`}
@@ -385,6 +383,9 @@ function CollapsedDiffRows({
           </Button>
         )}
       </div>
+      <span>
+        {count} unchanged {count === 1 ? "line" : "lines"} hidden
+      </span>
     </div>
   );
 }

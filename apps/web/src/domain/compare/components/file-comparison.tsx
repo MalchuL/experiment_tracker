@@ -202,13 +202,40 @@ export function FileComparison({ leftFile, rightFile, className }: FileCompariso
 
   return (
     <Card className={cn("flex h-full flex-col overflow-hidden rounded-none border-0", className)}>
-      <div className="border-b bg-muted/30 px-4 py-3">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <GitCompare className="h-4 w-4 text-muted-foreground" />
-            <span className="text-sm font-semibold">File Comparison</span>
+      <div className="border-b bg-muted/30 px-4 py-2">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
+            <div className="flex items-center gap-2">
+              <GitCompare className="h-4 w-4 shrink-0 text-muted-foreground" />
+              <span className="text-sm font-semibold">File Comparison</span>
+            </div>
+            <div className="flex shrink-0 flex-nowrap items-center gap-2 text-xs">
+              {!hasChanges ? (
+                <Badge variant="outline" className="text-muted-foreground">
+                  Files equal
+                </Badge>
+              ) : (
+                <>
+                  {stats.added > 0 && (
+                    <Badge variant="outline" className="border-green-500/20 bg-green-500/10 text-green-600">
+                      +{stats.added} added
+                    </Badge>
+                  )}
+                  {stats.removed > 0 && (
+                    <Badge variant="outline" className="border-red-500/20 bg-red-500/10 text-red-600">
+                      -{stats.removed} removed
+                    </Badge>
+                  )}
+                  {stats.changed > 0 && (
+                    <Badge variant="outline" className="border-yellow-500/20 bg-yellow-500/10 text-yellow-600">
+                      ~{stats.changed} changed
+                    </Badge>
+                  )}
+                </>
+              )}
+            </div>
           </div>
-          <div className="flex shrink-0 items-center gap-3">
+          <div className="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-x-4 gap-y-2">
             <ExpandUnchangedControl
               id="side-by-side-expand-unchanged-lines"
               expanded={expandUnchanged}
@@ -245,31 +272,6 @@ export function FileComparison({ leftFile, rightFile, className }: FileCompariso
               </span>
             </div>
           </div>
-        </div>
-        <div className="mt-2 flex items-center gap-3 text-xs">
-          {!hasChanges ? (
-            <Badge variant="outline" className="text-muted-foreground">
-              Files equal
-            </Badge>
-          ) : (
-            <>
-              {stats.added > 0 && (
-                <Badge variant="outline" className="border-green-500/20 bg-green-500/10 text-green-600">
-                  +{stats.added} added
-                </Badge>
-              )}
-              {stats.removed > 0 && (
-                <Badge variant="outline" className="border-red-500/20 bg-red-500/10 text-red-600">
-                  -{stats.removed} removed
-                </Badge>
-              )}
-              {stats.changed > 0 && (
-                <Badge variant="outline" className="border-yellow-500/20 bg-yellow-500/10 text-yellow-600">
-                  ~{stats.changed} changed
-                </Badge>
-              )}
-            </>
-          )}
         </div>
       </div>
 
@@ -419,33 +421,14 @@ function CollapsedComparisonRows({
   const canExpandPartially = count > PARTIAL_EXPAND_LINES;
 
   return (
-    <div className="grid grid-cols-2 border-y bg-muted/25 text-xs text-muted-foreground">
+    <div className="compare-diff-collapsed grid grid-cols-2 text-xs">
       <div className="col-span-2 flex items-center gap-3 px-4 py-1">
-        <div className="flex shrink-0 select-none gap-3">
-          <span className="w-8" />
-          <span className="w-4 text-center">...</span>
-        </div>
-        <span>{count} unchanged {count === 1 ? "line" : "lines"} hidden</span>
-        <div className="ml-2 flex items-center gap-1">
-          {canExpandPartially && (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="h-7 px-2 text-xs"
-              onClick={() => onExpandRange(firstIndex, firstSliceEnd)}
-              aria-label={`Show first ${PARTIAL_EXPAND_LINES} hidden unchanged lines`}
-              title={`Show first ${PARTIAL_EXPAND_LINES} hidden lines`}
-            >
-              <ChevronsDown className="h-3.5 w-3.5" />
-              Top
-            </Button>
-          )}
+        <div className="flex items-center gap-1">
           <Button
             type="button"
             variant="ghost"
             size="sm"
-            className="h-7 px-2 text-xs"
+            className="compare-diff-collapsed-btn"
             onClick={() => onExpandRange(firstIndex, lastIndex)}
             aria-label="Show all hidden unchanged lines in this block"
             title="Show all hidden lines"
@@ -458,7 +441,21 @@ function CollapsedComparisonRows({
               type="button"
               variant="ghost"
               size="sm"
-              className="h-7 px-2 text-xs"
+              className="compare-diff-collapsed-btn"
+              onClick={() => onExpandRange(firstIndex, firstSliceEnd)}
+              aria-label={`Show first ${PARTIAL_EXPAND_LINES} hidden unchanged lines`}
+              title={`Show first ${PARTIAL_EXPAND_LINES} hidden lines`}
+            >
+              <ChevronsDown className="h-3.5 w-3.5" />
+              Top
+            </Button>
+          )}
+          {canExpandPartially && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="compare-diff-collapsed-btn"
               onClick={() => onExpandRange(lastSliceStart, lastIndex)}
               aria-label={`Show last ${PARTIAL_EXPAND_LINES} hidden unchanged lines`}
               title={`Show last ${PARTIAL_EXPAND_LINES} hidden lines`}
@@ -468,6 +465,9 @@ function CollapsedComparisonRows({
             </Button>
           )}
         </div>
+        <span>
+          {count} unchanged {count === 1 ? "line" : "lines"} hidden
+        </span>
       </div>
     </div>
   );

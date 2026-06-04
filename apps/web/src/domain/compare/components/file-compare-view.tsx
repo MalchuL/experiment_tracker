@@ -4,7 +4,6 @@ import { useMemo, useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { AlertTriangle, GitCompare, LoaderCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Tooltip,
@@ -23,6 +22,7 @@ import { basenameFromPath, downloadBlob } from "../downloads";
 import { CollapsibleSidebar } from "./collapsible-sidebar";
 import { DiffViewer } from "./diff-viewer";
 import { FileComparison } from "./file-comparison";
+import { CompareLabeledSwitch } from "./compare-labeled-switch";
 import { FileTree, type FileDiffStatus } from "./file-tree";
 import { FileViewer } from "./file-viewer";
 
@@ -349,15 +349,15 @@ export function FileCompareView({
 
           {hasRightSnapshot && (
             <TooltipProvider delayDuration={250}>
-              <div className="flex shrink-0 items-center gap-4 text-sm">
-                <CheckboxControl
+              <div className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2">
+                <CompareLabeledSwitch
                   id="compare-auto-select"
                   checked={autoSelectMatchingFile}
                   onCheckedChange={setAutoSelectMatchingFile}
                   label="Match file"
                   tip="Selecting a file on one side selects the file with the same path on the other side."
                 />
-                <CheckboxControl
+                <CompareLabeledSwitch
                   id="compare-different-files"
                   checked={showOnlyDifferentFiles}
                   onCheckedChange={setShowOnlyDifferentFiles}
@@ -655,39 +655,3 @@ function toDisplayedFileContent(
   };
 }
 
-function CheckboxControl({
-  id,
-  checked,
-  onCheckedChange,
-  label,
-  tip,
-}: {
-  id: string;
-  checked: boolean;
-  onCheckedChange: (checked: boolean) => void;
-  label: string;
-  tip: string;
-}) {
-  const control = (
-    <label
-      htmlFor={id}
-      className="flex cursor-pointer select-none items-center gap-2 text-muted-foreground"
-    >
-      <Checkbox
-        id={id}
-        checked={checked}
-        onCheckedChange={(value) => onCheckedChange(value === true)}
-      />
-      <span>{label}</span>
-    </label>
-  );
-
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>{control}</TooltipTrigger>
-      <TooltipContent side="bottom" className="max-w-xs">
-        {tip}
-      </TooltipContent>
-    </Tooltip>
-  );
-}
