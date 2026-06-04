@@ -5,10 +5,10 @@ import { ChevronsDown, ChevronsUp, ChevronDown, ChevronUp, File, GitCompare, Unf
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { getLanguageFromExtension } from "../lib/file-tree";
+import { ExpandUnchangedControl } from "./expand-unchanged-control";
 import { InlineDiffText } from "./inline-diff-text";
 
 const COLLAPSED_CONTEXT_LINES = 3;
@@ -99,7 +99,7 @@ function computeSimpleDiff(leftLines: string[], rightLines: string[]): SideBySid
 }
 
 export function FileComparison({ leftFile, rightFile, className }: FileComparisonProps) {
-  const [showUnchanged, setShowUnchanged] = useState(false);
+  const [expandUnchanged, setExpandUnchanged] = useState(false);
   const [navigation, setNavigation] = useState<NavigationState>(null);
   const [highlight, setHighlight] = useState<HighlightState>(null);
   const [expandedRanges, setExpandedRanges] = useState<ExpandedRangeState>(null);
@@ -116,10 +116,6 @@ export function FileComparison({ leftFile, rightFile, className }: FileCompariso
     () => toExpandedLineIndexes(expandedRanges, leftFile.content, rightFile.content),
     [expandedRanges, leftFile.content, rightFile.content]
   );
-  const visibleRows = useMemo(
-    () => (showUnchanged ? toFullComparisonRows(diff) : toCollapsedComparisonRows(diff, expandedLineIndexes)),
-    [diff, expandedLineIndexes, showUnchanged]
-  );
   const stats = useMemo(
     () => ({
       added: diff.filter((line) => line.type === "added").length,
@@ -131,6 +127,14 @@ export function FileComparison({ leftFile, rightFile, className }: FileCompariso
   const changeLineIndexes = useMemo(
     () => diff.map((line, index) => (line.type === "same" ? -1 : index)).filter((index) => index !== -1),
     [diff]
+  );
+  const hasChanges = stats.added > 0 || stats.removed > 0 || stats.changed > 0;
+  const visibleRows = useMemo(
+    () =>
+      !hasChanges || expandUnchanged
+        ? toFullComparisonRows(diff)
+        : toCollapsedComparisonRows(diff, expandedLineIndexes),
+    [diff, expandUnchanged, expandedLineIndexes, hasChanges]
   );
   const activeChangeIndex =
     navigation?.leftContent === leftFile.content &&
@@ -147,8 +151,6 @@ export function FileComparison({ leftFile, rightFile, className }: FileCompariso
     highlight?.leftContent === leftFile.content && highlight.rightContent === rightFile.content
       ? highlight.lineIndex
       : null;
-  const hasChanges = stats.added > 0 || stats.removed > 0 || stats.changed > 0;
-
   const moveToChange = (direction: "previous" | "next") => {
     if (changeLineIndexes.length === 0) {
       return;
@@ -207,17 +209,12 @@ export function FileComparison({ leftFile, rightFile, className }: FileCompariso
             <span className="text-sm font-semibold">File Comparison</span>
           </div>
           <div className="flex shrink-0 items-center gap-3">
-            <label
-              htmlFor="side-by-side-show-unchanged-lines"
-              className="flex cursor-pointer select-none items-center gap-2 text-sm text-muted-foreground"
-            >
-              <Checkbox
-                id="side-by-side-show-unchanged-lines"
-                checked={showUnchanged}
-                onCheckedChange={(value) => setShowUnchanged(value === true)}
-              />
-              <span>Show unchanged</span>
-            </label>
+            <ExpandUnchangedControl
+              id="side-by-side-expand-unchanged-lines"
+              expanded={expandUnchanged}
+              onExpandedChange={setExpandUnchanged}
+              disabled={!hasChanges}
+            />
             <div className="flex items-center gap-1">
               <Button
                 type="button"
@@ -308,11 +305,6 @@ export function FileComparison({ leftFile, rightFile, className }: FileCompariso
               />
             )
           )}
-          {visibleRows.length === 0 && (
-            <div className="flex h-32 items-center justify-center px-4 text-sm text-muted-foreground">
-              No changed lines. Enable unchanged lines to inspect the full file.
-            </div>
-          )}
         </div>
       </ScrollArea>
     </Card>
@@ -367,7 +359,7 @@ function toCollapsedComparisonRows(
   expandedLineIndexes: Set<number>
 ): VisibleComparisonRow[] {
   if (!diff.some((line) => line.type !== "same")) {
-    return [];
+    return toFullComparisonRows(diff);
   }
 
   const visibleLineIndexes = new Set<number>();

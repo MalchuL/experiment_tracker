@@ -4,11 +4,11 @@ import { type Ref, useMemo, useRef, useState } from "react";
 import { ChevronsDown, ChevronsUp, ChevronDown, ChevronUp, UnfoldVertical } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { computeDiff, getDiffStats, type DiffLine } from "../lib/diff";
 import { getLanguageFromExtension } from "../lib/file-tree";
+import { ExpandUnchangedControl } from "./expand-unchanged-control";
 import { InlineDiffText } from "./inline-diff-text";
 
 const COLLAPSED_CONTEXT_LINES = 3;
@@ -53,7 +53,7 @@ export function DiffViewer({
   oldExtension,
   newExtension,
 }: DiffViewerProps) {
-  const [showUnchanged, setShowUnchanged] = useState(false);
+  const [expandUnchanged, setExpandUnchanged] = useState(false);
   const [navigation, setNavigation] = useState<NavigationState>(null);
   const [highlight, setHighlight] = useState<HighlightState>(null);
   const [expandedRanges, setExpandedRanges] = useState<ExpandedRangeState>(null);
@@ -67,13 +67,17 @@ export function DiffViewer({
     () => toExpandedLineIndexes(expandedRanges, oldContent, newContent),
     [expandedRanges, newContent, oldContent]
   );
-  const visibleRows = useMemo(
-    () => (showUnchanged ? toFullDiffRows(diff) : toCollapsedDiffRows(diff, expandedLineIndexes)),
-    [diff, expandedLineIndexes, showUnchanged]
-  );
   const changeLineIndexes = useMemo(
     () => diff.map((line, index) => (line.type === "unchanged" ? -1 : index)).filter((index) => index !== -1),
     [diff]
+  );
+  const hasChanges = changeLineIndexes.length > 0;
+  const visibleRows = useMemo(
+    () =>
+      !hasChanges || expandUnchanged
+        ? toFullDiffRows(diff)
+        : toCollapsedDiffRows(diff, expandedLineIndexes),
+    [diff, expandUnchanged, expandedLineIndexes, hasChanges]
   );
   const activeChangeIndex =
     navigation?.oldContent === oldContent &&
@@ -150,17 +154,12 @@ export function DiffViewer({
           <span className="text-muted-foreground">{newFileName}</span>
         </div>
         <div className="flex shrink-0 items-center gap-3">
-          <label
-            htmlFor="compare-show-unchanged-lines"
-            className="flex cursor-pointer select-none items-center gap-2 text-sm text-muted-foreground"
-          >
-            <Checkbox
-              id="compare-show-unchanged-lines"
-              checked={showUnchanged}
-              onCheckedChange={(value) => setShowUnchanged(value === true)}
-            />
-            <span>Show unchanged</span>
-          </label>
+          <ExpandUnchangedControl
+            id="compare-expand-unchanged-lines"
+            expanded={expandUnchanged}
+            onExpandedChange={setExpandUnchanged}
+            disabled={!hasChanges}
+          />
           <div className="flex items-center gap-1">
             <Button
               type="button"
@@ -235,11 +234,6 @@ export function DiffViewer({
               />
             )
           )}
-          {visibleRows.length === 0 && (
-            <div className="flex h-32 items-center justify-center px-4 text-sm text-muted-foreground">
-              No changed lines. Enable unchanged lines to inspect the full file.
-            </div>
-          )}
         </div>
       </ScrollArea>
     </div>
@@ -291,7 +285,7 @@ function mergeRanges(ranges: Array<{ start: number; end: number }>) {
 
 function toCollapsedDiffRows(diff: DiffLine[], expandedLineIndexes: Set<number>): VisibleDiffRow[] {
   if (!diff.some((line) => line.type !== "unchanged")) {
-    return [];
+    return toFullDiffRows(diff);
   }
 
   const visibleLineIndexes = new Set<number>();
