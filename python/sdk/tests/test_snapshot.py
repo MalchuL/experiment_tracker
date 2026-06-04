@@ -119,6 +119,46 @@ def test_scan_snapshot_files_accepts_explicit_absolute_root(tmp_path):
     assert [item.relative_path for item in scan.included] == ["package/included.py"]
 
 
+def test_scan_snapshot_files_uses_ancestor_ignore_with_explicit_child_root(tmp_path):
+    """Verify explicit child roots still discover ignore files above them."""
+    repo = tmp_path / "repo"
+    package_dir = repo / "package"
+    package_dir.mkdir(parents=True)
+    (repo / ".exp_tracker_ignore").write_text(
+        "ignored.py\n/package/root-relative.py\n",
+        encoding="utf-8",
+    )
+    (package_dir / "included.py").write_text("print('ok')", encoding="utf-8")
+    (package_dir / "ignored.py").write_text("print('skip')", encoding="utf-8")
+    (package_dir / "root-relative.py").write_text("print('skip')", encoding="utf-8")
+
+    scan = scan_snapshot_files(package_dir, root=package_dir)
+
+    assert scan.root == package_dir
+    assert [item.relative_path for item in scan.included] == ["included.py"]
+    assert "ignored.py" in scan.skipped
+    assert "root-relative.py" in scan.skipped
+
+
+def test_scan_snapshot_files_list_path_uses_parent_ignore_with_explicit_root(tmp_path):
+    """Verify list inputs with explicit child roots still use parent ignores."""
+    workspace = tmp_path / "training_files"
+    workspace.mkdir()
+    (tmp_path / ".exp_tracker_ignore").write_text(
+        "ignored.py\n/training_files/root-relative.py\n",
+        encoding="utf-8",
+    )
+    (workspace / "included.py").write_text("print('ok')", encoding="utf-8")
+    (workspace / "ignored.py").write_text("print('skip')", encoding="utf-8")
+    (workspace / "root-relative.py").write_text("print('skip')", encoding="utf-8")
+
+    scan = scan_snapshot_files([workspace], root=workspace.absolute())
+
+    assert scan.root == workspace
+    assert [item.relative_path for item in scan.included] == ["included.py"]
+    assert scan.skipped == ["ignored.py", "root-relative.py"]
+
+
 def test_scan_snapshot_files_rejects_relative_root(tmp_path):
     """Verify explicit roots must be absolute paths."""
     (tmp_path / "included.txt").write_text("keep", encoding="utf-8")
@@ -232,6 +272,21 @@ def test_scan_snapshot_files_uses_nearest_ignore_root_for_single_file(tmp_path):
 
     assert scan.root == tmp_path
     assert [item.relative_path for item in scan.included] == ["package/included.py"]
+
+
+def test_scan_snapshot_files_honors_ignore_for_single_file(tmp_path):
+    """Verify single-file scans still apply discovered ignore files."""
+    (tmp_path / ".exp_tracker_ignore").write_text("ignored.py\n", encoding="utf-8")
+    package_dir = tmp_path / "package"
+    package_dir.mkdir()
+    file_path = package_dir / "ignored.py"
+    file_path.write_text("print('skip')", encoding="utf-8")
+
+    scan = scan_snapshot_files(file_path)
+
+    assert scan.root == tmp_path
+    assert scan.included == []
+    assert scan.skipped == ["package/ignored.py"]
 
 
 def test_scan_snapshot_files_skips_files_above_max_size(tmp_path):

@@ -339,29 +339,151 @@ def _resolve_scan_root(
     return resolved_root
 
 
-def _read_ignore_patterns(root: Path, ignore_file: IgnoreFileInput) -> list[str]:
+def _ignore_file_with_pyrootutils(start: Path, filename: Path) -> Path | None:
+    """Find the nearest configured ignore file above a start directory.
+
+    Args:
+        start: Directory to search upward from.
+        filename: Relative ignore-file path/name to locate.
+
+    Returns:
+        Matching ignore-file path, or ``None`` when not found.
+    """
+    try:
+        found_root = Path(
+            pyrootutils.find_root(
+                search_from=str(start),
+                indicator=str(filename),
+            )
+        ).resolve()
+    except FileNotFoundError:
+        return None
+    candidate = found_root / filename
+    if candidate.is_file():
+        return candidate.resolve()
+    return None
+
+
+def _discover_ignore_files(
+    root: Path,
+    paths: tuple[Path, ...],
+    ignore_file: IgnoreFileInput,
+) -> tuple[Path, ...]:
+    """Find configured ignore files at or above scan paths.
+
+    Args:
+        root: Snapshot manifest root.
+        paths: Resolved user-supplied paths being scanned.
+        ignore_file: Ignore-file name or names to locate.
+
+    Returns:
+        Ordered unique ignore-file paths.
+    """
+    discovered: list[Path] = []
+    seen: set[Path] = set()
+    starts = [root.resolve()]
+    starts.extend((item if item.is_dir() else item.parent).resolve() for item in paths)
+    for filename in normalize_ignore_files(ignore_file):
+        ignore_path = Path(filename).expanduser()
+        candidates: list[Path] = []
+        if ignore_path.is_absolute():
+            candidates.append(ignore_path.resolve())
+        else:
+            candidates.append((root / ignore_path).resolve())
+            for start in dict.fromkeys(starts):
+                candidate = _ignore_file_with_pyrootutils(start, ignore_path)
+                if candidate is not None:
+                    candidates.append(candidate)
+
+        for candidate in candidates:
+            if candidate in seen or not candidate.is_file():
+                continue
+            seen.add(candidate)
+            discovered.append(candidate)
+    return tuple(discovered)
+
+
+def _rebase_ignore_pattern(pattern: str, ignore_dir: Path, root: Path) -> list[str]:
+    """Rebase one gitwildmatch pattern from ignore-file dir to scan root.
+
+    Args:
+        pattern: Raw ignore-file line.
+        ignore_dir: Directory containing the ignore file.
+        root: Snapshot manifest root used for pathspec matching.
+
+    Returns:
+        One or more patterns expressed relative to ``root``.
+    """
+    if not pattern or pattern.lstrip().startswith("#") or ignore_dir == root:
+        return [pattern]
+
+    negated = pattern.startswith("!")
+    body = pattern[1:] if negated else pattern
+    anchored = body.startswith("/")
+    body = body[1:] if anchored else body
+    directory_only = body.endswith("/")
+    body_without_trailing = body.rstrip("/")
+    contains_slash = "/" in body_without_trailing
+    prefix = "!" if negated else ""
+
+    if _is_relative_to(root, ignore_dir):
+        root_from_ignore = root.relative_to(ignore_dir).as_posix()
+        if anchored or contains_slash:
+            if body_without_trailing == root_from_ignore:
+                rebased = "**/"
+            elif body.startswith(root_from_ignore + "/"):
+                rebased = body.removeprefix(root_from_ignore + "/")
+            else:
+                return [pattern]
+            return [prefix + rebased]
+        return [pattern]
+
+    if _is_relative_to(ignore_dir, root):
+        ignore_from_root = ignore_dir.relative_to(root).as_posix()
+        if anchored or contains_slash:
+            rebased = f"{ignore_from_root}/{body}"
+            return [prefix + rebased]
+        rebased = f"{ignore_from_root}/{body}"
+        nested = f"{ignore_from_root}/**/{body}"
+        return [prefix + rebased, prefix + nested]
+
+    if directory_only and body_without_trailing:
+        return [prefix + body]
+    return [pattern]
+
+
+def _read_ignore_patterns(
+    root: Path,
+    paths: tuple[Path, ...],
+    ignore_file: IgnoreFileInput,
+) -> list[str]:
     """Read default and user-configured ignore patterns.
 
     Args:
-        root: Snapshot root where relative ignore-file names are resolved.
+        root: Snapshot root used for pathspec matching.
+        paths: Resolved user-supplied paths used to discover ignore files.
         ignore_file: Ignore-file name or names to read.
 
     Returns:
         Ordered gitwildmatch pattern list used by ``pathspec``.
     """
     patterns = list(DEFAULT_IGNORE_PATTERNS)
-    for filename in normalize_ignore_files(ignore_file):
-        ignore_path = root / filename
-        if ignore_path.is_file():
-            patterns.extend(ignore_path.read_text(encoding="utf-8").splitlines())
+    for ignore_path in _discover_ignore_files(root, paths, ignore_file):
+        for pattern in ignore_path.read_text(encoding="utf-8").splitlines():
+            patterns.extend(_rebase_ignore_pattern(pattern, ignore_path.parent, root))
     return patterns
 
 
-def _build_spec(root: Path, ignore_file: IgnoreFileInput) -> pathspec.PathSpec:
+def _build_spec(
+    root: Path,
+    paths: tuple[Path, ...],
+    ignore_file: IgnoreFileInput,
+) -> pathspec.PathSpec:
     """Build the pathspec matcher for snapshot scanning.
 
     Args:
-        root: Snapshot root where ignore files are read.
+        root: Snapshot root used for pathspec matching.
+        paths: Resolved user-supplied paths used to discover ignore files.
         ignore_file: Ignore-file name or names to include.
 
     Returns:
@@ -369,7 +491,7 @@ def _build_spec(root: Path, ignore_file: IgnoreFileInput) -> pathspec.PathSpec:
     """
     return pathspec.PathSpec.from_lines(
         "gitwildmatch",
-        _read_ignore_patterns(root, ignore_file),
+        _read_ignore_patterns(root, paths, ignore_file),
     )
 
 
@@ -416,9 +538,18 @@ def scan_snapshot_files(
 
     root = _resolve_scan_root(paths, ignore_file, root=root)
 
+    spec = _build_spec(root, paths, ignore_file)
+
     if len(paths) == 1 and paths[0].is_file():
         size = paths[0].stat().st_size
         rel = _posix_relative(paths[0], root)
+        if spec.match_file(rel):
+            skipped_file = SnapshotSkippedFile(path=rel, reason="ignored")
+            return SnapshotScanResult(
+                root=root,
+                skipped=[rel],
+                skipped_details=[skipped_file],
+            )
         if normalized_max_file_size is not None and size > normalized_max_file_size:
             skipped_file = SnapshotSkippedFile(
                 path=rel,
@@ -441,7 +572,6 @@ def scan_snapshot_files(
             ],
         )
 
-    spec = _build_spec(root, ignore_file)
     included: list[SnapshotScanFile] = []
     skipped_details: list[SnapshotSkippedFile] = []
     seen_files: set[Path] = set()
