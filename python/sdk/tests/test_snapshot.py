@@ -328,6 +328,7 @@ def test_snapshot_uploader_streams_files_and_closes_handles(
     file_path = tmp_path / "weights.bin"
     file_path.write_bytes(b"payload")
     uploaded_handles = []
+    snapshot_files = []
 
     class FakeArtifacts:
         """Artifact-client fake that records streamed upload handles.
@@ -400,6 +401,7 @@ def test_snapshot_uploader_streams_files_and_closes_handles(
             Returns:
                 The keyword arguments unchanged.
             """
+            snapshot_files.extend(kwargs["files"])
             return kwargs
 
     class FakeClient:
@@ -439,5 +441,6 @@ def test_snapshot_uploader_streams_files_and_closes_handles(
     )
 
     assert result.uploaded == 1
+    assert snapshot_files[0].size == len(b"payload")
     assert uploaded_handles
     assert uploaded_handles[0].closed

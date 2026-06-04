@@ -156,8 +156,12 @@ export const API_ROUTES = {
           `/api/experiments/${experimentId}/data/snapshot`,
         DELETE_SNAPSHOT: (experimentId: string) =>
           `/api/experiments/${experimentId}/data/snapshot`,
+        SNAPSHOT_FILES: (experimentId: string) =>
+          `/api/experiments/${experimentId}/data/snapshot/files`,
         SNAPSHOT_FILE: (experimentId: string) =>
           `/api/experiments/${experimentId}/data/snapshot/file`,
+        SNAPSHOT_FILE_FOR_SNAPSHOT: (experimentId: string, snapshotId: string) =>
+          `/api/experiments/${experimentId}/data/snapshots/${snapshotId}/file`,
       },
       SNAPSHOTS: "/api/experiments/data/snapshots",
       SNAPSHOT_FILES: "/api/experiments/data/snapshots/files",

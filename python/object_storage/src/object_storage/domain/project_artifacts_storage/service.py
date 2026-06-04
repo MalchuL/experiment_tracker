@@ -223,14 +223,25 @@ class ObjectStorageService:
             raise HTTPException(status_code=400, detail="\n".join(errors))
         hashes = [entry.hash for entry in normalized_files]
         if hashes:
-            existing = await self._repository.fetch_existing_blob_hashes(
+            blob_sizes = await self._repository.fetch_blob_sizes(
                 payload.project_id, hashes
             )
-            missing = [blob_hash for blob_hash in hashes if blob_hash not in existing]
+            missing = [blob_hash for blob_hash in hashes if blob_hash not in blob_sizes]
             if missing:
                 raise HTTPException(
                     status_code=400, detail=f"Missing blobs: {', '.join(missing)}"
                 )
+            size_errors = [
+                f"Size mismatch for {entry.path}: expected {blob_sizes[entry.hash]}, got {entry.size}"
+                for entry in normalized_files
+                if entry.size is not None and entry.size != blob_sizes[entry.hash]
+            ]
+            if size_errors:
+                raise HTTPException(status_code=400, detail="\n".join(size_errors))
+            normalized_files = [
+                entry.model_copy(update={"size": blob_sizes[entry.hash]})
+                for entry in normalized_files
+            ]
 
         manifest = self._mapper.snapshot_files_to_manifest(normalized_files)
         snapshot = await self._repository.create_snapshot(payload.project_id, manifest)
@@ -287,7 +298,15 @@ class ObjectStorageService:
             raise HTTPException(status_code=404, detail="Snapshot not found")
         if snapshot.project_id != project_id:
             raise HTTPException(status_code=404, detail="Snapshot not found")
-        files = [SnapshotFileEntryDTO.model_validate(entry) for entry in snapshot.manifest]
+        files = [
+            SnapshotFileEntryDTO.model_validate(
+                {
+                    **entry,
+                    "hash": self._normalize_hash(str(entry["hash"])),
+                }
+            )
+            for entry in snapshot.manifest
+        ]
         return SnapshotManifestResponseDTO(snapshot_id=snapshot.id, files=files)
 
     async def get_project_usage(self, project_id: UUID) -> ProjectUsageResponseDTO:

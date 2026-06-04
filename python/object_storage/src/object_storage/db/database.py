@@ -49,6 +49,27 @@ def _ensure_snapshots_project_id(connection: Connection) -> None:
     )
 
 
+def _ensure_snapshots_manifest_json(connection: Connection) -> None:
+    """Keep snapshot manifests stored as JSON, not PostgreSQL JSONB."""
+
+    insp = sa.inspect(connection)
+    if "snapshots" not in insp.get_table_names():
+        return
+    if connection.dialect.name != "postgresql":
+        return
+    manifest_column = next(
+        (column for column in insp.get_columns("snapshots") if column["name"] == "manifest"),
+        None,
+    )
+    if manifest_column is None:
+        return
+    if str(manifest_column["type"]).lower() != "jsonb":
+        return
+    connection.execute(
+        text("ALTER TABLE snapshots ALTER COLUMN manifest TYPE JSON USING manifest::json")
+    )
+
+
 async def get_async_session() -> AsyncGenerator[AsyncSession, None]:
     """Yield an async SQLAlchemy session tied to the CAS metadata store."""
 
@@ -62,3 +83,4 @@ async def create_db_and_tables() -> None:
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
         await conn.run_sync(_ensure_snapshots_project_id)
+        await conn.run_sync(_ensure_snapshots_manifest_json)

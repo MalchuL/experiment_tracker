@@ -30,7 +30,11 @@ class ExperimentDataMapper:
             project_id=project_id,
             experiment_id=experiment_id,
             files=[
-                StorageSnapshotFileEntryDTO(path=item.path, hash=item.hash)
+                StorageSnapshotFileEntryDTO(
+                    path=item.path,
+                    hash=item.hash,
+                    size=item.size,
+                )
                 for item in files
             ],
         )

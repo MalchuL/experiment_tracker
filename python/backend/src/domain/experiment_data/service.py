@@ -223,23 +223,36 @@ class ExperimentDataService:
                 )
                 continue
 
-            manifest = await self._project_artifacts.get_project_snapshot_manifest(
-                user, experiment.project_id, snapshot_id
-            )
             result.append(
-                ExperimentSnapshotFilesDTO(
-                    experiment_id=experiment_id,
+                await self._snapshot_files_from_snapshot_id(
+                    user=user,
+                    experiment=experiment,
                     snapshot_id=snapshot_id,
-                    files=[
-                        SnapshotFileManifestEntryDTO(
-                            path=file.path,
-                            hash=file.hash,
-                        )
-                        for file in manifest.files
-                    ],
                 )
             )
         return result
+
+    async def get_experiment_snapshot_files(
+        self, user: UserProtocol, experiment_id: UUID
+    ) -> ExperimentSnapshotFilesDTO:
+        """Return one experiment snapshot manifest without downloading file contents."""
+
+        experiment = await self._get_experiment_for_view(user, experiment_id)
+        row = await self._data.get_by_experiment_and_type(
+            experiment_id, ExperimentDataType.SNAPSHOT
+        )
+        snapshot_id = self._mapper.snapshot_id_from_data(row)
+        if snapshot_id is None:
+            return ExperimentSnapshotFilesDTO(
+                experiment_id=experiment_id,
+                snapshot_id=None,
+                files=[],
+            )
+        return await self._snapshot_files_from_snapshot_id(
+            user=user,
+            experiment=experiment,
+            snapshot_id=snapshot_id,
+        )
 
     async def get_snapshot_file_content(
         self,
@@ -268,43 +281,39 @@ class ExperimentDataService:
             raise ExperimentSnapshotNotFoundError(
                 f"No snapshot found for experiment {experiment_id}"
             )
-        requested_path = path.strip().replace("\\", "/")
-        requested_hash = file_hash.strip().lower()
-        if not self._is_safe_relative_path(requested_path):
-            raise ExperimentSnapshotNotFoundError(
-                f"Snapshot file not found for experiment {experiment_id}"
-            )
+        return await self._get_snapshot_file_content_for_snapshot(
+            user=user,
+            experiment=experiment,
+            snapshot_id=snapshot_id,
+            path=path,
+            file_hash=file_hash,
+        )
 
-        manifest = await self._project_artifacts.get_project_snapshot_manifest(
-            user, experiment.project_id, snapshot_id
-        )
-        match = next(
-            (
-                file
-                for file in manifest.files
-                if file.path == requested_path and file.hash.lower() == requested_hash
-            ),
-            None,
-        )
-        if match is None:
-            raise ExperimentSnapshotNotFoundError(
-                f"Snapshot file not found for experiment {experiment_id}"
-            )
+    async def get_snapshot_file_content_for_snapshot(
+        self,
+        user: UserProtocol,
+        experiment_id: UUID,
+        snapshot_id: UUID,
+        path: str,
+        file_hash: str,
+    ) -> ExperimentSnapshotFileContentDTO:
+        """Load one file from the experiment's current snapshot by exact snapshot id."""
 
-        raw = await self._project_artifacts.download_project_artifact(
-            user, experiment.project_id, requested_hash
+        experiment = await self._get_experiment_for_view(user, experiment_id)
+        row = await self._data.get_by_experiment_and_type(
+            experiment_id, ExperimentDataType.SNAPSHOT
         )
-        try:
-            content = raw.decode("utf-8")
-        except UnicodeDecodeError as exc:
+        current_snapshot_id = self._mapper.snapshot_id_from_data(row)
+        if current_snapshot_id is None or current_snapshot_id != snapshot_id:
             raise ExperimentSnapshotNotFoundError(
-                f"Snapshot file is not UTF-8 text: {requested_path}"
-            ) from exc
-        return ExperimentSnapshotFileContentDTO(
-            path=match.path,
-            hash=match.hash,
-            content=content,
-            size=len(raw),
+                f"No matching snapshot found for experiment {experiment_id}"
+            )
+        return await self._get_snapshot_file_content_for_snapshot(
+            user=user,
+            experiment=experiment,
+            snapshot_id=snapshot_id,
+            path=path,
+            file_hash=file_hash,
         )
 
     async def delete_snapshot(
@@ -355,3 +364,78 @@ class ExperimentDataService:
         """
         pure = PurePosixPath(path)
         return not pure.is_absolute() and ".." not in pure.parts
+
+    async def _snapshot_files_from_snapshot_id(
+        self,
+        *,
+        user: UserProtocol,
+        experiment: Experiment,
+        snapshot_id: UUID,
+    ) -> ExperimentSnapshotFilesDTO:
+        """Map a storage manifest to the public experiment snapshot-files DTO."""
+
+        manifest = await self._project_artifacts.get_project_snapshot_manifest(
+            user, experiment.project_id, snapshot_id
+        )
+        return ExperimentSnapshotFilesDTO(
+            experiment_id=experiment.id,
+            snapshot_id=snapshot_id,
+            files=[
+                SnapshotFileManifestEntryDTO(
+                    path=file.path,
+                    hash=file.hash,
+                    size=file.size,
+                )
+                for file in manifest.files
+            ],
+        )
+
+    async def _get_snapshot_file_content_for_snapshot(
+        self,
+        *,
+        user: UserProtocol,
+        experiment: Experiment,
+        snapshot_id: UUID,
+        path: str,
+        file_hash: str,
+    ) -> ExperimentSnapshotFileContentDTO:
+        """Validate manifest identity and return UTF-8 file content."""
+
+        requested_path = path.strip().replace("\\", "/")
+        requested_hash = file_hash.strip().lower()
+        if not self._is_safe_relative_path(requested_path):
+            raise ExperimentSnapshotNotFoundError(
+                f"Snapshot file not found for experiment {experiment.id}"
+            )
+
+        manifest = await self._project_artifacts.get_project_snapshot_manifest(
+            user, experiment.project_id, snapshot_id
+        )
+        match = next(
+            (
+                file
+                for file in manifest.files
+                if file.path == requested_path and file.hash.lower() == requested_hash
+            ),
+            None,
+        )
+        if match is None:
+            raise ExperimentSnapshotNotFoundError(
+                f"Snapshot file not found for experiment {experiment.id}"
+            )
+
+        raw = await self._project_artifacts.download_project_artifact(
+            user, experiment.project_id, requested_hash
+        )
+        try:
+            content = raw.decode("utf-8")
+        except UnicodeDecodeError as exc:
+            raise ExperimentSnapshotNotFoundError(
+                f"Snapshot file is not UTF-8 text: {requested_path}"
+            ) from exc
+        return ExperimentSnapshotFileContentDTO(
+            path=match.path,
+            hash=match.hash,
+            content=content,
+            size=len(raw),
+        )

@@ -126,10 +126,12 @@ class FakeRepository:
     def __init__(self) -> None:
         self.existing_hashes: set[str] = set()
         self.blob_to_return = None
+        self.blob_sizes: dict[str, int] = {}
         self.add_blob_calls: list[tuple[str, int]] = []
         self.commit_calls = 0
         self.fetch_existing_calls = 0
         self.create_snapshot_calls = 0
+        self.created_snapshot_manifest: list[dict] | None = None
         self.deleted_all_blobs_for = None
         self.deleted_all_snapshots_for = None
         self.snapshot_to_return = None
@@ -139,6 +141,13 @@ class FakeRepository:
     async def fetch_existing_blob_hashes(self, project_id, hashes):
         self.fetch_existing_calls += 1
         return {blob_hash for blob_hash in hashes if blob_hash in self.existing_hashes}
+
+    async def fetch_blob_sizes(self, project_id, hashes):
+        return {
+            blob_hash: self.blob_sizes[blob_hash]
+            for blob_hash in hashes
+            if blob_hash in self.blob_sizes
+        }
 
     async def fetch_blob(self, project_id, blob_hash):
         return self.blob_to_return
@@ -151,6 +160,7 @@ class FakeRepository:
 
     async def create_snapshot(self, project_id, manifest: list[dict]):
         self.create_snapshot_calls += 1
+        self.created_snapshot_manifest = manifest
         return SimpleNamespace(id=uuid4(), manifest=manifest)
 
     async def increment_blob_ref_counts(self, project_id, hashes) -> None:
@@ -271,6 +281,70 @@ async def test_create_snapshot_rejects_special_symbol_paths(invalid_path: str) -
 
     assert exc_info.value.status_code == 400
     assert repo.create_snapshot_calls == 0
+
+
+@pytest.mark.asyncio
+async def test_create_snapshot_stores_authoritative_blob_size_in_manifest() -> None:
+    project_id = uuid4()
+    blob_hash = "a" * 64
+    payload = SnapshotCreateRequestDTO(
+        project_id=project_id,
+        experiment_id=uuid4(),
+        files=[SnapshotFileEntryDTO(path="src/train.py", hash=blob_hash, size=12)],
+    )
+    repo = FakeRepository()
+    repo.blob_sizes = {blob_hash: 12}
+    storage = FakeStorage()
+    buckets = FakeBucketsService(storage)
+    service = ObjectStorageService(repo, buckets, FakeExperimentArtifactsRepository())
+
+    await service.create_project_snapshot(payload)
+
+    assert repo.created_snapshot_manifest == [
+        {"path": "src/train.py", "hash": blob_hash, "size": 12}
+    ]
+
+
+@pytest.mark.asyncio
+async def test_create_snapshot_rejects_manifest_size_mismatch() -> None:
+    project_id = uuid4()
+    blob_hash = "a" * 64
+    payload = SnapshotCreateRequestDTO(
+        project_id=project_id,
+        experiment_id=uuid4(),
+        files=[SnapshotFileEntryDTO(path="src/train.py", hash=blob_hash, size=11)],
+    )
+    repo = FakeRepository()
+    repo.blob_sizes = {blob_hash: 12}
+    storage = FakeStorage()
+    buckets = FakeBucketsService(storage)
+    service = ObjectStorageService(repo, buckets, FakeExperimentArtifactsRepository())
+
+    with pytest.raises(HTTPException, match="Size mismatch") as exc_info:
+        await service.create_project_snapshot(payload)
+
+    assert exc_info.value.status_code == 400
+    assert repo.create_snapshot_calls == 0
+
+
+@pytest.mark.asyncio
+async def test_get_snapshot_manifest_keeps_missing_legacy_manifest_size() -> None:
+    project_id = uuid4()
+    snapshot_id = uuid4()
+    blob_hash = "a" * 64
+    repo = FakeRepository()
+    repo.snapshot_to_return = SimpleNamespace(
+        id=snapshot_id,
+        project_id=project_id,
+        manifest=[{"path": "src/train.py", "hash": blob_hash}],
+    )
+    storage = FakeStorage()
+    buckets = FakeBucketsService(storage)
+    service = ObjectStorageService(repo, buckets, FakeExperimentArtifactsRepository())
+
+    result = await service.get_project_snapshot_manifest(project_id, snapshot_id)
+
+    assert result.files[0].size is None
 
 
 @pytest.mark.asyncio

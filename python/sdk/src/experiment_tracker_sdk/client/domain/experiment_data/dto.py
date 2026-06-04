@@ -18,6 +18,7 @@ class SnapshotFileEntry(BaseModel):
 
     path: str
     hash: str = Field(..., min_length=64, max_length=64)
+    size: int | None = Field(default=None, ge=0)
 
 
 class ExperimentSnapshotUpsertRequest(BaseModel):

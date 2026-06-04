@@ -15,6 +15,7 @@ from .dto import (
     ExperimentSnapshotDTO,
     ExperimentSnapshotFileContentDTO,
     ExperimentSnapshotFileContentRequestDTO,
+    ExperimentSnapshotFilesDTO,
     ExperimentSnapshotsRequestDTO,
     ExperimentSnapshotFilesResponseDTO,
     ExperimentSnapshotUpsertDTO,
@@ -168,6 +169,24 @@ async def get_experiment_snapshot_files(
         _raise_experiment_data_http_error(exc)
 
 
+@router.get(
+    "/{experiment_id}/data/snapshot/files",
+    response_model=ExperimentSnapshotFilesDTO,
+)
+async def get_experiment_snapshot_files(
+    experiment_id: UUID,
+    user: User = Depends(get_current_user_dual),
+    _: None = Depends(require_api_token_scopes(ProjectActions.VIEW_ARTIFACT)),
+    service: ExperimentDataService = Depends(get_experiment_data_service),
+) -> ExperimentSnapshotFilesDTO:
+    """Return metadata-only file manifest for one experiment snapshot."""
+
+    try:
+        return await service.get_experiment_snapshot_files(user, experiment_id)
+    except Exception as exc:  # noqa: BLE001
+        _raise_experiment_data_http_error(exc)
+
+
 @router.post(
     "/{experiment_id}/data/snapshot/file",
     response_model=ExperimentSnapshotFileContentDTO,
@@ -185,6 +204,32 @@ async def get_experiment_snapshot_file_content(
         return await service.get_snapshot_file_content(
             user=user,
             experiment_id=experiment_id,
+            path=payload.path,
+            file_hash=payload.hash,
+        )
+    except Exception as exc:  # noqa: BLE001
+        _raise_experiment_data_http_error(exc)
+
+
+@router.post(
+    "/{experiment_id}/data/snapshots/{snapshot_id}/file",
+    response_model=ExperimentSnapshotFileContentDTO,
+)
+async def get_experiment_snapshot_file_content_for_snapshot(
+    experiment_id: UUID,
+    snapshot_id: UUID,
+    payload: ExperimentSnapshotFileContentRequestDTO = Body(...),
+    user: User = Depends(get_current_user_dual),
+    _: None = Depends(require_api_token_scopes(ProjectActions.VIEW_ARTIFACT)),
+    service: ExperimentDataService = Depends(get_experiment_data_service),
+) -> ExperimentSnapshotFileContentDTO:
+    """Return UTF-8 content for one file in an exact current snapshot."""
+
+    try:
+        return await service.get_snapshot_file_content_for_snapshot(
+            user=user,
+            experiment_id=experiment_id,
+            snapshot_id=snapshot_id,
             path=payload.path,
             file_hash=payload.hash,
         )

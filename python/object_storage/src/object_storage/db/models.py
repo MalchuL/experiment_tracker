@@ -7,7 +7,7 @@ from typing import Any
 from uuid import UUID as PyUUID, uuid4
 
 from experiment_tracker_shared import UtcNaiveDateTime
-from sqlalchemy import BigInteger, Index, Integer, String, text
+from sqlalchemy import BigInteger, Index, Integer, JSON, String, text
 from sqlalchemy.dialects.postgresql import JSONB, UUID as SAUUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -32,7 +32,7 @@ class Snapshot(Base):
         server_default=text("timezone('utc', now())"),
         nullable=False,
     )
-    manifest: Mapped[list[dict]] = mapped_column(JSONB, nullable=False)
+    manifest: Mapped[list[dict]] = mapped_column(JSON, nullable=False)
 
 
 class ProjectBlob(Base):

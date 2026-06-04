@@ -52,6 +52,8 @@ export const QUERY_KEYS = {
         GET: (projectId: string) => `projects/${projectId}/dag`,
     },
     COMPARE: {
+        SNAPSHOT_FILES_BY_EXPERIMENT: (experimentId: string | undefined) =>
+            `compare/snapshot-files:${experimentId ?? ""}`,
         SNAPSHOT_FILES: (experimentIds: string[]) =>
             `compare/snapshot-files:${experimentIds.join(",")}`,
         SNAPSHOT_FILE_CONTENT: (

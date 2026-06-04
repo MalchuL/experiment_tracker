@@ -647,7 +647,7 @@ class SnapshotUploader:
                 existing += 1
 
         manifest = [
-            SnapshotFileEntry(path=item.relative_path, hash=item_hash)
+            SnapshotFileEntry(path=item.relative_path, hash=item_hash, size=item.size)
             for item, item_hash in hashed_files
         ]
         response = self._request_client.request(

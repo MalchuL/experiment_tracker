@@ -33,6 +33,22 @@ class ObjectStorageRepository:
         )
         return {row[0] for row in result.all()}
 
+    async def fetch_blob_sizes(
+        self, project_id: UUID, hashes: Iterable[str]
+    ) -> dict[str, int]:
+        """Return blob byte sizes keyed by hash for the requested project."""
+
+        unique_hashes = list(dict.fromkeys(hashes))
+        if not unique_hashes:
+            return {}
+        result = await self._session.execute(
+            select(ProjectBlob.hash, ProjectBlob.size).where(
+                ProjectBlob.project_id == project_id,
+                ProjectBlob.hash.in_(unique_hashes),
+            )
+        )
+        return {row[0]: int(row[1]) for row in result.all()}
+
     async def fetch_blob(self, project_id: UUID, blob_hash: str) -> ProjectBlob | None:
         """Fetch a blob by hash, or return None if it is absent."""
 

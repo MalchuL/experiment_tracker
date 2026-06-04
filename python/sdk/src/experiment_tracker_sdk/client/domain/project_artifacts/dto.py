@@ -30,6 +30,7 @@ class SnapshotFileEntry(BaseModel):
 
     path: str
     hash: str
+    size: int | None = None
 
 
 class SnapshotCreateRequest(BaseModel):

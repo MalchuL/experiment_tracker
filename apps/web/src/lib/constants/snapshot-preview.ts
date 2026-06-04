@@ -1,0 +1,1 @@
+export const SNAPSHOT_PREVIEW_MAX_BYTES = 5 * 1024 * 1024;

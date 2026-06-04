@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { ArrowLeftRight, GitBranch, MoreHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -86,23 +86,42 @@ export function FilesCompareTab({
     ? experimentsById.get(rightExperiment.parentExperimentId) ?? null
     : null;
 
-  const experimentIds = useMemo(() => {
-    return [leftExperimentId, rightExperimentId]
-      .filter((id): id is string => Boolean(id))
-      .filter((id, index, ids) => ids.indexOf(id) === index);
-  }, [leftExperimentId, rightExperimentId]);
-
-  const query = useQuery({
-    queryKey: [QUERY_KEYS.COMPARE.SNAPSHOT_FILES(experimentIds)],
-    queryFn: () => compareService.getSnapshotFiles(experimentIds),
-    enabled: Boolean(leftExperimentId),
-    placeholderData: keepPreviousData,
+  const leftQuery = useQuery({
+    queryKey: [
+      QUERY_KEYS.COMPARE.SNAPSHOT_FILES_BY_EXPERIMENT(leftExperimentId ?? undefined),
+    ],
+    queryFn: () => {
+      if (!leftExperimentId) {
+        throw new Error("Left experiment is not selected");
+      }
+      return compareService.getExperimentSnapshotFiles(leftExperimentId);
+    },
+    enabled: Boolean(
+      leftExperimentId && displayedLeft?.experimentId !== leftExperimentId
+    ),
   });
 
-  const loadedLeft = query.data?.items.find((item) => item.experimentId === leftExperimentId);
-  const loadedRight = rightExperimentId
-    ? query.data?.items.find((item) => item.experimentId === rightExperimentId)
-    : undefined;
+  const rightQuery = useQuery({
+    queryKey: [
+      QUERY_KEYS.COMPARE.SNAPSHOT_FILES_BY_EXPERIMENT(rightExperimentId ?? undefined),
+    ],
+    queryFn: () => {
+      if (!rightExperimentId) {
+        throw new Error("Right experiment is not selected");
+      }
+      return compareService.getExperimentSnapshotFiles(rightExperimentId);
+    },
+    enabled: Boolean(
+      rightExperimentId && displayedRight?.experimentId !== rightExperimentId
+    ),
+  });
+
+  const loadedLeft =
+    leftQuery.data?.experimentId === leftExperimentId ? leftQuery.data : undefined;
+  const loadedRight =
+    rightExperimentId && rightQuery.data?.experimentId === rightExperimentId
+      ? rightQuery.data
+      : undefined;
 
   useEffect(() => {
     if (!leftExperimentId) {
@@ -126,7 +145,7 @@ export function FilesCompareTab({
     }
   }, [rightExperimentId, loadedRight]);
 
-  if (experimentIds.length === 0) {
+  if (!leftExperimentId) {
     return (
       <CenteredState className="flex-col gap-3 text-center">
         <span>
@@ -150,16 +169,29 @@ export function FilesCompareTab({
     );
   }
 
-  if (query.isLoading && !displayedLeft) {
+  if (leftQuery.isLoading && !displayedLeft) {
     return <CenteredState>Loading snapshots...</CenteredState>;
   }
 
-  if (query.isError) {
+  if (
+    (leftQuery.isError && !displayedLeft) ||
+    (rightQuery.isError && !displayedRight)
+  ) {
     return <CenteredState>Failed to load snapshot files.</CenteredState>;
   }
 
   const left = loadedLeft ?? displayedLeft;
   const right = rightExperimentId ? loadedRight ?? displayedRight ?? undefined : undefined;
+  const renderedLeftExperiment = left
+    ? experimentsById.get(left.experimentId) ??
+      selectedExperiments.find((experiment) => experiment.id === left.experimentId) ??
+      null
+    : leftExperiment;
+  const renderedRightExperiment = right
+    ? experimentsById.get(right.experimentId) ??
+      selectedExperiments.find((experiment) => experiment.id === right.experimentId) ??
+      null
+    : rightExperiment;
 
   const controls = (
     <FilesCompareControls
@@ -190,40 +222,27 @@ export function FilesCompareTab({
     />
   );
 
-  if (!left?.snapshotId) {
-    return (
-      <div className="flex min-h-0 flex-1 flex-col">
-        {controls}
-        <CenteredState>
-          The selected experiment needs a logged snapshot before files can be viewed.
-        </CenteredState>
-      </div>
-    );
-  }
-
-  if (rightExperimentId && !right?.snapshotId) {
-    return (
-      <div className="flex min-h-0 flex-1 flex-col">
-        {controls}
-        <CenteredState>
-          Both selected experiments need logged snapshots before files can be compared.
-        </CenteredState>
-      </div>
-    );
-  }
-
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       {controls}
       <FileCompareView
-        leftFiles={left.files}
-        rightFiles={right?.files}
-        leftLabel={leftExperiment?.name ?? leftExperimentId ?? "Left"}
-        rightLabel={rightExperiment?.name ?? rightExperimentId ?? undefined}
-        leftExperimentId={leftExperimentId ?? undefined}
-        rightExperimentId={rightExperimentId ?? undefined}
-        leftSnapshotId={left.snapshotId ?? undefined}
+        leftFiles={left?.snapshotId ? left.files : []}
+        rightFiles={rightExperimentId ? (right?.snapshotId ? right.files : []) : undefined}
+        leftLabel={renderedLeftExperiment?.name ?? left?.experimentId ?? "Left"}
+        rightLabel={renderedRightExperiment?.name ?? right?.experimentId ?? undefined}
+        leftExperimentId={left?.experimentId ?? undefined}
+        rightExperimentId={rightExperimentId ? right?.experimentId : undefined}
+        leftSnapshotId={left?.snapshotId ?? undefined}
         rightSnapshotId={right?.snapshotId ?? undefined}
+        leftSnapshotMissing={Boolean(
+          left && left.experimentId === leftExperimentId && !left.snapshotId
+        )}
+        rightSnapshotMissing={Boolean(
+          rightExperimentId &&
+            right &&
+            right.experimentId === rightExperimentId &&
+            !right.snapshotId
+        )}
       />
     </div>
   );

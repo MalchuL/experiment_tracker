@@ -82,10 +82,19 @@ async def test_controller_upload_create_snapshot_and_deletion_errors(http_client
         json={
             "project_id": str(project_id),
             "experiment_id": str(uuid4()),
-            "files": [{"path": "artifact.bin", "hash": blob_hash}],
+            "files": [{"path": "artifact.bin", "hash": blob_hash, "size": len(payload)}],
         },
     )
     assert create_snapshot.status_code == 200
+    snapshot_id = UUID(create_snapshot.json()["snapshot_id"])
+
+    manifest_response = await http_client.get(
+        f"/api/project-artifacts/{project_id}/snapshots/{snapshot_id}/manifest"
+    )
+    assert manifest_response.status_code == 200
+    assert manifest_response.json()["files"] == [
+        {"path": "artifact.bin", "hash": blob_hash, "size": len(payload)}
+    ]
 
     delete_response = await http_client.delete(
         f"/api/project-artifacts/{project_id}/artifacts/{blob_hash}"
