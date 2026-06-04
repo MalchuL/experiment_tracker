@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ChevronRight,
   CircleDot,
@@ -22,7 +22,11 @@ import {
 import { useToast } from "@/lib/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import type { FileNode, FileTreeData } from "../lib/file-tree";
-import { getFileIconColor } from "../lib/file-tree";
+import {
+  collectDirectoryPaths,
+  collectDirectoryPathsInSubtree,
+  getFileIconColor,
+} from "../lib/file-tree";
 
 export type FileDiffStatus = "modified" | "new" | "removed";
 
@@ -58,8 +62,8 @@ function TreeNode({
   diffStatusByPath?: Map<string, FileDiffStatus>;
   collapsedPaths: Set<string>;
   onToggleDirectory: (path: string) => void;
-  onExpandDirectory: (path: string) => void;
-  onCollapseDirectory: (path: string) => void;
+  onExpandDirectory: (node: FileNode) => void;
+  onCollapseDirectory: (node: FileNode) => void;
   onExpandAll: () => void;
   onCollapseAll: () => void;
   onCopyPath: (path: string) => void;
@@ -67,7 +71,8 @@ function TreeNode({
   const isSelected = selectedFile === node.path;
   const isDirectory = node.type === "directory";
   const isCollapsed = isDirectory && collapsedPaths.has(node.path);
-  const diffStatus = isDirectory ? undefined : diffStatusByPath?.get(node.path);
+  const hasDirectoryDiff = isDirectory && directoryContainsDiffFiles(node, diffStatusByPath);
+  const fileDiffStatus = isDirectory ? undefined : diffStatusByPath?.get(node.path);
   const row = (
     <button
       type="button"
@@ -106,7 +111,8 @@ function TreeNode({
         </>
       )}
       <span className="min-w-0 flex-1 truncate">{node.name}</span>
-      {diffStatus && <FileDiffStatusIcon status={diffStatus} />}
+      {hasDirectoryDiff ? <FolderDiffIndicator /> : null}
+      {fileDiffStatus ? <FileDiffStatusIcon status={fileDiffStatus} /> : null}
     </button>
   );
 
@@ -117,10 +123,10 @@ function TreeNode({
         <ContextMenuContent>
           {isDirectory ? (
             <>
-              <ContextMenuItem onSelect={() => onExpandDirectory(node.path)}>
+              <ContextMenuItem onSelect={() => onExpandDirectory(node)}>
                 Expand folder
               </ContextMenuItem>
-              <ContextMenuItem onSelect={() => onCollapseDirectory(node.path)}>
+              <ContextMenuItem onSelect={() => onCollapseDirectory(node)}>
                 Collapse folder
               </ContextMenuItem>
             </>
@@ -181,8 +187,37 @@ export function FileTree({
   diffStatusByPath,
 }: FileTreeProps) {
   const { toast } = useToast();
-  const [collapsedPaths, setCollapsedPaths] = useState<Set<string>>(new Set());
   const directoryPaths = useMemo(() => collectDirectoryPaths(data), [data]);
+  const [collapsedPaths, setCollapsedPaths] = useState<Set<string>>(() =>
+    new Set(collectDirectoryPaths(data))
+  );
+  const previousDirectoryPathsRef = useRef<string[]>(collectDirectoryPaths(data));
+
+  useEffect(() => {
+    const previousPaths = new Set(previousDirectoryPathsRef.current);
+    const addedDirectoryPaths = directoryPaths.filter((path) => !previousPaths.has(path));
+    previousDirectoryPathsRef.current = directoryPaths;
+
+    if (addedDirectoryPaths.length === 0) {
+      return;
+    }
+
+    const overlapCount = directoryPaths.filter((path) => previousPaths.has(path)).length;
+    const isMostlyNewTree =
+      previousPaths.size > 0 && overlapCount / Math.max(directoryPaths.length, 1) < 0.5;
+
+    if (isMostlyNewTree) {
+      return;
+    }
+
+    setCollapsedPaths((current) => {
+      const next = new Set(current);
+      for (const path of addedDirectoryPaths) {
+        next.add(path);
+      }
+      return next;
+    });
+  }, [directoryPaths]);
 
   const copyPath = async (path: string) => {
     try {
@@ -221,15 +256,23 @@ export function FileTree({
                   return next;
                 })
               }
-              onExpandDirectory={(path) =>
+              onExpandDirectory={(folderNode) =>
                 setCollapsedPaths((current) => {
                   const next = new Set(current);
-                  next.delete(path);
+                  for (const path of collectDirectoryPathsInSubtree(folderNode)) {
+                    next.delete(path);
+                  }
                   return next;
                 })
               }
-              onCollapseDirectory={(path) =>
-                setCollapsedPaths((current) => new Set(current).add(path))
+              onCollapseDirectory={(folderNode) =>
+                setCollapsedPaths((current) => {
+                  const next = new Set(current);
+                  for (const path of collectDirectoryPathsInSubtree(folderNode)) {
+                    next.add(path);
+                  }
+                  return next;
+                })
               }
               onExpandAll={expandAll}
               onCollapseAll={collapseAll}
@@ -246,20 +289,31 @@ export function FileTree({
   );
 }
 
-function collectDirectoryPaths(data: FileTreeData): string[] {
-  const paths: string[] = [];
-  const visit = (nodes: FileNode[]) => {
-    for (const node of nodes) {
-      if (node.type === "directory") {
-        paths.push(node.path);
-        if (node.children) {
-          visit(node.children);
-        }
-      }
+function directoryContainsDiffFiles(
+  node: FileNode,
+  diffStatusByPath?: Map<string, FileDiffStatus>
+): boolean {
+  if (!diffStatusByPath || node.type !== "directory") {
+    return false;
+  }
+
+  const visit = (current: FileNode): boolean => {
+    if (current.type === "file") {
+      return diffStatusByPath.has(current.path);
     }
+    return current.children?.some(visit) ?? false;
   };
-  visit(data);
-  return paths;
+
+  return visit(node);
+}
+
+function FolderDiffIndicator() {
+  return (
+    <span
+      className="h-2 w-2 shrink-0 rounded-full bg-blue-500"
+      aria-label="Folder contains changed files"
+    />
+  );
 }
 
 function FileDiffStatusIcon({ status }: { status: FileDiffStatus }) {

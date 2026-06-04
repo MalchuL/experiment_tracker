@@ -1,6 +1,6 @@
 # Snapshot File Compare Example
 
-This example generates a small synthetic training workspace, mutates source/config/report files, logs scalars, and stores the generated files as an experiment snapshot. Run it multiple times with different variants or `--random-training`, then open **Compare -> Files** in the web UI and select those experiments.
+This example generates a synthetic training workspace with up to **30 snapshot-included files**, mutates source/config/report files, logs scalars, and stores the generated files as an experiment snapshot. Run it multiple times with different variants or `--random-training`, then open **Compare -> Files** in the web UI and select those experiments.
 
 ## Setup
 

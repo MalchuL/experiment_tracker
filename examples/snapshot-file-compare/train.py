@@ -11,6 +11,8 @@ from experiment_tracker_sdk import ExperimentStatus, ExpTracker, InitParams, con
 
 logger = logging.getLogger("snapshot_file_compare")
 
+SNAPSHOT_INCLUDED_FILE_COUNT = 30
+
 VARIANT_DEFAULTS = {
     "baseline": {"learning_rate": 0.012, "dropout": 0.05, "layers": [64, 32]},
     "dropout": {"learning_rate": 0.010, "dropout": 0.35, "layers": [64, 32]},
@@ -58,6 +60,15 @@ def parse_args() -> argparse.Namespace:
         default=0.0,
         help="Optional seconds to sleep between steps for visible live logging.",
     )
+    parser.add_argument(
+        "--file-count",
+        type=int,
+        default=SNAPSHOT_INCLUDED_FILE_COUNT,
+        help=(
+            "Number of snapshot-included files to generate "
+            f"(default: {SNAPSHOT_INCLUDED_FILE_COUNT})."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -102,6 +113,8 @@ def write_training_files(
     history: list[dict[str, float]],
     final_accuracy: float,
     final_loss: float,
+    *,
+    file_count: int = SNAPSHOT_INCLUDED_FILE_COUNT,
 ) -> None:
     """Write synthetic source, config, metric, and report files to snapshot.
 
@@ -111,12 +124,29 @@ def write_training_files(
         history: Per-step metric rows from ``run_training``.
         final_accuracy: Final accuracy value written into reports/checkpoints.
         final_loss: Final loss value written into reports/checkpoints.
+        file_count: Target number of files included in the snapshot (ignored and
+            cache files do not count toward this total).
 
     Returns:
         None. The function creates or overwrites files under ``workspace``.
     """
+    if file_count < 1:
+        raise ValueError("file_count must be at least 1")
+
     workspace.mkdir(parents=True, exist_ok=True)
-    for subdir in ("src", "configs", "reports", "checkpoints", "logs", "cache"):
+    for subdir in (
+        "src",
+        "src/modules",
+        "src/utils",
+        "configs",
+        "configs/overrides",
+        "reports",
+        "reports/shards",
+        "checkpoints",
+        "checkpoints/meta",
+        "logs",
+        "cache",
+    ):
         (workspace / subdir).mkdir(parents=True, exist_ok=True)
 
     (workspace / "configs" / "training.json").write_text(
@@ -193,6 +223,91 @@ def write_training_files(
     (workspace / "cache" / "activations.tmp").write_text(
         "ignored cache payload\n", encoding="utf-8"
     )
+
+    core_file_count = 5
+    extra_templates = [
+        (
+            "src/modules/module_{index:02d}.py",
+            lambda index: "\n".join(
+                [
+                    f'"""Synthetic module {index:02d}."""',
+                    "",
+                    f"VARIANT = {run_config['variant']!r}",
+                    f"LEARNING_RATE = {run_config['learning_rate']!r}",
+                    f"DROPOUT = {run_config['dropout']!r}",
+                    "",
+                    f"def forward_{index}(features):",
+                    f"    return features * {run_config['learning_rate']}",
+                    "",
+                ]
+            ),
+        ),
+        (
+            "src/utils/helper_{index:02d}.py",
+            lambda index: "\n".join(
+                [
+                    f"OPTIMIZER = {run_config['optimizer']!r}",
+                    f"BATCH_SIZE = {run_config['batch_size']!r}",
+                    "",
+                    f"def scale_{index}(value):",
+                    f"    return value / max({run_config['batch_size']}, 1)",
+                    "",
+                ]
+            ),
+        ),
+        (
+            "configs/overrides/override_{index:02d}.json",
+            lambda index: json.dumps(
+                {
+                    "index": index,
+                    "variant": run_config["variant"],
+                    "learning_rate": run_config["learning_rate"],
+                    "dropout": run_config["dropout"],
+                    "batch_size": run_config["batch_size"],
+                },
+                indent=2,
+                sort_keys=True,
+            )
+            + "\n",
+        ),
+        (
+            "reports/shards/shard_{index:02d}.csv",
+            lambda index: "\n".join(
+                [
+                    "step,loss,accuracy,shard",
+                    *(
+                        f"{int(row['step'])},{row['loss']:.6f},"
+                        f"{row['accuracy']:.6f},{index}"
+                        for row in history[index :: max(len(history) // 4, 1)][:4]
+                    ),
+                ]
+            )
+            + "\n",
+        ),
+        (
+            "checkpoints/meta/meta_{index:02d}.txt",
+            lambda index: "\n".join(
+                [
+                    f"checkpoint-meta-{index:02d}",
+                    f"variant={run_config['variant']}",
+                    f"optimizer={run_config['optimizer']}",
+                    f"accuracy={final_accuracy:.6f}",
+                    f"loss={final_loss:.6f}",
+                ]
+            )
+            + "\n",
+        ),
+    ]
+
+    extra_needed = max(0, file_count - core_file_count)
+    for extra_index in range(extra_needed):
+        relative_path, content_builder = extra_templates[
+            extra_index % len(extra_templates)
+        ]
+        file_index = extra_index // len(extra_templates) + 1
+        target_path = workspace / relative_path.format(index=file_index)
+        target_path.parent.mkdir(parents=True, exist_ok=True)
+        target_path.write_text(content_builder(file_index), encoding="utf-8")
 
 
 def run_training(
@@ -314,7 +429,14 @@ def main() -> None:
             rng=rng,
         )
         workspace = Path(args.workspace)
-        write_training_files(workspace, run_config, history, accuracy, loss)
+        write_training_files(
+            workspace,
+            run_config,
+            history,
+            accuracy,
+            loss,
+            file_count=args.file_count,
+        )
         snapshot = tracker.log_snapshot([workspace], root=workspace.absolute())
         tracker.add_metric("loss", loss, label="final")
         tracker.add_metric("accuracy", accuracy, label="final")

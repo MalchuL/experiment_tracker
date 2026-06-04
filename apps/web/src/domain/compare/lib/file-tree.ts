@@ -43,6 +43,32 @@ export function buildFileTree(paths: string[]): FileTreeData {
   return root;
 }
 
+export function collectDirectoryPaths(tree: FileTreeData): string[] {
+  const paths: string[] = [];
+
+  const visit = (nodes: FileNode[]) => {
+    for (const node of nodes) {
+      if (node.type === "directory") {
+        paths.push(node.path);
+        if (node.children) {
+          visit(node.children);
+        }
+      }
+    }
+  };
+
+  visit(tree);
+  return paths;
+}
+
+export function collectDirectoryPathsInSubtree(node: FileNode): string[] {
+  if (node.type !== "directory") {
+    return [];
+  }
+
+  return [node.path, ...collectDirectoryPaths(node.children ?? [])];
+}
+
 export function flattenTree(tree: FileTreeData): string[] {
   const paths: string[] = [];
 
