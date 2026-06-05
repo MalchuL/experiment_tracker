@@ -4,11 +4,11 @@ import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { StatusBadge } from "@/components/shared/status-badge";
-import { GripVertical } from "lucide-react";
+import { GripVertical, Medal } from "lucide-react";
 import { Experiment } from "../types";
 import { ProjectMetric } from "@/domain/projects/types";
 import { format, parseISO } from "date-fns";
-import { Metric } from "@/domain/metrics/types";
+import { Metric, TopMetric } from "@/domain/metrics/types";
 import { displayMetricKeyEquals, projectMetricKeyString } from "@/lib/metrics/format-metric-label";
 import {
   formatMetricScalarForDisplay,
@@ -22,6 +22,7 @@ import {
   experimentsTableColumnWidthFallback,
   metricColumnId,
 } from "@/domain/experiments/lib/experiments-table-column-widths";
+import { findTopMetric } from "../lib/selective-metrics";
 
 const stickyGripCell = cn(
   "sticky left-0 z-[2] bg-background shadow-[4px_0_12px_-8px_rgba(0,0,0,0.08)] box-border overflow-hidden"
@@ -40,6 +41,7 @@ interface ExperimentTableRowProps {
   reorderDisabled?: boolean;
   projectMetrics?: ProjectMetric[];
   expMetrics?: Metric[];
+  topMetrics?: TopMetric[];
   parentName?: string;
   experimentTableResolvedColumnWidths: Record<string, number>;
   experimentTableGripColumnWidthPx: number;
@@ -53,6 +55,7 @@ export function ExperimentTableRow({
   reorderDisabled = false,
   projectMetrics,
   expMetrics,
+  topMetrics,
   parentName,
   experimentTableResolvedColumnWidths,
   experimentTableGripColumnWidthPx,
@@ -195,6 +198,13 @@ export function ExperimentTableRow({
         )?.value;
         const metricColumnIdValue = metricColumnId(metric);
         const metricColumnWidthPx = getExperimentTableColumnWidth(metricColumnIdValue);
+        const topMetric = findTopMetric(topMetrics, experiment.id, metric);
+        const medalClass =
+          topMetric?.position === 1
+            ? "text-amber-500"
+            : topMetric?.position === 2
+              ? "text-slate-400"
+              : "text-orange-700";
         return (
           <TableCell
             key={projectMetricKeyString(metric)}
@@ -202,9 +212,15 @@ export function ExperimentTableRow({
             style={{ width: metricColumnWidthPx, minWidth: metricColumnWidthPx, maxWidth: metricColumnWidthPx }}
           >
             <span
-              className="inline-block min-w-0 max-w-full cursor-default text-right tabular-nums"
+              className="inline-flex min-w-0 max-w-full items-center justify-end gap-1.5 cursor-default text-right tabular-nums"
               title={formatMetricScalarTooltipFull(raw)}
             >
+              {topMetric ? (
+                <Medal
+                  className={cn("h-4 w-4 shrink-0", medalClass)}
+                  aria-label={`Project rank ${topMetric.position}`}
+                />
+              ) : null}
               {formatMetricScalarForDisplay(raw)}
             </span>
           </TableCell>

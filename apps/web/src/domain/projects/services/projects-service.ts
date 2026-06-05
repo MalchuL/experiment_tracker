@@ -14,6 +14,9 @@ import type {
   Metric,
   MetricLabelsResponse,
   MetricsByLabelSnapshot,
+  SelectiveMetricKey,
+  SelectiveTopMetricKey,
+  TopMetricsResponse,
   UniqueMetricDimensionsResponse,
 } from "@/domain/metrics/types";
 import type { PaginatedResponse, PaginationParams } from "@/lib/types/pagination";
@@ -36,6 +39,16 @@ export interface ProjectsService {
     id: string,
     params?: PaginationParams,
   ) => Promise<PaginatedResponse<Metric>>;
+  getSelectiveMetrics: (
+    id: string,
+    experimentIds: string[],
+    metrics: SelectiveMetricKey[],
+  ) => Promise<PaginatedResponse<Metric>>;
+  getTopMetrics: (
+    id: string,
+    metrics: SelectiveTopMetricKey[],
+    k?: number,
+  ) => Promise<TopMetricsResponse>;
   getMetricLabels: (id: string) => Promise<MetricLabelsResponse>;
   getUniqueMetricDimensions: (id: string) => Promise<UniqueMetricDimensionsResponse>;
   getMetricsByLabelSnapshot: (
@@ -131,6 +144,30 @@ export const projectsService: ProjectsService = {
   ): Promise<PaginatedResponse<Metric>> => {
     const response = await serviceClients.api.get<PaginatedResponse<Metric>>(
       appendPaginationParams(API_ROUTES.PROJECTS.BY_ID.METRICS(id), params),
+    );
+    return response.data;
+  },
+
+  getSelectiveMetrics: async (
+    id: string,
+    experimentIds: string[],
+    metrics: SelectiveMetricKey[],
+  ): Promise<PaginatedResponse<Metric>> => {
+    const response = await serviceClients.api.post<PaginatedResponse<Metric>>(
+      API_ROUTES.PROJECTS.BY_ID.METRICS_BATCH(id),
+      { experimentIds, metrics },
+    );
+    return response.data;
+  },
+
+  getTopMetrics: async (
+    id: string,
+    metrics: SelectiveTopMetricKey[],
+    k = 3,
+  ): Promise<TopMetricsResponse> => {
+    const response = await serviceClients.api.post<TopMetricsResponse>(
+      API_ROUTES.PROJECTS.BY_ID.METRICS_TOP(id),
+      { metrics, k },
     );
     return response.data;
   },

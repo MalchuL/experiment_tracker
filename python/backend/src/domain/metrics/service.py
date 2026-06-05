@@ -17,6 +17,10 @@ from .dto import (
     MetricsByLabelRowDTO,
     MetricsByLabelSnapshotResponseDTO,
     MetricUpsertDTO,
+    SelectiveMetricKeyDTO,
+    SelectiveTopMetricKeyDTO,
+    TopMetricDTO,
+    TopMetricsResponseDTO,
     UniqueMetricDimensionDTO,
     UniqueMetricDimensionsResponseDTO,
 )
@@ -148,7 +152,9 @@ class MetricService:
             )
         return self.metric_mapper.metric_schema_to_dto(metric)
 
-    async def upsert_metric(self, user: UserProtocol, data: MetricUpsertDTO) -> MetricDTO:
+    async def upsert_metric(
+        self, user: UserProtocol, data: MetricUpsertDTO
+    ) -> MetricDTO:
         """Create or update a metric for an experiment.
 
         Existing rows are matched by ``experiment_id``, ``name``, and normalized
@@ -180,18 +186,12 @@ class MetricService:
         )
         if existing is not None:
             if not await self.permission_checker.can_edit_metric(user.id, project_id):
-                raise MetricNotAccessibleError(
-                    f"Project {project_id} not accessible"
-                )
-            result = await self.metric_repository.update(
-                existing.id, value=data.value
-            )
+                raise MetricNotAccessibleError(f"Project {project_id} not accessible")
+            result = await self.metric_repository.update(existing.id, value=data.value)
             await self.db.commit()
             return self.metric_mapper.metric_schema_to_dto(result)
         if not await self.permission_checker.can_create_metric(user.id, project_id):
-            raise MetricNotAccessibleError(
-                f"Project {project_id} not accessible"
-            )
+            raise MetricNotAccessibleError(f"Project {project_id} not accessible")
         metric = self.metric_mapper.metric_upsert_dto_to_schema(data)
         await self.metric_repository.create(metric)
         await self.db.commit()
@@ -321,9 +321,7 @@ class MetricService:
                 pm_label = project_metric.label
                 if pm_label is None:
                     matching_metrics = [
-                        m
-                        for m in experiment.metrics
-                        if m.name == metric_name
+                        m for m in experiment.metrics if m.name == metric_name
                     ]
                 else:
                     matching_metrics = [
@@ -359,6 +357,184 @@ class MetricService:
         return MetricListResponseDTO.from_page(paginated_metrics)
 
     @staticmethod
+    def _deduplicate_selective_metric_keys(
+        metric_keys: Iterable[SelectiveMetricKeyDTO],
+    ) -> list[tuple[str, str | None]]:
+        """Normalize and deduplicate selective metric keys while preserving order.
+
+        Purpose:
+            Keep additive selective endpoints deterministic and avoid repeated query
+            predicates or response rows when clients submit duplicate keys.
+
+        Args:
+            metric_keys: Validated request metric keys.
+
+        Returns:
+            list[tuple[str, str | None]]: Unique exact name/label pairs in caller
+            order, with empty labels normalized to ``None`` by the DTO.
+        """
+        return list(
+            dict.fromkeys((metric.name, metric.label) for metric in metric_keys)
+        )
+
+    async def _get_selective_metrics(
+        self,
+        user: UserProtocol,
+        project_id: UUID_TYPE,
+        metric_keys: Iterable[SelectiveMetricKeyDTO],
+        experiment_ids: Iterable[UUID_TYPE] | None,
+    ) -> list[MetricDTO]:
+        """Resolve exact existing metric rows for a project.
+
+        Purpose:
+            Centralize the new endpoints' permission check, request deduplication,
+            exact label matching, and project scoping. Metrics are returned directly
+            because upsert uniqueness guarantees at most one row per experiment and
+            exact ``(name, label)`` key.
+
+        Args:
+            user: User requesting metrics.
+            project_id: Project that must own every returned metric.
+            metric_keys: Requested exact metric dimensions.
+            experiment_ids: Optional bounded experiment selection; ``None`` scans
+                all project experiments for ranking.
+
+        Returns:
+            list[MetricDTO]: Existing matching metric rows. Missing metric keys,
+            missing experiments, and foreign-project experiments are omitted.
+
+        Raises:
+            MetricNotAccessibleError: If the user cannot view project metrics.
+        """
+        if not await self.permission_checker.can_view_metric(user.id, project_id):
+            raise MetricNotAccessibleError(f"Project {project_id} not accessible")
+        requested_keys = self._deduplicate_selective_metric_keys(metric_keys)
+        unique_experiment_ids = (
+            list(dict.fromkeys(experiment_ids)) if experiment_ids is not None else None
+        )
+        rows = await self.metric_repository.list_selective_project_metrics(
+            project_id,
+            requested_keys,
+            unique_experiment_ids,
+        )
+        metrics = self.metric_mapper.metric_list_schema_to_dto(rows)
+        # Sorts for deterministic response
+        metrics.sort(
+            key=lambda metric: (
+                str(metric.experiment_id),
+                metric.name,
+                metric.label or "",
+            )
+        )
+        return metrics
+
+    async def get_selective_metrics_for_project(
+        self,
+        user: UserProtocol,
+        project_id: UUID_TYPE,
+        metric_keys: Iterable[SelectiveMetricKeyDTO],
+        experiment_ids: Iterable[UUID_TYPE],
+    ) -> MetricListResponseDTO:
+        """Return selected existing metrics for selected project experiments.
+
+        Purpose:
+            Serve scroll-paginated clients without calculating or returning metric
+            columns and experiment rows they have not requested.
+
+        Args:
+            user: User requesting selective project metrics.
+            project_id: Project that must own all returned metric rows.
+            metric_keys: Exact requested name/label dimensions.
+            experiment_ids: Requested experiment identifiers; duplicates, missing
+                rows, and foreign-project rows are omitted.
+
+        Returns:
+            MetricListResponseDTO: Non-paginated existing metric rows for requested
+            selections, with pagination metadata describing the complete response.
+
+        Raises:
+            MetricNotAccessibleError: If the project metrics are not accessible.
+        """
+        metrics = await self._get_selective_metrics(
+            user, project_id, metric_keys, experiment_ids
+        )
+        return MetricListResponseDTO(
+            data=metrics,
+            has_next=False,
+            size=len(metrics),
+            total=len(metrics),
+        )
+
+    async def get_selective_top_metrics_for_project(
+        self,
+        user: UserProtocol,
+        project_id: UUID_TYPE,
+        metric_keys: Iterable[SelectiveTopMetricKeyDTO],
+        k: int,
+    ) -> TopMetricsResponseDTO:
+        """Rank selected existing metrics across all experiments in a project.
+
+        Purpose:
+            Return only ranking entries needed for visible UI columns while
+            preserving project-wide rank meaning. Each request key explicitly
+            supplies whether lower or higher values receive better positions.
+
+        Args:
+            user: User requesting project metric rankings.
+            project_id: Project whose experiments form the ranking population.
+            metric_keys: Exact requested name/label dimensions and ranking directions.
+            k: Highest one-based competition rank to include.
+
+        Returns:
+            TopMetricsResponseDTO: Deterministically ordered ranking entries.
+            Equal floating-point values share a rank and consume rank positions,
+            producing competition ranks such as ``1, 1, 3``.
+
+        Raises:
+            MetricNotAccessibleError: If the project metrics are not accessible.
+        """
+        requested = list(metric_keys)
+        metrics = await self._get_selective_metrics(user, project_id, requested, None)
+        by_key: Dict[Tuple[str, str | None], list[MetricDTO]] = {}
+        for metric in metrics:
+            by_key.setdefault((metric.name, metric.label), []).append(metric)
+        directions = {
+            (metric.name, metric.label): metric.direction for metric in requested
+        }
+        items: list[TopMetricDTO] = []
+        for key in self._deduplicate_selective_metric_keys(requested):
+            direction = directions[key]
+            ranked = sorted(
+                by_key.get(key, []),
+                key=lambda metric: (
+                    (
+                        -metric.value
+                        if direction == MetricDirection.MAXIMIZE
+                        else metric.value
+                    ),
+                    str(metric.experiment_id),
+                ),
+            )
+            previous_value: float | None = None
+            position = 0
+            for index, metric in enumerate(ranked, start=1):
+                if previous_value is None or metric.value != previous_value:
+                    position = index
+                    previous_value = metric.value
+                if position > k:
+                    break
+                items.append(
+                    TopMetricDTO(
+                        experiment_id=metric.experiment_id,
+                        name=metric.name,
+                        label=metric.label,
+                        position=position,
+                        value=metric.value,
+                    )
+                )
+        return TopMetricsResponseDTO(items=items)
+
+    @staticmethod
     def _parse_label_param(label: str) -> str | None:
         """Query `label` uses empty string for unlabeled (NULL) metrics in DB."""
         return None if label == "" else label
@@ -381,8 +557,8 @@ class MetricService:
         """
         if not await self.permission_checker.can_view_metric(user.id, project_id):
             raise MetricNotAccessibleError(f"Project {project_id} not accessible")
-        labels, has_unlabeled = await self.metric_repository.list_distinct_labels_in_project(
-            project_id
+        labels, has_unlabeled = (
+            await self.metric_repository.list_distinct_labels_in_project(project_id)
         )
         return MetricLabelsResponseDTO(labels=labels, has_unlabeled=has_unlabeled)
 
@@ -404,7 +580,9 @@ class MetricService:
         """
         if not await self.permission_checker.can_view_metric(user.id, project_id):
             raise MetricNotAccessibleError(f"Project {project_id} not accessible")
-        pairs = await self.metric_repository.list_unique_name_label_in_project(project_id)
+        pairs = await self.metric_repository.list_unique_name_label_in_project(
+            project_id
+        )
         return UniqueMetricDimensionsResponseDTO(
             items=[UniqueMetricDimensionDTO(name=n, label=l) for n, l in pairs]
         )

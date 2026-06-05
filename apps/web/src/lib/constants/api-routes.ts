@@ -100,6 +100,10 @@ export const API_ROUTES = {
           `/api/projects/${projectId}/hypotheses/${hypothesisId}`,
         METRICS: (projectId: string) =>
           `/api/projects/${projectId}/metrics`,
+        METRICS_BATCH: (projectId: string) =>
+          `/api/projects/${projectId}/metrics/batch`,
+        METRICS_TOP: (projectId: string) =>
+          `/api/projects/${projectId}/metrics/top`,
         METRIC_LABELS: (projectId: string) =>
           `/api/projects/${projectId}/metric-labels`,
         METRICS_UNIQUE_DIMENSIONS: (projectId: string) =>

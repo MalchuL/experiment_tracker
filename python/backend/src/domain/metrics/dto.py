@@ -1,8 +1,11 @@
+from uuid import UUID
+
 from experiment_tracker_shared.limits import ENTITY_NAME_MAX_LEN
 from lib.datetime_types import ApiDateTime
 from lib.dto_config import model_config
 from lib.pagination import PaginatedResponse
 from lib.types import UUID_TYPE
+from models import MetricDirection
 from pydantic import BaseModel, Field, field_validator
 
 
@@ -82,3 +85,132 @@ class MetricsByLabelSnapshotResponseDTO(BaseModel):
     model_config = model_config()
 
 
+class SelectiveMetricKeyDTO(BaseModel):
+    """Natural key selecting one existing project metric.
+
+    Purpose:
+        Identify a metric directly by its persisted name and label. Empty labels are
+        normalized to ``None`` so callers can consistently select the database's
+        unlabeled metric dimension.
+
+    Attributes:
+        name: Persisted metric name.
+        label: Exact metric label, or ``None`` for the unlabeled dimension.
+    """
+
+    name: str = Field(..., min_length=1, max_length=ENTITY_NAME_MAX_LEN)
+    label: str | None = Field(default=None, max_length=ENTITY_NAME_MAX_LEN)
+
+    model_config = model_config()
+
+    @field_validator("label", mode="before")
+    @classmethod
+    def empty_string_label_is_none(cls, v: object) -> str | None:
+        """Normalize an empty selective label to the database's ``NULL`` value.
+
+        Purpose:
+            Keep exact-key requests consistent with existing metric DTO semantics,
+            where both omitted and empty labels select the unlabeled dimension.
+
+        Args:
+            v: Raw label value supplied during request validation.
+
+        Returns:
+            str | None: ``None`` for an empty string, otherwise the original label
+            value for normal Pydantic validation.
+        """
+        if v == "":
+            return None
+        return v  # type: ignore[return-value]
+
+
+class SelectiveMetricsBatchRequestDTO(BaseModel):
+    """Request selective metrics for a bounded experiment set.
+
+    Purpose:
+        Let list-style clients request only the metric columns and experiment rows
+        currently visible, avoiding a project-wide metric response.
+
+    Attributes:
+        experiment_ids: Requested experiment UUIDs; foreign or missing rows are
+            omitted by the service.
+        metrics: Exact existing metric name/label keys to fetch.
+    """
+
+    experiment_ids: list[UUID] = Field(..., min_length=1, max_length=100)
+    metrics: list[SelectiveMetricKeyDTO] = Field(..., min_length=1, max_length=100)
+
+    model_config = model_config()
+
+
+class SelectiveTopMetricKeyDTO(SelectiveMetricKeyDTO):
+    """Natural key and ranking direction for one requested top metric.
+
+    Purpose:
+        Supply the ordering rule required to rank an existing metric without
+        depending on the project's tracked-metric configuration.
+
+    Attributes:
+        name: Persisted metric name.
+        label: Exact metric label, or ``None`` for the unlabeled dimension.
+        direction: Whether lower or higher values receive better positions.
+    """
+
+    direction: MetricDirection
+
+    model_config = model_config()
+
+
+class SelectiveTopMetricsRequestDTO(BaseModel):
+    """Request project-wide top positions for selected existing metrics.
+
+    Purpose:
+        Restrict ranking work and response size to metric columns needed by the
+        caller while explicitly supplying each metric's ranking direction.
+
+    Attributes:
+        metrics: Exact existing metric keys and their ranking directions.
+        k: Highest competition-ranking position to include.
+    """
+
+    metrics: list[SelectiveTopMetricKeyDTO] = Field(..., min_length=1, max_length=100)
+    k: int = Field(default=3, ge=1, le=100)
+
+    model_config = model_config()
+
+
+class TopMetricDTO(BaseModel):
+    """One experiment's project-wide ranking for a selected metric.
+
+    Attributes:
+        experiment_id: Experiment owning the persisted metric value.
+        name: Metric name.
+        label: Exact metric label, or ``None`` for the unlabeled dimension.
+        position: One-based competition rank; tied values share a position.
+        value: Persisted metric value used for ranking.
+    """
+
+    experiment_id: UUID_TYPE
+    name: str
+    label: str | None = None
+    position: int
+    value: float
+
+    model_config = model_config()
+
+
+class TopMetricsResponseDTO(BaseModel):
+    """Response containing project-wide rankings for requested metric keys.
+
+    Purpose:
+        Provide a compact response envelope that can be extended independently of
+        the existing paginated metric response without changing legacy endpoints.
+
+    Attributes:
+        items: Competition-ranked metric entries. The collection includes every
+            experiment whose position is within the request's ``k`` cutoff.
+    """
+
+    items: list[TopMetricDTO] = Field(default_factory=list)
+
+    model_config = model_config()

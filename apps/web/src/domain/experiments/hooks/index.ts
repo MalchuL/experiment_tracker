@@ -4,7 +4,7 @@ export * from "./use-missing-parent-experiment-names";
 export * from "./create-experiment-hook";
 export * from "./use-reorder-experiments";
 export * from "./aggregated-metrics-hook";
+export * from "./selective-metrics-hook";
 export * from "./recent-experiments";
 export * from "./experiment-hook";
 export * from "./update-experiment-status-hook";
-
