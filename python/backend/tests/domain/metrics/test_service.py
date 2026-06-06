@@ -4,7 +4,11 @@ from uuid import uuid4
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from domain.metrics.dto import MetricUpsertDTO
+from domain.metrics.dto import (
+    MetricUpsertDTO,
+    SelectiveMetricKeyDTO,
+    SelectiveTopMetricKeyDTO,
+)
 from domain.metrics.error import MetricNotAccessibleError, MetricNotFoundError
 from domain.metrics.service import MetricService
 from domain.projects.service import ProjectService
@@ -424,3 +428,104 @@ class TestMetricService:
             await metric_service.get_aggregated_metrics_for_project(
                 test_user, project.id, project_service
             )
+
+    async def test_get_selective_metrics_filters_experiments_and_exact_keys(
+        self,
+        metric_service: MetricService,
+        db_session: AsyncSession,
+        test_user: User,
+    ) -> None:
+        project = await _create_project(db_session, test_user)
+        selected = await _create_experiment(db_session, project, "Selected")
+        omitted = await _create_experiment(db_session, project, "Omitted")
+        unlabeled = await _create_metric(db_session, selected, "loss", value=0.2)
+        await _create_metric(db_session, selected, "loss", value=0.1, label="validation")
+        await _create_metric(db_session, omitted, "loss", value=0.05)
+        permission_service = PermissionService(db_session, auto_commit=True)
+        await permission_service.add_permission(
+            user_id=test_user.id,
+            action=ProjectActions.VIEW_METRIC,
+            allowed=True,
+            project_id=project.id,
+        )
+
+        result = await metric_service.get_selective_metrics_for_project(
+            test_user,
+            project.id,
+            [SelectiveMetricKeyDTO(name="loss", label=None)],
+            [selected.id, uuid4()],
+        )
+
+        assert [metric.id for metric in result.data] == [unlabeled.id]
+        assert result.has_next is False
+        assert result.total == 1
+
+    async def test_get_selective_top_metrics_uses_direction_and_competition_ties(
+        self,
+        metric_service: MetricService,
+        db_session: AsyncSession,
+        test_user: User,
+    ) -> None:
+        project = await _create_project(db_session, test_user)
+        experiments = [
+            await _create_experiment(db_session, project, f"Experiment {index}")
+            for index in range(4)
+        ]
+        for experiment, value in zip(experiments, [0.9, 0.9, 0.8, 0.7], strict=True):
+            await _create_metric(
+                db_session,
+                experiment,
+                "score",
+                value=value,
+                label="validation",
+            )
+        permission_service = PermissionService(db_session, auto_commit=True)
+        await permission_service.add_permission(
+            user_id=test_user.id,
+            action=ProjectActions.VIEW_METRIC,
+            allowed=True,
+            project_id=project.id,
+        )
+
+        result = await metric_service.get_selective_top_metrics_for_project(
+            test_user,
+            project.id,
+            [
+                SelectiveTopMetricKeyDTO(
+                    name="score",
+                    label="validation",
+                    direction="maximize",
+                )
+            ],
+            3,
+        )
+
+        assert sorted(item.position for item in result.items) == [1, 1, 3]
+        assert sorted((item.value for item in result.items), reverse=True) == [0.9, 0.9, 0.8]
+
+    async def test_get_selective_metrics_returns_existing_untracked_keys(
+        self,
+        metric_service: MetricService,
+        db_session: AsyncSession,
+        test_user: User,
+    ) -> None:
+        project = await _create_project(db_session, test_user)
+        experiment = await _create_experiment(db_session, project, "Experiment")
+        await _create_metric(db_session, experiment, "unconfigured", value=1.0)
+        permission_service = PermissionService(db_session, auto_commit=True)
+        await permission_service.add_permission(
+            user_id=test_user.id,
+            action=ProjectActions.VIEW_METRIC,
+            allowed=True,
+            project_id=project.id,
+        )
+
+        result = await metric_service.get_selective_metrics_for_project(
+            test_user,
+            project.id,
+            [SelectiveMetricKeyDTO(name="unconfigured", label=None)],
+            [experiment.id],
+        )
+
+        assert len(result.data) == 1
+        assert result.data[0].name == "unconfigured"

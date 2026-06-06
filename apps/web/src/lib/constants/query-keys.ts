@@ -31,6 +31,8 @@ export const QUERY_KEYS = {
     METRICS: {
         GET: (experimentId: string) => `experiments/${experimentId}/metrics`,
         BY_PROJECT: (projectId: string) => `projects/${projectId}/metrics`,
+        SELECTIVE: (projectId: string) => `projects/${projectId}/metrics/batch`,
+        TOP: (projectId: string) => `projects/${projectId}/metrics/top`,
         LABELS: (projectId: string) => `projects/${projectId}/metric-labels`,
         UNIQUE_DIMENSIONS: (projectId: string) =>
             `projects/${projectId}/metrics/unique-dimensions`,

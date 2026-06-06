@@ -13,7 +13,8 @@ import { Plus, FlaskConical, AlertCircle, RefreshCw } from "lucide-react";
 import {
   useExperiments,
   useReorderExperiments,
-  useAggregatedMetrics,
+  useSelectiveProjectMetrics,
+  useTopProjectMetrics,
   useMissingParentExperimentNames,
 } from "@/domain/experiments/hooks";
 import { CreateExperimentDialog, ExperimentsTable } from "@/domain/experiments/components";
@@ -66,14 +67,6 @@ export default function Experiments() {
     }
   }, [projectId]);
 
-  const {
-    aggregatedMetricsByExperiment,
-    isFetching: metricsFetching,
-    isLoading: metricsLoading,
-    refetch: refetchMetrics,
-  } = useAggregatedMetrics(projectId, {
-    refetchInterval: REFRESH_EXPERIMENTS_LIST_INTERVAL,
-  });
   const { reorderExperiments } = useReorderExperiments(projectId);
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
   const experimentsListScrollRef = useRef<HTMLDivElement | null>(null);
@@ -84,6 +77,23 @@ export default function Experiments() {
         project.metrics.trackedMetrics,
         project.metrics.displayMetrics
       );
+
+  const experimentIds = useMemo(() => experiments.map((experiment) => experiment.id), [experiments]);
+  const {
+    metricsByExperiment,
+    isFetching: metricsFetching,
+    isLoading: metricsLoading,
+    refetch: refetchMetrics,
+  } = useSelectiveProjectMetrics(projectId, experimentIds, filteredMetrics, {
+    refetchInterval: REFRESH_EXPERIMENTS_LIST_INTERVAL,
+  });
+  const {
+    topMetrics,
+    isFetching: topMetricsFetching,
+    refetch: refetchTopMetrics,
+  } = useTopProjectMetrics(projectId, filteredMetrics, {
+    refetchInterval: REFRESH_EXPERIMENTS_LIST_INTERVAL,
+  });
 
   const parentNamesById = useMissingParentExperimentNames(projectId, experiments);
 
@@ -103,9 +113,9 @@ export default function Experiments() {
     metricsLoading ||
     (Boolean(projectId) && !experimentsListReady && experimentsLoading);
 
-  const isRefreshing = experimentsFetching || metricsFetching;
+  const isRefreshing = experimentsFetching || metricsFetching || topMetricsFetching;
   const handleRefresh = () => {
-    void Promise.all([refetchExperiments(), refetchMetrics()]);
+    void Promise.all([refetchExperiments(), refetchMetrics(), refetchTopMetrics()]);
   };
 
   useEffect(() => {
@@ -287,7 +297,8 @@ export default function Experiments() {
                   experiments={experiments}
                   reorderDisabled={reorderDisabled}
                   projectMetrics={filteredMetrics}
-                  aggregatedMetrics={aggregatedMetricsByExperiment}
+                  metricsByExperiment={metricsByExperiment}
+                  topMetrics={topMetrics}
                   parentNamesById={parentNamesById}
                   loadedExperimentNameById={loadedExperimentNameById}
                   selectedExperimentId={selectedExperimentId}
@@ -307,7 +318,7 @@ export default function Experiments() {
           experimentId={selectedExperimentId}
           onClose={() => setSelectedExperimentId(null)}
           projectMetrics={filteredMetrics}
-          aggregatedMetricsByExperiment={aggregatedMetricsByExperiment}
+          aggregatedMetricsByExperiment={metricsByExperiment}
         />
       ) : null}
     </div>

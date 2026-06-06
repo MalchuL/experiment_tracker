@@ -100,3 +100,33 @@ class TestMetricRepository:
 
         names = [metric.name for metric in metrics.data]
         assert names == ["Newer", "Older"]
+
+    async def test_list_selective_project_metrics_matches_exact_label_and_project(
+        self,
+        metric_repository: MetricRepository,
+        db_session: AsyncSession,
+        test_user: User,
+    ) -> None:
+        project = await _create_project(db_session, test_user)
+        other_project = await _create_project(db_session, test_user, name="Other")
+        experiment = await _create_experiment(db_session, project, name="A")
+        other_experiment = await _create_experiment(db_session, other_project, name="B")
+        selected = await _create_metric(db_session, experiment, name="loss")
+        labeled = MetricModel(
+            experiment_id=experiment.id,
+            name="loss",
+            value=0.1,
+            label="validation",
+        )
+        foreign = await _create_metric(db_session, other_experiment, name="loss")
+        db_session.add(labeled)
+        await db_session.flush()
+
+        metrics = await metric_repository.list_selective_project_metrics(
+            project.id,
+            [("loss", None)],
+            [experiment.id, other_experiment.id],
+        )
+
+        assert [metric.id for metric in metrics] == [selected.id]
+        assert foreign.id not in {metric.id for metric in metrics}

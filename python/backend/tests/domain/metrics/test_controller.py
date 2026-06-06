@@ -5,17 +5,66 @@ Tests for the metrics controller (API endpoints).
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.routes.auth import get_current_user_dual
 from db.database import get_async_session
 from domain.experiments.controller import router as experiments_router
 from domain.metrics.controller import router as metrics_router
+from domain.metrics.dto import (
+    SelectiveMetricsBatchRequestDTO,
+    SelectiveTopMetricsRequestDTO,
+)
 from domain.projects.controller import router as projects_router
 from api.routes.service_dependencies import get_scalars_service
 from domain.scalars.service import NoOpScalarsService
 from domain.team.teams.controller import router as teams_router
 from models import User
+
+
+class TestSelectiveProjectMetricControllerContracts:
+    """Validate additive selective project metric route and payload contracts."""
+
+    def test_selective_project_metric_post_routes_are_registered(self) -> None:
+        routes = {
+            (route.path, method)
+            for route in projects_router.routes
+            for method in getattr(route, "methods", set())
+        }
+
+        assert ("/projects/{project_id}/metrics/batch", "POST") in routes
+        assert ("/projects/{project_id}/metrics/top", "POST") in routes
+
+    def test_selective_project_metric_requests_accept_camel_case_payloads(self) -> None:
+        batch = SelectiveMetricsBatchRequestDTO.model_validate(
+            {
+                "experimentIds": ["2c274ad7-9e6a-4dc2-8c75-9d7a1d2b6b55"],
+                "metrics": [{"name": "loss", "label": "validation"}],
+            }
+        )
+        top = SelectiveTopMetricsRequestDTO.model_validate(
+            {
+                "metrics": [
+                    {"name": "loss", "label": "", "direction": "minimize"}
+                ],
+                "k": 3,
+            }
+        )
+
+        assert batch.metrics[0].label == "validation"
+        assert top.metrics[0].label is None
+        assert top.metrics[0].direction.value == "minimize"
+        assert top.k == 3
+
+    def test_selective_top_metric_request_requires_direction(self) -> None:
+        with pytest.raises(ValidationError):
+            SelectiveTopMetricsRequestDTO.model_validate(
+                {
+                    "metrics": [{"name": "loss", "label": "validation"}],
+                    "k": 3,
+                }
+            )
 
 
 def create_test_app() -> FastAPI:

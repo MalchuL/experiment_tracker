@@ -53,3 +53,24 @@ export interface MetricsByLabelSnapshot {
   hasNext: boolean;
   total: number;
 }
+
+export interface SelectiveMetricKey {
+  name: string;
+  label: string | null;
+}
+
+export interface SelectiveTopMetricKey extends SelectiveMetricKey {
+  direction: MetricDirectionType;
+}
+
+export interface TopMetric {
+  experimentId: string;
+  name: string;
+  label: string | null;
+  position: number;
+  value: number;
+}
+
+export interface TopMetricsResponse {
+  items: TopMetric[];
+}

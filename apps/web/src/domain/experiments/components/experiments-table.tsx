@@ -25,7 +25,7 @@ import { Experiment } from "../types";
 import { ProjectMetric } from "@/domain/projects/types";
 import { ExperimentTableRow } from "./experiment-table-row";
 import { arrayMove } from "@dnd-kit/sortable";
-import { Metric } from "@/domain/metrics/types";
+import { Metric, TopMetric } from "@/domain/metrics/types";
 import { formatMetricLabel } from "@/lib/metrics/format-metric-label";
 import { cn } from "@/lib/utils";
 import { useProjectDataTableFrame } from "@/components/shared/project-data-table-frame";
@@ -95,7 +95,8 @@ interface ExperimentsTableProps {
   /** When true, drag-to-reorder is disabled (e.g. while the list is filtered by search). */
   reorderDisabled?: boolean;
   projectMetrics?: ProjectMetric[];
-  aggregatedMetrics?: Record<string, Metric[]>;
+  metricsByExperiment?: Record<string, Metric[]>;
+  topMetrics?: TopMetric[];
   /** Parent names for ids not present in the loaded experiment pages (batch-fetched). */
   parentNamesById?: Record<string, string>;
   /** Names for all experiments currently in the infinite-query cache (for parent column when rows are filtered). */
@@ -110,7 +111,8 @@ export function ExperimentsTable({
   experiments,
   reorderDisabled = false,
   projectMetrics,
-  aggregatedMetrics,
+  metricsByExperiment,
+  topMetrics,
   parentNamesById,
   loadedExperimentNameById,
   selectedExperimentId,
@@ -133,7 +135,7 @@ export function ExperimentsTable({
     experimentTableTotalWidthPx,
   } = useExperimentsTableColumnWidths(projectId, filteredMetrics, {
     experiments,
-    aggregatedMetrics,
+    aggregatedMetrics: metricsByExperiment,
   });
 
   const getExperimentTableColumnWidth = (columnId: string) =>
@@ -309,7 +311,8 @@ export function ExperimentsTable({
                     reorderDisabled={reorderDisabled}
                     onClick={() => onExperimentClick(experiment.id)}
                     projectMetrics={filteredMetrics}
-                    expMetrics={aggregatedMetrics?.[experiment.id]}
+                    expMetrics={metricsByExperiment?.[experiment.id]}
+                    topMetrics={topMetrics}
                     parentName={parentName}
                     experimentTableResolvedColumnWidths={experimentTableResolvedColumnWidths}
                     experimentTableGripColumnWidthPx={experimentTableGripColumnWidthPxResolved}

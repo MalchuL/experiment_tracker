@@ -19,6 +19,9 @@ from domain.metrics.dto import (
     MetricLabelsResponseDTO,
     MetricListResponseDTO,
     MetricsByLabelSnapshotResponseDTO,
+    SelectiveMetricsBatchRequestDTO,
+    SelectiveTopMetricsRequestDTO,
+    TopMetricsResponseDTO,
     UniqueMetricDimensionsResponseDTO,
 )
 from domain.metrics.service import MetricService
@@ -487,6 +490,90 @@ async def get_aggregatedproject_metrics(
             project_id,
             project_service,
             ListOptions(limit=limit, offset=offset),
+        )
+    except Exception as exc:  # noqa: BLE001
+        _raise_project_http_error(exc)
+
+
+@router.post(
+    "/{project_id}/metrics/batch",
+    response_model=MetricListResponseDTO,
+)
+async def post_selective_project_metrics_batch(
+    project_id: UUID,
+    body: SelectiveMetricsBatchRequestDTO,
+    user: User = Depends(get_current_user_dual),
+    _: None = Depends(require_api_token_scopes(ProjectActions.VIEW_METRIC)),
+    metric_service: MetricService = Depends(get_metric_service),
+):
+    """Return selected existing metrics for selected project experiments.
+
+    Purpose:
+        Support scroll-paginated clients that need only currently loaded experiment
+        rows and visible metric columns, avoiding the legacy project-wide response.
+
+    Args:
+        project_id: Project that must own all returned metrics.
+        body: Bounded experiment identifiers and exact metric name/label keys.
+        user: Authenticated user requesting metrics.
+        _: API-token scope guard requiring metric view access.
+        metric_service: Metric service providing additive selective reads.
+
+    Returns:
+        MetricListResponseDTO: Complete non-paginated selective metric response.
+        Missing, foreign-project, and duplicate selections are omitted.
+
+    Raises:
+        HTTPException: Project/metric error mapping for access and service failures.
+    """
+    try:
+        return await metric_service.get_selective_metrics_for_project(
+            user,
+            project_id,
+            body.metrics,
+            body.experiment_ids,
+        )
+    except Exception as exc:  # noqa: BLE001
+        _raise_project_http_error(exc)
+
+
+@router.post(
+    "/{project_id}/metrics/top",
+    response_model=TopMetricsResponseDTO,
+)
+async def post_selective_project_top_metrics(
+    project_id: UUID,
+    body: SelectiveTopMetricsRequestDTO,
+    user: User = Depends(get_current_user_dual),
+    _: None = Depends(require_api_token_scopes(ProjectActions.VIEW_METRIC)),
+    metric_service: MetricService = Depends(get_metric_service),
+):
+    """Return project-wide top positions for selected existing metric keys.
+
+    Purpose:
+        Let clients request ranking data only for visible metrics while retaining
+        project-wide ranks. Each requested metric explicitly supplies its direction.
+
+    Args:
+        project_id: Project whose experiments form the ranking population.
+        body: Exact metric keys and highest competition-ranking position to return.
+        user: Authenticated user requesting rankings.
+        _: API-token scope guard requiring metric view access.
+        metric_service: Metric service providing additive selective rankings.
+
+    Returns:
+        TopMetricsResponseDTO: Ranking entries containing metric key, position,
+        value, and experiment identifier. Tied values share a position.
+
+    Raises:
+        HTTPException: Project/metric error mapping for access and service failures.
+    """
+    try:
+        return await metric_service.get_selective_top_metrics_for_project(
+            user,
+            project_id,
+            body.metrics,
+            body.k,
         )
     except Exception as exc:  # noqa: BLE001
         _raise_project_http_error(exc)

@@ -1,8 +1,8 @@
-from typing import List, Tuple
+from typing import List, Sequence, Tuple
 from lib.db.base_repository import BaseRepository
 from lib.pagination import ListOptions, Page
 from models import Experiment, Metric
-from sqlalchemy import and_, select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from lib.types import UUID_TYPE
 from sqlalchemy.orm import selectinload
@@ -113,6 +113,50 @@ class MetricRepository(BaseRepository[Metric]):
                     self._label_clause(label),
                 )
             )
+        )
+        res = await self.db.execute(stmt)
+        return list(res.scalars().all())
+
+    async def list_selective_project_metrics(
+        self,
+        project_id: UUID_TYPE,
+        metric_keys: Sequence[tuple[str, str | None]],
+        experiment_ids: Sequence[UUID_TYPE] | None = None,
+    ) -> list[Metric]:
+        """Load exact metric dimensions from experiments in one project.
+
+        Purpose:
+            Provide a bounded query primitive for selective metric and top-k
+            services without changing the existing project metric repository paths.
+
+        Args:
+            project_id: Project that must own every returned experiment.
+            metric_keys: Exact ``(name, label)`` dimensions. ``None`` matches only
+                database ``NULL`` labels.
+            experiment_ids: Optional experiment filter. Missing and foreign-project
+                identifiers naturally produce no rows.
+
+        Returns:
+            list[Metric]: Matching metric rows ordered by creation time descending.
+                An empty key or experiment selection returns an empty list.
+        """
+        if not metric_keys or (experiment_ids is not None and not experiment_ids):
+            return []
+        key_clauses = [
+            and_(Metric.name == name, self._label_clause(label))
+            for name, label in metric_keys
+        ]
+        filters = [
+            Experiment.project_id == project_id,
+            or_(*key_clauses),
+        ]
+        if experiment_ids is not None:
+            filters.append(Metric.experiment_id.in_(experiment_ids))
+        stmt = (
+            select(Metric)
+            .join(Experiment, Metric.experiment_id == Experiment.id)
+            .where(and_(*filters))
+            .order_by(Metric.created_at.desc())
         )
         res = await self.db.execute(stmt)
         return list(res.scalars().all())
