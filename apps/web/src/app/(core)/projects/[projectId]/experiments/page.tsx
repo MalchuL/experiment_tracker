@@ -115,7 +115,11 @@ export default function Experiments() {
 
   const isRefreshing = experimentsFetching || metricsFetching || topMetricsFetching;
   const handleRefresh = () => {
-    void Promise.all([refetchExperiments(), refetchMetrics(), refetchTopMetrics()]);
+    const refetches: Promise<unknown>[] = [refetchExperiments()];
+    if (filteredMetrics.length > 0) {
+      refetches.push(refetchMetrics(), refetchTopMetrics());
+    }
+    void Promise.all(refetches);
   };
 
   useEffect(() => {

@@ -25,9 +25,7 @@ export function useSelectiveProjectMetrics(
   const metricKeyString = metricKeys.map((metric) => `${metric.name}::${metric.label ?? ""}`).join("|");
   const enabled = Boolean(projectId && stableExperimentIds.length > 0 && metricKeys.length > 0);
   const query = useQuery<Metric[]>({
-    queryKey: enabled
-      ? [QUERY_KEYS.METRICS.SELECTIVE(projectId!), stableExperimentIds, metricKeyString]
-      : [],
+    queryKey: [QUERY_KEYS.METRICS.SELECTIVE(projectId ?? ""), stableExperimentIds, metricKeyString],
     queryFn: async () => {
       const pages = await Promise.all(
         chunkSelectiveRequestValues(stableExperimentIds).flatMap((experimentChunk) =>
@@ -42,8 +40,10 @@ export function useSelectiveProjectMetrics(
     refetchInterval: options?.refetchInterval,
   });
 
+  const selectiveMetrics = Array.isArray(query.data) ? query.data : [];
+
   return {
-    metricsByExperiment: groupMetricsByExperiment(query.data ?? []),
+    metricsByExperiment: groupMetricsByExperiment(selectiveMetrics),
     isLoading: enabled ? query.isLoading : false,
     isFetching: query.isFetching,
     refetch: query.refetch,
@@ -61,7 +61,7 @@ export function useTopProjectMetrics(
     .join("|");
   const enabled = Boolean(projectId && metricKeys.length > 0);
   const query = useQuery<TopMetric[]>({
-    queryKey: enabled ? [QUERY_KEYS.METRICS.TOP(projectId!), metricKeyString, 3] : [],
+    queryKey: [QUERY_KEYS.METRICS.TOP(projectId ?? ""), metricKeyString, 3],
     queryFn: async () => {
       const responses = await Promise.all(
         chunkSelectiveRequestValues(metricKeys).map((metricChunk) =>
@@ -74,7 +74,7 @@ export function useTopProjectMetrics(
     refetchInterval: options?.refetchInterval,
   });
   return {
-    topMetrics: query.data ?? [],
+    topMetrics: Array.isArray(query.data) ? query.data : [],
     isFetching: query.isFetching,
     refetch: query.refetch,
   };
