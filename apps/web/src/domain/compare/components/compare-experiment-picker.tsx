@@ -105,7 +105,13 @@ export function CompareExperimentPicker({
       >
         <div
           className="shrink-0 border-b border-border p-2"
-          onPointerDown={(e) => e.preventDefault()}
+          onPointerDown={(e) => {
+            if (e.target instanceof HTMLInputElement) {
+              return;
+            }
+            e.preventDefault();
+            searchInputRef.current?.focus();
+          }}
         >
           <Input
             ref={searchInputRef}
@@ -117,6 +123,7 @@ export function CompareExperimentPicker({
             aria-label="Search experiments"
             autoComplete="off"
             onKeyDown={(e) => e.stopPropagation()}
+            onPointerDown={(e) => e.stopPropagation()}
           />
         </div>
         <div className="max-h-[min(20rem,calc(100dvh-7rem))] min-h-0 flex-1 overflow-y-auto overscroll-contain p-1 [scrollbar-gutter:stable]">
