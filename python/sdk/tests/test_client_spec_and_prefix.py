@@ -2,14 +2,17 @@ import pytest
 from pydantic import ValidationError
 
 from experiment_tracker_sdk.client.domain import (
+    ExperimentDataRequestSpecFactory,
     ExperimentRequestSpecFactory,
     MetricRequestSpecFactory,
     ProjectArtifactsRequestSpecFactory,
     TeamRequestSpecFactory,
 )
-from experiment_tracker_sdk.client.domain.teams.dto import TeamCreateRequest, TeamUpdateRequest
+from experiment_tracker_sdk.client.domain.teams.dto import (
+    TeamCreateRequest,
+    TeamUpdateRequest,
+)
 from experiment_tracker_sdk.client.request import ApiRequestSpec, FileUploadSpec
-from experiment_tracker_sdk.client.domain.project_artifacts.dto import UploadProjectArtifactResponse
 from experiment_tracker_sdk.config import compose_base_url, normalize_api_prefix
 
 
@@ -72,8 +75,12 @@ def test_endpoint_factories_are_prefixless() -> None:
     metrics_factory = MetricRequestSpecFactory()
     project_artifacts_factory = ProjectArtifactsRequestSpecFactory()
     team_factory = TeamRequestSpecFactory()
+    experiment_data_factory = ExperimentDataRequestSpecFactory()
 
-    assert experiment_factory.create_experiment("project-id", "run").endpoint == "/experiments"
+    assert (
+        experiment_factory.create_experiment("project-id", "run").endpoint
+        == "/experiments"
+    )
     assert metrics_factory.upsert_metric("exp-id", "acc", 0.5).endpoint == "/metrics"
     dummy_file = FileUploadSpec(filename="data.bin", content=b"x")
     assert (
@@ -85,6 +92,9 @@ def test_endpoint_factories_are_prefixless() -> None:
     assert team_factory.get_all_teams().endpoint == "/teams"
     assert team_factory.get_team("team-id").endpoint == "/teams/team-id"
     assert metrics_factory.get_metric("exp-id", "acc").endpoint == "/metrics/by-key"
+    hparams_spec = experiment_data_factory.upsert_hparams("exp-id", {"lr": 0.1})
+    assert hparams_spec.method == "PUT"
+    assert hparams_spec.endpoint == "/experiments/exp-id/hparams"
 
 
 def test_create_experiment_spec_serializes_feature_tree() -> None:

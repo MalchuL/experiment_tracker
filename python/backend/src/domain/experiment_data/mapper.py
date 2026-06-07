@@ -11,7 +11,7 @@ from clients.object_storage import SnapshotFileEntryDTO as StorageSnapshotFileEn
 from lib.types import UUID_TYPE
 from models import ExperimentData
 
-from .dto import ExperimentSnapshotDTO, SnapshotFileEntryDTO
+from .dto import ExperimentHparamsDTO, ExperimentSnapshotDTO, SnapshotFileEntryDTO
 
 
 class ExperimentDataMapper:
@@ -61,3 +61,16 @@ class ExperimentDataMapper:
         if not raw:
             return None
         return UUID(str(raw))
+
+    def hparams_to_dto(
+        self, experiment_id: UUID, row: ExperimentData | None
+    ) -> ExperimentHparamsDTO:
+        """Map the current hparams row, preserving an explicit missing document."""
+
+        return ExperimentHparamsDTO(
+            experiment_id=experiment_id,
+            hparams=row.data if row else None,
+            data_id=row.id if row else None,
+            created_at=row.created_at if row else None,
+            updated_at=row.updated_at if row else None,
+        )

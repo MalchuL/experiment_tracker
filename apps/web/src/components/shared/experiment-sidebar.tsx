@@ -73,16 +73,17 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { compareService } from "@/domain/compare/service";
-import { downloadBlob, sanitizeDownloadName } from "@/domain/compare/downloads";
+import { ExperimentHparamsPanel } from "@/components/shared/experiment-hparams-panel";
+import { experimentSnapshotsService } from "@/domain/experiments/services";
+import { downloadBlob, sanitizeDownloadName } from "@/lib/downloads";
 
 /** One bucket of logged scalars sharing the same label (or “unlabeled”). */
 type LoggedMetricsLabelGroup = { label: string | null; items: Metric[] };
-type ExperimentSidebarTab = "metrics" | "features" | "code";
+type ExperimentSidebarTab = "metrics" | "features" | "hparams" | "code";
 
 const EXPERIMENT_SIDEBAR_ACTIVE_TAB_STORAGE_KEY = "experiment-sidebar.active-tab";
 const EXPERIMENT_SIDEBAR_FEATURE_DIFFS_STORAGE_KEY = "experiment-sidebar.feature-diffs";
-const EXPERIMENT_SIDEBAR_TABS: ExperimentSidebarTab[] = ["metrics", "features", "code"];
+const EXPERIMENT_SIDEBAR_TABS: ExperimentSidebarTab[] = ["metrics", "features", "hparams", "code"];
 const EXPERIMENT_SIDEBAR_MIN_WIDTH = 320;
 const EXPERIMENT_SIDEBAR_MAX_WIDTH = 760;
 const EXPERIMENT_SIDEBAR_DEFAULT_WIDTH = 400;
@@ -421,7 +422,7 @@ export function ExperimentSidebar({
     if (!experiment) return;
     setSnapshotDownloadPending(true);
     try {
-      const { blob, filename } = await compareService.downloadExperimentSnapshot(experiment.id);
+      const { blob, filename } = await experimentSnapshotsService.download(experiment.id);
       downloadBlob(blob, filename || `${sanitizeDownloadName(experiment.name)}-snapshot.zip`);
       setDownloadSnapshotOpen(false);
       toast({ title: "Snapshot download started" });
@@ -782,6 +783,9 @@ export function ExperimentSidebar({
                 <TabsTrigger value="features" className="flex-1" data-testid="tab-features">
                   Features
                 </TabsTrigger>
+                <TabsTrigger value="hparams" className="flex-1" data-testid="tab-hparams">
+                  HParams
+                </TabsTrigger>
                 <TabsTrigger value="code" className="flex-1" data-testid="tab-code">
                   Code
                 </TabsTrigger>
@@ -948,6 +952,14 @@ export function ExperimentSidebar({
                   lockExperimentFeaturesSelection
                   showDiffs={featureDiffsEnabled}
                   onShowDiffsChange={setFeatureDiffsEnabled}
+                />
+              </TabsContent>
+
+              <TabsContent value="hparams" className="min-w-0 max-w-full space-y-2 overflow-hidden">
+                <ExperimentHparamsPanel
+                  experimentId={experiment.id}
+                  parentExperimentId={experiment.parentExperimentId}
+                  enabled={activeTab === "hparams"}
                 />
               </TabsContent>
 

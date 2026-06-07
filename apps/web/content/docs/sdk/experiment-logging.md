@@ -184,9 +184,17 @@ tracker.features([
     {"name": "data", "children": [{"name": "mnist"}]},
     {"name": "model", "children": [{"name": "small-cnn"}]},
 ])
+tracker.log_hparams({
+    "optimizer": {"name": "adamw", "lr": 3e-4},
+    "training": {"batch_size": 32, "epochs": 50},
+})
 ```
 
 `progress` accepts `0..100` integers or `0..1` floats. `parent_experiment` resolves by name or id inside the current project.
+
+`features` describe semantic changes and research ideas. `log_hparams` stores the
+configurable training values used by the run. Each `log_hparams` call fully replaces
+the experiment's previous hyperparameter document.
 
 ## Run the repository example
 
@@ -572,9 +580,33 @@ tracker.features([
 ])
 ```
 
-Updates the experiment feature tree. Features are currently the best place to store hyperparameter-like run structure and "what changed" information.
+Updates the experiment feature tree. Use features for semantic changes, ablations,
+new mechanisms, and "what changed" information rather than configurable training
+values.
 
 When an experiment has a parent, the sidebar can show feature differences from that parent.
+
+---
+
+### `log_hparams(...)`
+
+```python
+tracker.log_hparams({
+    "optimizer": {
+        "name": "adamw",
+        "lr": 0.001,
+    },
+    "training": {
+        "batch_size": 64,
+        "seed": 42,
+    },
+})
+```
+
+Validates and stores a nested hyperparameter JSON object. Repeated calls fully replace
+the previous document; they do not deep-merge it. Common values such as `Path`, `Enum`,
+`date`, `datetime`, and NumPy scalar values are converted when safe. Unsupported values
+raise `HparamsSerializationError` with the failing parameter path.
 
 ---
 

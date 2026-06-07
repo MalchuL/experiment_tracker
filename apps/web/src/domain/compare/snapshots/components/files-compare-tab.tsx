@@ -31,13 +31,14 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { experimentSnapshotsService } from "@/domain/experiments/services";
 import type { Experiment } from "@/domain/experiments/types";
+import { downloadBlob } from "@/lib/downloads";
 import { QUERY_KEYS } from "@/lib/constants/query-keys";
 import { useToast } from "@/lib/hooks/use-toast";
 import { cn } from "@/lib/utils";
-import { compareService } from "../service";
-import { downloadBlob } from "../downloads";
-import type { ExperimentSnapshotFiles } from "../types";
+import { snapshotCompareService } from "../services/snapshot-compare-service";
+import type { ExperimentSnapshotFiles } from "../types/snapshot-compare";
 import { FileCompareView } from "./file-compare-view";
 
 interface FilesCompareTabProps {
@@ -82,17 +83,19 @@ export function FilesCompareTab({
       return;
     }
     const selectedIds = new Set(selectedExperiments.map((experiment) => experiment.id));
-    setLeftExperimentId((current) =>
-      current && selectedIds.has(current) ? current : selectedExperiments[0]?.id ?? null
-    );
+    const effectiveLeftId =
+      leftExperimentId && selectedIds.has(leftExperimentId)
+        ? leftExperimentId
+        : selectedExperiments[0]?.id ?? null;
+    setLeftExperimentId(effectiveLeftId);
     setRightExperimentId((current) => {
-      if (current && selectedIds.has(current) && current !== selectedExperiments[0]?.id) {
+      if (current && selectedIds.has(current) && current !== effectiveLeftId) {
         return current;
       }
-      return selectedExperiments.find((experiment) => experiment.id !== selectedExperiments[0]?.id)
+      return selectedExperiments.find((experiment) => experiment.id !== effectiveLeftId)
         ?.id ?? null;
     });
-  }, [selectedExperiments]);
+  }, [leftExperimentId, selectedExperiments]);
 
   const leftExperiment = leftExperimentId
     ? experimentsById.get(leftExperimentId) ?? selectedExperiments.find((e) => e.id === leftExperimentId)
@@ -115,7 +118,7 @@ export function FilesCompareTab({
       if (!leftExperimentId) {
         throw new Error("Left experiment is not selected");
       }
-      return compareService.getExperimentSnapshotFiles(leftExperimentId);
+      return snapshotCompareService.getExperimentSnapshotFiles(leftExperimentId);
     },
     enabled: Boolean(
       leftExperimentId && displayedLeft?.experimentId !== leftExperimentId
@@ -130,7 +133,7 @@ export function FilesCompareTab({
       if (!rightExperimentId) {
         throw new Error("Right experiment is not selected");
       }
-      return compareService.getExperimentSnapshotFiles(rightExperimentId);
+      return snapshotCompareService.getExperimentSnapshotFiles(rightExperimentId);
     },
     enabled: Boolean(
       rightExperimentId && displayedRight?.experimentId !== rightExperimentId
@@ -252,7 +255,7 @@ export function FilesCompareTab({
     if (!downloadTarget) return;
     setSnapshotDownloadPending(true);
     try {
-      const { blob, filename } = await compareService.downloadExperimentSnapshot(
+      const { blob, filename } = await experimentSnapshotsService.download(
         downloadTarget.experimentId,
         downloadTarget.snapshotId
       );
@@ -279,7 +282,6 @@ export function FilesCompareTab({
         rightFiles={rightExperimentId ? (right?.snapshotId ? right.files : []) : undefined}
         leftLabel={renderedLeftExperiment?.name ?? left?.experimentId ?? "Left"}
         rightLabel={renderedRightExperiment?.name ?? right?.experimentId ?? undefined}
-        leftExperimentId={left?.experimentId ?? undefined}
         rightExperimentId={rightExperimentId ? right?.experimentId : undefined}
         leftSnapshotId={left?.snapshotId ?? undefined}
         rightSnapshotId={right?.snapshotId ?? undefined}
@@ -463,14 +465,9 @@ function SideActionsMenu({
   const hasParent = Boolean(parentExperiment);
   const canDownload = Boolean(experimentId && snapshotId);
   const hasActions = hasParent || canDownload;
-  const tooltip =
-    side === "right"
-      ? hasActions
-        ? "Left actions"
-        : "Left experiment has no parent"
-      : hasActions
-        ? "Right actions"
-        : "Right experiment has no parent";
+  const tooltip = hasActions
+    ? `${sourceSide === "left" ? "Left" : "Right"} actions`
+    : "No actions";
 
   return (
     <DropdownMenu>

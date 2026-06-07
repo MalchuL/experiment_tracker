@@ -46,9 +46,9 @@ tracker.progress(100)
 
 Experiment colors make runs visually distinct. They are especially important on scalar plots, where multiple experiments may share the same chart. Colors must be hex strings such as `#3366cc` or `#3366ccff`.
 
-## Features and parent diffs
+## Features, hyperparameters, and parent diffs
 
-Features are a tree of named nodes. Today they are the closest equivalent to hyperparameters and run configuration in the product.
+Features are a tree of named nodes that describe semantic experiment changes.
 
 ```python
 tracker.features([
@@ -66,7 +66,13 @@ tracker.features([
 ])
 ```
 
-When an experiment has a parent, the sidebar can show differences from the parent experiment and let users edit the feature tree. Use this for "what changed in this run?" information until a dedicated hyperparameter domain exists.
+When an experiment has a parent, the sidebar can show differences from the parent
+experiment and let users edit the feature tree. Use this for "what changed in this
+run?" information.
+
+Hyperparameters are stored separately as nested JSON and can be logged through
+`tracker.log_hparams(...)` or edited from the experiment sidebar. The Compare page
+shows baseline-relative added, removed, and changed hyperparameter values.
 
 ## Parent experiments and DAG
 

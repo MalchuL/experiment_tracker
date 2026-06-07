@@ -20,6 +20,8 @@ from .dto import (
     ExperimentSnapshotsRequestDTO,
     ExperimentSnapshotFilesResponseDTO,
     ExperimentSnapshotUpsertDTO,
+    ExperimentHparamsDTO,
+    ExperimentHparamsUpsertDTO,
 )
 from .error import (
     ExperimentDataNotAccessibleError,
@@ -32,6 +34,46 @@ router = APIRouter(
     prefix="/experiments",
     tags=["experiment-data"],
 )
+
+
+@router.get("/{experiment_id}/hparams", response_model=ExperimentHparamsDTO)
+async def get_experiment_hparams(
+    experiment_id: UUID,
+    user: User = Depends(get_current_user_dual),
+    _: None = Depends(require_api_token_scopes(ProjectActions.VIEW_EXPERIMENT)),
+    service: ExperimentDataService = Depends(get_experiment_data_service),
+) -> ExperimentHparamsDTO:
+    try:
+        return await service.get_hparams(user, experiment_id)
+    except Exception as exc:  # noqa: BLE001
+        _raise_experiment_data_http_error(exc)
+
+
+@router.put("/{experiment_id}/hparams", response_model=ExperimentHparamsDTO)
+async def upsert_experiment_hparams(
+    experiment_id: UUID,
+    payload: ExperimentHparamsUpsertDTO,
+    user: User = Depends(get_current_user_dual),
+    _: None = Depends(require_api_token_scopes(ProjectActions.EDIT_EXPERIMENT)),
+    service: ExperimentDataService = Depends(get_experiment_data_service),
+) -> ExperimentHparamsDTO:
+    try:
+        return await service.upsert_hparams(user, experiment_id, payload.hparams)
+    except Exception as exc:  # noqa: BLE001
+        _raise_experiment_data_http_error(exc)
+
+
+@router.delete("/{experiment_id}/hparams", response_model=ExperimentHparamsDTO)
+async def delete_experiment_hparams(
+    experiment_id: UUID,
+    user: User = Depends(get_current_user_dual),
+    _: None = Depends(require_api_token_scopes(ProjectActions.EDIT_EXPERIMENT)),
+    service: ExperimentDataService = Depends(get_experiment_data_service),
+) -> ExperimentHparamsDTO:
+    try:
+        return await service.delete_hparams(user, experiment_id)
+    except Exception as exc:  # noqa: BLE001
+        _raise_experiment_data_http_error(exc)
 
 
 def _raise_experiment_data_http_error(error: Exception) -> None:
@@ -350,4 +392,3 @@ async def get_experiment_snapshot_file_content(
         )
     except Exception as exc:  # noqa: BLE001
         _raise_experiment_data_http_error(exc)
-
