@@ -1,8 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowRight, ChevronRight, Copy } from "lucide-react";
+import { ChevronRight, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   ExperimentDiffIcon,
   experimentDiffSurfaceClass,
@@ -91,10 +97,13 @@ function JsonNode({
     }
   };
 
+  const showStackedValueDiff = showDiffs && !isContainer && status === "changed";
+
   const row = (
     <div
       className={cn(
-        "group flex min-w-0 items-center gap-1.5 border-b border-border/35 py-1.5 pr-1 hover:bg-muted/30",
+        "group flex min-w-0 gap-1.5 border-b border-border/35 py-1.5 pr-1 hover:bg-muted/30",
+        showStackedValueDiff ? "items-start" : "items-center",
         showDiffs && experimentDiffSurfaceClass(status)
       )}
       style={{ paddingLeft: `${8 + depth * 14}px` }}
@@ -104,7 +113,11 @@ function JsonNode({
       ) : (
         <span className="h-3.5 w-3.5 shrink-0" />
       )}
-      {showDiffs ? <DiffIcon status={status} /> : null}
+      {showDiffs ? (
+        <span className={cn("flex w-3.5 shrink-0 items-center justify-center", showStackedValueDiff && "pt-0.5")}>
+          <DiffIcon status={status} />
+        </span>
+      ) : null}
       <span className={cn("min-w-0 break-all text-foreground", status === "removed" && "line-through text-muted-foreground")}>
         {name}
       </span>
@@ -116,34 +129,13 @@ function JsonNode({
           status={showDiffs ? status : "unchanged"}
         />
       ) : null}
-      <span className="ml-auto flex shrink-0 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100">
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="h-6 w-6"
-          aria-label={`Copy path ${jsonPath(path)}`}
-          onClick={(event) => {
-            event.stopPropagation();
-            void copy(jsonPath(path), "Path");
-          }}
-        >
-          <Copy className="h-3 w-3" />
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="h-6 w-6"
-          aria-label={`Copy value ${jsonPath(path)}`}
-          onClick={(event) => {
-            event.stopPropagation();
-            void copy(JSON.stringify(displayedValue), "Value");
-          }}
-        >
-          <Copy className="h-3 w-3" />
-        </Button>
-      </span>
+      <HparamsNodeCopyMenu
+        path={path}
+        displayedValue={displayedValue}
+        isContainer={isContainer}
+        onCopy={copy}
+        className="ml-auto shrink-0 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100"
+      />
     </div>
   );
 
@@ -175,6 +167,52 @@ function JsonNode({
   );
 }
 
+function HparamsNodeCopyMenu({
+  path,
+  displayedValue,
+  isContainer,
+  onCopy,
+  className,
+}: {
+  path: (string | number)[];
+  displayedValue: JsonValue | undefined;
+  isContainer: boolean;
+  onCopy: (text: string, label: string) => void | Promise<void>;
+  className?: string;
+}) {
+  const pathText = jsonPath(path);
+  const valueText = JSON.stringify(displayedValue);
+  const assignmentValueText = isContainer
+    ? valueText
+    : displayValue(displayedValue);
+  const pathAssignmentText = `${pathText} = ${assignmentValueText}`;
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className={cn("h-6 w-6", className)}
+          aria-label={`Copy options for ${pathText}`}
+          onClick={(event) => event.stopPropagation()}
+          onPointerDown={(event) => event.stopPropagation()}
+        >
+          <Copy className="h-3 w-3" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-48" onClick={(event) => event.stopPropagation()}>
+        <DropdownMenuItem onSelect={() => onCopy(valueText, "Value")}>Copy value</DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => onCopy(pathText, "Path")}>Copy path</DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => onCopy(pathAssignmentText, "Path = value")}>
+          Copy path = value
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 function ValueDiff({
   currentValue,
   parentValue,
@@ -188,10 +226,9 @@ function ValueDiff({
 }) {
   if (status === "changed") {
     return (
-      <span className="flex min-w-0 items-center gap-1 text-muted-foreground">
-        <span className="break-all line-through">{displayValue(parentValue)}</span>
-        <ArrowRight className="h-3 w-3 shrink-0" />
-        <span className="break-all text-foreground">{displayValue(currentValue)}</span>
+      <span className="flex min-w-0 flex-col gap-0.5 text-muted-foreground">
+        <span className="break-all pl-2.5 line-through">= {displayValue(parentValue)}</span>
+        <span className="break-all text-foreground">= {displayValue(currentValue)}</span>
       </span>
     );
   }
@@ -203,7 +240,7 @@ function ValueDiff({
 }
 
 function DiffIcon({ status }: { status: DiffStatus }) {
-  return <span className="flex w-3.5 shrink-0 items-center justify-center"><ExperimentDiffIcon status={status} /></span>;
+  return <ExperimentDiffIcon status={status} />;
 }
 
 function getStatus(

@@ -11,22 +11,27 @@ import {
 } from "@dnd-kit/core";
 import { SortableContext, arrayMove, horizontalListSortingStrategy, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical, X } from "lucide-react";
+import { ChevronDown, GripVertical, X } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useExperiments } from "@/domain/experiments/hooks";
 import type { Experiment } from "@/domain/experiments/types";
 import { HparamsCompareTab } from "../hparams/components";
+import { MetricsCompareTab } from "../metrics/components";
 import { FilesCompareTab } from "../snapshots/components";
+import { CompareExperimentPicker } from "./compare-experiment-picker";
 import { ExperimentNameTooltip } from "./experiment-name-tooltip";
+import {
+  loadCompareBoolean,
+  saveCompareBoolean,
+} from "../hooks/use-experiment-data-compare-layout";
+import { cn } from "@/lib/utils";
 
 interface CompareShellProps {
   projectId: string;
@@ -36,7 +41,10 @@ export function CompareShell({ projectId }: CompareShellProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const [pendingExperimentId, setPendingExperimentId] = useState<string>("");
+  const compareStorageScope = `compare:${projectId}`;
+  const [experimentsOpen, setExperimentsOpen] = useState(
+    () => !loadCompareBoolean(compareStorageScope, "experiments-collapsed", false)
+  );
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
   );
@@ -50,6 +58,10 @@ export function CompareShell({ projectId }: CompareShellProps) {
   }, [searchParams]);
   const [selectedIds, setSelectedIds] = useState<string[]>(urlSelectedIds);
   const pendingUrlOrderRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    setExperimentsOpen(!loadCompareBoolean(compareStorageScope, "experiments-collapsed", false));
+  }, [compareStorageScope]);
 
   useEffect(() => {
     const urlOrder = urlSelectedIds.join(",");
@@ -98,57 +110,82 @@ export function CompareShell({ projectId }: CompareShellProps) {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="border-b bg-background px-5 py-4">
-        <div className="flex flex-wrap items-center gap-3">
+      <Collapsible
+        open={experimentsOpen}
+        onOpenChange={(open) => {
+          setExperimentsOpen(open);
+          saveCompareBoolean(compareStorageScope, "experiments-collapsed", !open);
+        }}
+        className="border-b bg-background"
+      >
+        <div className="flex flex-wrap items-center gap-3 px-5 py-3">
           <div className="text-lg font-semibold">Compare</div>
-          <div className="flex min-w-72 items-center gap-2">
-            <Select
-              value={pendingExperimentId}
-              onValueChange={(experimentId) => {
-                replaceSelectedIds([...selectedIds, experimentId]);
-                setPendingExperimentId("");
-              }}
-            >
-              <SelectTrigger className="w-72">
-                <SelectValue placeholder={isLoading ? "Loading experiments..." : "Add experiment"} />
-              </SelectTrigger>
-              <SelectContent>
-                {availableExperiments.map((experiment) => (
-                  <SelectItem key={experiment.id} value={experiment.id}>
-                    <ExperimentNameWithColor experiment={experiment} />
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-            <SortableContext items={selectedIds} strategy={horizontalListSortingStrategy}>
-              <div className="flex min-w-0 flex-wrap items-center gap-2">
-                {selectedExperiments.map((experiment) => (
-                  <SelectedExperimentChip
-                    key={experiment.id}
-                    experiment={experiment}
-                    isBaseline={experiment.id === selectedIds[0]}
-                    onRemove={() =>
-                      replaceSelectedIds(selectedIds.filter((id) => id !== experiment.id))
-                    }
-                  />
-                ))}
-              </div>
-            </SortableContext>
-          </DndContext>
+          <CompareExperimentPicker
+            experiments={availableExperiments}
+            isLoading={isLoading}
+            placeholder="Add experiment"
+            triggerClassName="w-72"
+            onSelect={(experimentId) => {
+              replaceSelectedIds([...selectedIds, experimentId]);
+              setExperimentsOpen(true);
+              saveCompareBoolean(compareStorageScope, "experiments-collapsed", false);
+            }}
+          />
+          {selectedIds.length > 0 ? (
+            <CollapsibleTrigger asChild>
+              <Button type="button" variant="ghost" size="sm" className="gap-1.5 text-muted-foreground">
+                {selectedIds.length} experiment{selectedIds.length === 1 ? "" : "s"} selected
+                <ChevronDown
+                  className={cn("h-4 w-4 transition-transform", experimentsOpen && "rotate-180")}
+                />
+              </Button>
+            </CollapsibleTrigger>
+          ) : null}
         </div>
-      </div>
+        <CollapsibleContent>
+          <div className="px-5 pb-3">
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+              <SortableContext items={selectedIds} strategy={horizontalListSortingStrategy}>
+                <div className="flex min-w-0 flex-wrap items-center gap-2">
+                  {selectedExperiments.map((experiment) => (
+                    <SelectedExperimentChip
+                      key={experiment.id}
+                      experiment={experiment}
+                      isBaseline={experiment.id === selectedIds[0]}
+                      onRemove={() =>
+                        replaceSelectedIds(selectedIds.filter((id) => id !== experiment.id))
+                      }
+                    />
+                  ))}
+                </div>
+              </SortableContext>
+            </DndContext>
+          </div>
+        </CollapsibleContent>
+      </Collapsible>
 
       <Tabs defaultValue="files" className="flex min-h-0 flex-1 flex-col">
         <div className="border-b px-5 py-2">
           <TabsList>
             <TabsTrigger value="files">Files</TabsTrigger>
+            <TabsTrigger value="metrics">Metrics</TabsTrigger>
             <TabsTrigger value="hparams">HParams</TabsTrigger>
           </TabsList>
         </div>
         <TabsContent value="files" className="m-0 flex min-h-0 flex-1">
           <FilesCompareTab
+            projectId={projectId}
+            allExperiments={experiments}
+            selectedExperiments={selectedExperiments}
+            onEnsureExperimentSelected={(experimentId) => {
+              if (!selectedIds.includes(experimentId)) {
+                replaceSelectedIds([...selectedIds, experimentId]);
+              }
+            }}
+          />
+        </TabsContent>
+        <TabsContent value="metrics" className="m-0 flex min-h-0 flex-1">
+          <MetricsCompareTab
             projectId={projectId}
             allExperiments={experiments}
             selectedExperiments={selectedExperiments}
@@ -173,22 +210,6 @@ export function CompareShell({ projectId }: CompareShellProps) {
         </TabsContent>
       </Tabs>
     </div>
-  );
-}
-
-function ExperimentNameWithColor({
-  experiment,
-}: {
-  experiment: Pick<Experiment, "name" | "color">;
-}) {
-  return (
-    <span className="inline-flex min-w-0 items-center gap-2">
-      <span
-        className="h-2.5 w-2.5 shrink-0 rounded-full"
-        style={{ backgroundColor: experiment.color || "#3b82f6" }}
-      />
-      <span className="min-w-0 truncate">{experiment.name}</span>
-    </span>
   );
 }
 

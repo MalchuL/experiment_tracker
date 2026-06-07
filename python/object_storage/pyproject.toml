@@ -1,6 +1,6 @@
 [project]
 name = "object-storage"
-version = "0.12.0"
+version = "0.12.1"
 description = "Content-addressable object storage service for experiments"
 readme = "README.md"
 authors = [

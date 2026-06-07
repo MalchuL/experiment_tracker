@@ -9,6 +9,7 @@ import {
   type ExperimentDataCompareRow,
   type ExperimentDataDiffStatus,
 } from "@/domain/compare/components/experiment-data-compare-table";
+import { InlineDiffText } from "@/domain/compare/snapshots/components/inline-diff-text";
 import type { Experiment } from "@/domain/experiments/types";
 import type { JsonValue } from "@/domain/experiments/types";
 import { QUERY_KEYS } from "@/lib/constants/query-keys";
@@ -83,13 +84,32 @@ export function HparamsCompareTab({
       columns={columns}
       rows={rows}
       renderValue={renderHparamsValue}
-      valueTitle={displayHparamsValue}
+      valueTitle={(value, _referenceValue, _status, _row) => displayHparamsValue(value)}
       defaultOverflowMode="wrap"
     />
   );
 }
 
-function renderHparamsValue(value: JsonValue | undefined, status: ExperimentDataDiffStatus) {
+function renderHparamsValue(
+  value: JsonValue | undefined,
+  referenceValue: JsonValue | undefined,
+  status: ExperimentDataDiffStatus,
+  _row: ExperimentDataCompareRow<JsonValue>
+) {
+  if (status === "changed" && referenceValue !== undefined && value !== undefined) {
+    return (
+      <ExperimentDataDiffValue status={status}>
+        <InlineDiffText
+          content={displayHparamsValue(value)}
+          compareWith={displayHparamsValue(referenceValue)}
+          side="new"
+          language="json"
+          className="text-xs text-foreground"
+        />
+      </ExperimentDataDiffValue>
+    );
+  }
+
   return (
     <ExperimentDataDiffValue status={status}>
       <code

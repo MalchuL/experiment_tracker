@@ -33,14 +33,21 @@ export interface ExperimentDataCompareRow<T> {
   values: (T | undefined)[];
 }
 
+export type ExperimentDataCompareRenderValue<T> = (
+  value: T | undefined,
+  referenceValue: T | undefined,
+  status: ExperimentDataDiffStatus,
+  row: ExperimentDataCompareRow<T>
+) => ReactNode;
+
 interface ExperimentDataCompareTableProps<T> {
   storageScope: string;
   leadColumnLabel: string;
   columns: ExperimentDataCompareColumn[];
   rows: ExperimentDataCompareRow<T>[];
-  renderValue: (value: T | undefined, status: ExperimentDataDiffStatus) => ReactNode;
+  renderValue: ExperimentDataCompareRenderValue<T>;
   valueKey?: (value: T) => string;
-  valueTitle?: (value: T | undefined, status: ExperimentDataDiffStatus) => string;
+  valueTitle?: ExperimentDataCompareRenderValue<T>;
   defaultPinLeadColumn?: boolean;
   defaultComparisonMode?: ExperimentDataComparisonMode;
   defaultOverflowMode?: ExperimentDataOverflowMode;
@@ -59,6 +66,15 @@ export function classifyExperimentDataRow<T>(
     if (value === undefined) return "removed";
     return valueKey(reference) === valueKey(value) ? "unchanged" : "changed";
   });
+}
+
+export function referenceValueForCompareCell<T>(
+  values: (T | undefined)[],
+  index: number,
+  mode: ExperimentDataComparisonMode
+): T | undefined {
+  if (index === 0) return undefined;
+  return mode === "previous" ? values[index - 1] : values[0];
 }
 
 export function ExperimentDataCompareTable<T>({
@@ -192,8 +208,8 @@ function ExperimentDataCompareTableContent<T>({
   leadColumnLabel: string;
   columns: ExperimentDataCompareColumn[];
   rows: (ExperimentDataCompareRow<T> & { statuses: ExperimentDataDiffStatus[] })[];
-  renderValue: (value: T | undefined, status: ExperimentDataDiffStatus) => ReactNode;
-  valueTitle: (value: T | undefined, status: ExperimentDataDiffStatus) => string;
+  renderValue: ExperimentDataCompareRenderValue<T>;
+  valueTitle: ExperimentDataCompareRenderValue<T>;
   leadOverflowMode: ExperimentDataOverflowMode;
   overflowMode: ExperimentDataOverflowMode;
   comparisonMode: ExperimentDataComparisonMode;
@@ -276,6 +292,7 @@ function ExperimentDataCompareTableContent<T>({
             </TableCell>
             {row.values.map((value, index) => {
               const status = row.statuses[index] ?? "missing";
+              const referenceValue = referenceValueForCompareCell(row.values, index, comparisonMode);
               return (
                 <TableCell
                   key={columns[index]?.id ?? index}
@@ -287,10 +304,10 @@ function ExperimentDataCompareTableContent<T>({
                     experimentDiffSurfaceClass(status === "missing" ? "removed" : status)
                   )}
                   style={fixedWidth(columnWidths[index] ?? 0)}
-                  title={valueTitle(value, status)}
+                  title={String(valueTitle(value, referenceValue, status, row) ?? "")}
                 >
                   <div className={overflowMode === "truncate" ? "truncate" : undefined}>
-                    {renderValue(value, status)}
+                    {renderValue(value, referenceValue, status, row)}
                   </div>
                 </TableCell>
               );
@@ -302,7 +319,12 @@ function ExperimentDataCompareTableContent<T>({
   );
 }
 
-function defaultValueTitle<T>(value: T | undefined): string {
+function defaultValueTitle<T>(
+  value: T | undefined,
+  _referenceValue: T | undefined,
+  _status: ExperimentDataDiffStatus,
+  _row: ExperimentDataCompareRow<T>
+): string {
   if (value === undefined) return "Not set";
   if (typeof value === "string") return value;
   const serialized = JSON.stringify(value);

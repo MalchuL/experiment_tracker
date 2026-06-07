@@ -19,19 +19,13 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { experimentSnapshotsService } from "@/domain/experiments/services";
+import { CompareExperimentPicker } from "@/domain/compare/components/compare-experiment-picker";
 import type { Experiment } from "@/domain/experiments/types";
 import { downloadBlob } from "@/lib/downloads";
 import { QUERY_KEYS } from "@/lib/constants/query-keys";
@@ -378,12 +372,13 @@ function FilesCompareControls({
     <TooltipProvider delayDuration={250}>
       <div className="grid items-center gap-3 border-b bg-muted/20 px-4 py-2 md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]">
         <div className="flex min-w-0 flex-wrap items-center gap-2 md:justify-start">
-          <ExperimentSideSelect
+          <CompareExperimentPicker
             label="Left"
-            value={leftExperimentId ?? ""}
+            value={leftExperimentId}
             experiments={selectedExperiments}
-            disabledExperimentId={rightExperimentId}
-            onValueChange={onLeftChange}
+            disabledExperimentIds={rightExperimentId ? [rightExperimentId] : []}
+            triggerClassName="h-8 w-64"
+            onSelect={onLeftChange}
           />
           <SideActionsMenu
             side="right"
@@ -419,13 +414,15 @@ function FilesCompareControls({
         </div>
 
         <div className="flex min-w-0 flex-wrap items-center gap-2 md:justify-end">
-          <ExperimentSideSelect
+          <CompareExperimentPicker
             label="Right"
             value={rightExperimentId ?? NONE_VALUE}
             experiments={selectedExperiments}
-            disabledExperimentId={leftExperimentId}
+            disabledExperimentIds={leftExperimentId ? [leftExperimentId] : []}
             includeNone
-            onValueChange={onRightChange}
+            noneValue={NONE_VALUE}
+            triggerClassName="h-8 w-64"
+            onSelect={onRightChange}
           />
           <SideActionsMenu
             side="left"
@@ -520,57 +517,6 @@ function SideActionsMenu({
         ) : null}
       </DropdownMenuContent>
     </DropdownMenu>
-  );
-}
-
-function ExperimentSideSelect({
-  label,
-  value,
-  experiments,
-  disabledExperimentId,
-  includeNone = false,
-  onValueChange,
-}: {
-  label: string;
-  value: string;
-  experiments: Experiment[];
-  disabledExperimentId: string | null;
-  includeNone?: boolean;
-  onValueChange: (experimentId: string) => void;
-}) {
-  return (
-    <label className="flex min-w-0 items-center gap-2 text-sm">
-      <span className="shrink-0 text-muted-foreground">{label}</span>
-      <Select value={value} onValueChange={onValueChange}>
-        <SelectTrigger className="h-8 w-64">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {includeNone ? <SelectItem value={NONE_VALUE}>No comparison</SelectItem> : null}
-          {experiments.map((experiment) => (
-            <SelectItem
-              key={experiment.id}
-              value={experiment.id}
-              disabled={experiment.id === disabledExperimentId}
-            >
-              <ExperimentOption experiment={experiment} />
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    </label>
-  );
-}
-
-function ExperimentOption({ experiment }: { experiment: Experiment }) {
-  return (
-    <span className="inline-flex min-w-0 items-center gap-2">
-      <span
-        className="h-2.5 w-2.5 shrink-0 rounded-full"
-        style={{ backgroundColor: experiment.color || "#3b82f6" }}
-      />
-      <span className="min-w-0 truncate">{experiment.name}</span>
-    </span>
   );
 }
 
