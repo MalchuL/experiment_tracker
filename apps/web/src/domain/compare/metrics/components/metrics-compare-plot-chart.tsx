@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { CartesianGrid, Line, LineChart, ReferenceLine, XAxis, YAxis } from "recharts";
 import {
   ChartContainer,
@@ -9,11 +9,12 @@ import {
 } from "@/components/ui/chart";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import ColorPicker from "@/components/ui/color-picker";
-import { Palette, Trash2, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Palette, Trash2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useSelectiveProjectMetrics } from "@/domain/experiments/hooks";
 import type { Experiment } from "@/domain/experiments/types";
@@ -21,11 +22,33 @@ import { MetricDirection } from "@/domain/metrics/types";
 import { formatMetricLabel, projectMetricKeyString } from "@/lib/metrics/format-metric-label";
 import { CHART_COLORS } from "@/domain/scalars/constants";
 import { buildMetricsPlotData } from "../lib/build-metrics-plot-data";
-import { computeComparePlotChartLayout, lineChartBottomMargin, xAxisTickTextAnchor } from "../lib/compute-plot-chart-layout";
-import type { ComparePlotConfig, MetricNameOption } from "../types/metrics-compare";
-import { MAX_COMPARE_PLOT_POINT_PADDING, DEFAULT_COMPARE_PLOT_POINT_PADDING } from "../types/metrics-compare";
+import {
+  applyYRangeToChartData,
+  collectPlotNumericValues,
+  computeComparePlotChartLayout,
+  computeUniformYTicks,
+  lineChartBottomMargin,
+  parseYBoundInput,
+  resolveComparePlotYDomain,
+  resolveYDomainFromDrafts,
+  xAxisTickTextAnchor,
+} from "../lib/compute-plot-chart-layout";
+import type { ComparePlotConfig, MetricNameOption, PlotMetricSeries } from "../types/metrics-compare";
+import {
+  DEFAULT_COMPARE_PLOT_HEIGHT,
+  DEFAULT_COMPARE_PLOT_NAME_LABEL_FONT_SIZE,
+  DEFAULT_COMPARE_PLOT_POINT_PADDING,
+  MAX_COMPARE_PLOT_HEIGHT,
+  MAX_COMPARE_PLOT_NAME_LABEL_FONT_SIZE,
+  MAX_COMPARE_PLOT_POINT_PADDING,
+  MIN_COMPARE_PLOT_HEIGHT,
+  MIN_COMPARE_PLOT_NAME_LABEL_FONT_SIZE,
+} from "../types/metrics-compare";
 import { MetricsCompareMetricPicker } from "./metrics-compare-metric-picker";
 import { formatMetricScalarForDisplay } from "@/lib/metrics/metric-value-display";
+
+const CHART_CLASS =
+  "!aspect-auto h-full w-full min-h-0 [&_.recharts-cartesian-grid_line]:stroke-border/40 [&_.recharts-reference-line_line]:stroke-border/45";
 
 type MetricsComparePlotCardProps = {
   projectId: string;
@@ -44,14 +67,21 @@ export function MetricsComparePlotCard({
   onPatchPlot,
   onRemove,
 }: MetricsComparePlotCardProps) {
-  const nameLabelAngle = plot.nameLabelAngle;
+  const [settingsOpen, setSettingsOpen] = useState(true);
+  const [yMinDraft, setYMinDraft] = useState(() => formatYBound(plot.yMin));
+  const [yMaxDraft, setYMaxDraft] = useState(() => formatYBound(plot.yMax));
+  const [yBoundLastEdited, setYBoundLastEdited] = useState<"min" | "max" | null>(null);
+
   const pointPadding = plot.pointPadding ?? DEFAULT_COMPARE_PLOT_POINT_PADDING;
-  const experimentIds = selectedExperiments.map((e) => e.id);
+  const plotHeight = plot.plotHeight ?? DEFAULT_COMPARE_PLOT_HEIGHT;
+  const nameLabelFontSize = plot.nameLabelFontSize ?? DEFAULT_COMPARE_PLOT_NAME_LABEL_FONT_SIZE;
+  const seriesIds = useMemo(() => plot.series.map((series) => series.id), [plot.series]);
+
   const projectMetrics = useMemo(
     () =>
-      plot.series.map((s) => ({
-        name: s.name,
-        label: s.label,
+      plot.series.map((series) => ({
+        name: series.name,
+        label: series.label,
         direction: MetricDirection.MAXIMIZE,
         aggregation: "last" as const,
       })),
@@ -60,7 +90,7 @@ export function MetricsComparePlotCard({
 
   const { metricsByExperiment, isLoading } = useSelectiveProjectMetrics(
     projectId,
-    experimentIds,
+    selectedExperiments.map((experiment) => experiment.id),
     projectMetrics
   );
 
@@ -69,37 +99,81 @@ export function MetricsComparePlotCard({
     [selectedExperiments, metricsByExperiment, plot.series]
   );
 
+  const numericValues = useMemo(
+    () => collectPlotNumericValues(chartData, seriesIds),
+    [chartData, seriesIds]
+  );
+
+  const yDomainResult = useMemo(
+    () =>
+      resolveYDomainFromDrafts({
+        yMinDraft,
+        yMaxDraft,
+        yMin: plot.yMin,
+        yMax: plot.yMax,
+        values: numericValues,
+        lastEdited: yBoundLastEdited,
+      }),
+    [yMinDraft, yMaxDraft, plot.yMin, plot.yMax, numericValues, yBoundLastEdited]
+  );
+
+  const chartDataFiltered = useMemo(
+    () => applyYRangeToChartData(chartData, seriesIds, yDomainResult.domain),
+    [chartData, seriesIds, yDomainResult.domain]
+  );
+
+  const yAxisTicks = useMemo(
+    () => computeUniformYTicks(yDomainResult.domain),
+    [yDomainResult.domain]
+  );
+
   const chartLayout = useMemo(
     () =>
       computeComparePlotChartLayout(
         selectedExperiments.map((experiment) => experiment.name),
         chartData,
-        plot.series.map((s) => s.id),
-        nameLabelAngle,
-        pointPadding
+        seriesIds,
+        plot.nameLabelAngle,
+        pointPadding,
+        plotHeight,
+        nameLabelFontSize
       ),
-    [selectedExperiments, chartData, plot.series, nameLabelAngle, pointPadding]
+    [
+      selectedExperiments,
+      chartData,
+      seriesIds,
+      plot.nameLabelAngle,
+      pointPadding,
+      plotHeight,
+      nameLabelFontSize,
+    ]
   );
 
   const chartConfig = useMemo(() => {
     const config: ChartConfig = {};
-    for (const s of plot.series) {
-      config[s.id] = {
-        label: formatMetricLabel(s.name, s.label),
-        color: s.color,
+    for (const series of plot.series) {
+      config[series.id] = {
+        label: formatMetricLabel(series.name, series.label),
+        color: series.color,
       };
     }
     return config;
   }, [plot.series]);
 
   const excludedKeys = useMemo(
-    () => new Set(plot.series.map((s) => projectMetricKeyString(s))),
+    () => new Set(plot.series.map((series) => projectMetricKeyString(series))),
     [plot.series]
   );
 
+  useEffect(() => {
+    setYMinDraft(formatYBound(plot.yMin));
+    setYMaxDraft(formatYBound(plot.yMax));
+  }, [plot.yMin, plot.yMax]);
+
   const handleAddMetric = (option: MetricNameOption) => {
-    const key = projectMetricKeyString(option);
-    if (excludedKeys.has(key)) return;
+    if (excludedKeys.has(projectMetricKeyString(option))) {
+      return;
+    }
     onPatchPlot(plot.id, {
       series: [
         ...plot.series,
@@ -115,19 +189,49 @@ export function MetricsComparePlotCard({
 
   const handleRemoveSeries = (seriesId: string) => {
     onPatchPlot(plot.id, {
-      series: plot.series.filter((s) => s.id !== seriesId),
+      series: plot.series.filter((series) => series.id !== seriesId),
     });
   };
 
   const handleColorChange = (seriesId: string, color: string) => {
     onPatchPlot(plot.id, {
-      series: plot.series.map((s) => (s.id === seriesId ? { ...s, color } : s)),
+      series: plot.series.map((series) =>
+        series.id === seriesId ? { ...series, color } : series
+      ),
     });
   };
 
+  const handleYBoundChange = (bound: "min" | "max", draft: string) => {
+    if (bound === "min") {
+      setYMinDraft(draft);
+    } else {
+      setYMaxDraft(draft);
+    }
+    setYBoundLastEdited(bound);
+
+    const parsed = parseYBoundInput(draft);
+    if (parsed === undefined) {
+      return;
+    }
+
+    const resolved = resolveComparePlotYDomain({
+      yMin: bound === "min" ? parsed : plot.yMin ?? null,
+      yMax: bound === "max" ? parsed : plot.yMax ?? null,
+      values: numericValues,
+      lastEdited: bound,
+    });
+
+    onPatchPlot(plot.id, {
+      yMin: resolved.yMin,
+      yMax: resolved.yMax,
+    });
+  };
+
+  const chartHeightPx = chartLayout.chartHeight;
+
   return (
     <Card className="min-w-0">
-      <CardHeader className="flex flex-row items-center justify-end gap-2 space-y-0 p-1">
+      <CardHeader className="flex flex-row items-center justify-end space-y-0 p-1">
         <Button
           type="button"
           variant="ghost"
@@ -139,154 +243,290 @@ export function MetricsComparePlotCard({
           <X className="h-4 w-4" />
         </Button>
       </CardHeader>
-      <CardContent className="flex min-h-[240px] flex-col gap-2 p-0 pb-1 sm:flex-row">
-        <div className="min-h-[220px] min-w-0 flex-1">
-          {plot.series.length === 0 ? (
-            <div className="flex h-full min-h-[220px] items-center justify-center rounded-md border border-dashed text-sm text-muted-foreground">
-              Add metrics from the panel on the right.
-            </div>
-          ) : isLoading ? (
-            <div className="flex h-full min-h-[220px] items-center justify-center text-sm text-muted-foreground">
-              Loading plot…
-            </div>
-          ) : (
-            <ChartContainer
-              config={chartConfig}
-              className="aspect-auto h-full w-full min-w-0 [&_.recharts-cartesian-axis-tick_text]:text-[11px] [&_.recharts-cartesian-grid_line]:stroke-border/40 [&_.recharts-reference-line_line]:stroke-border/45"
-              style={{
-                height: chartLayout.chartHeight,
-              }}
-            >
-              <LineChart
-                data={chartData}
-                margin={{
-                  left: chartLayout.chartMarginHorizontal.left,
-                  right: chartLayout.chartMarginHorizontal.right,
-                  top: 0,
-                  bottom: lineChartBottomMargin(chartLayout.xAxisHeight),
-                }}
-              >
-                <CartesianGrid horizontal vertical={false} stroke="#ccc" />
-                {chartData.map((point) => (
-                  <ReferenceLine
-                    key={point.experimentId}
-                    x={point.experimentName}
-                    stroke="#ccc"
-                    strokeOpacity={0.55}
-                    ifOverflow="extendDomain"
-                  />
-                ))}
-                <XAxis
-                  dataKey="experimentName"
-                  tickLine={false}
-                  axisLine={false}
-                  tickMargin={0}
-                  interval={0}
-                  angle={nameLabelAngle}
-                  textAnchor={xAxisTickTextAnchor(nameLabelAngle)}
-                  height={chartLayout.xAxisHeight}
-                  padding={chartLayout.xAxisPadding}
-                />
-                <YAxis
-                  tickLine={false}
-                  axisLine={false}
-                  tickMargin={0}
-                  width={chartLayout.yAxisWidth}
-                  tickFormatter={(value) => formatMetricScalarForDisplay(Number(value))}
-                />
-                <ChartTooltip
-                  shared
-                  cursor={{ stroke: "#ccc", strokeOpacity: 0.45, strokeWidth: 1 }}
-                  content={<ComparePlotTooltipContent chartConfig={chartConfig} />}
-                />
-                {plot.series.map((s) => (
-                  <Line
-                    key={s.id}
-                    type="monotone"
-                    dataKey={s.id}
-                    stroke={s.color}
-                    strokeWidth={2}
-                    dot={{ r: 4, fill: s.color, strokeWidth: 0 }}
-                    connectNulls={false}
-                  />
-                ))}
-              </LineChart>
-            </ChartContainer>
-          )}
+
+      <CardContent className="flex flex-col gap-2 p-0 pb-1 sm:flex-row sm:items-start">
+        <div className="min-w-0 flex-1">
+          {plot.series.length > 0 ? (
+            <PlotMetricLegend series={plot.series} fontSize={nameLabelFontSize} />
+          ) : null}
+          <div className="pt-2">
+            {plot.series.length === 0 ? (
+              <PlotPlaceholder height={chartHeightPx}>
+                Add metrics from the panel on the right.
+              </PlotPlaceholder>
+            ) : isLoading ? (
+              <PlotPlaceholder height={chartHeightPx}>Loading plot…</PlotPlaceholder>
+            ) : (
+              <div className="w-full shrink-0" style={{ height: chartHeightPx }}>
+                <ChartContainer config={chartConfig} className={CHART_CLASS}>
+                  <LineChart
+                    data={chartDataFiltered}
+                    margin={{
+                      left: chartLayout.chartMarginHorizontal.left,
+                      right: chartLayout.chartMarginHorizontal.right,
+                      top: 0,
+                      bottom: lineChartBottomMargin(chartLayout.xAxisHeight),
+                    }}
+                  >
+                    <CartesianGrid horizontal vertical={false} stroke="#ccc" />
+                    {chartDataFiltered.map((point) => (
+                      <ReferenceLine
+                        key={point.experimentId}
+                        x={point.experimentName}
+                        stroke="#ccc"
+                        strokeOpacity={0.55}
+                        ifOverflow="extendDomain"
+                      />
+                    ))}
+                    <XAxis
+                      dataKey="experimentName"
+                      tickLine={false}
+                      axisLine={false}
+                      tickMargin={0}
+                      interval={0}
+                      angle={plot.nameLabelAngle}
+                      textAnchor={xAxisTickTextAnchor(plot.nameLabelAngle)}
+                      height={chartLayout.xAxisHeight}
+                      padding={chartLayout.xAxisPadding}
+                      tick={{ fontSize: nameLabelFontSize }}
+                    />
+                    <YAxis
+                      tickLine={false}
+                      axisLine={false}
+                      tickMargin={0}
+                      width={chartLayout.yAxisWidth}
+                      domain={yDomainResult.domain}
+                      allowDataOverflow
+                      ticks={yAxisTicks}
+                      tick={{ fontSize: nameLabelFontSize }}
+                      tickFormatter={(value) => formatMetricScalarForDisplay(Number(value))}
+                    />
+                    <ChartTooltip
+                      shared
+                      cursor={{ stroke: "#ccc", strokeOpacity: 0.45, strokeWidth: 1 }}
+                      content={<ComparePlotTooltipContent chartConfig={chartConfig} />}
+                    />
+                    {plot.series.map((series) => (
+                      <Line
+                        key={series.id}
+                        type="monotone"
+                        dataKey={series.id}
+                        stroke={series.color}
+                        strokeWidth={2}
+                        dot={{ r: 4, fill: series.color, strokeWidth: 0 }}
+                        connectNulls={false}
+                      />
+                    ))}
+                  </LineChart>
+                </ChartContainer>
+              </div>
+            )}
+          </div>
         </div>
 
-        <aside className="flex w-full shrink-0 flex-col gap-3 border-t pt-3 sm:w-56 sm:border-l sm:border-t-0 sm:pl-3 sm:pt-0">
+        <PlotSettingsPanel
+          plot={plot}
+          open={settingsOpen}
+          onOpenChange={setSettingsOpen}
+          metricOptions={metricOptions}
+          excludedKeys={excludedKeys}
+          yMinDraft={yMinDraft}
+          yMaxDraft={yMaxDraft}
+          plotHeight={plotHeight}
+          pointPadding={pointPadding}
+          onAddMetric={handleAddMetric}
+          onRemoveSeries={handleRemoveSeries}
+          onColorChange={handleColorChange}
+          onYBoundChange={handleYBoundChange}
+          onPatchPlot={onPatchPlot}
+        />
+      </CardContent>
+    </Card>
+  );
+}
+
+function PlotMetricLegend({
+  series,
+  fontSize,
+}: {
+  series: PlotMetricSeries[];
+  fontSize: number;
+}) {
+  const dotSizePx = (fontSize * 10) / DEFAULT_COMPARE_PLOT_NAME_LABEL_FONT_SIZE;
+
+  return (
+    <div className="flex w-full flex-wrap items-center justify-center gap-x-4 gap-y-1 px-3 pb-1">
+      {series.map((item) => (
+        <span
+          key={item.id}
+          className="inline-flex max-w-full items-center gap-1.5"
+          style={{ fontSize }}
+        >
+          <span
+            className="shrink-0 rounded-full"
+            style={{
+              backgroundColor: item.color,
+              width: dotSizePx,
+              height: dotSizePx,
+            }}
+          />
+          <span className="truncate">{item.name}</span>
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function PlotPlaceholder({
+  height,
+  children,
+}: {
+  height: number;
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      className="flex items-center justify-center rounded-md border border-dashed text-sm text-muted-foreground"
+      style={{ height }}
+    >
+      {children}
+    </div>
+  );
+}
+
+function PlotSettingsPanel({
+  plot,
+  open,
+  onOpenChange,
+  metricOptions,
+  excludedKeys,
+  yMinDraft,
+  yMaxDraft,
+  plotHeight,
+  pointPadding,
+  onAddMetric,
+  onRemoveSeries,
+  onColorChange,
+  onYBoundChange,
+  onPatchPlot,
+}: {
+  plot: ComparePlotConfig;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  metricOptions: MetricNameOption[];
+  excludedKeys: Set<string>;
+  yMinDraft: string;
+  yMaxDraft: string;
+  plotHeight: number;
+  pointPadding: number;
+  onAddMetric: (option: MetricNameOption) => void;
+  onRemoveSeries: (seriesId: string) => void;
+  onColorChange: (seriesId: string, color: string) => void;
+  onYBoundChange: (bound: "min" | "max", draft: string) => void;
+  onPatchPlot: (plotId: string, patch: Partial<ComparePlotConfig>) => void;
+}) {
+  return (
+    <div
+      className={cn(
+        "relative shrink-0 transition-[width] duration-300",
+        open ? "w-full sm:w-56" : "w-0"
+      )}
+    >
+      {open ? (
+        <aside className="flex flex-col gap-3 border-t px-3 pt-3 sm:border-l sm:border-t-0 sm:pl-3 sm:pt-0">
           <div className="space-y-1.5">
             <p className="text-xs font-medium text-muted-foreground">Add metric</p>
             <MetricsCompareMetricPicker
               options={metricOptions}
               excludedKeys={excludedKeys}
-              onSelect={handleAddMetric}
+              onSelect={onAddMetric}
             />
           </div>
-          <div className="space-y-2">
-            <div className="flex items-center justify-between gap-2">
-              <Label htmlFor={`plot-name-angle-${plot.id}`} className="text-xs text-muted-foreground">
-                Name angle
-              </Label>
-              <span className="text-xs tabular-nums text-muted-foreground">{nameLabelAngle}°</span>
+
+          <div className="space-y-1.5">
+            <p className="text-xs font-medium text-muted-foreground">Y range</p>
+            <div className="grid grid-cols-2 gap-2">
+              <YBoundField
+                id={`plot-y-min-${plot.id}`}
+                label="Y min"
+                value={yMinDraft}
+                onChange={(value) => onYBoundChange("min", value)}
+              />
+              <YBoundField
+                id={`plot-y-max-${plot.id}`}
+                label="Y max"
+                value={yMaxDraft}
+                onChange={(value) => onYBoundChange("max", value)}
+              />
             </div>
-            <Slider
-              id={`plot-name-angle-${plot.id}`}
-              min={-90}
-              max={0}
-              step={5}
-              value={[nameLabelAngle]}
-              onValueChange={([value]) => {
-                if (value === undefined) return;
-                onPatchPlot(plot.id, { nameLabelAngle: value });
-              }}
-            />
           </div>
-          <div className="space-y-2">
-            <div className="flex items-center justify-between gap-2">
-              <Label htmlFor={`plot-point-padding-${plot.id}`} className="text-xs text-muted-foreground">
-                Point spacing
-              </Label>
-              <span className="text-xs tabular-nums text-muted-foreground">{pointPadding}px</span>
-            </div>
-            <Slider
-              id={`plot-point-padding-${plot.id}`}
-              min={0}
-              max={MAX_COMPARE_PLOT_POINT_PADDING}
-              step={4}
-              value={[pointPadding]}
-              onValueChange={([value]) => {
-                if (value === undefined) return;
-                onPatchPlot(plot.id, { pointPadding: value });
-              }}
-            />
-          </div>
-          <div className="min-h-0 flex-1 space-y-1.5">
+
+          <PlotSliderField
+            id={`plot-height-${plot.id}`}
+            label="Plot height"
+            value={plotHeight}
+            min={MIN_COMPARE_PLOT_HEIGHT}
+            max={MAX_COMPARE_PLOT_HEIGHT}
+            step={8}
+            unit="px"
+            onChange={(value) => onPatchPlot(plot.id, { plotHeight: value })}
+          />
+          <PlotSliderField
+            id={`plot-name-angle-${plot.id}`}
+            label="Name angle"
+            value={plot.nameLabelAngle}
+            min={-90}
+            max={0}
+            step={5}
+            unit="°"
+            onChange={(value) => onPatchPlot(plot.id, { nameLabelAngle: value })}
+          />
+          <PlotSliderField
+            id={`plot-name-size-${plot.id}`}
+            label="Font size"
+            value={plot.nameLabelFontSize ?? DEFAULT_COMPARE_PLOT_NAME_LABEL_FONT_SIZE}
+            min={MIN_COMPARE_PLOT_NAME_LABEL_FONT_SIZE}
+            max={MAX_COMPARE_PLOT_NAME_LABEL_FONT_SIZE}
+            step={1}
+            unit="px"
+            onChange={(value) => onPatchPlot(plot.id, { nameLabelFontSize: value })}
+          />
+          <PlotSliderField
+            id={`plot-point-padding-${plot.id}`}
+            label="Point spacing"
+            value={pointPadding}
+            min={0}
+            max={MAX_COMPARE_PLOT_POINT_PADDING}
+            step={4}
+            unit="px"
+            onChange={(value) => onPatchPlot(plot.id, { pointPadding: value })}
+          />
+
+          <div className="space-y-1.5">
             <p className="text-xs font-medium text-muted-foreground">Series</p>
             {plot.series.length === 0 ? (
               <p className="text-xs text-muted-foreground">No metrics added yet.</p>
             ) : (
               <ul className="max-h-48 space-y-0.5 overflow-y-auto pr-1">
-                {plot.series.map((s) => (
-                  <li key={s.id} className="flex items-center gap-2 rounded-sm py-1 pr-0.5">
+                {plot.series.map((series) => (
+                  <li key={series.id} className="flex items-center gap-2 rounded-sm py-1 pr-0.5">
                     <PlotSeriesColorMenu
-                      color={s.color}
-                      onColorChange={(color) => handleColorChange(s.id, color)}
+                      color={series.color}
+                      onColorChange={(color) => onColorChange(series.id, color)}
                     />
                     <span
                       className="min-w-0 flex-1 truncate text-xs"
-                      title={formatMetricLabel(s.name, s.label)}
+                      title={formatMetricLabel(series.name, series.label)}
                     >
-                      {formatMetricLabel(s.name, s.label)}
+                      {formatMetricLabel(series.name, series.label)}
                     </span>
                     <Button
                       type="button"
                       variant="ghost"
                       size="icon"
                       className="h-6 w-6 shrink-0 text-muted-foreground"
-                      onClick={() => handleRemoveSeries(s.id)}
-                      aria-label={`Remove ${formatMetricLabel(s.name, s.label)}`}
+                      onClick={() => onRemoveSeries(series.id)}
+                      aria-label={`Remove ${formatMetricLabel(series.name, series.label)}`}
                     >
                       <Trash2 className="h-3 w-3" />
                     </Button>
@@ -296,9 +536,99 @@ export function MetricsComparePlotCard({
             )}
           </div>
         </aside>
-      </CardContent>
-    </Card>
+      ) : null}
+
+      <div className="absolute -left-3 top-3 z-10">
+        <Button
+          type="button"
+          variant="outline"
+          size="icon"
+          className="h-6 w-6 rounded-full bg-background shadow-md transition-shadow hover:shadow-lg"
+          onClick={() => onOpenChange(!open)}
+          aria-label={open ? "Hide plot settings" : "Show plot settings"}
+        >
+          {open ? <ChevronRight className="h-3 w-3" /> : <ChevronLeft className="h-3 w-3" />}
+        </Button>
+      </div>
+    </div>
   );
+}
+
+function YBoundField({
+  id,
+  label,
+  value,
+  onChange,
+}: {
+  id: string;
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div className="space-y-1">
+      <Label htmlFor={id} className="text-xs text-muted-foreground">
+        {label}
+      </Label>
+      <Input
+        id={id}
+        type="number"
+        placeholder="Auto"
+        className="h-8"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+      />
+    </div>
+  );
+}
+
+function PlotSliderField({
+  id,
+  label,
+  value,
+  min,
+  max,
+  step,
+  unit,
+  onChange,
+}: {
+  id: string;
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  step: number;
+  unit: string;
+  onChange: (value: number) => void;
+}) {
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between gap-2">
+        <Label htmlFor={id} className="text-xs text-muted-foreground">
+          {label}
+        </Label>
+        <span className="text-xs tabular-nums text-muted-foreground">
+          {value}
+          {unit}
+        </span>
+      </div>
+      <Slider
+        id={id}
+        min={min}
+        max={max}
+        step={step}
+        value={[value]}
+        onValueChange={([nextValue]) => {
+          if (nextValue === undefined) return;
+          onChange(nextValue);
+        }}
+      />
+    </div>
+  );
+}
+
+function formatYBound(value: number | null | undefined): string {
+  return value != null ? String(value) : "";
 }
 
 function PlotSeriesColorMenu({

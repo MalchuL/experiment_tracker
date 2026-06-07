@@ -7,9 +7,10 @@ import type { Experiment } from "@/domain/experiments/types";
 import { MetricsComparePlotCard } from "./metrics-compare-plot-chart";
 import type { ComparePlotConfig, MetricNameOption } from "../types/metrics-compare";
 import {
+  DEFAULT_COMPARE_PLOT_HEIGHT,
   DEFAULT_COMPARE_PLOT_NAME_LABEL_ANGLE,
+  DEFAULT_COMPARE_PLOT_NAME_LABEL_FONT_SIZE,
   DEFAULT_COMPARE_PLOT_POINT_PADDING,
-  MAX_COMPARE_PLOT_POINT_PADDING,
 } from "../types/metrics-compare";
 
 type MetricsComparePlotsSectionProps = {
@@ -38,7 +39,9 @@ export function MetricsComparePlotsSection({
         id: crypto.randomUUID(),
         series: [],
         nameLabelAngle: DEFAULT_COMPARE_PLOT_NAME_LABEL_ANGLE,
+        nameLabelFontSize: DEFAULT_COMPARE_PLOT_NAME_LABEL_FONT_SIZE,
         pointPadding: DEFAULT_COMPARE_PLOT_POINT_PADDING,
+        plotHeight: DEFAULT_COMPARE_PLOT_HEIGHT,
       },
     ]);
   };
