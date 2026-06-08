@@ -1,6 +1,7 @@
 import { parseISO } from "date-fns";
 import { create } from "zustand";
 
+import { createClientId } from "@/lib/utils";
 import type { ScalarSavedView } from "../types";
 
 const STORAGE_KEY = "scalars:saved-views:v1";
@@ -14,16 +15,13 @@ interface ScalarViewsStoreState {
   deleteView: (projectId: string, viewId: string) => void;
 }
 
-function createViewId(): string {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-    return crypto.randomUUID();
-  }
-  return `view-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
-}
-
 function persistViews(viewsByProject: Record<string, ScalarSavedView[]>) {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(viewsByProject));
+  try {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(viewsByProject));
+  } catch {
+    /* ignore quota / private mode */
+  }
 }
 
 function sortLatestFirst(views: ScalarSavedView[]): ScalarSavedView[] {
@@ -59,7 +57,7 @@ export const useScalarViewsStore = create<ScalarViewsStoreState>((set, get) => (
   saveView: (projectId: string, query: string, name: string) => {
     const now = new Date().toISOString();
     const nextView: ScalarSavedView = {
-      id: createViewId(),
+      id: createClientId(),
       projectId,
       name,
       query,

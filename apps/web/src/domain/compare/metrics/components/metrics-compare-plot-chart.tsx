@@ -15,7 +15,7 @@ import { Slider } from "@/components/ui/slider";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import ColorPicker from "@/components/ui/color-picker";
 import { ChevronLeft, ChevronRight, Palette, Trash2, X } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, createClientId } from "@/lib/utils";
 import { useSelectiveProjectMetrics } from "@/domain/experiments/hooks";
 import type { Experiment } from "@/domain/experiments/types";
 import { MetricDirection } from "@/domain/metrics/types";
@@ -178,7 +178,7 @@ export function MetricsComparePlotCard({
       series: [
         ...plot.series,
         {
-          id: crypto.randomUUID(),
+          id: createClientId(),
           name: option.name,
           label: option.label,
           color: CHART_COLORS[plot.series.length % CHART_COLORS.length]!,

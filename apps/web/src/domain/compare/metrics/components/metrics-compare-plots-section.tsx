@@ -2,7 +2,7 @@
 
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { cn, createClientId } from "@/lib/utils";
 import type { Experiment } from "@/domain/experiments/types";
 import { MetricsComparePlotCard } from "./metrics-compare-plot-chart";
 import type { ComparePlotConfig, MetricNameOption } from "../types/metrics-compare";
@@ -36,7 +36,7 @@ export function MetricsComparePlotsSection({
     onPlotsChange([
       ...plots,
       {
-        id: crypto.randomUUID(),
+        id: createClientId(),
         series: [],
         nameLabelAngle: DEFAULT_COMPARE_PLOT_NAME_LABEL_ANGLE,
         nameLabelFontSize: DEFAULT_COMPARE_PLOT_NAME_LABEL_FONT_SIZE,

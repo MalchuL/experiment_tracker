@@ -169,23 +169,35 @@ function buildCodeFilesHref(experiment: Pick<Experiment, "id" | "projectId">): s
 
 function readStoredSidebarTab(): ExperimentSidebarTab {
   if (typeof window === "undefined") return "metrics";
-  const storedValue = window.localStorage.getItem(EXPERIMENT_SIDEBAR_ACTIVE_TAB_STORAGE_KEY);
-  return EXPERIMENT_SIDEBAR_TABS.includes(storedValue as ExperimentSidebarTab)
-    ? (storedValue as ExperimentSidebarTab)
-    : "metrics";
+  try {
+    const storedValue = window.localStorage.getItem(EXPERIMENT_SIDEBAR_ACTIVE_TAB_STORAGE_KEY);
+    return EXPERIMENT_SIDEBAR_TABS.includes(storedValue as ExperimentSidebarTab)
+      ? (storedValue as ExperimentSidebarTab)
+      : "metrics";
+  } catch {
+    return "metrics";
+  }
 }
 
 function readStoredBoolean(key: string, fallback: boolean): boolean {
   if (typeof window === "undefined") return fallback;
-  const storedValue = window.localStorage.getItem(key);
-  if (storedValue === "1") return true;
-  if (storedValue === "0") return false;
-  return fallback;
+  try {
+    const storedValue = window.localStorage.getItem(key);
+    if (storedValue === "1") return true;
+    if (storedValue === "0") return false;
+    return fallback;
+  } catch {
+    return fallback;
+  }
 }
 
 function writeLocalStorageValue(key: string, value: string) {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(key, value);
+  try {
+    window.localStorage.setItem(key, value);
+  } catch {
+    /* ignore quota / private mode */
+  }
 }
 
 interface ExperimentSidebarProps {

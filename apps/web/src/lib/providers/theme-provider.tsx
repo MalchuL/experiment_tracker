@@ -28,9 +28,14 @@ export function ThemeProvider({
   storageKey = "researchtrack-ui-theme",
   ...props
 }: ThemeProviderProps) {
-  const [theme, setTheme] = useState<Theme>(
-    () => (typeof window !== "undefined" ? (localStorage.getItem(storageKey) as Theme) || defaultTheme : defaultTheme)
-  );
+  const [theme, setTheme] = useState<Theme>(() => {
+    if (typeof window === "undefined") return defaultTheme;
+    try {
+      return (localStorage.getItem(storageKey) as Theme) || defaultTheme;
+    } catch {
+      return defaultTheme;
+    }
+  });
 
   useEffect(() => {
     const root = window.document.documentElement;
@@ -54,7 +59,11 @@ export function ThemeProvider({
     theme,
     setTheme: (theme: Theme) => {
       if (typeof window !== "undefined") {
-        localStorage.setItem(storageKey, theme);
+        try {
+          localStorage.setItem(storageKey, theme);
+        } catch {
+          /* ignore quota / private mode */
+        }
       }
       setTheme(theme);
     },
