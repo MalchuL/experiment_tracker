@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { env } from "@/lib/env";
 import { API_ROUTES } from "@/lib/constants/api-routes";
+import { getPublicApiBaseUrl } from "@/lib/runtime-config";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { Input } from "@/components/ui/input";
@@ -76,7 +76,7 @@ const ROW_SELECT_CLASS =
   "border-input bg-background h-9 w-full min-w-[5.5rem] rounded-md border px-2 text-sm";
 
 function adminBaseUrl() {
-  return env.BASE_URL.replace(/\/$/, "");
+  return getPublicApiBaseUrl();
 }
 
 type AdminFetchOptions = {

@@ -271,7 +271,7 @@ wheels = [
 
 [[package]]
 name = "experiment-tracker-shared"
-version = "0.11.8"
+version = "0.12.1"
 source = { editable = "../shared" }
 dependencies = [
     { name = "pendulum" },
@@ -438,7 +438,7 @@ wheels = [
 
 [[package]]
 name = "object-storage"
-version = "0.11.8"
+version = "0.12.1"
 source = { editable = "." }
 dependencies = [
     { name = "anyio" },

@@ -1,4 +1,4 @@
-# Build from repo root: docker compose build backend
+# Build from repo root: docker compose -f docker-compose.dev.yml build backend
 FROM ghcr.io/astral-sh/uv:python3.13-bookworm-slim AS builder
 WORKDIR /build/python/backend
 ENV UV_LINK_MODE=copy

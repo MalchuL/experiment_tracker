@@ -61,6 +61,6 @@ sleep 2
 # Frontend
 launch_terminal \
   "local-run: frontend" \
-  "cd apps/web && export NEXT_PUBLIC_BASE_URL=http://127.0.0.1:8000 && pnpm run dev"
+  "cd apps/web && export PUBLIC_API_BASE_URL=\"${PUBLIC_API_BASE_URL:-http://127.0.0.1:8000}\" && pnpm run dev"
 
 echo "Launched local stack in separate terminal windows."

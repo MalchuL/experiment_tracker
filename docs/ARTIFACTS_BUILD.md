@@ -152,7 +152,7 @@ uv run python -m object_storage.main
 ### 4. Frontend
 
 ```bash
-export NEXT_PUBLIC_BASE_URL=http://127.0.0.1:8000
+export PUBLIC_API_BASE_URL=http://127.0.0.1:8000
 cd apps/web && pnpm run dev
 ```
 

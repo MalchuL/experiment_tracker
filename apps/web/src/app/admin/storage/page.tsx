@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { env } from "@/lib/env";
 import { API_ROUTES } from "@/lib/constants/api-routes";
+import { getPublicApiBaseUrl } from "@/lib/runtime-config";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -39,7 +39,7 @@ type ScalarTableRow = {
 };
 
 function adminBaseUrl() {
-  return env.BASE_URL.replace(/\/$/, "");
+  return getPublicApiBaseUrl();
 }
 
 async function adminFetch(pathWithQuery: string, init?: RequestInit) {

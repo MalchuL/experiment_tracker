@@ -1,4 +1,4 @@
-# Build from repo root: docker compose build object-storage
+# Build from repo root: docker compose -f docker-compose.dev.yml build object-storage
 FROM ghcr.io/astral-sh/uv:python3.13-bookworm-slim AS builder
 WORKDIR /build/python/object_storage
 ENV UV_LINK_MODE=copy
