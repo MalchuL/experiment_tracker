@@ -12,7 +12,8 @@ def test_build_create_table_statement():
     result = (
         "CREATE TABLE IF NOT EXISTS scalars_123 "
         "(__timestamp__ DateTime64(3), __experiment_id__ UUID, __step__ Int64, __tags__ Array(String)) "
-        "ENGINE = MergeTree() PARTITION BY toDate(__timestamp__) ORDER BY (__experiment_id__, __step__)"
+        "ENGINE = ReplacingMergeTree(__timestamp__) "
+        "PARTITION BY toDate(__timestamp__) ORDER BY (__experiment_id__, __step__)"
     )
     assert (
         SCALARS_DB_UTILS.build_create_scalars_table_statement("scalars_123") == result
@@ -24,7 +25,8 @@ def test_build_create_table_statement_with_scalars():
         "CREATE TABLE IF NOT EXISTS scalars_123 "
         "(__timestamp__ DateTime64(3), __experiment_id__ UUID, __step__ Int64, __tags__ Array(String), "
         "loss Nullable(Float64), acc Nullable(Float64)) "
-        "ENGINE = MergeTree() PARTITION BY toDate(__timestamp__) ORDER BY (__experiment_id__, __step__)"
+        "ENGINE = ReplacingMergeTree(__timestamp__) "
+        "PARTITION BY toDate(__timestamp__) ORDER BY (__experiment_id__, __step__)"
     )
     assert (
         SCALARS_DB_UTILS.build_create_scalars_table_statement(
@@ -90,7 +92,8 @@ def test_select_statement():
     exp1 = UUID("11111111-1111-1111-1111-111111111111")
     exp2 = UUID("22222222-2222-2222-2222-222222222222")
     result = (
-        "SELECT __timestamp__, __experiment_id__, __step__, __tags__, loss, acc FROM scalars_123 "
+        "SELECT __timestamp__, __experiment_id__, __step__, __tags__, loss, acc "
+        "FROM scalars_123 "
         f"WHERE __experiment_id__ IN ('{exp1}', '{exp2}') ORDER BY __experiment_id__, __step__"
     )
     assert (
@@ -112,6 +115,7 @@ def test_select_uniform_sampled_column_non_null_and_windows():
         max_points=50,
     )
     assert "loss IS NOT NULL" in sql
+    assert "FROM scalars_123" in sql
     assert "SELECT * EXCEPT(_u_rn, _u_cnt) FROM (" in sql
     assert (
         "row_number() OVER (PARTITION BY __experiment_id__ ORDER BY __step__, __timestamp__)"

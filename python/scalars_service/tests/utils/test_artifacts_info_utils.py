@@ -15,6 +15,8 @@ def test_build_create_artifacts_info_table_statement() -> None:
         "artifacts_info_project"
     )
     assert "CREATE TABLE IF NOT EXISTS artifacts_info_project" in ddl
+    assert "ENGINE = ReplacingMergeTree(__timestamp__)" in ddl
+    assert "ORDER BY (__experiment_id__, __name__, __step__, __artifact_type__)" in ddl
     assert "__artifact_type__ LowCardinality(String)" in ddl
     assert "__path__ String" in ddl
 

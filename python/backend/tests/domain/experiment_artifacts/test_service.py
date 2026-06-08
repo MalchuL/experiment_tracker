@@ -31,7 +31,6 @@ from clients.object_storage import (
 from clients.object_storage.protocol import ObjectStorageClientProtocol
 from domain.experiment_artifacts.error import (
     ExperimentArtifactsNotAccessibleError,
-    ExperimentArtifactAmbiguousError,
     ExperimentArtifactNotFoundError,
 )
 from domain.experiment_artifacts.service import ExperimentArtifactsService
@@ -733,33 +732,75 @@ async def test_download_experiment_artifact_at_step_reads_untracked_blob() -> No
     assert out.content_type == "application/octet-stream"
 
 
+def test_pick_single_logged_entry_picks_latest_duplicate_same_type() -> None:
+    experiment_id = uuid4()
+    older = ArtifactInfoEntryDTO(
+        timestamp=datetime(2026, 6, 8, 21, 0, 0, tzinfo=timezone.utc),
+        step=12000,
+        name="gt",
+        artifact_type="image",
+        path="hash_old",
+    )
+    newer = ArtifactInfoEntryDTO(
+        timestamp=datetime(2026, 6, 8, 21, 49, 4, tzinfo=timezone.utc),
+        step=12000,
+        name="gt",
+        artifact_type="image",
+        path="hash_new",
+    )
+    result = ArtifactsInfoResultDTO(
+        data=[
+            ExperimentArtifactsInfoDTO(
+                experiment_id=experiment_id,
+                artifacts_info=[older, newer],
+            )
+        ],
+        has_next=False,
+        size=1,
+        total=1,
+    )
+
+    entry = ExperimentArtifactsService._pick_single_logged_entry(
+        result, experiment_id, 12000, "gt", "image"
+    )
+    assert entry.path == "hash_new"
+
+
 @pytest.mark.asyncio
-async def test_download_experiment_artifact_at_step_ambiguous_without_type() -> None:
+async def test_download_experiment_artifact_at_step_returns_latest_without_type() -> None:
     experiment_id = uuid4()
     storage = FakeObjectStorageClient()
     info = MirroringArtifactsInfoClient()
-    service, _ = _make_service(storage, info=info)
+    service, project_id = _make_service(storage, info=info)
     user = SimpleNamespace(id=uuid4())
 
-    for atype in ("image", "text"):
-        uf = UploadFile(filename="x.bin", file=io.BytesIO(b"x"))
-        await service.upload_and_log_experiment_artifact_at_step(
-            user=user,
-            experiment_id=experiment_id,
-            file=uf,
-            name="same",
-            artifact_type=atype,
-            step=1,
-        )
+    uf_image = UploadFile(filename="image.bin", file=io.BytesIO(b"image-bytes"))
+    await service.upload_and_log_experiment_artifact_at_step(
+        user=user,
+        experiment_id=experiment_id,
+        file=uf_image,
+        name="same",
+        artifact_type="image",
+        step=1,
+    )
+    uf_text = UploadFile(filename="text.bin", file=io.BytesIO(b"text-bytes"))
+    await service.upload_and_log_experiment_artifact_at_step(
+        user=user,
+        experiment_id=experiment_id,
+        file=uf_text,
+        name="same",
+        artifact_type="text",
+        step=1,
+    )
 
-    with pytest.raises(ExperimentArtifactAmbiguousError):
-        await service.download_experiment_artifact_at_step(
-            user=user,
-            experiment_id=experiment_id,
-            step=1,
-            name="same",
-            artifact_type=None,
-        )
+    out = await service.download_experiment_artifact_at_step(
+        user=user,
+        experiment_id=experiment_id,
+        step=1,
+        name="same",
+        artifact_type=None,
+    )
+    assert out.content == b"text-bytes"
 
 
 @pytest.mark.asyncio

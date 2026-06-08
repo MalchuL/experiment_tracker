@@ -40,7 +40,6 @@ from .dto import (
 )
 from .error import (
     ExperimentArtifactsNotAccessibleError,
-    ExperimentArtifactAmbiguousError,
     ExperimentArtifactNotFoundError,
 )
 from .mapper import ExperimentArtifactsMapper
@@ -212,22 +211,12 @@ class ExperimentArtifactsService:
                 if artifact_type is not None and entry.artifact_type != artifact_type:
                     continue
                 entries.append(entry)
-        unique_paths = list(dict.fromkeys(e.path for e in entries))
-        if not unique_paths:
+        if not entries:
             detail = f"No artifact logged for experiment {experiment_id} at step={step} name={name!r}"
             if artifact_type is not None:
                 detail += f" artifact_type={artifact_type!r}"
             raise ExperimentArtifactNotFoundError(detail)
-        if len(unique_paths) > 1:
-            logger.warning(
-                f"Multiple stored blobs match this step and name; pass artifact_type to disambiguate. "
-                f"Experiment: {experiment_id}, Step: {step}, Name: {name}, Artifact Type: {artifact_type}"
-            )
-            raise ExperimentArtifactAmbiguousError(
-                "Multiple stored blobs match this step and name; pass artifact_type to disambiguate."
-            )
-        blob_hash = unique_paths[0]
-        return next(e for e in entries if e.path == blob_hash)
+        return max(entries, key=lambda entry: entry.timestamp)
 
     @staticmethod
     def _get_response_fields_for_download_at_step(
