@@ -1,5 +1,6 @@
 import { formatMetricScalarForDisplay } from "@/lib/metrics/metric-value-display";
 import {
+  DEFAULT_COMPARE_PLOT_EDGE_PADDING,
   DEFAULT_COMPARE_PLOT_HEIGHT,
   DEFAULT_COMPARE_PLOT_NAME_LABEL_FONT_SIZE,
   DEFAULT_COMPARE_PLOT_Y_TICK_COUNT,
@@ -217,8 +218,12 @@ export function computeComparePlotChartLayout(
   const firstNameLen = experimentNames[0]?.length ?? 0;
   const lastNameLen = experimentNames[experimentNames.length - 1]?.length ?? 0;
   const chartMarginHorizontal = {
-    left: computeHorizontalLabelInset(firstNameLen, nameLabelAngle, "first", nameLabelFontSize),
-    right: computeHorizontalLabelInset(lastNameLen, nameLabelAngle, "last", nameLabelFontSize),
+    left:
+      computeHorizontalLabelInset(firstNameLen, nameLabelAngle, "first", nameLabelFontSize) +
+      DEFAULT_COMPARE_PLOT_EDGE_PADDING,
+    right:
+      computeHorizontalLabelInset(lastNameLen, nameLabelAngle, "last", nameLabelFontSize) +
+      DEFAULT_COMPARE_PLOT_EDGE_PADDING,
   };
 
   const chartHeight = plotHeight + xAxisHeight;
@@ -299,7 +304,7 @@ export function xAxisTickTextAnchor(angleDeg: number): "end" | "middle" | "start
 }
 
 export function lineChartBottomMargin(_xAxisHeight: number): number {
-  return 0;
+  return DEFAULT_COMPARE_PLOT_EDGE_PADDING;
 }
 
 function computeXAxisPadding(pointPadding: number): { left: number; right: number } {

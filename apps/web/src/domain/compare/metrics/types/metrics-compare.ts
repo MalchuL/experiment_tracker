@@ -30,6 +30,8 @@ export const MIN_COMPARE_PLOT_NAME_LABEL_FONT_SIZE = 8;
 export const MAX_COMPARE_PLOT_NAME_LABEL_FONT_SIZE = 18;
 export const DEFAULT_COMPARE_PLOT_POINT_PADDING = 12;
 export const MAX_COMPARE_PLOT_POINT_PADDING = 64;
+/** Inset (px) between the plot area and the chart container on left, right, and bottom. */
+export const DEFAULT_COMPARE_PLOT_EDGE_PADDING = 24;
 export const DEFAULT_COMPARE_PLOT_HEIGHT = 168;
 export const MIN_COMPARE_PLOT_HEIGHT = 120;
 export const MAX_COMPARE_PLOT_HEIGHT = 480;
