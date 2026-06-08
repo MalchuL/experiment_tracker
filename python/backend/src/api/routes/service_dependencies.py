@@ -14,6 +14,8 @@ from domain.project_artifacts.protocol import ProjectArtifactsServiceProtocol
 from domain.project_artifacts.service import ProjectArtifactsService
 from clients.object_storage import ObjectStorageClient
 from clients.scalars import ScalarsServiceClient
+from clients.mltools import MLToolsClient
+from domain.mltools.service import MLToolsService
 from domain.scalars.service import (
     NoOpScalarsService,
     ScalarsService,
@@ -168,6 +170,15 @@ async def get_scalars_service(
         return ScalarsService(client, permission_checker, experiment_repository)
     else:
         return NoOpScalarsService()
+
+
+async def get_mltools_service(
+    permission_checker: PermissionChecker = Depends(get_permission_checker),
+) -> MLToolsService:
+    return MLToolsService(
+        MLToolsClient(get_settings().mltools_service_url),
+        permission_checker,
+    )
 
 
 async def get_experiment_artifacts_service(

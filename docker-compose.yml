@@ -39,6 +39,22 @@ services:
       timeout: 5s
       retries: 10
 
+  postgres-mltools:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_MLTOOLS_USER:-mltools}
+      POSTGRES_PASSWORD: ${POSTGRES_MLTOOLS_PASSWORD:-mltools}
+      POSTGRES_DB: ${POSTGRES_MLTOOLS_DB:-mltools}
+    ports:
+      - "${POSTGRES_MLTOOLS_PORT:-5436}:5432"
+    volumes:
+      - ./storage/postgres-mltools:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mltools -d mltools"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   redis:
     image: redis:7-alpine
     ports:
@@ -104,12 +120,14 @@ services:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-admin}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-password}
       S3_BUCKET: ${S3_BUCKET:-ml-blobs}
+      MLTOOLS_OBJECT_STORAGE_BUCKET: ${MLTOOLS_OBJECT_STORAGE_BUCKET:-mltools}
     entrypoint:
       - /bin/sh
       - -c
       - |
         mc alias set local http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD" \
-          && mc mb "local/$$S3_BUCKET" --ignore-existing
+          && mc mb "local/$$S3_BUCKET" --ignore-existing \
+          && mc mb "local/$$MLTOOLS_OBJECT_STORAGE_BUCKET" --ignore-existing
 
   object-storage:
     build:
@@ -153,6 +171,51 @@ services:
       redis:
         condition: service_healthy
 
+  mltools-api:
+    build:
+      context: .
+      dockerfile: python/mltools/Dockerfile
+    environment: &mltools-environment
+      APP_NAME: ${MLTOOLS_APP_NAME:-Experiment Tracker MLTools}
+      API_PREFIX: ${MLTOOLS_API_PREFIX:-/internal/mltools}
+      DATABASE_URL: ${MLTOOLS_DATABASE_URL:-postgresql+asyncpg://mltools:mltools@postgres-mltools:5432/mltools}
+      BACKEND_BASE_URL: ${MLTOOLS_BACKEND_BASE_URL:-http://backend:8000}
+      BACKEND_API_TOKEN: ${MLTOOLS_BACKEND_API_TOKEN:-}
+      REDIS_URL: ${MLTOOLS_REDIS_URL:-redis://redis:6379/0}
+      CELERY_BROKER_URL: ${MLTOOLS_CELERY_BROKER_URL:-redis://redis:6379/0}
+      CELERY_RESULT_BACKEND: ${MLTOOLS_CELERY_RESULT_BACKEND:-redis://redis:6379/1}
+      OBJECT_STORAGE_ENDPOINT: ${MLTOOLS_OBJECT_STORAGE_ENDPOINT:-http://minio:9000}
+      OBJECT_STORAGE_ACCESS_KEY: ${MLTOOLS_OBJECT_STORAGE_ACCESS_KEY:-admin}
+      OBJECT_STORAGE_SECRET_KEY: ${MLTOOLS_OBJECT_STORAGE_SECRET_KEY:-password}
+      OBJECT_STORAGE_BUCKET: ${MLTOOLS_OBJECT_STORAGE_BUCKET:-mltools}
+      OBJECT_STORAGE_REGION: ${MLTOOLS_OBJECT_STORAGE_REGION:-us-east-1}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    ports:
+      - "${MLTOOLS_PORT:-8003}:8003"
+    depends_on:
+      postgres-mltools:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+
+  mltools-worker:
+    build:
+      context: .
+      dockerfile: python/mltools/Dockerfile
+    command: ["celery", "-A", "mltools.workers.celery_app:celery_app", "worker", "--loglevel=INFO"]
+    environment: *mltools-environment
+    healthcheck:
+      disable: true
+    depends_on:
+      mltools-api:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+
   backend:
     build:
       context: .
@@ -166,6 +229,7 @@ services:
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
       SCALARS_SERVICE_URL: ${SCALARS_SERVICE_URL:-http://scalars:8001/api}
       OBJECT_STORAGE_SERVICE_URL: ${OBJECT_STORAGE_SERVICE_URL:-http://object-storage:8002/api}
+      MLTOOLS_SERVICE_URL: ${MLTOOLS_SERVICE_URL:-http://mltools-api:8003/internal/mltools}
       ADMIN_PANEL_KEY: ${ADMIN_PANEL_KEY:-admin}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
     ports:
@@ -176,6 +240,8 @@ services:
       scalars:
         condition: service_healthy
       object-storage:
+        condition: service_healthy
+      mltools-api:
         condition: service_healthy
 
   web:
