@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Start the full Compose stack with public UI/API URLs without a root `.env` file.
-# Exports ALLOWED_ORIGINS, OBJECT_STORAGE_ALLOWED_ORIGINS, NEXT_PUBLIC_BASE_URL
+# Exports ALLOWED_ORIGINS, OBJECT_STORAGE_ALLOWED_ORIGINS, PUBLIC_API_BASE_URL
 # (and keeps SERVER_API_BASE_URL=http://backend:8000 for in-network BFF).
 #
 # Usage:
@@ -86,7 +86,8 @@ If you omit the second URL, the API base defaults to the same host with port 800
 Optional: SERVER_API_BASE_URL (default http://backend:8000) if your Next server
 reaches the API differently.
 
-After -- , remaining arguments are passed to `docker compose` (default: up -d --build).
+After -- , remaining arguments are passed after
+`docker compose -f docker-compose.dev.yml` (default: up -d --build).
 EOF
   exit 1
 fi
@@ -134,14 +135,14 @@ PY
 
 export ALLOWED_ORIGINS="$CORS_ORIGINS"
 export OBJECT_STORAGE_ALLOWED_ORIGINS="$CORS_ORIGINS"
-export NEXT_PUBLIC_BASE_URL="$PUBLIC_API_URL"
+export PUBLIC_API_BASE_URL="$PUBLIC_API_URL"
 export SERVER_API_BASE_URL="${SERVER_API_BASE_URL:-http://backend:8000}"
 
 echo "Using:"
 echo "  PUBLIC_URL=$PUBLIC_URL (UI; used for API host inference)"
 echo "  ALLOWED_ORIGINS=$ALLOWED_ORIGINS"
 echo "  OBJECT_STORAGE_ALLOWED_ORIGINS=$OBJECT_STORAGE_ALLOWED_ORIGINS"
-echo "  NEXT_PUBLIC_BASE_URL=$NEXT_PUBLIC_BASE_URL (web image build arg)"
+echo "  PUBLIC_API_BASE_URL=$PUBLIC_API_BASE_URL (web runtime config)"
 echo "  SERVER_API_BASE_URL=$SERVER_API_BASE_URL"
-echo "Running: docker compose ${compose_args[*]}"
-exec docker compose "${compose_args[@]}"
+echo "Running: docker compose -f docker-compose.dev.yml ${compose_args[*]}"
+exec docker compose -f docker-compose.dev.yml "${compose_args[@]}"

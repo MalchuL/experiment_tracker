@@ -1,4 +1,4 @@
-# Build from repo root: docker compose build scalars
+# Build from repo root: docker compose -f docker-compose.dev.yml build scalars
 FROM ghcr.io/astral-sh/uv:python3.13-bookworm-slim AS builder
 WORKDIR /build/python/scalars_service
 ENV UV_LINK_MODE=copy

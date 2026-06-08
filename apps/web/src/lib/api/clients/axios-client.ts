@@ -4,7 +4,7 @@
  */
 
 import axios, { AxiosInstance, AxiosRequestHeaders } from "axios";
-import { env } from "@/lib/env";
+import { getPublicApiBaseUrl } from "@/lib/runtime-config";
 import { ErrorResponse } from "../error-response";
 import { getAuthHeaders } from "@/domain/auth/utils/headers";
 import { deleteAuthToken } from "@/domain/auth/utils/token";
@@ -27,7 +27,7 @@ export interface ServiceConfig {
  */
 const serviceRegistry: Record<ServiceName, ServiceConfig> = {
   "api": {
-    baseURL: env.BASE_URL,
+    baseURL: getPublicApiBaseUrl(),
   },
 };
 

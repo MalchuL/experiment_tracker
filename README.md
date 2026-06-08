@@ -219,23 +219,35 @@ After that it captures tensorboardX events and logs them to the backend.
 
 ## Docker (full stack)
 
-Run **all** services from `docker-compose.yml` (Postgres ×2, Redis, ClickHouse, MinIO, object-storage, scalars, backend, web). Hybrid setups, dependency details, and aggressive cache busting are covered in the sections below.
+There are two root Compose files:
+
+| File | Purpose |
+|------|---------|
+| `docker-compose.yml` | Deployment-style stack. Pulls application images from GHCR and publishes only the UI (`3000`) and backend (`8000`) to the host. |
+| `docker-compose.dev.yml` | Local Docker development stack. Builds application images from this checkout and publishes dependency/service ports for hybrid development. |
 
 ## Full stack: step by step
 
 1. **Work from the repository root** (the folder that contains `docker-compose.yml`).
 
-2. **Optional environment file.** To override ports, `JWT_SECRET`, `NEXT_PUBLIC_BASE_URL`, CORS, and so on, copy `.env.example` to `.env` in that same folder. If you skip this, Compose uses the defaults in `docker-compose.yml`. For a **single public UI URL** without maintaining `.env`, use **`./scripts/docker-up-public.sh`** (see **Custom URL or domain** → *One command without a `.env` file*). For local `uv` / `pnpm` development (without Docker), see each package `python/backend/.env.example`, `python/scalars_service/.env.example`, `python/object_storage/.env.example`, and `apps/web/.env.example`.
+2. **Optional environment file.** Copy `.env.example` to `.env` to override secrets, CORS, public ports, `GHCR_NAMESPACE`, or `IMAGE_TAG`. Application images resolve as `ghcr.io/${GHCR_NAMESPACE}/experiment-tracker-<service>:${IMAGE_TAG}`. Defaults are `GHCR_NAMESPACE=malchul` and `IMAGE_TAG=latest`.
 
 3. **`storage/` on disk.** Data is persisted under **`./storage/`** (for example `storage/postgres-backend`, `storage/clickhouse`). **You do not need to create these directories yourself:** Docker creates missing host paths for bind mounts when the containers start.
 
-4. **Build images and start the stack** (detached):
+4. **Pull GHCR images and start the deployment stack**:
 
    ```bash
-   docker compose up -d --build
+   docker compose pull
+   docker compose up -d
    ```
 
-   Use `docker compose -f docker-compose.yml …` if you need an explicit file path. The first run can take several minutes. Omit `--build` when you only changed runtime env and the images are already built.
+   If the GHCR packages are private, run `docker login ghcr.io` first.
+
+   To build from the current checkout instead:
+
+   ```bash
+   docker compose -f docker-compose.dev.yml up -d --build
+   ```
 
 5. **Wait for health checks.** `web` starts only after `backend` is healthy; `backend` waits on Postgres, scalars, and object-storage. Watch status and logs:
 
@@ -250,10 +262,21 @@ Run **all** services from `docker-compose.yml` (Postgres ×2, Redis, ClickHouse,
 
    **http://localhost:3000** (equivalently **http://127.0.0.1:3000**)
 
-   The main API is on **http://localhost:8000** (interactive docs are usually at **http://localhost:3000/docs** for the UI and **http://localhost:8000/docs** for the swagger UI). The web image is built with `NEXT_PUBLIC_BASE_URL` (compose default **http://127.0.0.1:8000**) so the **browser** loads the API from your machine; if you change host ports, use a **custom domain**, or publish the UI elsewhere, set the variables in **Custom URL or domain** below and **rebuild** `web` (see `.env.example`).
+   The main API is on **http://localhost:8000**. The web container injects `PUBLIC_API_BASE_URL` into the frontend at runtime, so the same GHCR image can be used with different public API URLs.
 
 **That's it!** You can now start training your models and track your experiments.
 ---
+
+## Publish application images to GHCR
+
+The **Build and publish Docker images** GitHub Actions workflow runs only when manually started. Pushes, pull requests, and merges do not trigger it.
+
+1. Open **Actions** → **Build and publish Docker images** → **Run workflow**.
+2. Select the branch to build.
+3. Enter the additional image tag to publish, normally `latest` or a release such as `v1.2.0`.
+4. Run the workflow.
+
+It publishes `backend`, `scalars`, `object-storage`, and `web` images under `ghcr.io/<repository-owner>/experiment-tracker-*`. Every image receives the selected tag and the full commit SHA. Use the SHA tag in `IMAGE_TAG` for an immutable deployment.
 
 ## Custom URL or domain (not `localhost` / `127.0.0.1`)
 
@@ -274,7 +297,7 @@ If the UI is on a **non-default** published port, set **`WEB_PORT`** (defaults t
 ./scripts/docker-up-public.sh https://dashboard.example.com
 ```
 
-The script sets **`ALLOWED_ORIGINS`** and **`OBJECT_STORAGE_ALLOWED_ORIGINS`** (see above for the `http` + no-port case), sets **`NEXT_PUBLIC_BASE_URL`** to the same host with port **8000** unless you pass a second URL (so `http://192.168.1.242` implies `http://192.168.1.242:8000` for the API), keeps **`SERVER_API_BASE_URL=http://backend:8000`**, then runs **`docker compose up -d --build`**.
+The script sets **`ALLOWED_ORIGINS`**, **`OBJECT_STORAGE_ALLOWED_ORIGINS`**, and runtime **`PUBLIC_API_BASE_URL`**, keeps **`SERVER_API_BASE_URL=http://backend:8000`**, then builds and starts **`docker-compose.dev.yml`**.
 
 - **Different API host:** pass a second URL:  
   `./scripts/docker-up-public.sh https://dashboard.example.com https://api.example.com`
@@ -313,20 +336,23 @@ Override the in-container BFF target only if needed:
 
 ### If you want to run docker compose with custom URL
 
-**Root `.env`** (repository root, next to `docker-compose.yml`). Set at least:
+1. **Configure root `.env`** next to `docker-compose.yml`. Set at least:
 
    | Variable | Who consumes it | What to set |
    |----------|-----------------|-------------|
-   | `NEXT_PUBLIC_BASE_URL` | **Web image build** (`web` Dockerfile build-arg) | Full base URL of the **main API as the user’s browser calls it** (scheme + host + port if not 443/80). Example: `https://api.example.com`. No trailing slash. This value is baked into the Next.js client bundle. |
+   | `PUBLIC_API_BASE_URL` | **Web** container at **runtime** | Full base URL of the **main API as the user’s browser calls it**. The Next.js server injects it into the frontend. |
    | `ALLOWED_ORIGINS` | **Backend** container | Comma-separated **origins of the UI** exactly as the browser sends them in `Origin` (scheme + host + port). Example: `https://tracker.example.com`. Add `http://localhost:3000` too if you still use local dev against the same backend. |
    | `OBJECT_STORAGE_ALLOWED_ORIGINS` | **object-storage** container | Same idea as `ALLOWED_ORIGINS` (browser talks to object-storage for some flows). Usually match `ALLOWED_ORIGINS`. |
    | `SERVER_API_BASE_URL` | **Web** container at **runtime** | Leave the default **`http://backend:8000`** when `web` and `backend` are both services in this Compose file. Only override if your Next server reaches the API by a different internal URL. |
 
-2. **Rebuild the `web` image** after changing `NEXT_PUBLIC_BASE_URL` (it is read at `next build`, not at container start):
+   `PUBLIC_API_BASE_URL` is intentionally browser-visible. `SERVER_API_BASE_URL`
+   is used only by the remaining Next.js artifact proxy routes and can use private
+   Compose DNS.
+
+2. **Recreate `web`** after changing `PUBLIC_API_BASE_URL`; no image rebuild is required:
 
    ```bash
-   docker compose build web --no-cache
-   docker compose up -d web
+   docker compose up -d --force-recreate web
    ```
 
 3. **Restart backend and object-storage** after changing CORS variables (no rebuild required unless you changed code):
@@ -335,7 +361,7 @@ Override the in-container BFF target only if needed:
    docker compose up -d --force-recreate backend object-storage
    ```
 
-4. **Reverse proxy / TLS** in front of Compose: the browser must still be able to resolve `NEXT_PUBLIC_BASE_URL` to your API and the UI origin must appear in `ALLOWED_ORIGINS`. Service-to-service URLs inside Compose (`http://backend:8000`, `http://scalars:8001/api`, etc.) stay on the Docker network and do not need to use your public domain.
+4. **Reverse proxy / TLS** in front of Compose: the browser must still be able to resolve `PUBLIC_API_BASE_URL` to your API and the UI origin must appear in `ALLOWED_ORIGINS`. Service-to-service URLs inside Compose (`http://backend:8000`, `http://scalars:8001/api`, etc.) stay on the Docker network and do not need to use your public domain.
 
 Docker guide is available in [DOCKER.md](DOCKER.md).
 
