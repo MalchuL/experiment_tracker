@@ -19,6 +19,7 @@ export const QUERY_KEYS = {
         BY_PROJECT: (projectId: string) => `projects/${projectId}/experiments`,
         BY_ID: (experimentId: string) => `experiments/${experimentId}`,
         SNAPSHOTS: (experimentIds: string[]) => `experiments/snapshots:${experimentIds.join(",")}`,
+        HPARAMS: (experimentId: string) => `experiments/${experimentId}/hparams`,
     },
     HYPOTHESES: {
         RECENT: (projectId: string, limit?: number | undefined, offset?: number | undefined) => `hypotheses/recent?projectId=${projectId}&limit=${limit}&offset=${offset}`,
@@ -63,5 +64,7 @@ export const QUERY_KEYS = {
             path: string | undefined,
             hash: string | undefined
         ) => `compare/snapshot-file-content:${projectId ?? ""}:${path ?? ""}:${hash ?? ""}`,
+        HPARAMS: (projectId: string, experimentIds: string[]) =>
+            `compare/${projectId}/hparams:${experimentIds.join(",")}`,
     },
 };

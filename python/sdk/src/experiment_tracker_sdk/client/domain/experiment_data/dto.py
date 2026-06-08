@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -51,4 +52,16 @@ class ExperimentSnapshotResponse(BaseModel):
 
     experiment_id: UUID | str = Field(alias="experimentId")
     snapshot_id: UUID | str | None = Field(default=None, alias="snapshotId")
+    data_id: UUID | str | None = Field(default=None, alias="dataId")
+
+
+class ExperimentHparamsUpsertRequest(BaseModel):
+    hparams: dict[str, Any]
+
+
+class ExperimentHparamsResponse(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    experiment_id: UUID | str = Field(alias="experimentId")
+    hparams: dict[str, Any] | None = None
     data_id: UUID | str | None = Field(default=None, alias="dataId")

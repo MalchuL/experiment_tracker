@@ -14,6 +14,8 @@ from domain.project_artifacts.protocol import ProjectArtifactsServiceProtocol
 from domain.project_artifacts.service import ProjectArtifactsService
 from clients.object_storage import ObjectStorageClient
 from clients.scalars import ScalarsServiceClient
+from clients.mltools import MLToolsClient
+from domain.mltools.service import MLToolsService
 from domain.scalars.service import (
     NoOpScalarsService,
     ScalarsService,
@@ -170,6 +172,15 @@ async def get_scalars_service(
         return NoOpScalarsService()
 
 
+async def get_mltools_service(
+    permission_checker: PermissionChecker = Depends(get_permission_checker),
+) -> MLToolsService:
+    return MLToolsService(
+        MLToolsClient(get_settings().mltools_service_url),
+        permission_checker,
+    )
+
+
 async def get_experiment_artifacts_service(
     permission_checker: PermissionChecker = Depends(get_permission_checker),
     experiment_repository: ExperimentRepository = Depends(get_experiment_repository),
@@ -215,6 +226,7 @@ async def get_experiment_data_service(
     project_artifacts_service: ProjectArtifactsServiceProtocol = Depends(
         get_project_artifacts_service
     ),
+    permission_checker: PermissionChecker = Depends(get_permission_checker),
 ) -> ExperimentDataService:
     """Build the service that manages experiment snapshot metadata.
 
@@ -225,6 +237,7 @@ async def get_experiment_data_service(
         experiment_repository=experiment_repository,
         experiment_data_repository=experiment_data_repository,
         project_artifacts_service=project_artifacts_service,
+        permission_checker=permission_checker,
     )
 
 

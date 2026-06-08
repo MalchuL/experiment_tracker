@@ -48,6 +48,7 @@ export function MetricDeltaVsParent({
   direction,
   textClassName = "font-mono text-[9px] tabular-nums leading-none",
   iconClassName = "w-2.5 h-2.5 shrink-0",
+  colorizeOutcome = true,
   /**
    * `false` (default): signed Δ then outcome icon (e.g. diff-first: … | signed | icon | value).
    * `true`: icon then signed Δ (use with value-first: value | icon | signed).
@@ -60,13 +61,16 @@ export function MetricDeltaVsParent({
   /** Tailwind text size; sidebar can pass e.g. `text-xs`. */
   textClassName?: string;
   iconClassName?: string;
+  /** When false, Δ text and icon use muted styling instead of better/worse colors. */
+  colorizeOutcome?: boolean;
   iconFirst?: boolean;
 }) {
   const model = metricDeltaSplitModel(value, parentValue, direction);
   if (!model) return null;
   const { DeltaIcon, outcomeClass, signedDisplay, fullDeltaText } = model;
-  const signed = <span className={cn(textClassName, outcomeClass)}>{signedDisplay}</span>;
-  const icon = <DeltaIcon className={cn(iconClassName, outcomeClass)} aria-hidden />;
+  const diffColorClass = colorizeOutcome ? outcomeClass : "text-muted-foreground";
+  const signed = <span className={cn(textClassName, diffColorClass)}>{signedDisplay}</span>;
+  const icon = <DeltaIcon className={cn(iconClassName, diffColorClass)} aria-hidden />;
 
   return (
     <span

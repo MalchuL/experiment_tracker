@@ -16,6 +16,7 @@ from domain.team.teams.controller import router as teams_router
 from domain.projects.dashboard.controller import router as dashboard_router
 from domain.experiment_artifacts.controller import router as experiment_artifacts_router
 from domain.project_artifacts.controller import router as project_artifacts_router
+from domain.mltools.controller import router as mltools_router
 
 router = APIRouter()
 
@@ -36,3 +37,4 @@ router.include_router(admin_router)
 router.include_router(api_tokens_router)
 router.include_router(experiment_artifacts_router)
 router.include_router(project_artifacts_router)
+router.include_router(mltools_router)

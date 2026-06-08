@@ -20,3 +20,9 @@ class ExpTrackerProgressError(ExpTrackerError):
     """Error raised when the progress is invalid."""
 
     pass
+
+
+class HparamsSerializationError(ExpTrackerError):
+    """Raised when a hyperparameter payload cannot be represented as strict JSON."""
+
+    pass

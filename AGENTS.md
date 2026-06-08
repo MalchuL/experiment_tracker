@@ -12,11 +12,15 @@ flowchart LR
   API["python/backend\n(FastAPI + Postgres)"]
   Scalars["python/scalars_service\n(FastAPI + ClickHouse)"]
   Blobs["python/object_storage\n(FastAPI + MinIO/S3)"]
+  MLTools["python/mltools\n(FastAPI + Celery + Postgres)"]
   SDK["python/sdk\n(client library)"]
 
   Web -->|"HTTP / BFF routes"| API
   API --> Scalars
   API --> Blobs
+  API --> MLTools
+  MLTools --> API
+  MLTools --> Blobs
   SDK --> API
 ```
 
@@ -24,6 +28,7 @@ flowchart LR
 - **Backend (`python/backend`)**: Primary API (`api.main:app`), users/teams/RBAC, projects, experiments, hypotheses, metrics orchestration. Calls **scalars_service** and **object_storage** via HTTP clients in `src/clients/`.
 - **Scalars service (`python/scalars_service`)**: Stores scalar runs, tags, **artifacts_info** tables (per-project), and related query APIs. Backed by **ClickHouse** (and supporting infra as configured in that package).
 - **Object storage (`python/object_storage`)**: Upload/download/delete for experiment and project blobs; uses **MinIO** or **S3** and metadata in Postgres.
+- **MLTools (`python/mltools`)**: Asynchronous ML analysis jobs. The first bounded context is hyperparameter importance analysis; it reads scoped project data through the backend and stores model artifacts in S3-compatible storage.
 - **SDK (`python/sdk`)**: `experiment_tracker_sdk` — typed HTTP client used by training jobs and tools to talk to the backend API.
 - **Shared (`python/shared`)**: Shared Python types/utilities consumed by other Python packages where applicable.
 
@@ -36,6 +41,7 @@ flowchart LR
 | `python/backend/src/` | FastAPI app: `api/` routes, `domain/*` bounded contexts, `clients/*` HTTP clients, `db/`, `lib/`. |
 | `python/scalars_service/src/` | FastAPI scalars/artifacts_info service. `GET /scalars/get/...` paginates **experiments** first, then loads each metric column with ClickHouse `IS NOT NULL` + per-(experiment, column) uniform `max_points` sampling (`columns_per_query` controls parallel column queries; default 1). Cross-table ClickHouse work (delete experiment rows across scalars + artifacts_info + last_logged, usage, admin table listing) is under **`/projects`** (`projects` domain); compaction stays **`POST /scalars/projects/{id}/compact-columns`**. |
 | `python/object_storage/src/` | FastAPI storage service (buckets, experiment/project artifacts). |
+| `python/mltools/src/mltools/` | FastAPI/Celery ML analysis service. Domain logic is grouped under `domain/hparam_importance/`; outbound adapters live under `clients/`; worker composition lives under `workers/`. |
 | `python/sdk/src/experiment_tracker_sdk/` | Public Python SDK for the tracker API. |
 | `python/sdk/src/experiment_tracker_sdk/api_access.py` | Singleton :class:`ExpTrackerApiAccess` — shared ``APIRequestsRegistry`` / :class:`ExperimentTrackerClient` construction (used by :class:`ExpTracker` and CLI). |
 | `python/sdk/src/experiment_tracker_sdk/constants.py` | Default API base URL and ``/api`` prefix literals shared with settings. |
@@ -122,6 +128,7 @@ Work from the package root, for example:
 - `cd python/backend && uv run uvicorn api.main:app --reload --port 8000`
 - `cd python/scalars_service && uv run pytest`
 - `cd python/object_storage && uv run pytest`
+- `cd python/mltools && uv run pytest`
 - `cd python/sdk && uv run pytest`
 
 Do **not** assume a single global `python/backend`-only layout; **scalars_service**, **object_storage**, and **sdk** are first-class packages with their own `uv` workflows.

@@ -8,3 +8,4 @@ export * from "./selective-metrics-hook";
 export * from "./recent-experiments";
 export * from "./experiment-hook";
 export * from "./update-experiment-status-hook";
+export * from "./experiment-hparams-hook";

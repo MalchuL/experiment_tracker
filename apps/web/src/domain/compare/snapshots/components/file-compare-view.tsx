@@ -5,24 +5,19 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { AlertTriangle, FileX2, GitCompare, LoaderCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { CompareLabeledSwitch } from "@/domain/compare/components/compare-labeled-switch";
+import { basenameFromPath, downloadBlob } from "@/lib/downloads";
 import { SNAPSHOT_PREVIEW_MAX_BYTES } from "@/lib/constants/snapshot-preview";
 import { formatBytes } from "@/lib/format-storage-usage";
 import { QUERY_KEYS } from "@/lib/constants/query-keys";
 import { useToast } from "@/lib/hooks/use-toast";
 import { buildFileTree, findNodeByPath, type FileNode } from "../lib/file-tree";
-import { compareService } from "../service";
-import type { SnapshotFile, SnapshotFileContent } from "../types";
-import { basenameFromPath, downloadBlob } from "../downloads";
+import { snapshotCompareService } from "../services/snapshot-compare-service";
+import type { SnapshotFile, SnapshotFileContent } from "../types/snapshot-compare";
 import { CollapsibleSidebar } from "./collapsible-sidebar";
 import { DiffViewer } from "./diff-viewer";
 import { FileComparison } from "./file-comparison";
-import { CompareLabeledSwitch } from "./compare-labeled-switch";
 import { FileTree, type FileDiffStatus } from "./file-tree";
 import { FileViewer } from "./file-viewer";
 
@@ -32,7 +27,6 @@ interface FileCompareViewProps {
   rightFiles?: SnapshotFile[];
   leftLabel: string;
   rightLabel?: string;
-  leftExperimentId?: string;
   rightExperimentId?: string;
   leftSnapshotId?: string;
   rightSnapshotId?: string;
@@ -65,7 +59,7 @@ function useSnapshotFileContentQuery({
       if (!file) {
         throw new Error("Snapshot file selection is incomplete");
       }
-      return compareService.getSnapshotFileContent(projectId, file);
+      return snapshotCompareService.getSnapshotFileContent(projectId, file);
     },
     enabled: Boolean(file && allowFetch),
     placeholderData: keepPreviousData,
@@ -78,7 +72,6 @@ export function FileCompareView({
   rightFiles,
   leftLabel,
   rightLabel,
-  leftExperimentId,
   rightExperimentId,
   leftSnapshotId,
   rightSnapshotId,
@@ -311,7 +304,7 @@ export function FileCompareView({
       return;
     }
     try {
-      const blob = await compareService.downloadProjectArtifact(projectId, file.hash);
+      const blob = await snapshotCompareService.downloadProjectArtifact(projectId, file.hash);
       downloadBlob(blob, basenameFromPath(file.path));
       toast({ title: "File download started" });
     } catch {
@@ -802,4 +795,3 @@ function toDisplayedFileContent(
     content: content.content,
   };
 }
-

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeftRight, ArrowRight, CircleMinus, CirclePlus, GitCompare, Maximize2, PencilLine, Save } from "lucide-react";
+import { ArrowLeftRight, ArrowRight, GitCompare, Maximize2, PencilLine, Save } from "lucide-react";
 import type { Experiment } from "@/domain/experiments/types";
 import { experimentsService } from "@/domain/experiments/services";
 import { QUERY_KEYS } from "@/lib/constants/query-keys";
@@ -15,7 +15,6 @@ import {
   type FeatureNode,
 } from "@/lib/features/feature-tree";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
@@ -34,6 +33,11 @@ import {
 } from "@/components/ui/select";
 import { FeatureBulletEditor } from "@/components/shared/feature-bullet-editor";
 import { FeatureEditorLabelWithHelp } from "@/components/shared/feature-editor-help";
+import {
+  ExperimentDiffCountBadge,
+  ExperimentDiffIcon,
+  experimentDiffSurfaceClass,
+} from "@/components/shared/experiment-diff-ui";
 
 type ExperimentFeaturesPanelProps = {
   experiment: Experiment;
@@ -127,9 +131,9 @@ export function ExperimentFeaturesPanel({
         <CardContent className="w-full min-w-0 max-w-full space-y-2 overflow-hidden px-3 pb-3 pt-0">
           {parentExperiment && showDiffs ? (
             <div className="flex flex-wrap gap-1">
-              <FeatureCountBadge label="Added" value={summary.added} className="border-green-500/20 bg-green-500/10 text-green-700" />
-              <FeatureCountBadge label="Removed" value={summary.removed} className="border-red-500/20 bg-red-500/10 text-red-700" />
-              <FeatureCountBadge label="Changed" value={summary.changed + summary.renamed} className="border-amber-500/20 bg-amber-500/10 text-amber-700" />
+              <ExperimentDiffCountBadge status="added" label="Added" value={summary.added} />
+              <ExperimentDiffCountBadge status="removed" label="Removed" value={summary.removed} />
+              <ExperimentDiffCountBadge status="changed" label="Changed" value={summary.changed + summary.renamed} />
             </div>
           ) : null}
           <FeatureView
@@ -160,22 +164,6 @@ export function ExperimentFeaturesPanel({
         lockExperimentFeaturesSelection={lockExperimentFeaturesSelection}
       />
     </div>
-  );
-}
-
-function FeatureCountBadge({
-  label,
-  value,
-  className,
-}: {
-  label: string;
-  value: number;
-  className?: string;
-}) {
-  return (
-    <Badge variant="outline" className={cn("text-[11px]", className)}>
-      {label} {value}
-    </Badge>
   );
 }
 
@@ -240,9 +228,9 @@ function FeatureExpandedModal({
           </div>
           {showDiffs ? (
             <div className="flex flex-wrap gap-1 pt-2">
-              <FeatureCountBadge label="Added" value={summary.added} className="border-green-500/20 bg-green-500/10 text-green-700" />
-              <FeatureCountBadge label="Removed" value={summary.removed} className="border-red-500/20 bg-red-500/10 text-red-700" />
-              <FeatureCountBadge label="Changed" value={summary.changed + summary.renamed} className="border-amber-500/20 bg-amber-500/10 text-amber-700" />
+              <ExperimentDiffCountBadge status="added" label="Added" value={summary.added} />
+              <ExperimentDiffCountBadge status="removed" label="Removed" value={summary.removed} />
+              <ExperimentDiffCountBadge status="changed" label="Changed" value={summary.changed + summary.renamed} />
             </div>
           ) : null}
         </DialogHeader>
@@ -330,7 +318,7 @@ function FeatureChangeRow({ row }: { row: FlatDiffLine }) {
   if ((row.status === "renamed" || row.status === "changed") && row.parentName && row.childName) {
     return (
       <FeatureChangedLine
-        icon={<FeatureDiffIcon status={row.status} title={diffTitle} />}
+        icon={<ExperimentDiffIcon status="changed" title={diffTitle} />}
         previousName={row.parentName}
         name={row.childName}
         depth={row.depth}
@@ -340,15 +328,10 @@ function FeatureChangeRow({ row }: { row: FlatDiffLine }) {
 
   return (
     <FeatureUnifiedLine
-      icon={<FeatureDiffIcon status={row.status} title={diffTitle} />}
+      icon={<ExperimentDiffIcon status={row.status === "renamed" ? "changed" : row.status} title={diffTitle} />}
       name={displayName}
       depth={row.depth}
-      className={cn(
-        row.status === "added" && "bg-green-500/10 text-green-800 dark:text-green-300",
-        row.status === "removed" && "bg-red-500/10 text-red-800 dark:text-red-300",
-        (row.status === "renamed" || row.status === "changed") &&
-          "bg-amber-500/10 text-amber-800 dark:text-amber-300"
-      )}
+      className={experimentDiffSurfaceClass(row.status === "renamed" ? "changed" : row.status)}
     />
   );
 }
@@ -408,30 +391,6 @@ function FeatureChangedLine({
 
 function FeatureNodeDot() {
   return <span className="mr-1.5 h-1 w-1 shrink-0 rounded-full bg-muted-foreground/50" aria-hidden="true" />;
-}
-
-function FeatureDiffIcon({
-  status,
-  title,
-}: {
-  status: FeatureDiffNode["status"];
-  title: string;
-}) {
-  const iconClassName = "h-3.5 w-3.5";
-  let icon: ReactNode = null;
-  if (status === "added") {
-    icon = <CirclePlus className={cn(iconClassName, "text-green-700 dark:text-green-300")} />;
-  } else if (status === "removed") {
-    icon = <CircleMinus className={cn(iconClassName, "text-red-700 dark:text-red-300")} />;
-  } else if (status === "renamed" || status === "changed") {
-    icon = <PencilLine className={cn(iconClassName, "text-amber-700 dark:text-amber-300")} />;
-  }
-
-  return icon ? (
-    <span title={title} aria-label={title} role="img">
-      {icon}
-    </span>
-  ) : null;
 }
 
 function getFeatureDiffTitle(row: FlatDiffLine): string {
@@ -671,11 +630,9 @@ function FeatureStructuredDiff({
           <span className="text-muted-foreground">{experimentLabel}</span>
         </div>
         <div className="flex gap-1">
-          <Badge variant="outline" className="border-green-500/20 bg-green-500/10 text-green-700">+{summary.added}</Badge>
-          <Badge variant="outline" className="border-red-500/20 bg-red-500/10 text-red-700">-{summary.removed}</Badge>
-          <Badge variant="outline" className="border-amber-500/20 bg-amber-500/10 text-amber-700">
-            ~{summary.changed + summary.renamed}
-          </Badge>
+          <ExperimentDiffCountBadge status="added" label="Added" value={summary.added} compact />
+          <ExperimentDiffCountBadge status="removed" label="Removed" value={summary.removed} compact />
+          <ExperimentDiffCountBadge status="changed" label="Changed" value={summary.changed + summary.renamed} compact />
         </div>
       </div>
       <div className="min-h-0 flex-1 overflow-auto p-2">

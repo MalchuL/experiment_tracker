@@ -1,6 +1,6 @@
 "use client";
 
-import { CompareLabeledSwitch } from "./compare-labeled-switch";
+import { CompareLabeledSwitch } from "@/domain/compare/components/compare-labeled-switch";
 
 const EXPAND_UNCHANGED_TIP =
   "When on, every line is shown. When off, unchanged regions between edits are collapsed (identical files always show in full).";

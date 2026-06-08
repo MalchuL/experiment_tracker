@@ -77,7 +77,7 @@ def _prepare_image_for_tracker(img_tensor: Any, dataformats: Any) -> Any:
 
 
 def _histogram_bins_for_tracker(bins: Any) -> int | None:
-    """Map TensorBoard histogram bin specs to tracker ``bins`` (int or settings default)."""
+    """Map TensorBoard histogram bin specs to tracker integer bins or the default."""
     if isinstance(bins, int):
         return bins
     if bins is None:
@@ -123,56 +123,6 @@ def _image_dataformats(args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
     if args:
         return args[0]
     return "CHW"
-
-
-def _feature_name(value: Any) -> str:
-    if isinstance(value, bool):
-        return "true" if value else "false"
-    if value is None:
-        return "null"
-    return str(value)
-
-
-def _hyperparameters_to_features(hparam_dict: Any) -> list[dict[str, Any]]:
-    if not isinstance(hparam_dict, dict):
-        return []
-    children = [
-        {"name": f"{key}: {_feature_name(value)}"}
-        for key, value in sorted(hparam_dict.items(), key=lambda item: str(item[0]))
-    ]
-    if not children:
-        return []
-    return [{"name": "hyperparameters", "children": children}]
-
-
-def _merge_feature_branch(
-    existing_features: Any,
-    branch: dict[str, Any],
-) -> list[Any]:
-    existing = list(existing_features or [])
-    merged: list[Any] = []
-    replaced = False
-    for feature in existing:
-        name = None
-        if isinstance(feature, dict):
-            name = feature.get("name")
-        else:
-            name = getattr(feature, "name", None)
-        if name == branch["name"]:
-            merged.append(branch)
-            replaced = True
-        else:
-            merged.append(feature)
-    if not replaced:
-        merged.append(branch)
-    return merged
-
-
-def _tracker_features(tracker: Any) -> Any:
-    experiment = getattr(tracker, "_experiment", None)
-    if experiment is None:
-        return []
-    return getattr(experiment, "features", [])
 
 
 def _patch_summary_writer(writer_cls: type[Any]) -> None:
@@ -267,14 +217,7 @@ def _patch_summary_writer(writer_cls: type[Any]) -> None:
             tracker = _active_tracker
             if tracker is not None:
                 try:
-                    features = _hyperparameters_to_features(hparam_dict)
-                    if features:
-                        tracker.features(
-                            _merge_feature_branch(
-                                _tracker_features(tracker),
-                                features[0],
-                            )
-                        )
+                    tracker.log_hparams(hparam_dict)
                 except Exception as exc:  # noqa: BLE001
                     _logger.warning(
                         "tensorboard_hparams_capture_failed",
