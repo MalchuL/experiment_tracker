@@ -29,7 +29,7 @@ launch_terminal() {
 }
 
 # Production-like local stack: no uvicorn --reload; Next.js is built then `next start`.
-export NEXT_PUBLIC_BASE_URL="${NEXT_PUBLIC_BASE_URL:-http://127.0.0.1:8000}"
+export PUBLIC_API_BASE_URL="${PUBLIC_API_BASE_URL:-http://127.0.0.1:8000}"
 
 echo "Building apps/web (production)…"
 (
@@ -70,6 +70,6 @@ sleep 2
 # Frontend (built app)
 launch_terminal \
   "local-run: frontend (production)" \
-  "cd apps/web && export NEXT_PUBLIC_BASE_URL=\"$NEXT_PUBLIC_BASE_URL\" && pnpm run start"
+  "cd apps/web && export PUBLIC_API_BASE_URL=\"$PUBLIC_API_BASE_URL\" && pnpm run start"
 
 echo "Launched local stack in separate terminal windows."

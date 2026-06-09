@@ -4,18 +4,13 @@
  */
 
 import { z } from "zod";
+import { getPublicApiBaseUrl } from "@/lib/runtime-config";
 
 /**
  * Environment variable schema with Zod validation
  */
 const envSchema = z.object({
-  BASE_URL: z
-    .url("BASE_URL must be a valid URL")
-    .describe(
-      "Base URL (e.g., https://yourdomain.com or http://localhost:3000)"
-    ),
-
-  /** When set (e.g. Docker: `http://backend:8000`), server-side BFF routes use this instead of BASE_URL. */
+  /** When set (e.g. Docker: `http://backend:8000`), server-side BFF routes use this instead of the public API URL. */
   SERVER_API_BASE_URL: z.url().optional(),
 
   /** API path prefix for SDK config hints (matches backend `API_PREFIX`, default `/api`). */
@@ -40,8 +35,6 @@ function validateEnvironment(): z.infer<typeof envSchema> {
     const serverApi = process.env.SERVER_API_BASE_URL?.trim();
     const apiPrefix = process.env.NEXT_PUBLIC_API_PREFIX?.trim();
     const envVariables = {
-      // Base URL (browser + default server; use host-reachable URL in Docker for client bundles)
-      BASE_URL: process.env.NEXT_PUBLIC_BASE_URL,
       SERVER_API_BASE_URL:
         serverApi && serverApi.length > 0 ? serverApi : undefined,
       API_PREFIX: apiPrefix && apiPrefix.length > 0 ? apiPrefix : "/api",
@@ -98,7 +91,7 @@ export const env = validateEnvironment();
 
 /** Backend origin for Route Handlers and other server-only `fetch` (Compose service DNS, etc.). */
 export function getServerApiBaseUrl(): string {
-  return env.SERVER_API_BASE_URL ?? env.BASE_URL;
+  return env.SERVER_API_BASE_URL ?? getPublicApiBaseUrl();
 }
 
 /**

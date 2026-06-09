@@ -28,8 +28,8 @@ launch_terminal() {
   exit 1
 }
 
-# Match local API URL used by run_local_stack.sh (NEXT_PUBLIC_* is inlined at build time).
-export NEXT_PUBLIC_BASE_URL="${NEXT_PUBLIC_BASE_URL:-http://127.0.0.1:8000}"
+# Match the runtime browser API URL used by run_local_stack.sh.
+export PUBLIC_API_BASE_URL="${PUBLIC_API_BASE_URL:-http://127.0.0.1:8000}"
 
 echo "Building apps/web (production)…"
 (
@@ -39,6 +39,6 @@ echo "Building apps/web (production)…"
 
 launch_terminal \
   "local-run: web (production)" \
-  "cd apps/web && export NEXT_PUBLIC_BASE_URL=\"$NEXT_PUBLIC_BASE_URL\" && pnpm run start"
+  "cd apps/web && export PUBLIC_API_BASE_URL=\"$PUBLIC_API_BASE_URL\" && pnpm run start"
 
 echo "Launched production Next.js in a separate terminal window."

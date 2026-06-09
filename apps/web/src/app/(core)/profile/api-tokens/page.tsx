@@ -38,6 +38,7 @@ import {
   getSdkConfigPath,
 } from "@/domain/api-tokens/utils/sdk-init-config";
 import { env } from "@/lib/env";
+import { getPublicApiBaseUrl } from "@/lib/runtime-config";
 
 const AVAILABLE_SCOPES = [
   "projects.view",
@@ -123,7 +124,7 @@ export default function ApiTokensPage() {
   const sdkInitConfigJson = useMemo(() => {
     if (!createdToken) return null;
     return formatSdkInitConfigJson({
-      baseUrl: env.BASE_URL,
+      baseUrl: getPublicApiBaseUrl(),
       apiPrefix: env.API_PREFIX,
       apiToken: createdToken.token,
     });
@@ -132,7 +133,7 @@ export default function ApiTokensPage() {
   const experimentTrackerInitCommand = useMemo(() => {
     if (!createdToken) return null;
     return buildExperimentTrackerInitCommand({
-      baseUrl: env.BASE_URL,
+      baseUrl: getPublicApiBaseUrl(),
       apiPrefix: env.API_PREFIX,
       apiToken: createdToken.token,
     });
@@ -478,7 +479,7 @@ function SdkConfigEnvHintIcon() {
       <TooltipContent side="top" className="max-w-xs p-3 text-xs leading-relaxed">
         <span className="block">
           Values use this deployment&apos;s{" "}
-          <code className="rounded bg-muted px-1 py-0.5">NEXT_PUBLIC_BASE_URL</code> and{" "}
+          <code className="rounded bg-muted px-1 py-0.5">PUBLIC_API_BASE_URL</code> and{" "}
           <code className="rounded bg-muted px-1 py-0.5">NEXT_PUBLIC_API_PREFIX</code> (default{" "}
           <code className="rounded bg-muted px-1 py-0.5">/api</code>).
         </span>
