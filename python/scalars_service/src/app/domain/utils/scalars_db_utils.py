@@ -503,7 +503,7 @@ class ClickHouseScalarsDBUtils:
         step_col = ProjectTableColumns.STEP.value
         order_by = f" ORDER BY {exp_col}, {step_col}"
         columns = BASE_COLUMNS_STR + list(scalar_columns or [])
-        return f"SELECT {', '.join(columns)} FROM {table_name}" f"{where_sql}{order_by}"
+        return f"SELECT {', '.join(columns)} FROM {table_name}{where_sql}{order_by}"
 
     def build_count_distinct_experiments_statement(
         self,
@@ -515,7 +515,7 @@ class ClickHouseScalarsDBUtils:
         where_clauses = self._scalar_table_where_clauses(None, start_time, end_time)
         where_sql = self._scalar_where_sql(where_clauses)
         exp_col = ProjectTableColumns.EXPERIMENT_ID.value
-        return f"SELECT uniqExact({exp_col}) FROM {table_name}" f"{where_sql}"
+        return f"SELECT uniqExact({exp_col}) FROM {table_name}{where_sql}"
 
     def build_select_experiment_id_page_statement(
         self,
@@ -607,9 +607,7 @@ class ClickHouseScalarsDBUtils:
         start_time: datetime | None = None,
         end_time: datetime | None = None,
     ) -> str:
-        select = (
-            f"SELECT {', '.join(ARTIFACTS_INFO_BASE_COLUMNS_STR)} " f"FROM {table_name}"
-        )
+        select = f"SELECT {', '.join(ARTIFACTS_INFO_BASE_COLUMNS_STR)} FROM {table_name}"
         where_clauses: list[str] = []
         if experiment_ids:
             uuids = ", ".join(
@@ -722,7 +720,7 @@ class ClickHouseScalarsDBUtils:
             end_time=end_time,
         )
         exp_col = ArtifactsInfoTableColumns.EXPERIMENT_ID.value
-        return f"SELECT uniqExact({exp_col}) FROM {table_name}" f"{where_sql}"
+        return f"SELECT uniqExact({exp_col}) FROM {table_name}{where_sql}"
 
     def build_select_artifact_experiment_id_page_statement(
         self,
