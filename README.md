@@ -153,11 +153,14 @@ Choose one way to start the stack:
 docker compose up -d
 ./docker-up-public.sh http://127.0.0.1:3000
 ./docker-up-public.sh https://tracker.example.com https://api.example.com
-sudo PUBLIC_URL=http://192.168.1.247 WEB_PORT=3000 ./scripts/docker-up-public.sh
+sudo PUBLIC_URL=http://192.168.1.247 WEB_PORT=3000 ./docker-up-public.sh
+sudo PUBLIC_URL=http://192.168.1.247 ./docker-up-public.sh
 
 ```
 
 The first command uses the default localhost configuration. The second configures a browser-reachable local URL. The third configures separate public UI and API URLs.
+
+**Now you can open the UI at http://127.0.0.1:3000 or https://tracker.example.com.**
 
 Stop the stack without deleting stored data:
 
