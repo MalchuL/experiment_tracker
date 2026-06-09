@@ -12,8 +12,7 @@ export function useExperimentHparams(experimentId: string, enabled = true) {
       queryClient.invalidateQueries({
         predicate: (query) =>
           typeof query.queryKey[0] === "string" &&
-          query.queryKey[0].startsWith("compare/") &&
-          query.queryKey[0].includes("/hparams:"),
+          query.queryKey[0].includes("/hparams/list:"),
       }),
     ]);
   };

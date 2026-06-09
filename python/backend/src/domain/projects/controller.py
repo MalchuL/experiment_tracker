@@ -14,8 +14,8 @@ from domain.experiments.dto import (
 )
 from domain.experiments.service import ExperimentService
 from domain.experiment_data.dto import (
-    ExperimentHparamsCompareRequestDTO,
-    ExperimentHparamsCompareResponseDTO,
+    ExperimentHparamsListRequestDTO,
+    ExperimentHparamsListResponseDTO,
 )
 from domain.experiment_data.error import ExperimentDataNotAccessibleError
 from domain.experiment_data.service import ExperimentDataService
@@ -119,18 +119,18 @@ def _raise_project_http_error(error: Exception) -> None:
 
 
 @router.post(
-    "/{project_id}/experiments/hparams/compare",
-    response_model=ExperimentHparamsCompareResponseDTO,
+    "/{project_id}/experiments/hparams/list",
+    response_model=ExperimentHparamsListResponseDTO,
 )
-async def compare_project_experiment_hparams(
+async def list_project_experiment_hparams(
     project_id: UUID,
-    body: ExperimentHparamsCompareRequestDTO,
+    body: ExperimentHparamsListRequestDTO,
     user: User = Depends(get_current_user_dual),
     _: None = Depends(require_api_token_scopes(ProjectActions.VIEW_EXPERIMENT)),
     service: ExperimentDataService = Depends(get_experiment_data_service),
-) -> ExperimentHparamsCompareResponseDTO:
+) -> ExperimentHparamsListResponseDTO:
     try:
-        return await service.compare_hparams(user, project_id, list(body.experiment_ids))
+        return await service.list_hparams(user, project_id, list(body.experiment_ids))
     except Exception as exc:  # noqa: BLE001
         _raise_project_http_error(exc)
 

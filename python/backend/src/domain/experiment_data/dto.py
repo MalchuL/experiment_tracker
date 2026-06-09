@@ -92,15 +92,15 @@ class ExperimentHparamsDTO(BaseModel):
     updated_at: ApiDateTime | None = None
 
 
-class ExperimentHparamsCompareRequestDTO(BaseModel):
-    """Ordered experiment selection for project hparams comparison."""
+class ExperimentHparamsListRequestDTO(BaseModel):
+    """Ordered experiment selection for batch hparams fetch."""
 
     model_config = model_config()
 
     experiment_ids: list[UUID] = Field(..., min_length=1, max_length=20)
 
 
-class ExperimentHparamsCompareItemDTO(BaseModel):
+class ExperimentHparamsListItemDTO(BaseModel):
     model_config = model_config()
 
     experiment_id: UUID
@@ -108,11 +108,11 @@ class ExperimentHparamsCompareItemDTO(BaseModel):
     hparams: dict[str, Any] | None = None
 
 
-class ExperimentHparamsCompareResponseDTO(BaseModel):
+class ExperimentHparamsListResponseDTO(BaseModel):
     model_config = model_config()
 
     project_id: UUID
-    experiments: list[ExperimentHparamsCompareItemDTO]
+    experiments: list[ExperimentHparamsListItemDTO]
 
 
 class ExperimentSnapshotDTO(BaseModel):

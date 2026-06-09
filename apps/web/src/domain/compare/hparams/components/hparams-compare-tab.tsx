@@ -14,7 +14,7 @@ import type { Experiment } from "@/domain/experiments/types";
 import type { JsonValue } from "@/domain/experiments/types";
 import { QUERY_KEYS } from "@/lib/constants/query-keys";
 import { buildHparamsCompareRows } from "../lib/hparams-compare";
-import { hparamsCompareService } from "../services/hparams-compare-service";
+import { hparamsListService } from "../services/hparams-list-service";
 
 export function HparamsCompareTab({
   projectId,
@@ -30,8 +30,8 @@ export function HparamsCompareTab({
   const experimentIds = selectedExperiments.map((experiment) => experiment.id);
   const latestExperiment = allExperiments[0] ?? null;
   const query = useQuery({
-    queryKey: [QUERY_KEYS.COMPARE.HPARAMS(projectId, experimentIds)],
-    queryFn: () => hparamsCompareService.compare(projectId, experimentIds),
+    queryKey: [QUERY_KEYS.PROJECTS.HPARAMS_LIST(projectId, experimentIds)],
+    queryFn: () => hparamsListService.list(projectId, experimentIds),
     enabled: experimentIds.length > 0,
     placeholderData: keepPreviousData,
   });

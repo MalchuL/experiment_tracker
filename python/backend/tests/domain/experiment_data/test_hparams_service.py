@@ -130,7 +130,7 @@ async def test_hparams_requires_view_and_edit_permissions() -> None:
 
 
 @pytest.mark.asyncio
-async def test_compare_hparams_preserves_order_and_rejects_foreign_experiments() -> None:
+async def test_list_hparams_preserves_order_and_rejects_foreign_experiments() -> None:
     project_id = uuid4()
     first = SimpleNamespace(id=uuid4(), project_id=project_id, name="first")
     second = SimpleNamespace(id=uuid4(), project_id=project_id, name="second")
@@ -139,7 +139,7 @@ async def test_compare_hparams_preserves_order_and_rejects_foreign_experiments()
     service, _ = make_service([first, second, foreign])
     await service.upsert_hparams(user, second.id, {"lr": 0.1})
 
-    result = await service.compare_hparams(
+    result = await service.list_hparams(
         user, project_id, [second.id, first.id, second.id]
     )
 
@@ -152,4 +152,4 @@ async def test_compare_hparams_preserves_order_and_rejects_foreign_experiments()
     assert result.experiments[1].hparams is None
 
     with pytest.raises(ExperimentDataNotAccessibleError):
-        await service.compare_hparams(user, project_id, [first.id, foreign.id])
+        await service.list_hparams(user, project_id, [first.id, foreign.id])

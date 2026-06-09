@@ -91,8 +91,8 @@ export const API_ROUTES = {
           `/api/projects/${projectId}/experiments`,
         EXPERIMENTS_BATCH: (projectId: string) =>
           `/api/projects/${projectId}/experiments/batch`,
-        HPARAMS_COMPARE: (projectId: string) =>
-          `/api/projects/${projectId}/experiments/hparams/compare`,
+        HPARAMS_LIST: (projectId: string) =>
+          `/api/projects/${projectId}/experiments/hparams/list`,
         REORDER_EXPERIMENTS: (projectId: string) =>
           `/api/projects/${projectId}/experiments/reorder`,
   

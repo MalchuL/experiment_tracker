@@ -19,8 +19,8 @@ from .dto import (
     ExperimentSnapshotFilesDTO,
     SnapshotFileManifestEntryDTO,
     SnapshotFileEntryDTO,
-    ExperimentHparamsCompareItemDTO,
-    ExperimentHparamsCompareResponseDTO,
+    ExperimentHparamsListItemDTO,
+    ExperimentHparamsListResponseDTO,
     ExperimentHparamsDTO,
 )
 from .error import ExperimentDataNotAccessibleError, ExperimentSnapshotNotFoundError
@@ -126,12 +126,12 @@ class ExperimentDataService:
         await self._data.commit()
         return self._mapper.hparams_to_dto(experiment_id, None)
 
-    async def compare_hparams(
+    async def list_hparams(
         self,
         user: UserProtocol,
         project_id: UUID,
         experiment_ids: list[UUID],
-    ) -> ExperimentHparamsCompareResponseDTO:
+    ) -> ExperimentHparamsListResponseDTO:
         if not await self._permission_checker().can_view_experiment(user.id, project_id):
             raise ExperimentDataNotAccessibleError(
                 f"Project {project_id} is not accessible"
@@ -149,10 +149,10 @@ class ExperimentDataService:
             unique_ids, ExperimentDataType.HPARAMS
         )
         data_by_experiment = {row.experiment_id: row.data for row in data_rows}
-        return ExperimentHparamsCompareResponseDTO(
+        return ExperimentHparamsListResponseDTO(
             project_id=project_id,
             experiments=[
-                ExperimentHparamsCompareItemDTO(
+                ExperimentHparamsListItemDTO(
                     experiment_id=experiment_id,
                     experiment_name=by_id[experiment_id].name,
                     hparams=data_by_experiment.get(experiment_id),

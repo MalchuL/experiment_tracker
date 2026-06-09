@@ -1,12 +1,12 @@
 import type { HparamsDocument } from "@/domain/experiments/types";
 
-export interface HparamsCompareItem {
+export interface HparamsListItem {
   experimentId: string;
   experimentName: string;
   hparams: HparamsDocument | null;
 }
 
-export interface HparamsCompareResponse {
+export interface HparamsListResponse {
   projectId: string;
-  experiments: HparamsCompareItem[];
+  experiments: HparamsListItem[];
 }

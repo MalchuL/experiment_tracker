@@ -10,6 +10,8 @@ export const QUERY_KEYS = {
     PROJECTS: {
         LIST: "/projects",
         GET_BY_ID: (projectId: string) => `projects/${projectId}`,
+        HPARAMS_LIST: (projectId: string, experimentIds: string[]) =>
+            `projects/${projectId}/hparams/list:${experimentIds.join(",")}`,
     },
     DASHBOARD: {
         STATS: (projectId: string) => `dashboard/project/${projectId}/stats`,
@@ -64,7 +66,5 @@ export const QUERY_KEYS = {
             path: string | undefined,
             hash: string | undefined
         ) => `compare/snapshot-file-content:${projectId ?? ""}:${path ?? ""}:${hash ?? ""}`,
-        HPARAMS: (projectId: string, experimentIds: string[]) =>
-            `compare/${projectId}/hparams:${experimentIds.join(",")}`,
     },
 };
