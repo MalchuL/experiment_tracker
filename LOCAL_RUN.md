@@ -97,7 +97,7 @@ cp .env.example .env
 Important local values from [apps/web/.env.example](apps/web/.env.example):
 
 ```env
-NEXT_PUBLIC_BASE_URL=http://127.0.0.1:8000
+PUBLIC_API_BASE_URL=http://127.0.0.1:8000
 SERVER_API_BASE_URL=http://127.0.0.1:8000
 ```
 
@@ -179,7 +179,7 @@ Interactive API docs are usually available at `http://127.0.0.1:8000/docs`.
 
 ```bash
 cd apps/web
-export NEXT_PUBLIC_BASE_URL=http://127.0.0.1:8000
+export PUBLIC_API_BASE_URL=http://127.0.0.1:8000
 pnpm run dev
 ```
 
@@ -210,7 +210,7 @@ uv run pytest
 From the repository root, Docker Compose starts all services and their dependencies:
 
 ```bash
-docker compose up -d --build
+docker compose -f docker-compose.dev.yml up -d --build
 ```
 
 Optional root `.env` values are documented in [.env.example](.env.example). The full Docker guide is in [README.md](README.md).

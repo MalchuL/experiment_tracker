@@ -1,6 +1,10 @@
-# Deployment stack using images published by `.github/workflows/build-images.yml`.
-# Application images: ghcr.io/${GHCR_NAMESPACE}/experiment-tracker-<service>:${IMAGE_TAG}
-# Defaults match this repository's manually published `latest` images.
+# Development stack: builds application images from this checkout and publishes all service ports.
+# Start from repo root: `docker compose -f docker-compose.dev.yml up -d --build`.
+# Alternative: `./scripts/docker-up-public.sh <PUBLIC_URL>` sets CORS + runtime web configuration without a root `.env` (see README).
+#
+# Public hostname / HTTPS (not localhost): in root `.env` set PUBLIC_API_BASE_URL (API URL for the browser),
+# ALLOWED_ORIGINS, OBJECT_STORAGE_ALLOWED_ORIGINS (UI origins), then recreate web/backend/object-storage.
+# See README.md → "Custom URL or domain".
 name: experiment-tracker
 
 services:
@@ -10,6 +14,8 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-tracker}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-tracker}
       POSTGRES_DB: ${POSTGRES_DB:-experiment_tracker}
+    ports:
+      - "${POSTGRES_BACKEND_PORT:-5435}:5432"
     volumes:
       - ./storage/postgres-backend:/var/lib/postgresql/data
     healthcheck:
@@ -24,6 +30,8 @@ services:
       POSTGRES_USER: ${POSTGRES_OBJECT_STORAGE_USER:-tracker}
       POSTGRES_PASSWORD: ${POSTGRES_OBJECT_STORAGE_PASSWORD:-tracker}
       POSTGRES_DB: ${POSTGRES_OBJECT_STORAGE_DB:-object_storage}
+    ports:
+      - "${POSTGRES_OBJECT_STORAGE_PORT:-5434}:5432"
     volumes:
       - ./storage/postgres-object-storage:/var/lib/postgresql/data
     healthcheck:
@@ -34,6 +42,8 @@ services:
 
   redis:
     image: redis:7-alpine
+    ports:
+      - "${REDIS_PORT:-6380}:6379"
     volumes:
       - ./storage/redis:/data
     command: ["redis-server", "--appendonly", "yes"]
@@ -49,6 +59,8 @@ services:
       CLICKHOUSE_USER: ${CLICKHOUSE_USER:-default}
       CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-yourpass}
       CLICKHOUSE_DB: ${CLICKHOUSE_DB:-default}
+    ports:
+      - "${CLICKHOUSE_HTTP_PORT:-8123}:8123"
     ulimits:
       nofile:
         soft: 262144
@@ -71,6 +83,9 @@ services:
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-admin}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-password}
+    ports:
+      - "${MINIO_API_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
     volumes:
       - ./storage/minio:/data
     command: ["server", "/data", "--console-address", ":9001"]
@@ -98,7 +113,9 @@ services:
           && mc mb "local/$$S3_BUCKET" --ignore-existing
 
   object-storage:
-    image: ghcr.io/${GHCR_NAMESPACE:-malchul}/experiment-tracker-object-storage:${IMAGE_TAG:-latest}
+    build:
+      context: .
+      dockerfile: python/object_storage/Dockerfile
     environment:
       APP_NAME: ${OBJECT_STORAGE_APP_NAME:-ML Experiment Object Storage}
       API_PREFIX: ${OBJECT_STORAGE_API_PREFIX:-/api}
@@ -111,6 +128,8 @@ services:
       S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-password}
       S3_BUCKET: ${S3_BUCKET:-ml-blobs}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    ports:
+      - "${OBJECT_STORAGE_PORT:-8002}:8002"
     depends_on:
       postgres-object-storage:
         condition: service_healthy
@@ -120,11 +139,15 @@ services:
         condition: service_completed_successfully
 
   scalars:
-    image: ghcr.io/${GHCR_NAMESPACE:-malchul}/experiment-tracker-scalars:${IMAGE_TAG:-latest}
+    build:
+      context: .
+      dockerfile: python/scalars_service/Dockerfile
     environment:
       CLICKHOUSE_URL: ${CLICKHOUSE_URL:-http://default:yourpass@clickhouse:8123/default}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    ports:
+      - "${SCALARS_PORT:-8001}:8001"
     depends_on:
       clickhouse:
         condition: service_healthy
@@ -132,7 +155,9 @@ services:
         condition: service_healthy
 
   backend:
-    image: ghcr.io/${GHCR_NAMESPACE:-malchul}/experiment-tracker-backend:${IMAGE_TAG:-latest}
+    build:
+      context: .
+      dockerfile: python/backend/Dockerfile
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://tracker:tracker@postgres-backend:5432/experiment_tracker}
       JWT_SECRET: ${JWT_SECRET:-change-me-in-docker-env}
@@ -155,7 +180,9 @@ services:
         condition: service_healthy
 
   web:
-    image: ghcr.io/${GHCR_NAMESPACE:-malchul}/experiment-tracker-web:${IMAGE_TAG:-latest}
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
     environment:
       NODE_ENV: production
       PORT: "3000"

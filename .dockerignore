@@ -1,4 +1,4 @@
-# Build context is always the repository root (see docker-compose.yml).
+# Application image build context is always the repository root (see docker-compose.dev.yml).
 .git
 .github
 .cursor
