@@ -1,10 +1,10 @@
 # Development stack: builds application images from this checkout and publishes all service ports.
 # Start from repo root: `docker compose -f docker-compose.dev.yml up -d --build`.
-# Alternative: `./scripts/docker-up-public.sh <PUBLIC_URL>` sets CORS + runtime web configuration without a root `.env` (see README).
+# Alternative: `./scripts/docker-up-dev.sh <PUBLIC_URL>` sets CORS + runtime web configuration without a root `.env` (see DOCKER.md).
 #
 # Public hostname / HTTPS (not localhost): in root `.env` set PUBLIC_API_BASE_URL (API URL for the browser),
 # ALLOWED_ORIGINS, OBJECT_STORAGE_ALLOWED_ORIGINS (UI origins), then recreate web/backend/object-storage.
-# See README.md → "Custom URL or domain".
+# See DOCKER.md → "Custom URL or domain".
 name: experiment-tracker
 
 services:

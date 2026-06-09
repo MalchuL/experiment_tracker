@@ -29,7 +29,7 @@ export function formatSdkInitConfigJson(input: SdkInitConfigInput): string {
 export function buildExperimentTrackerInitCommand(input: SdkInitConfigInput): string {
   const { base_url, api_prefix, api_token } = buildSdkInitConfigObject(input);
   return [
-    "experiment-tracker init",
+    "uv run experiment-tracker init",
     `--base-url ${JSON.stringify(base_url)}`,
     `--api-prefix ${JSON.stringify(api_prefix)}`,
     `--api-token ${JSON.stringify(api_token)}`,

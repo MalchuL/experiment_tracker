@@ -4,41 +4,36 @@
 # (and keeps SERVER_API_BASE_URL=http://backend:8000 for in-network BFF).
 #
 # Usage:
-#   PUBLIC_URL=<ui-origin> ./scripts/docker-up-public.sh [PUBLIC_API_URL] [-- docker compose args...]
-#   ./scripts/docker-up-public.sh <ui-origin> [public-api-base] [-- docker compose args...]
+#   PUBLIC_URL=<ui-origin> ./scripts/docker-up-dev.sh [PUBLIC_API_URL] [-- docker compose args...]
+#   ./scripts/docker-up-dev.sh <ui-origin> [public-api-base] [-- docker compose args...]
 #
 # If `docker compose` only works with sudo, put assignments after sudo so they reach the script:
-#   sudo PUBLIC_URL=http://192.168.1.247 ./scripts/docker-up-public.sh
-# Or URL args (no env):   sudo ./scripts/docker-up-public.sh http://192.168.1.247
-# Or preserve a prior export:   sudo -E ./scripts/docker-up-public.sh
+#   sudo PUBLIC_URL=http://192.168.1.247 ./scripts/docker-up-dev.sh
+# Or URL args (no env):   sudo ./scripts/docker-up-dev.sh http://192.168.1.247
+# Or preserve a prior export:   sudo -E ./scripts/docker-up-dev.sh
 #
 # Examples:
-#   PUBLIC_URL=https://dashboard.example.com ./scripts/docker-up-public.sh
-#   ./scripts/docker-up-public.sh https://dashboard.example.com https://api.example.com
-#   ./scripts/docker-up-public.sh http://myhost:3000
-#   PUBLIC_URL=http://192.168.1.247 ./scripts/docker-up-public.sh   # CORS adds :3000 when http has no port
-#   WEB_PORT=4000 PUBLIC_URL=http://myhost ./scripts/docker-up-public.sh
-#   ./scripts/docker-up-public.sh http://myhost:3000 http://myhost:8000 -- up -d
+#   PUBLIC_URL=https://dashboard.example.com ./scripts/docker-up-dev.sh
+#   ./scripts/docker-up-dev.sh https://dashboard.example.com https://api.example.com
+#   ./scripts/docker-up-dev.sh http://myhost:3000
+#   PUBLIC_URL=http://192.168.1.247 ./scripts/docker-up-dev.sh   # CORS adds :3000 when http has no port
+#   WEB_PORT=4000 PUBLIC_URL=http://myhost ./scripts/docker-up-dev.sh
+#   ./scripts/docker-up-dev.sh http://myhost:3000 http://myhost:8000 -- up -d
 #
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-if [[ -f "$SCRIPT_DIR/docker-compose.yml" ]]; then
-  ROOT="$SCRIPT_DIR"
-else
-  ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-fi
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
 if ! command -v python3 >/dev/null 2>&1; then
-  echo "docker-up-public.sh: python3 is required but was not found in PATH" >&2
+  echo "docker-up-dev.sh: python3 is required but was not found in PATH" >&2
   exit 1
 fi
 python3 <<'CHECK'
 import sys
 if sys.version_info < (3, 8):
     sys.stderr.write(
-        "docker-up-public.sh: Python 3.8+ is required (this interpreter is %s)\n"
+        "docker-up-dev.sh: Python 3.8+ is required (this interpreter is %s)\n"
         % (".".join(map(str, sys.version_info[:3])),)
     )
     raise SystemExit(1)
@@ -79,11 +74,11 @@ if [[ -z "$PUBLIC_URL" ]]; then
   cat >&2 <<'EOF'
 Set the browser origin of the Next.js UI (scheme + host + port, no path), e.g.:
 
-  PUBLIC_URL=https://tracker.example.com ./scripts/docker-up-public.sh
+  PUBLIC_URL=https://tracker.example.com ./scripts/docker-up-dev.sh
 
 Or pass it as the first argument:
 
-  ./scripts/docker-up-public.sh https://tracker.example.com [https://api.example.com]
+  ./scripts/docker-up-dev.sh https://tracker.example.com [https://api.example.com]
 
 If you omit the second URL, the API base defaults to the same host with port 8000
 (http(s)://<host>:8000), matching the default published BACKEND_PORT.
@@ -92,7 +87,7 @@ Optional: SERVER_API_BASE_URL (default http://backend:8000) if your Next server
 reaches the API differently.
 
 After -- , remaining arguments are passed after
-`docker compose -f docker-compose.yml` (default: up -d --build).
+`docker compose -f docker-compose.dev.yml` (default: up -d --build).
 EOF
   exit 1
 fi
@@ -149,5 +144,5 @@ echo "  ALLOWED_ORIGINS=$ALLOWED_ORIGINS"
 echo "  OBJECT_STORAGE_ALLOWED_ORIGINS=$OBJECT_STORAGE_ALLOWED_ORIGINS"
 echo "  PUBLIC_API_BASE_URL=$PUBLIC_API_BASE_URL (web runtime config)"
 echo "  SERVER_API_BASE_URL=$SERVER_API_BASE_URL"
-echo "Running: docker compose -f docker-compose.yml ${compose_args[*]}"
-exec docker compose -f docker-compose.yml "${compose_args[@]}"
+echo "Running: docker compose -f docker-compose.dev.yml ${compose_args[*]}"
+exec docker compose -f docker-compose.dev.yml "${compose_args[@]}"
