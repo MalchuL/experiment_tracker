@@ -7,6 +7,7 @@ from uuid import UUID
 import httpx
 from domain.experiments.repository import ExperimentRepository
 from domain.project_artifacts.protocol import ProjectArtifactsServiceProtocol
+from domain.rbac.wrapper import PermissionChecker
 from lib.logger import get_logger
 from lib.protocols.user_protocol import UserProtocol
 from lib.types import UUID_TYPE
@@ -18,8 +19,11 @@ from .dto import (
     ExperimentSnapshotFilesDTO,
     SnapshotFileManifestEntryDTO,
     SnapshotFileEntryDTO,
+    ExperimentHparamsListItemDTO,
+    ExperimentHparamsListResponseDTO,
+    ExperimentHparamsDTO,
 )
-from .error import ExperimentSnapshotNotFoundError
+from .error import ExperimentDataNotAccessibleError, ExperimentSnapshotNotFoundError
 from .mapper import ExperimentDataMapper
 from .repository import ExperimentDataRepository
 
@@ -46,12 +50,116 @@ class ExperimentDataService:
         experiment_repository: ExperimentRepository,
         experiment_data_repository: ExperimentDataRepository,
         project_artifacts_service: ProjectArtifactsServiceProtocol,
+        permission_checker: PermissionChecker | None = None,
     ) -> None:
         """Wire repositories and the project-artifacts facade used by all snapshot flows."""
         self._experiments = experiment_repository
         self._data = experiment_data_repository
         self._project_artifacts = project_artifacts_service
+        self._permissions = permission_checker
         self._mapper = ExperimentDataMapper()
+
+    def _permission_checker(self) -> PermissionChecker:
+        if self._permissions is None:
+            raise RuntimeError("Experiment-data permission checker is not configured")
+        return self._permissions
+
+    async def _get_experiment_for_hparams_view(
+        self, user: UserProtocol, experiment_id: UUID_TYPE
+    ) -> Experiment:
+        experiment = await self._experiments.get_by_id(experiment_id)
+        if not await self._permission_checker().can_view_experiment(
+            user.id, experiment.project_id
+        ):
+            raise ExperimentDataNotAccessibleError(
+                f"Experiment {experiment_id} is not accessible"
+            )
+        return experiment
+
+    async def _get_experiment_for_hparams_edit(
+        self, user: UserProtocol, experiment_id: UUID_TYPE
+    ) -> Experiment:
+        experiment = await self._experiments.get_by_id(experiment_id)
+        if not await self._permission_checker().can_edit_experiment(
+            user.id, experiment.project_id
+        ):
+            raise ExperimentDataNotAccessibleError(
+                f"Experiment {experiment_id} is not accessible"
+            )
+        return experiment
+
+    async def get_hparams(
+        self, user: UserProtocol, experiment_id: UUID
+    ) -> ExperimentHparamsDTO:
+        await self._get_experiment_for_hparams_view(user, experiment_id)
+        row = await self._data.get_by_experiment_and_type(
+            experiment_id, ExperimentDataType.HPARAMS
+        )
+        return self._mapper.hparams_to_dto(experiment_id, row)
+
+    async def upsert_hparams(
+        self, user: UserProtocol, experiment_id: UUID, hparams: dict[str, object]
+    ) -> ExperimentHparamsDTO:
+        await self._get_experiment_for_hparams_edit(user, experiment_id)
+        row = await self._data.get_by_experiment_and_type(
+            experiment_id, ExperimentDataType.HPARAMS
+        )
+        if row is None:
+            row = ExperimentData(
+                experiment_id=experiment_id,
+                type=ExperimentDataType.HPARAMS,
+                data=hparams,
+            )
+            await self._data.create(row)
+        else:
+            row = await self._data.update(row.id, data=hparams)
+        await self._data.commit()
+        return self._mapper.hparams_to_dto(experiment_id, row)
+
+    async def delete_hparams(
+        self, user: UserProtocol, experiment_id: UUID
+    ) -> ExperimentHparamsDTO:
+        await self._get_experiment_for_hparams_edit(user, experiment_id)
+        await self._data.delete_by_experiment_and_type(
+            experiment_id, ExperimentDataType.HPARAMS
+        )
+        await self._data.commit()
+        return self._mapper.hparams_to_dto(experiment_id, None)
+
+    async def list_hparams(
+        self,
+        user: UserProtocol,
+        project_id: UUID,
+        experiment_ids: list[UUID],
+    ) -> ExperimentHparamsListResponseDTO:
+        if not await self._permission_checker().can_view_experiment(user.id, project_id):
+            raise ExperimentDataNotAccessibleError(
+                f"Project {project_id} is not accessible"
+            )
+        unique_ids = list(dict.fromkeys(experiment_ids))
+        experiments = await self._experiments.get_experiments_by_ids(
+            unique_ids, include_features=False
+        )
+        by_id = {row.id: row for row in experiments if row.project_id == project_id}
+        if len(by_id) != len(unique_ids):
+            raise ExperimentDataNotAccessibleError(
+                "One or more experiments do not belong to the requested project"
+            )
+        data_rows = await self._data.list_by_experiments_and_type(
+            unique_ids, ExperimentDataType.HPARAMS
+        )
+        data_by_experiment = {row.experiment_id: row.data for row in data_rows}
+        return ExperimentHparamsListResponseDTO(
+            project_id=project_id,
+            experiments=[
+                ExperimentHparamsListItemDTO(
+                    experiment_id=experiment_id,
+                    experiment_name=by_id[experiment_id].name,
+                    hparams=data_by_experiment.get(experiment_id),
+                )
+                for experiment_id in experiment_ids
+            ],
+        )
 
     async def _get_experiment_for_log(
         self, user: UserProtocol, experiment_id: UUID_TYPE
@@ -550,4 +658,3 @@ class ExperimentDataService:
             content=content,
             size=len(raw),
         )
-

@@ -46,6 +46,7 @@ def test_tensorboard_summary_writer_patch_captures_scalars_and_images(
             self.histograms = []
             self.scatters = []
             self.meshes = []
+            self.hparams = []
             self._experiment = SimpleNamespace(
                 features=[{"name": "model", "children": [{"name": "cnn"}]}]
             )
@@ -83,6 +84,9 @@ def test_tensorboard_summary_writer_patch_captures_scalars_and_images(
         def features(self, features) -> None:
             self._experiment.features = features
 
+        def log_hparams(self, hparams) -> None:
+            self.hparams.append(hparams)
+
     class FakeSummaryWriter:
         def add_scalar(self, tag, scalar_value, global_step=None, walltime=None):
             original_calls.append(("scalar", tag, scalar_value, global_step, walltime))
@@ -119,7 +123,9 @@ def test_tensorboard_summary_writer_patch_captures_scalars_and_images(
             )
             return "original-histogram"
 
-        def add_scatter(self, tag, x, y, global_step=None, walltime=None, mode="markers"):
+        def add_scatter(
+            self, tag, x, y, global_step=None, walltime=None, mode="markers"
+        ):
             original_calls.append(
                 ("scatter", tag, x, y, global_step, walltime, mode)
             )
@@ -212,16 +218,9 @@ def test_tensorboard_summary_writer_patch_captures_scalars_and_images(
     assert tracker.images[0][0] == "sample"
     assert tracker.images[0][1].shape == (4, 5, 3)
     assert tracker.images[0][2:] == (8, 13.0)
+    assert tracker.hparams == [hparams]
     assert tracker._experiment.features == [
-        {"name": "model", "children": [{"name": "cnn"}]},
-        {
-            "name": "hyperparameters",
-            "children": [
-                {"name": "batch_size: 128"},
-                {"name": "lr: 0.001"},
-                {"name": "shuffle: true"},
-            ],
-        },
+        {"name": "model", "children": [{"name": "cnn"}]}
     ]
     assert original_calls[0] == ("scalar", "loss", 1.5, 7, 12.0)
     assert original_calls[1] == ("image", "sample", chw_image, 8, 13.0, "CHW")

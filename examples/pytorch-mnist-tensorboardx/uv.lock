@@ -90,7 +90,7 @@ requires-dist = [
 
 [[package]]
 name = "experiment-tracker-sdk"
-version = "0.11.2"
+version = "0.12.1"
 source = { directory = "../../python/sdk" }
 dependencies = [
     { name = "click" },
@@ -99,6 +99,7 @@ dependencies = [
     { name = "pathspec" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
+    { name = "pyrootutils" },
     { name = "tqdm" },
 ]
 
@@ -113,6 +114,7 @@ requires-dist = [
     { name = "pydantic", specifier = ">=2.6.0" },
     { name = "pydantic-settings", specifier = ">=2.2.0" },
     { name = "pyright", marker = "extra == 'dev'" },
+    { name = "pyrootutils", specifier = ">=1.0.4,<2" },
     { name = "pytest", marker = "extra == 'dev'" },
     { name = "ruff", marker = "extra == 'dev'" },
     { name = "tqdm", specifier = ">=4.66.0" },
@@ -121,7 +123,7 @@ provides-extras = ["dev"]
 
 [[package]]
 name = "experiment-tracker-shared"
-version = "0.1.0"
+version = "0.12.1"
 source = { editable = "../../python/shared" }
 dependencies = [
     { name = "pendulum" },
@@ -513,6 +515,18 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/07/60/1d1e59c9c90d54591469ada7d268251f71c24bdb765f1a8a832cee8c6653/pydantic_settings-2.14.1.tar.gz", hash = "sha256:e874d3bec7e787b0c9958277956ed9b4dd5de6a80e162188fdaff7c5e26fd5fa", size = 235551 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/ae/8d/f1af3832f5e6eb13ba94ee809e72b8ecb5eef226d27ee0bef7d963d943c7/pydantic_settings-2.14.1-py3-none-any.whl", hash = "sha256:6e3c7edfd8277687cdc598f56e5cff0e9bfff0910a3749deaa8d4401c3a2b9de", size = 60964 },
+]
+
+[[package]]
+name = "pyrootutils"
+version = "1.0.4"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "python-dotenv" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/37/7d/c5f3fb44dc98a72249a17a49e28bce4aaa6758ce9e37e77648cdc1857baf/pyrootutils-1.0.4.tar.gz", hash = "sha256:f58aac67147bbab20938b7b783cb2f4670d6329a33c6640233854976538fc5f2", size = 5133 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/1c/6f/ed601aec632d908b86adbad0e1cc712f7073faf697134fb0465a3fbcc512/pyrootutils-1.0.4-py3-none-any.whl", hash = "sha256:8bbf25425278693168ae03b167aa6509422dc21853a6ee01d5d5e40601a89f90", size = 5831 },
 ]
 
 [[package]]

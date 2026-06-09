@@ -151,6 +151,41 @@ class TestArtifactsInfoServiceIntegration:
 
         await d.artifacts.drop_clickhouse_table(project_id)
 
+    async def test_relog_same_key_keeps_latest_row(
+        self, integration_clickhouse_client
+    ) -> None:
+        d = domain_services(integration_clickhouse_client)
+        project_id = uuid4()
+        experiment_id = uuid4()
+
+        await d.artifacts.create_clickhouse_table(project_id)
+        for path in ("hash_old", "hash_new"):
+            await d.artifacts.log_artifact_info(
+                project_id,
+                experiment_id,
+                LogArtifactInfoRequestDTO(
+                    name="gt",
+                    artifact_type="image",
+                    path=path,
+                    step=12000,
+                ),
+            )
+
+        async def _single_latest_row() -> bool:
+            result = await d.artifacts.get_artifacts_info(
+                project_id,
+                experiment_id=experiment_id,
+                artifact_types=["image"],
+                artifact_names=["gt"],
+                steps=[12000],
+            )
+            rows = result.data[0].artifacts_info if result.data else []
+            return len(rows) == 1 and rows[0].path == "hash_new"
+
+        await wait_for_clickhouse(_single_latest_row, err="re-log did not replace prior row")
+
+        await d.artifacts.drop_clickhouse_table(project_id)
+
     async def test_drop_managed_table_by_name_after_create(
         self, integration_clickhouse_client
     ) -> None:

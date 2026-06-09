@@ -91,6 +91,8 @@ export const API_ROUTES = {
           `/api/projects/${projectId}/experiments`,
         EXPERIMENTS_BATCH: (projectId: string) =>
           `/api/projects/${projectId}/experiments/batch`,
+        HPARAMS_LIST: (projectId: string) =>
+          `/api/projects/${projectId}/experiments/hparams/list`,
         REORDER_EXPERIMENTS: (projectId: string) =>
           `/api/projects/${projectId}/experiments/reorder`,
   
@@ -168,6 +170,8 @@ export const API_ROUTES = {
           const params = new URLSearchParams({ snapshot_id: snapshotId });
           return `${base}?${params.toString()}`;
         },
+        HPARAMS: (experimentId: string) =>
+          `/api/experiments/${experimentId}/hparams`,
       },
       SNAPSHOTS: "/api/experiments/data/snapshots",
       SNAPSHOT_FILES: "/api/experiments/data/snapshots/files",

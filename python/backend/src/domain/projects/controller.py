@@ -13,6 +13,12 @@ from domain.experiments.dto import (
     ExperimentListResponseDTO,
 )
 from domain.experiments.service import ExperimentService
+from domain.experiment_data.dto import (
+    ExperimentHparamsListRequestDTO,
+    ExperimentHparamsListResponseDTO,
+)
+from domain.experiment_data.error import ExperimentDataNotAccessibleError
+from domain.experiment_data.service import ExperimentDataService
 from domain.hypotheses.service import HypothesisService
 from domain.project_reports.service import ProjectReportService
 from domain.metrics.dto import (
@@ -29,10 +35,8 @@ from domain.metrics.error import MetricNotAccessibleError, MetricNotFoundError
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.routes.auth import get_current_user_dual, require_api_token_scopes
-from db.database import get_async_session
 from lib.category_cleanup_dto import CategoryCleanupResponseDTO
 from lib.pagination import MAX_LIST_PAGE_SIZE, ListOptions
 from models import User
@@ -55,6 +59,7 @@ from .errors import ProjectNotAccessibleError, ProjectPermissionError
 from .service import ProjectCleanupCategory, ProjectService
 from api.routes.service_dependencies import (
     get_experiment_service,
+    get_experiment_data_service,
     get_hypothesis_service,
     get_metric_service,
     get_project_members_service,
@@ -94,7 +99,7 @@ def _raise_project_http_error(error: Exception) -> None:
             missing resources, upstream status codes for satellite HTTP errors,
             ``502`` for satellite connectivity errors, and ``400`` otherwise.
     """
-    if isinstance(error, ExperimentNotAccessibleError):
+    if isinstance(error, (ExperimentNotAccessibleError, ExperimentDataNotAccessibleError)):
         raise HTTPException(status_code=404, detail=str(error))
     if isinstance(error, MetricNotAccessibleError):
         raise HTTPException(status_code=403, detail=str(error))
@@ -111,6 +116,23 @@ def _raise_project_http_error(error: Exception) -> None:
     if isinstance(error, httpx.RequestError):
         raise HTTPException(status_code=502, detail="Scalars service unavailable")
     raise HTTPException(status_code=400, detail=str(error))
+
+
+@router.post(
+    "/{project_id}/experiments/hparams/list",
+    response_model=ExperimentHparamsListResponseDTO,
+)
+async def list_project_experiment_hparams(
+    project_id: UUID,
+    body: ExperimentHparamsListRequestDTO,
+    user: User = Depends(get_current_user_dual),
+    _: None = Depends(require_api_token_scopes(ProjectActions.VIEW_EXPERIMENT)),
+    service: ExperimentDataService = Depends(get_experiment_data_service),
+) -> ExperimentHparamsListResponseDTO:
+    try:
+        return await service.list_hparams(user, project_id, list(body.experiment_ids))
+    except Exception as exc:  # noqa: BLE001
+        _raise_project_http_error(exc)
 
 
 def _raise_project_members_http_error(error: Exception) -> None:

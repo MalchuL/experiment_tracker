@@ -231,11 +231,13 @@ class ClickHouseScalarsDBUtils:
             columns_str.extend(
                 [f"{col} {SCALAR_COLUMN_TYPE}" for col in scalar_columns]
             )
+        # ORDER BY = sorting + dedup identity for ReplacingMergeTree
+        ts_col = ProjectTableColumns.TIMESTAMP.value
         return (
             f"CREATE TABLE IF NOT EXISTS {table_name} "
             f"({', '.join(columns_str)}) "
-            "ENGINE = MergeTree() "
-            f"PARTITION BY toDate({ProjectTableColumns.TIMESTAMP.value}) "
+            f"ENGINE = ReplacingMergeTree({ts_col}) "
+            f"PARTITION BY toDate({ts_col}) "
             f"ORDER BY ({ProjectTableColumns.EXPERIMENT_ID.value}, {ProjectTableColumns.STEP.value})"
         )
 
@@ -257,12 +259,16 @@ class ClickHouseScalarsDBUtils:
             f"{ARTIFACTS_INFO_BASE_COLUMNS_DATA[column].name} {ARTIFACTS_INFO_BASE_COLUMNS_DATA[column].db_type}"
             for column in ARTIFACTS_INFO_BASE_COLUMNS
         ]
+        ts_col = ArtifactsInfoTableColumns.TIMESTAMP.value
+        # ORDER BY = sorting + dedup identity for ReplacingMergeTree
         return (
             f"CREATE TABLE IF NOT EXISTS {table_name} "
             f"({', '.join(columns_str)}) "
-            "ENGINE = MergeTree() "
-            f"PARTITION BY toDate({ArtifactsInfoTableColumns.TIMESTAMP.value}) "
-            f"ORDER BY ({ArtifactsInfoTableColumns.EXPERIMENT_ID.value}, {ArtifactsInfoTableColumns.NAME.value}, {ArtifactsInfoTableColumns.STEP.value})"
+            f"ENGINE = ReplacingMergeTree({ts_col}) "
+            f"PARTITION BY toDate({ts_col}) "
+            f"ORDER BY ({ArtifactsInfoTableColumns.EXPERIMENT_ID.value}, "
+            f"{ArtifactsInfoTableColumns.NAME.value}, {ArtifactsInfoTableColumns.STEP.value}, "
+            f"{ArtifactsInfoTableColumns.ARTIFACT_TYPE.value})"
         )
 
     def build_create_last_logged_table_statement(self, table_name: str) -> str:
@@ -601,9 +607,7 @@ class ClickHouseScalarsDBUtils:
         start_time: datetime | None = None,
         end_time: datetime | None = None,
     ) -> str:
-        select = (
-            f"SELECT {', '.join(ARTIFACTS_INFO_BASE_COLUMNS_STR)} FROM {table_name}"
-        )
+        select = f"SELECT {', '.join(ARTIFACTS_INFO_BASE_COLUMNS_STR)} FROM {table_name}"
         where_clauses: list[str] = []
         if experiment_ids:
             uuids = ", ".join(
@@ -817,7 +821,10 @@ class ClickHouseScalarsDBUtils:
         Returns:
             str: The SQL statement to select the experiment IDs.
         """
-        return f"SELECT DISTINCT {ProjectTableColumns.EXPERIMENT_ID.value} FROM {table_name}"
+        return (
+            f"SELECT DISTINCT {ProjectTableColumns.EXPERIMENT_ID.value} "
+            f"FROM {table_name}"
+        )
 
 
 SCALARS_DB_UTILS = ClickHouseScalarsDBUtils()

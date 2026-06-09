@@ -5,6 +5,8 @@ from uuid import UUID
 from experiment_tracker_sdk.client.request_types import ApiRequestSpec
 
 from .dto import (
+    ExperimentHparamsResponse,
+    ExperimentHparamsUpsertRequest,
     ExperimentSnapshotResponse,
     ExperimentSnapshotUpsertRequest,
     SnapshotFileEntry,
@@ -46,6 +48,20 @@ class ExperimentDataRequestSpecFactory:
             endpoint=f"{self.BASE_ENDPOINT}/{experiment_id}/data/snapshot",
             request_payload=ExperimentSnapshotUpsertRequest(files=files),
             response_model=ExperimentSnapshotResponse,
+        )
+
+    def upsert_hparams(
+        self,
+        experiment_id: str | UUID,
+        hparams: dict[str, object],
+    ) -> ApiRequestSpec[ExperimentHparamsResponse]:
+        """Build a complete hparams replacement request."""
+
+        return ApiRequestSpec(
+            method="PUT",
+            endpoint=f"{self.BASE_ENDPOINT}/{experiment_id}/hparams",
+            request_payload=ExperimentHparamsUpsertRequest(hparams=hparams),
+            response_model=ExperimentHparamsResponse,
         )
 
 

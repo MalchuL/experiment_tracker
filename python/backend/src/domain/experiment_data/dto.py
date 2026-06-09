@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from uuid import UUID
 
+from typing import Any
+
 from pydantic import BaseModel, Field
 
 from lib.datetime_types import ApiDateTime
@@ -67,6 +69,50 @@ class ExperimentDataDTO(BaseModel):
     data: dict
     created_at: ApiDateTime
     updated_at: ApiDateTime
+
+
+class ExperimentHparamsUpsertDTO(BaseModel):
+    """Complete replacement payload for an experiment's hyperparameters."""
+
+    model_config = model_config()
+
+    hparams: dict[str, Any]
+
+
+class ExperimentHparamsDTO(BaseModel):
+    """Current hyperparameter document and backing row metadata."""
+
+    model_config = model_config()
+
+    experiment_id: UUID
+    type: ExperimentDataType = ExperimentDataType.HPARAMS
+    hparams: dict[str, Any] | None = None
+    data_id: UUID | None = None
+    created_at: ApiDateTime | None = None
+    updated_at: ApiDateTime | None = None
+
+
+class ExperimentHparamsListRequestDTO(BaseModel):
+    """Ordered experiment selection for batch hparams fetch."""
+
+    model_config = model_config()
+
+    experiment_ids: list[UUID] = Field(..., min_length=1, max_length=20)
+
+
+class ExperimentHparamsListItemDTO(BaseModel):
+    model_config = model_config()
+
+    experiment_id: UUID
+    experiment_name: str
+    hparams: dict[str, Any] | None = None
+
+
+class ExperimentHparamsListResponseDTO(BaseModel):
+    model_config = model_config()
+
+    project_id: UUID
+    experiments: list[ExperimentHparamsListItemDTO]
 
 
 class ExperimentSnapshotDTO(BaseModel):
@@ -180,4 +226,3 @@ class ExperimentSnapshotFileContentDTO(BaseModel):
     hash: str
     content: str
     size: int
-

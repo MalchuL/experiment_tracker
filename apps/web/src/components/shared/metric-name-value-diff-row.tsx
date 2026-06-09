@@ -105,6 +105,8 @@ export type MetricNameValueDiffRowProps = {
    * single table cell). See {@link MetricNameValueDiffRowMetricTable} for `groupHasAnyDiff`.
    */
   metricTable?: MetricNameValueDiffRowMetricTable;
+  /** When false, signed Δ and trend icon use muted styling (cell may still be highlighted). */
+  colorizeDiffOutcome?: boolean;
   /** Per-node class overrides; see {@link MetricNameValueDiffRowClassNameProps}. */
   classNameProps?: MetricNameValueDiffRowClassNameProps;
   "data-testid"?: string;
@@ -113,18 +115,21 @@ export type MetricNameValueDiffRowProps = {
 function DeltaSignedCell({
   model,
   textClassName,
+  colorizeOutcome = true,
 }: {
   model: NonNullable<ReturnType<typeof metricDeltaSplitModel>>;
   textClassName?: string;
+  colorizeOutcome?: boolean;
 }) {
   const { outcomeClass, signedDisplay, fullDeltaText } = model;
+  const diffColorClass = colorizeOutcome ? outcomeClass : "text-muted-foreground";
   return (
     <span
       title={fullDeltaText}
       className={cn(
         "inline-flex cursor-default touch-manipulation tabular-nums",
         textClassName,
-        outcomeClass
+        diffColorClass
       )}
     >
       {signedDisplay}
@@ -135,14 +140,17 @@ function DeltaSignedCell({
 function DeltaIconCell({
   model,
   iconClassName,
+  colorizeOutcome = true,
 }: {
   model: NonNullable<ReturnType<typeof metricDeltaSplitModel>>;
   iconClassName?: string;
+  colorizeOutcome?: boolean;
 }) {
   const { DeltaIcon, outcomeClass, fullDeltaText } = model;
+  const diffColorClass = colorizeOutcome ? outcomeClass : "text-muted-foreground";
   return (
     <span title={fullDeltaText} className="inline-flex cursor-default touch-manipulation justify-center">
-      <DeltaIcon className={cn(iconClassName, outcomeClass)} aria-hidden />
+      <DeltaIcon className={cn(iconClassName, diffColorClass)} aria-hidden />
     </span>
   );
 }
@@ -159,6 +167,7 @@ export function MetricNameValueDiffRow({
   showDirectionHint = false,
   valueDiffClusterOrder = "diff-first",
   metricTable,
+  colorizeDiffOutcome = true,
   classNameProps,
   "data-testid": dataTestId,
 }: MetricNameValueDiffRowProps) {
@@ -197,6 +206,7 @@ export function MetricNameValueDiffRow({
       direction={direction}
       textClassName={c.deltaText}
       iconClassName={c.deltaIcon}
+      colorizeOutcome={colorizeDiffOutcome}
       iconFirst={valueDiffClusterOrder === "value-first"}
     />
   ) : null;
@@ -258,17 +268,31 @@ export function MetricNameValueDiffRow({
     }
     const vf = valueDiffClusterOrder === "value-first";
     const slot1 = vf ? valueNode("right") : splitModel ? (
-      <DeltaSignedCell model={splitModel} textClassName={c.deltaText} />
+      <DeltaSignedCell
+        model={splitModel}
+        textClassName={c.deltaText}
+        colorizeOutcome={colorizeDiffOutcome}
+      />
     ) : (
       <span className={cn("inline-block min-w-[5ch]", c.tableSlot1)} aria-hidden />
     );
     const slot2 = vf
       ? splitModel
-        ? <DeltaSignedCell model={splitModel} textClassName={c.deltaText} />
+        ? (
+            <DeltaSignedCell
+              model={splitModel}
+              textClassName={c.deltaText}
+              colorizeOutcome={colorizeDiffOutcome}
+            />
+          )
         : null
       : valueNode("left");
     const arrow = splitModel ? (
-      <DeltaIconCell model={splitModel} iconClassName={c.deltaIcon} />
+      <DeltaIconCell
+        model={splitModel}
+        iconClassName={c.deltaIcon}
+        colorizeOutcome={colorizeDiffOutcome}
+      />
     ) : (
       <span className={cn("inline-flex w-3 shrink-0 justify-center", c.tableArrow)} aria-hidden />
     );

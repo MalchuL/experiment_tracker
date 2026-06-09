@@ -495,10 +495,11 @@ class ArtifactsInfoService:
         ]
         if not entries:
             raise LookupError("artifact info not found")
+        latest = max(entries, key=lambda entry: entry.timestamp)
         return ArtifactsInfoResultDTO(
             data=[
                 ExperimentArtifactsInfoResultDTO(
-                    experiment_id=experiment_id, artifacts_info=[entries[0]]
+                    experiment_id=experiment_id, artifacts_info=[latest]
                 )
             ],
             has_next=False,

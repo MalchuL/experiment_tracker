@@ -68,6 +68,7 @@ class ExperimentDataType(str, Enum):
     """
 
     SNAPSHOT = "snapshot"
+    HPARAMS = "hparams"
 
 
 class HypothesisStatus(str, Enum):

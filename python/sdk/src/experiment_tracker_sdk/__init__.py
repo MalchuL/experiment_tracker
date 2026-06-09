@@ -21,6 +21,7 @@ from .error import (
     ExpTrackerConfigError,
     ExpTrackerError,
     ExpTrackerProgressError,
+    HparamsSerializationError,
 )
 from .exp_tracker import ExperimentStatus, ExpTracker
 from .utils.color_utils import random_hex_color
@@ -53,6 +54,7 @@ __all__ = [
     "ExpTrackerConfigError",
     "ExpTrackerAPIError",
     "ExpTrackerProgressError",
+    "HparamsSerializationError",
     "config",
 ]
-__version__ = "0.11.8"
+__version__ = "0.12.1"

@@ -23,6 +23,7 @@ from experiment_tracker_sdk.client.scalar_batching_strategy import (
     BatchedScalarLoggingStrategy,
 )
 from experiment_tracker_sdk.error import ExpTrackerAPIError
+from experiment_tracker_sdk.hparams import serialize_hparams
 from experiment_tracker_sdk.logger import logger
 from experiment_tracker_sdk.settings import get_exp_tracker_settings
 from experiment_tracker_sdk.snapshot import (
@@ -815,6 +816,17 @@ class ExpTracker:
     def features(self, features: list[FeatureNodeLike]):
         """Update the feature tree for the experiment."""
         self._experiment.features = features
+
+    def log_hparams(self, hparams: dict[str, Any]) -> None:
+        """Validate and fully replace this experiment's hyperparameters."""
+
+        normalized = serialize_hparams(hparams)
+        self._request_client.request(
+            self._api_requests_registry.experiment_data.upsert_hparams(
+                self.experiment_id,
+                normalized,
+            )
+        )
 
     def name(self, name: str):
         """Update the name of the experiment."""

@@ -1,19 +1,14 @@
 import { serviceClients } from "@/lib/api/clients/axios-client";
 import { API_ROUTES } from "@/lib/constants/api-routes";
-import { decodeUtf8Blob, filenameFromContentDisposition } from "./downloads";
+import { decodeUtf8Blob } from "@/lib/downloads";
 import type {
   ExperimentSnapshotFiles,
   ExperimentSnapshotFilesResponse,
   SnapshotFile,
   SnapshotFileContent,
-} from "./types";
+} from "../types/snapshot-compare";
 
-export interface SnapshotDownload {
-  blob: Blob;
-  filename: string;
-}
-
-export const compareService = {
+export const snapshotCompareService = {
   getSnapshotFiles: async (
     experimentIds: string[]
   ): Promise<ExperimentSnapshotFilesResponse> => {
@@ -49,31 +44,13 @@ export const compareService = {
     projectId: string,
     file: Pick<SnapshotFile, "path" | "hash">
   ): Promise<SnapshotFileContent> => {
-    const blob = await compareService.downloadProjectArtifact(projectId, file.hash);
+    const blob = await snapshotCompareService.downloadProjectArtifact(projectId, file.hash);
     const content = await decodeUtf8Blob(blob);
     return {
       path: file.path,
       hash: file.hash,
       content,
       size: blob.size,
-    };
-  },
-
-  downloadExperimentSnapshot: async (
-    experimentId: string,
-    snapshotId?: string
-  ): Promise<SnapshotDownload> => {
-    const url = API_ROUTES.EXPERIMENTS.BY_ID.SNAPSHOT_DOWNLOAD(experimentId, snapshotId);
-    const response = await serviceClients.api.get<Blob>(url, {
-      responseType: "blob",
-    });
-    const fallback = `snapshot-${snapshotId ?? experimentId}.zip`;
-    return {
-      blob: response.data,
-      filename: filenameFromContentDisposition(
-        response.headers["content-disposition"],
-        fallback
-      ),
     };
   },
 };

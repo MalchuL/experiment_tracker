@@ -119,6 +119,63 @@ def _build_run_config_yaml(
     return "\n".join(lines) + "\n"
 
 
+def _build_run_hparams(
+    args: argparse.Namespace, steps: int, duration_seconds: int
+) -> dict[str, Any]:
+    return {
+        "run": {
+            "project_name": args.project_name,
+            "experiment_name": args.experiment_name,
+            "team_name": args.team_name,
+            "steps": steps,
+            "duration_seconds": duration_seconds,
+            "config_source": "external" if args.config_path else "generated",
+        },
+        "data": {
+            "image_size": 256,
+            "channels": 3,
+            "dtype": "uint8",
+            "augmentations": {
+                "box_blur": {"enabled": True, "kernel_size": 7},
+                "checkerboard": {
+                    "enabled": True,
+                    "tile_size": 16,
+                    "color_a": [32, 48, 64],
+                    "color_b": [240, 196, 80],
+                },
+            },
+        },
+        "model": {
+            "type": "demo-stochastic-metric-generator",
+            "metrics": ["accuracy", "mAP", "loss", "bce_loss", "power", "rng"],
+        },
+        "optimizer": {
+            "name": "random-walk",
+            "params": {
+                "accuracy_delta": [-0.1, 0.1],
+                "map_delta": [-0.05, 0.05],
+                "loss_delta": [-0.1, 0.1],
+            },
+        },
+        "scheduler": {
+            "name": "linear-power-sweep",
+            "power_exp_high": 15.0,
+            "power_exp_low": -15.0,
+        },
+        "logging": {
+            "scalar_log_interval": max(1, steps // 100),
+            "image_log_interval": 500,
+            "text_log_interval": 400,
+            "histogram": {"bins": 16, "samples": 128},
+            "artifacts": {
+                "config_yaml": True,
+                "pip_freeze": True,
+                "final_images": True,
+            },
+        },
+    }
+
+
 def _build_feature_tree(
     args: argparse.Namespace, steps: int, duration_seconds: int
 ) -> list[dict[str, Any]]:
@@ -256,6 +313,7 @@ def main() -> None:
         pprint(project_settings)
 
         tracker.features(_build_feature_tree(args, steps, duration_seconds))
+        tracker.log_hparams(_build_run_hparams(args, steps, duration_seconds))
         tracker.tags("training-example")
         tracker.status(ExperimentStatus.RUNNING)
         tracker.progress(0)

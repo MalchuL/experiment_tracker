@@ -1,6 +1,6 @@
 [project]
 name = "scalars-service"
-version = "0.11.8"
+version = "0.12.1"
 description = "Add your description here"
 readme = "README.md"
 authors = [

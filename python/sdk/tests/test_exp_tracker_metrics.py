@@ -48,12 +48,22 @@ class _FakeExperimentsService:
         return {"kind": "experiment_request", "experiment_id": experiment_id, **kwargs}
 
 
+class _FakeExperimentDataService:
+    def __init__(self):
+        self.calls: list[tuple[str, dict[str, object]]] = []
+
+    def upsert_hparams(self, experiment_id: str, hparams: dict[str, object]):
+        self.calls.append((experiment_id, hparams))
+        return {"kind": "hparams_request", "hparams": hparams}
+
+
 class _FakeRegistry:
     def __init__(self):
         self.scalars = _FakeScalarsService()
         self.metrics = _FakeMetricsService()
         self.projects = _FakeProjectsService()
         self.experiments = _FakeExperimentsService()
+        self.experiment_data = _FakeExperimentDataService()
 
 
 class _FakeClient:
@@ -184,6 +194,18 @@ def test_features_updates_experiment_feature_tree() -> None:
     tracker.features(features)
 
     assert registry.experiments.calls == [("exp-id", {"features": features})]
+    assert len(client.request_calls) == 1
+    assert client.queued_calls == []
+
+
+def test_log_hparams_sends_complete_replacement_synchronously() -> None:
+    tracker, registry, client = _create_tracker()
+
+    tracker.log_hparams({"optimizer": {"lr": 0.001}})
+
+    assert registry.experiment_data.calls == [
+        ("exp-id", {"optimizer": {"lr": 0.001}})
+    ]
     assert len(client.request_calls) == 1
     assert client.queued_calls == []
 
