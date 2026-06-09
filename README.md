@@ -1,6 +1,5 @@
 # Experiment Tracker: Self-Hosted ML Experiment Analysis Workspace
 
-Docker installation and deployment: **[Docker Guide](DOCKER.md)**
 
 ![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-backend-009688?logo=fastapi&logoColor=white)
@@ -250,6 +249,9 @@ This script runs train.py script with args passed after `--` token.
 It will create or fetch project "mnist" and experiment "Experiment 0" if they don't exist.
 After that it captures tensorboardX events and logs them to the backend.
 
+## Docker Installation and Deployment
+
+Docker installation, deployment, troubleshooting, and known issues: **[Docker Guide](DOCKER.md)**
 
 ## Local Development
 

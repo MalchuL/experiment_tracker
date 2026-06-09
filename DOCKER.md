@@ -151,3 +151,178 @@ Override the in-container BFF target only if needed:
    ```
 
 4. **Reverse proxy / TLS** in front of Compose: the browser must still be able to resolve `PUBLIC_API_BASE_URL` to your API and the UI origin must appear in `ALLOWED_ORIGINS`. Service-to-service URLs inside Compose (`http://backend:8000`, `http://scalars:8001/api`, etc.) stay on the Docker network and do not need to use your public domain.
+
+## Detailed Reference and Known Issues
+
+### Docker: stop, remove containers, and reset for a new run
+
+Typical order when you want the stack **gone** and then a **clean start** next time:
+
+1. **Stop containers** (keeps containers and volumes; fastest pause):
+
+   ```bash
+   docker compose stop
+   ```
+
+2. **Stop and remove containers and the Compose project network** (usual teardown; **data under `./storage/` stays** unless you delete it separately):
+
+   ```bash
+   docker compose down
+   ```
+
+   Add **`--remove-orphans`** if you changed service names and old containers remain. Add **`-v`** only if you use **named Docker volumes** in this project and want them removed too (this compose file mainly uses **bind mounts** to `./storage`, so `-v` often does nothing for data persistence).
+
+3. **Remove persisted data** (optional, destructive; empty databases and blobs next `up`):
+
+   ```bash
+   rm -rf storage/
+   ```
+
+4. **Remove built images** (optional; next `docker compose up --build` will rebuild):
+
+   ```bash
+   docker compose down --rmi local
+   ```
+
+5. **Start again** from [Full stack: step by step](#full-stack-step-by-step).
+
+### Layout
+
+| Path | Role |
+|------|------|
+| `docker-compose.yml` | Deployment stack using published application images |
+| `docker-compose.dev.yml` | Development stack building application images from this checkout |
+| `python/backend/Dockerfile` | Main API |
+| `python/scalars_service/Dockerfile` | Scalars and ClickHouse API |
+| `python/object_storage/Dockerfile` | Object storage API |
+| `apps/web/Dockerfile` | Next.js standalone production image |
+
+Python images declare `HEALTHCHECK` in their Dockerfiles so `depends_on: service_healthy` can gate startup.
+
+### Development stack ports
+
+The deployment stack publishes only web and backend ports. The development stack also publishes dependency and satellite-service ports:
+
+| Host port | Service |
+|-----------|---------|
+| 3000 | web |
+| 8000 | backend |
+| 8001 | scalars |
+| 8002 | object-storage |
+| 5435 | postgres (backend DB) |
+| 5434 | postgres (object storage DB) |
+| 6380 | redis |
+| 8123 | ClickHouse HTTP |
+| 9000 / 9001 | MinIO API / console |
+
+Host ports are overridden with variables in a root `.env` (see `.env.example`). Container ports stay the same so services inside Compose keep talking to names such as `redis:6379` and `postgres-backend:5432`.
+
+### Port already in use on the host
+
+If Compose fails with **`address already in use`**, create or edit root `.env` and set a free host port for the failing service:
+
+```env
+REDIS_PORT=6381
+POSTGRES_OBJECT_STORAGE_PORT=5436
+POSTGRES_BACKEND_PORT=5437
+MINIO_API_PORT=9010
+MINIO_CONSOLE_PORT=9011
+```
+
+Then restart:
+
+```bash
+docker compose down
+docker compose up -d
+```
+
+Only the published host port changes. Containers continue using their unchanged internal service names and ports.
+
+### Known issues (Docker / MinIO)
+
+- **MinIO fails to start because host port 9000 is already in use.** Set `MINIO_API_PORT` and `MINIO_CONSOLE_PORT` to free ports in root `.env`, then restart the stack.
+- **Older Docker Engine and `minio/minio:latest`.** On some older installations, the current image may exit immediately. Pin the `minio` service to a known-good release such as `minio/minio:RELEASE.2024-11-07T00-52-20Z`.
+- **Bad or incompatible local object-storage state.** Stop the stack, clear persisted data, then start again. This is destructive:
+
+  ```bash
+  docker compose down
+  rm -rf storage/*
+  docker compose up -d
+  ```
+
+  If files were created as root, you may need `sudo rm -rf storage/*` once, then fix Docker permissions.
+
+### Dependencies, startup order, and hybrid setups
+
+Compose uses `depends_on` with health conditions. For example, backend waits for PostgreSQL, scalars, and object-storage, which wait on their own dependencies.
+
+For a complete containerized stack:
+
+```bash
+docker compose up -d
+docker compose logs -f backend
+```
+
+To run backend on the host while dependencies run in the development stack:
+
+```bash
+docker compose -f docker-compose.dev.yml up -d postgres-backend postgres-object-storage redis clickhouse minio minio-init scalars object-storage
+cd python/backend
+export DATABASE_URL="postgresql+asyncpg://tracker:tracker@127.0.0.1:5435/experiment_tracker"
+export SCALARS_SERVICE_URL="http://127.0.0.1:8001/api"
+export OBJECT_STORAGE_SERVICE_URL="http://127.0.0.1:8002/api"
+uv run uvicorn api.main:app --reload --port 8000
+```
+
+To run backend in Docker while PostgreSQL runs on the host, set `DATABASE_URL` to use `host.docker.internal`. On Linux, add this Compose override:
+
+```yaml
+services:
+  backend:
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+```
+
+Then start backend without its Compose PostgreSQL dependency:
+
+```bash
+docker compose up -d --no-deps backend
+```
+
+### Build individual images
+
+Each Dockerfile uses paths from the repository root. Always build with context `.`:
+
+```bash
+docker build -f python/backend/Dockerfile -t experiment-tracker-backend .
+docker build -f python/scalars_service/Dockerfile -t experiment-tracker-scalars .
+docker build -f python/object_storage/Dockerfile -t experiment-tracker-object-storage .
+docker build -f apps/web/Dockerfile -t experiment-tracker-web .
+```
+
+Or build individual development-stack services:
+
+```bash
+docker compose -f docker-compose.dev.yml build backend
+docker compose -f docker-compose.dev.yml build scalars
+docker compose -f docker-compose.dev.yml build object-storage
+docker compose -f docker-compose.dev.yml build web
+```
+
+### Force rebuild
+
+If a service still misbehaves after edits, rebuild without cache and recreate it:
+
+```bash
+docker compose -f docker-compose.dev.yml build --no-cache backend web
+docker compose -f docker-compose.dev.yml up -d --force-recreate backend web
+```
+
+For all application services:
+
+```bash
+docker compose -f docker-compose.dev.yml build --no-cache object-storage scalars backend web
+docker compose -f docker-compose.dev.yml up -d --force-recreate
+```
+
+If problems persist, `docker builder prune` clears build cache for all Docker projects on the machine.
