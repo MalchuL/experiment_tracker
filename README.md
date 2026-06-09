@@ -159,6 +159,12 @@ sudo PUBLIC_URL=http://192.168.1.247 WEB_PORT=3000 ./scripts/docker-up-public.sh
 
 The first command uses the default localhost configuration. The second configures a browser-reachable local URL. The third configures separate public UI and API URLs.
 
+Stop the stack without deleting stored data:
+
+```bash
+docker compose down
+```
+
 ## Python SDK
 
 ### Install
