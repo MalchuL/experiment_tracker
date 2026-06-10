@@ -104,6 +104,9 @@ interface ExperimentsTableProps {
   selectedExperimentId?: string | null;
   onExperimentClick: (experimentId: string) => void;
   onReorder: (experimentIds: string[]) => void;
+  selectionMode?: boolean;
+  getSelectionOrderNumber?: (experimentId: string) => number | null;
+  onSelectionToggle?: (experimentId: string) => void;
 }
 
 export function ExperimentsTable({
@@ -118,6 +121,9 @@ export function ExperimentsTable({
   selectedExperimentId,
   onExperimentClick,
   onReorder,
+  selectionMode = false,
+  getSelectionOrderNumber,
+  onSelectionToggle,
 }: ExperimentsTableProps) {
   const { pinLeadColumns, leadColumnCount } = useProjectDataTableFrame();
   const sensors = useSensors(
@@ -317,6 +323,13 @@ export function ExperimentsTable({
                     experimentTableResolvedColumnWidths={experimentTableResolvedColumnWidths}
                     experimentTableGripColumnWidthPx={experimentTableGripColumnWidthPxResolved}
                     pinStickyLead={pinSticky}
+                    selectionMode={selectionMode}
+                    selectionOrderNumber={
+                      getSelectionOrderNumber ? getSelectionOrderNumber(experiment.id) : null
+                    }
+                    onSelectionToggle={
+                      onSelectionToggle ? () => onSelectionToggle(experiment.id) : undefined
+                    }
                   />
                 );
               })}

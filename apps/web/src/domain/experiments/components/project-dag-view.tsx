@@ -36,12 +36,15 @@ import "@xyflow/react/dist/style.css";
 import { EmptyState } from "@/components/shared/empty-state";
 import { ExperimentSidebar } from "@/components/shared/experiment-sidebar";
 import { useCurrentProject } from "@/domain/projects/hooks";
-import { useExperiments, useAggregatedMetrics } from "@/domain/experiments/hooks";
+import { useExperiments, useAggregatedMetrics, useOrderedExperimentSelection } from "@/domain/experiments/hooks";
 import {
   useSelectedExperimentStore,
   useDagLayoutStore,
   EMPTY_DAG_LAYOUT_POSITIONS,
 } from "@/domain/experiments/store";
+import { ExperimentSelectionOrderBadge } from "@/domain/experiments/components/experiment-selection-order-badge";
+import { ExperimentCompareBar } from "@/domain/experiments/components/experiment-compare-bar";
+import { CompareLabeledSwitch } from "@/domain/compare/components/compare-labeled-switch";
 import { experimentsService } from "@/domain/experiments/services";
 import type { Experiment } from "@/domain/experiments/types";
 import type { Project, ProjectMetric } from "@/domain/projects/types";
@@ -104,6 +107,9 @@ export interface ExperimentNodeData {
   metrics: MetricComparison[];
   isSelected?: boolean;
   isHighlighted?: boolean;
+  selectionMode?: boolean;
+  selectionOrder?: number | null;
+  onSelectionToggle?: () => void;
   [key: string]: unknown;
 }
 
@@ -197,6 +203,14 @@ function ExperimentNode({ data }: { data: ExperimentNodeData }) {
         <Tooltip>
           <TooltipTrigger asChild>
             <div className="flex items-center gap-1.5 mb-0.5 min-w-0">
+              {data.selectionMode && data.onSelectionToggle ? (
+                <ExperimentSelectionOrderBadge
+                  experimentId={data.id}
+                  experimentName={data.label}
+                  orderNumber={data.selectionOrder ?? null}
+                  onToggle={data.onSelectionToggle}
+                />
+              ) : null}
               <div
                 className="w-2 h-2 rounded-full shrink-0"
                 style={{ backgroundColor: data.color }}
@@ -319,6 +333,13 @@ function DagViewCanvas({
 
   const { selectedExperimentId, setSelectedExperimentId } = useSelectedExperimentStore();
   const [searchQuery, setSearchQuery] = useState("");
+  const {
+    selectionMode,
+    setSelectionMode,
+    orderedIds,
+    toggleExperiment,
+    getOrderNumber,
+  } = useOrderedExperimentSelection();
   /** Node ids currently mid-drag — avoids syncing layout-derived nodes over RF state (error #015). */
   const draggingNodeIdsRef = useRef<Set<string>>(new Set());
 
@@ -355,6 +376,9 @@ function DagViewCanvas({
         metrics,
         isSelected: selectedExperimentId === exp.id,
         isHighlighted: searchQuery ? matches : undefined,
+        selectionMode,
+        selectionOrder: getOrderNumber(exp.id),
+        onSelectionToggle: () => toggleExperiment(exp.id),
       });
     }
     return map;
@@ -364,6 +388,9 @@ function DagViewCanvas({
     project,
     searchQuery,
     selectedExperimentId,
+    selectionMode,
+    getOrderNumber,
+    toggleExperiment,
   ]);
 
   const computedNodes = useMemo((): Node<ExperimentNodeData>[] => {
@@ -564,7 +591,7 @@ function DagViewCanvas({
               maskColor="hsl(var(--background) / 0.75)"
             />
             <Panel position="top-left" className="m-2">
-              <div className="flex items-center gap-2 bg-card/95 p-2 rounded-md border shadow-sm">
+              <div className="flex flex-wrap items-center gap-2 bg-card/95 p-2 rounded-md border shadow-sm">
                 <Search className="h-4 w-4 text-muted-foreground shrink-0" />
                 <Input
                   placeholder="Search experiments..."
@@ -585,8 +612,22 @@ function DagViewCanvas({
                     <X className="h-3 w-3" />
                   </Button>
                 ) : null}
+                <div className="hidden h-6 w-px shrink-0 bg-border sm:block" aria-hidden="true" />
+                <CompareLabeledSwitch
+                  id="dag-selection-mode"
+                  label="Selection mode"
+                  checked={selectionMode}
+                  onCheckedChange={setSelectionMode}
+                  tip="Pick experiments in order; #1 is the compare baseline."
+                  ariaLabel="Enable selection mode for compare"
+                />
               </div>
             </Panel>
+            {selectionMode ? (
+              <Panel position="bottom-left" className="m-2">
+                <ExperimentCompareBar projectId={projectId} orderedIds={orderedIds} />
+              </Panel>
+            ) : null}
             <Panel position="top-right" className="m-2 flex items-center gap-2">
               {experimentsStillPaging ? (
                 <Tooltip>

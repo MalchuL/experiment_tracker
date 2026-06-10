@@ -18,15 +18,18 @@ import {
   useMissingParentExperimentNames,
 } from "@/domain/experiments/hooks";
 import { CreateExperimentDialog, ExperimentsTable } from "@/domain/experiments/components";
+import { ExperimentCompareBar } from "@/domain/experiments/components/experiment-compare-bar";
 import {
   loadExperimentsTablePinLead,
   saveExperimentsTablePinLead,
 } from "@/domain/experiments/lib/experiments-table-column-widths";
+import { useOrderedExperimentSelection } from "@/domain/experiments/hooks";
 import { useSelectedExperimentStore } from "@/domain/experiments/store";
 import { REFRESH_EXPERIMENTS_LIST_INTERVAL } from "@/lib/constants/rates";
 import { getDisplayedTrackedMetrics } from "@/lib/metrics/format-metric-label";
 import { ProjectDataTableFrame } from "@/components/shared/project-data-table-frame";
 import { Switch } from "@/components/ui/switch";
+import { CompareLabeledSwitch } from "@/domain/compare/components/compare-labeled-switch";
 
 export default function Experiments() {
   const { project, isLoading: projectLoading } = useCurrentProject();
@@ -35,6 +38,13 @@ export default function Experiments() {
   const [searchQuery, setSearchQuery] = useState("");
   const [pinLeadColumns, setPinLeadColumns] = useState(true);
   const [experimentsListReady, setExperimentsListReady] = useState(false);
+  const {
+    selectionMode,
+    setSelectionMode,
+    orderedIds,
+    toggleExperiment,
+    getOrderNumber,
+  } = useOrderedExperimentSelection();
 
   const {
     experiments,
@@ -174,7 +184,7 @@ export default function Experiments() {
 
   return (
     <div className="flex h-full min-h-0 w-full min-w-0 gap-0">
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden px-6 pt-6 pb-6">
+      <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden px-6 pt-6 pb-6">
         <div className="flex min-h-0 flex-1 flex-col space-y-6">
           <PageHeader
             title="Experiments"
@@ -212,21 +222,31 @@ export default function Experiments() {
                 data-testid="input-experiments-search"
               />
             </div>
-            <div className="flex h-10 shrink-0 items-center gap-2">
-              <Label htmlFor="experiments-pin-lead" className="text-sm font-normal">
-                Pin lead columns
-              </Label>
-              <Switch
-                id="experiments-pin-lead"
-                checked={pinLeadColumns}
-                onCheckedChange={(v) => {
-                  setPinLeadColumns(v);
-                  if (projectId) {
-                    saveExperimentsTablePinLead(projectId, v);
-                  }
-                }}
-                aria-label="Pin grip and experiment columns when scrolling horizontally"
+            <div className="flex h-10 shrink-0 flex-wrap items-center gap-4">
+              <CompareLabeledSwitch
+                id="experiments-selection-mode"
+                label="Selection mode"
+                checked={selectionMode}
+                onCheckedChange={setSelectionMode}
+                tip="Pick experiments in order; #1 is the compare baseline."
+                ariaLabel="Enable selection mode for compare"
               />
+              <div className="flex items-center gap-2">
+                <Label htmlFor="experiments-pin-lead" className="text-sm font-normal">
+                  Pin lead columns
+                </Label>
+                <Switch
+                  id="experiments-pin-lead"
+                  checked={pinLeadColumns}
+                  onCheckedChange={(v) => {
+                    setPinLeadColumns(v);
+                    if (projectId) {
+                      saveExperimentsTablePinLead(projectId, v);
+                    }
+                  }}
+                  aria-label="Pin grip and experiment columns when scrolling horizontally"
+                />
+              </div>
             </div>
           </div>
 
@@ -308,12 +328,22 @@ export default function Experiments() {
                   selectedExperimentId={selectedExperimentId}
                   onExperimentClick={setSelectedExperimentId}
                   onReorder={reorderExperiments}
+                  selectionMode={selectionMode}
+                  getSelectionOrderNumber={getOrderNumber}
+                  onSelectionToggle={toggleExperiment}
                 />
                 <div ref={loadMoreRef} className="h-4 shrink-0" aria-hidden="true" />
               </ProjectDataTableFrame>
             )}
           </div>
         </div>
+        {selectionMode ? (
+          <ExperimentCompareBar
+            projectId={projectId}
+            orderedIds={orderedIds}
+            className="absolute bottom-6 left-6 z-20"
+          />
+        ) : null}
       </div>
 
       {selectedExperimentId ? (

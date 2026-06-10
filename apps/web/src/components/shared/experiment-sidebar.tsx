@@ -41,6 +41,7 @@ import { useExperiments } from "@/domain/experiments/hooks/experiments-hook";
 import { Download, FileCode2, GitBranch, GitCompare, Loader2, RefreshCw, X, ChevronDown } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import type { Experiment } from "@/domain/experiments/types";
+import { buildCompareHref } from "@/domain/experiments/lib/build-compare-href";
 import type { Metric } from "@/domain/metrics/types";
 import type { ProjectMetric } from "@/domain/projects/types";
 import { useExperimentMetrics } from "@/domain/metrics/hooks";
@@ -151,20 +152,14 @@ function formatExperimentParentOption(exp: Pick<Experiment, "name" | "id">): str
 }
 
 function buildCodeCompareHref(experiment: Pick<Experiment, "id" | "projectId" | "parentExperimentId">): string {
-  const params = new URLSearchParams();
-  if (experiment.parentExperimentId) {
-    params.append("exp", experiment.parentExperimentId);
-    params.append("exp", experiment.id);
-  } else {
-    params.append("exp", experiment.id);
-  }
-  return `${FRONTEND_ROUTES.PROJECT_PAGES.COMPARE(experiment.projectId)}?${params.toString()}`;
+  const ids = experiment.parentExperimentId
+    ? [experiment.parentExperimentId, experiment.id]
+    : [experiment.id];
+  return buildCompareHref(experiment.projectId, ids);
 }
 
 function buildCodeFilesHref(experiment: Pick<Experiment, "id" | "projectId">): string {
-  const params = new URLSearchParams();
-  params.append("exp", experiment.id);
-  return `${FRONTEND_ROUTES.PROJECT_PAGES.COMPARE(experiment.projectId)}?${params.toString()}`;
+  return buildCompareHref(experiment.projectId, [experiment.id]);
 }
 
 function readStoredSidebarTab(): ExperimentSidebarTab {

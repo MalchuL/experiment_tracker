@@ -23,6 +23,7 @@ import {
   metricColumnId,
 } from "@/domain/experiments/lib/experiments-table-column-widths";
 import { findTopMetric } from "../lib/selective-metrics";
+import { ExperimentSelectionOrderBadge } from "./experiment-selection-order-badge";
 
 const stickyGripCell = cn(
   "sticky left-0 z-[2] bg-background shadow-[4px_0_12px_-8px_rgba(0,0,0,0.08)] box-border overflow-hidden"
@@ -32,6 +33,8 @@ const stickyExperimentCell = cn(
 );
 
 const rowSeparatorClass = "border-y border-border/70";
+/** Fixed lead-column control slot — grip icon and selection badge share the same footprint. */
+const GRIP_LEAD_SLOT_CLASS = "flex h-6 w-6 shrink-0 items-center justify-center";
 
 interface ExperimentTableRowProps {
   experiment: Experiment;
@@ -46,6 +49,9 @@ interface ExperimentTableRowProps {
   experimentTableResolvedColumnWidths: Record<string, number>;
   experimentTableGripColumnWidthPx: number;
   pinStickyLead?: boolean;
+  selectionMode?: boolean;
+  selectionOrderNumber?: number | null;
+  onSelectionToggle?: () => void;
 }
 
 export function ExperimentTableRow({
@@ -60,10 +66,14 @@ export function ExperimentTableRow({
   experimentTableResolvedColumnWidths,
   experimentTableGripColumnWidthPx,
   pinStickyLead = true,
+  selectionMode = false,
+  selectionOrderNumber = null,
+  onSelectionToggle,
 }: ExperimentTableRowProps) {
+  const dragDisabled = reorderDisabled || selectionMode;
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: experiment.id,
-    disabled: reorderDisabled,
+    disabled: dragDisabled,
   });
 
   const transformStr = transform ? CSS.Transform.toString(transform) : undefined;
@@ -104,7 +114,11 @@ export function ExperimentTableRow({
       data-testid={`row-experiment-${experiment.id}`}
     >
       <TableCell
-        className={cn("px-2 group-hover:bg-muted/50", rowSeparatorClass, gripCellClass)}
+        className={cn(
+          "px-2 py-2 align-middle group-hover:bg-muted/50",
+          rowSeparatorClass,
+          gripCellClass
+        )}
         style={{
           width: experimentTableGripColumnWidthPx,
           minWidth: experimentTableGripColumnWidthPx,
@@ -112,19 +126,33 @@ export function ExperimentTableRow({
           ...stickyCellBackground,
         }}
       >
-        <div
-          className={
-            reorderDisabled
-              ? "cursor-not-allowed p-1 opacity-40"
-              : "cursor-grab p-1 active:cursor-grabbing"
-          }
-          title={reorderDisabled ? "Clear the search filter to reorder experiments" : undefined}
-          {...attributes}
-          {...(reorderDisabled ? {} : listeners)}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <GripVertical className="h-4 w-4 text-muted-foreground" />
-        </div>
+        {selectionMode && onSelectionToggle ? (
+          <div className={GRIP_LEAD_SLOT_CLASS} onClick={(e) => e.stopPropagation()}>
+            <ExperimentSelectionOrderBadge
+              experimentId={experiment.id}
+              experimentName={experiment.name}
+              orderNumber={selectionOrderNumber}
+              onToggle={onSelectionToggle}
+            />
+          </div>
+        ) : (
+          <div
+            className={cn(
+              GRIP_LEAD_SLOT_CLASS,
+              dragDisabled
+                ? "cursor-not-allowed opacity-40"
+                : "cursor-grab active:cursor-grabbing"
+            )}
+            title={
+              reorderDisabled ? "Clear the search filter to reorder experiments" : undefined
+            }
+            {...attributes}
+            {...(dragDisabled ? {} : listeners)}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <GripVertical className="h-4 w-4 text-muted-foreground" />
+          </div>
+        )}
       </TableCell>
       <TableCell
         className={cn(
