@@ -1,5 +1,7 @@
 "use client";
 
+import { useMemo } from "react";
+import { parseISO } from "date-fns";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
@@ -24,12 +26,13 @@ export interface LoggedObjectsSectionProps {
   cardMinWidth: number;
   cardHeight: number;
   objectStepSelection: Record<string, number>;
-  setObjectStepSelection: Dispatch<SetStateAction<Record<string, number>>>;
+  updateObjectStep: (selectionKey: string, step: number, followLatest: boolean) => void;
   debouncedObjectStepSelection: Record<string, number>;
   experimentStepOverrideEnabled: Record<string, boolean>;
   setExperimentStepOverrideEnabled: Dispatch<SetStateAction<Record<string, boolean>>>;
+  enableExperimentStepOverride: (overrideKey: string, step: number, followLatest?: boolean) => void;
   experimentStepOverrides: Record<string, number>;
-  setExperimentStepOverrides: Dispatch<SetStateAction<Record<string, number>>>;
+  updateExperimentStepOverride: (overrideKey: string, step: number, followLatest: boolean) => void;
   debouncedExperimentStepOverrides: Record<string, number>;
   onImagePreview: (payload: { src: string; title: string }) => void;
   hiddenArtifactIds?: Set<string>;
@@ -43,17 +46,26 @@ export function LoggedObjectsSection({
   cardMinWidth,
   cardHeight,
   objectStepSelection,
-  setObjectStepSelection,
+  updateObjectStep,
   debouncedObjectStepSelection,
   experimentStepOverrideEnabled,
   setExperimentStepOverrideEnabled,
+  enableExperimentStepOverride,
   experimentStepOverrides,
-  setExperimentStepOverrides,
+  updateExperimentStepOverride,
   debouncedExperimentStepOverrides,
   onImagePreview,
   hiddenArtifactIds = new Set(),
   onlyArtifactId = null,
 }: LoggedObjectsSectionProps) {
+  const artifactExperiments = useMemo(
+    () =>
+      [...visibleExperiments].sort(
+        (a, b) => parseISO(b.createdAt).getTime() - parseISO(a.createdAt).getTime()
+      ),
+    [visibleExperiments]
+  );
+
   if (Object.keys(objectGroups).length === 0) return null;
 
   return (
@@ -80,8 +92,11 @@ export function LoggedObjectsSection({
                 return null;
               }
               const availableSteps = group.steps;
-              const selectedStep = objectStepSelection[selectionKey] ?? availableSteps[availableSteps.length - 1] ?? 0;
-              const debouncedSelectedStep = debouncedObjectStepSelection[selectionKey] ?? selectedStep;
+              const defaultStep = availableSteps[availableSteps.length - 1] ?? 0;
+              const selectedStep = objectStepSelection[selectionKey] ?? defaultStep;
+              const debouncedSelectedStep =
+                debouncedObjectStepSelection[selectionKey] ?? defaultStep;
+              const maxStepIndex = Math.max(0, availableSteps.length - 1);
               const currentIndex = Math.max(
                 0,
                 availableSteps.findIndex((step) => step === selectedStep)
@@ -98,20 +113,17 @@ export function LoggedObjectsSection({
                     <Slider
                       value={[currentIndex]}
                       min={0}
-                      max={Math.max(0, availableSteps.length - 1)}
+                      max={maxStepIndex}
                       step={1}
                       disabled={availableSteps.length <= 1}
                       onValueChange={(value) => {
                         const idx = value[0] ?? 0;
                         const step = availableSteps[idx] ?? availableSteps[0] ?? 0;
-                        setObjectStepSelection((prev) => ({
-                          ...prev,
-                          [selectionKey]: step,
-                        }));
+                        updateObjectStep(selectionKey, step, maxStepIndex <= 0 || idx >= maxStepIndex);
                       }}
                     />
                     <div className="space-y-1.5" style={{ minHeight: cardHeight }}>
-                      {visibleExperiments.map((experiment, idx) => {
+                      {artifactExperiments.map((experiment, idx) => {
                         const experimentOverrideKey = `${selectionKey}:${experiment.id}`;
                         const isOverrideEnabled = experimentStepOverrideEnabled[experimentOverrideKey] ?? false;
                         const experimentColor = experiment.color || CHART_COLORS[idx % CHART_COLORS.length];
@@ -121,8 +133,12 @@ export function LoggedObjectsSection({
                           .filter((step) => Number.isFinite(step))
                           .sort((a, b) => a - b);
                         const overrideRawStep = experimentStepOverrides[experimentOverrideKey] ?? selectedStep;
+                        const overrideFetchDefault =
+                          closestStep(debouncedSelectedStep, experimentSteps) ??
+                          experimentSteps[experimentSteps.length - 1] ??
+                          debouncedSelectedStep;
                         const targetStep = isOverrideEnabled
-                          ? debouncedExperimentStepOverrides[experimentOverrideKey] ?? overrideRawStep
+                          ? debouncedExperimentStepOverrides[experimentOverrideKey] ?? overrideFetchDefault
                           : debouncedSelectedStep;
                         const nearestStep = closestStep(targetStep, experimentSteps);
                         const objectAtStep =
@@ -148,17 +164,23 @@ export function LoggedObjectsSection({
                                 id={`override-${experimentOverrideKey}`}
                                 checked={isOverrideEnabled}
                                 onCheckedChange={(checked) => {
-                                  const enabled = checked === true;
+                                  if (checked === true) {
+                                    const latestStep = experimentSteps[experimentSteps.length - 1];
+                                    const initialStep =
+                                      closestStep(selectedStep, experimentSteps) ?? selectedStep;
+                                    const followLatest =
+                                      latestStep !== undefined && initialStep === latestStep;
+                                    enableExperimentStepOverride(
+                                      experimentOverrideKey,
+                                      initialStep,
+                                      followLatest
+                                    );
+                                    return;
+                                  }
                                   setExperimentStepOverrideEnabled((prev) => ({
                                     ...prev,
-                                    [experimentOverrideKey]: enabled,
+                                    [experimentOverrideKey]: false,
                                   }));
-                                  if (enabled) {
-                                    setExperimentStepOverrides((prev) => ({
-                                      ...prev,
-                                      [experimentOverrideKey]: prev[experimentOverrideKey] ?? selectedStep,
-                                    }));
-                                  }
                                 }}
                               />
                               <Label htmlFor={`override-${experimentOverrideKey}`} className="text-xs">
@@ -174,11 +196,13 @@ export function LoggedObjectsSection({
                                   step={1}
                                   onValueChange={(value) => {
                                     const idxValue = value[0] ?? 0;
+                                    const maxOverrideIndex = Math.max(0, experimentSteps.length - 1);
                                     const stepValue = experimentSteps[idxValue] ?? experimentSteps[0];
-                                    setExperimentStepOverrides((prev) => ({
-                                      ...prev,
-                                      [experimentOverrideKey]: stepValue,
-                                    }));
+                                    updateExperimentStepOverride(
+                                      experimentOverrideKey,
+                                      stepValue,
+                                      maxOverrideIndex <= 0 || idxValue >= maxOverrideIndex
+                                    );
                                   }}
                                 />
                                 <p className="text-[10px] text-muted-foreground">

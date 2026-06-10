@@ -133,7 +133,7 @@ export function useArtifactsLiveRefresh({
       : [],
     queryFn: () => scalarsService.getLastLoggedByProject(projectId!, stableExperimentIds),
     enabled: !!projectId && enabled && stableExperimentIds.length > 0,
-    refetchInterval: LAST_LOGGED_POLL_INTERVAL_MS,
+    refetchInterval: enabled ? LAST_LOGGED_POLL_INTERVAL_MS : false,
   });
 
   /**

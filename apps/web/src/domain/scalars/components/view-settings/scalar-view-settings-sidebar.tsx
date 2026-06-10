@@ -1,5 +1,6 @@
 "use client";
 
+import { useCallback, useState } from "react";
 import { RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { RightSidebarShell } from "@/components/shared/right-sidebar-shell";
@@ -12,6 +13,10 @@ import { ScalarDisplayControls } from "./scalar-display-controls";
 import { ScalarSavedViewsSection } from "./scalar-saved-views-section";
 import { ScalarVisibilityList } from "./scalar-visibility-list";
 import { ViewSettingsSection } from "./view-settings-section";
+
+const MIN_SIDEBAR_WIDTH = 240;
+const MAX_SIDEBAR_WIDTH = 560;
+const DEFAULT_SIDEBAR_WIDTH = 320;
 
 interface ScalarViewSettingsSidebarProps {
   projectId?: string;
@@ -84,15 +89,44 @@ export function ScalarViewSettingsSidebar({
   onRestoreView,
   onClose,
 }: ScalarViewSettingsSidebarProps) {
+  const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_SIDEBAR_WIDTH);
   const hasZoom = Object.values(metricDomains).some((domain) => domain?.x || domain?.y);
+
+  const handleResizeStart = useCallback(
+    (event: React.PointerEvent<HTMLButtonElement>) => {
+      event.preventDefault();
+      const startX = event.clientX;
+      const startWidth = sidebarWidth;
+
+      const handlePointerMove = (moveEvent: PointerEvent) => {
+        setSidebarWidth(
+          Math.min(
+            MAX_SIDEBAR_WIDTH,
+            Math.max(MIN_SIDEBAR_WIDTH, startWidth + startX - moveEvent.clientX)
+          )
+        );
+      };
+
+      const handlePointerUp = () => {
+        window.removeEventListener("pointermove", handlePointerMove);
+        window.removeEventListener("pointerup", handlePointerUp);
+      };
+
+      window.addEventListener("pointermove", handlePointerMove);
+      window.addEventListener("pointerup", handlePointerUp);
+    },
+    [sidebarWidth]
+  );
 
   return (
     <RightSidebarShell
       title="View settings"
       onClose={onClose}
       variant="push"
-      widthClassName="w-80"
-      className="md:w-[320px] md:max-w-[320px]"
+      widthClassName=""
+      className="md:max-w-none"
+      style={{ width: sidebarWidth }}
+      onResizePointerDown={handleResizeStart}
       testId="scalars-view-settings-sidebar"
       headerActions={
         hasZoom ? (

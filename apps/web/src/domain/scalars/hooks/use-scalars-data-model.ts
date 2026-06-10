@@ -59,12 +59,16 @@ export function useScalarsDataModel({
     const filtered = sortedExperiments.filter((experiment) =>
       selectedExperimentIds.has(experiment.id)
     );
-    if (!experimentDisplayOrder?.length) {
-      return filtered;
-    }
-    const idx = new Map(experimentDisplayOrder.map((id, i) => [id, i]));
-    return [...filtered].sort(
-      (a, b) => (idx.get(a.id) ?? 999) - (idx.get(b.id) ?? 999)
+    const ordered = experimentDisplayOrder?.length
+      ? [...filtered].sort(
+          (a, b) =>
+            (experimentDisplayOrder.indexOf(a.id) ?? 999) -
+            (experimentDisplayOrder.indexOf(b.id) ?? 999)
+        )
+      : filtered;
+    // Plotly draws later traces on top — oldest first so the newest run stays visible.
+    return [...ordered].sort(
+      (a, b) => parseISO(a.createdAt).getTime() - parseISO(b.createdAt).getTime()
     );
   }, [sortedExperiments, selectedExperimentIds, experimentDisplayOrder]);
 

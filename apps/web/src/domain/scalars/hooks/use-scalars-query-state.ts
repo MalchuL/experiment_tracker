@@ -5,6 +5,7 @@ import {
   decodeLegacyNumberSelection,
   decodeStringSelection,
   encodeStringSelection,
+  getDefaultSelectedExperimentIds,
 } from "@/domain/scalars/utils";
 
 /**
@@ -12,6 +13,8 @@ import {
  *
  * Query params (see ``buildQueryString``):
  * - ``exp`` — selected experiment ids (encoded list). Omitted when **every** experiment is selected.
+ *   When ``exp`` is absent on first load, the newest
+ *   ``SCALARS_DEFAULT_SELECTED_EXPERIMENT_COUNT`` experiments are selected (UI default only).
  * - ``met`` — names of metrics **hidden** from charts (inverted semantics vs checkbox “visible”).
  * - ``art`` — ids of artifacts **hidden** from object cards (``artifact_type:name``).
  * - ``s`` — smoothing slider in ``[0, 1]``.
@@ -83,7 +86,7 @@ export function useScalarsQueryState({
             setSelectedExperimentIds(new Set(selected));
           }
         } else {
-          setSelectedExperimentIds(new Set(experiments.map((experiment) => experiment.id)));
+          setSelectedExperimentIds(new Set(getDefaultSelectedExperimentIds(experiments)));
         }
 
         if (metParam) {
@@ -127,7 +130,7 @@ export function useScalarsQueryState({
         }
         setSmoothing(0);
       } catch {
-        setSelectedExperimentIds(new Set(experiments.map((experiment) => experiment.id)));
+        setSelectedExperimentIds(new Set(getDefaultSelectedExperimentIds(experiments)));
         setHiddenMetrics(new Set());
         setHiddenArtifactIds(new Set());
         setSmoothing(0);

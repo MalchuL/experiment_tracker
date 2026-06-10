@@ -107,7 +107,7 @@ export function useScalarsLiveRefresh({
     return mergeChangedScalars(lastLogged);
   }, [mergeChangedScalars, projectId, stableExperimentIds]);
 
-  const { data } = useQuery({
+  const { data, dataUpdatedAt } = useQuery({
     queryKey: projectId
       ? [
           QUERY_KEYS.SCALARS.LAST_LOGGED(projectId),
@@ -116,7 +116,7 @@ export function useScalarsLiveRefresh({
       : [],
     queryFn: () => scalarsService.getLastLoggedByProject(projectId!, stableExperimentIds),
     enabled: !!projectId && enabled && stableExperimentIds.length > 0,
-    refetchInterval: LAST_LOGGED_POLL_INTERVAL_MS,
+    refetchInterval: enabled ? LAST_LOGGED_POLL_INTERVAL_MS : false,
   });
 
   /**
@@ -128,5 +128,5 @@ export function useScalarsLiveRefresh({
     void mergeChangedScalars(data);
   }, [data, mergeChangedScalars]);
 
-  return { refreshChangedScalars };
+  return { refreshChangedScalars, lastPollAt: dataUpdatedAt };
 }

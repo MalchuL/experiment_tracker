@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { parseISO } from "date-fns";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { InfiniteData } from "@tanstack/react-query";
@@ -27,6 +27,7 @@ import {
   ScalarViewSettingsSidebar,
   ScalarsDialogs,
   ScalarsMetricsGrid,
+  LiveRefreshIndicator,
 } from "@/domain/scalars/components";
 import {
   useLoggedObjectsState,
@@ -48,6 +49,7 @@ import { scalarsService } from "@/domain/scalars/services";
 import {
   decodeLegacyNumberSelection,
   decodeStringSelection,
+  getDefaultSelectedExperimentIds,
   getScalarsDotThreshold,
   getScalarsMaxArtifactStepsPerObject,
   getScalarsMaxPointsPerPlot,
@@ -63,7 +65,7 @@ export default function Scalars() {
   const searchParams = useSearchParams();
   const [fullscreenMetric, setFullscreenMetric] = useState<string | null>(null);
   const [fullscreenArtifactId, setFullscreenArtifactId] = useState<string | null>(null);
-  const [syncMode, setSyncMode] = useState<SyncMode>("all");
+  const [syncMode, setSyncMode] = useState<SyncMode>("independent");
   const [hoverMode, setHoverMode] = useState<ScalarHoverMode>("compare");
   const [soloMode, setSoloMode] = useState(false);
   const [chosenExperimentId, setChosenExperimentId] = useState<string | null>(null);
@@ -80,6 +82,8 @@ export default function Scalars() {
   } | null>(null);
   const [metricPoint, setMetricPoint] = useState<ScalarPointSelection | null>(null);
   const [createMetricOpen, setCreateMetricOpen] = useState(false);
+  const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true);
+  const [refreshCycleStartMs, setRefreshCycleStartMs] = useState(() => Date.now());
   const incrementalInFlightIds = useRef<Set<string>>(new Set());
   const maxPointsPerPlot = useMemo(() => getScalarsMaxPointsPerPlot(), []);
   const maxArtifactStepsPerObject = useMemo(() => getScalarsMaxArtifactStepsPerObject(), []);
@@ -115,7 +119,7 @@ export default function Scalars() {
     isFetchingNextPage: experimentsFetchingNextPage,
     refetch: refetchExperiments,
   } = useExperiments(projectId, {
-    refetchInterval: EXPERIMENTS_LIST_POLL_INTERVAL_MS,
+    refetchInterval: autoRefreshEnabled ? EXPERIMENTS_LIST_POLL_INTERVAL_MS : false,
   });
 
   useProjectExperimentsPollSync(projectId, experiments);
@@ -128,7 +132,7 @@ export default function Scalars() {
 
   const initialExperimentIdsFromUrl = useMemo(() => {
     const expParam = searchParams.get("exp");
-    if (!expParam) return sortedExperiments.map((experiment) => experiment.id);
+    if (!expParam) return getDefaultSelectedExperimentIds(sortedExperiments);
 
     const validIds = new Set(sortedExperiments.map((experiment) => experiment.id));
     const decodedIds = decodeStringSelection(expParam);
@@ -313,8 +317,8 @@ export default function Scalars() {
     syncMode
   );
 
-  const objectState = useLoggedObjectsState();
   const objectGroups = useLoggedObjectGroups(projectArtifactsAtStep, visibleExperiments);
+  const objectState = useLoggedObjectsState(objectGroups);
   const fullscreenMetricData = fullscreenMetric ? allChartDataByMetric[fullscreenMetric] || [] : [];
   const artifactItems = useMemo<ArtifactViewItem[]>(() => {
     return Object.entries(objectGroups).flatMap(([artifactType, byName]) =>
@@ -339,12 +343,12 @@ export default function Scalars() {
     });
   }, [sortedExperiments, selectedExperimentIds]);
 
-  const { refreshChangedScalars } = useScalarsLiveRefresh({
+  const { refreshChangedScalars, lastPollAt } = useScalarsLiveRefresh({
     projectId,
     experimentIds: lastLoggedExperimentIds,
     scalarsQueryKey,
     maxPoints: maxPointsPerPlot,
-    enabled: !scalarsLoading,
+    enabled: autoRefreshEnabled && !scalarsLoading,
   });
 
   const { refreshChangedArtifacts } = useArtifactsLiveRefresh({
@@ -352,8 +356,29 @@ export default function Scalars() {
     experimentIds: lastLoggedExperimentIds,
     artifactsQueryKey,
     maxSteps: maxArtifactStepsPerObject,
-    enabled: !objectsLoading,
+    enabled: autoRefreshEnabled && !objectsLoading,
   });
+
+  useEffect(() => {
+    if (lastPollAt > 0) {
+      setRefreshCycleStartMs(lastPollAt);
+    }
+  }, [lastPollAt]);
+
+  const runManualRefresh = async () => {
+    setRefreshCycleStartMs(Date.now());
+    const [incrementalScalarsRefresh, incrementalArtifactsRefresh] = await Promise.all([
+      refreshChangedScalars(),
+      refreshChangedArtifacts(),
+    ]);
+    await refetchExperiments();
+    if (incrementalScalarsRefresh === "unavailable") {
+      await refetchScalars();
+    }
+    if (incrementalArtifactsRefresh === "unavailable") {
+      await refetchObjects();
+    }
+  };
 
   const handleSmoothingChange = (value: number[]) => {
     setSmoothing(value[0]);
@@ -373,6 +398,17 @@ export default function Scalars() {
     });
   };
 
+  const handleSoloExperimentSelect = useCallback(
+    (experimentId: string) => {
+      if (soloMode && chosenExperimentId === experimentId) {
+        setChosenExperimentId(null);
+        return;
+      }
+      setChosenExperimentId(experimentId);
+    },
+    [soloMode, chosenExperimentId]
+  );
+
   const handlePointContextMenu = (
     point: ScalarPointSelection,
     position: { x: number; y: number }
@@ -380,24 +416,21 @@ export default function Scalars() {
     setPointContext({ point, position });
   };
 
+  const handleToggleAutoRefresh = useCallback(() => {
+    setAutoRefreshEnabled((prev) => {
+      if (!prev) {
+        setRefreshCycleStartMs(Date.now());
+      }
+      return !prev;
+    });
+  }, []);
+
   const refreshButton = (
     <Button
       variant="outline"
       size="sm"
       onClick={() => {
-        void (async () => {
-          const [incrementalScalarsRefresh, incrementalArtifactsRefresh] = await Promise.all([
-            refreshChangedScalars(),
-            refreshChangedArtifacts(),
-          ]);
-          await refetchExperiments();
-          if (incrementalScalarsRefresh === "unavailable") {
-            await refetchScalars();
-          }
-          if (incrementalArtifactsRefresh === "unavailable") {
-            await refetchObjects();
-          }
-        })();
+        void runManualRefresh();
       }}
       disabled={scalarsFetching || experimentsFetching || objectsFetching}
       data-testid="button-refresh-scalars"
@@ -413,6 +446,11 @@ export default function Scalars() {
 
   const pageActions = (
     <div className="flex items-center gap-2">
+      <LiveRefreshIndicator
+        enabled={autoRefreshEnabled}
+        cycleStartMs={refreshCycleStartMs}
+        onToggle={handleToggleAutoRefresh}
+      />
       {refreshButton}
       <Button
         variant="outline"
@@ -469,7 +507,7 @@ export default function Scalars() {
           selectedExperimentIds={selectedExperimentIds}
           soloMode={soloMode}
           chosenExperimentId={chosenExperimentId}
-          setChosenExperimentId={setChosenExperimentId}
+          onSoloExperimentSelect={handleSoloExperimentSelect}
           onToggleExperiment={toggleExperiment}
           onSelectAllExperiments={selectAllExperiments}
           onClearAllExperiments={clearAllExperiments}
@@ -519,12 +557,13 @@ export default function Scalars() {
             cardMinWidth={cardMinWidth}
             cardHeight={cardHeight}
             objectStepSelection={objectState.objectStepSelection}
-            setObjectStepSelection={objectState.setObjectStepSelection}
+            updateObjectStep={objectState.updateObjectStep}
             debouncedObjectStepSelection={objectState.debouncedObjectStepSelection}
             experimentStepOverrideEnabled={objectState.experimentStepOverrideEnabled}
             setExperimentStepOverrideEnabled={objectState.setExperimentStepOverrideEnabled}
+            enableExperimentStepOverride={objectState.enableExperimentStepOverride}
             experimentStepOverrides={objectState.experimentStepOverrides}
-            setExperimentStepOverrides={objectState.setExperimentStepOverrides}
+            updateExperimentStepOverride={objectState.updateExperimentStepOverride}
             debouncedExperimentStepOverrides={objectState.debouncedExperimentStepOverrides}
             onImagePreview={setImagePreview}
             hiddenArtifactIds={hiddenArtifactIds}
@@ -611,12 +650,13 @@ export default function Scalars() {
         cardMinWidth={cardMinWidth}
         cardHeight={cardHeight}
         objectStepSelection={objectState.objectStepSelection}
-        setObjectStepSelection={objectState.setObjectStepSelection}
+        updateObjectStep={objectState.updateObjectStep}
         debouncedObjectStepSelection={objectState.debouncedObjectStepSelection}
         experimentStepOverrideEnabled={objectState.experimentStepOverrideEnabled}
         setExperimentStepOverrideEnabled={objectState.setExperimentStepOverrideEnabled}
+        enableExperimentStepOverride={objectState.enableExperimentStepOverride}
         experimentStepOverrides={objectState.experimentStepOverrides}
-        setExperimentStepOverrides={objectState.setExperimentStepOverrides}
+        updateExperimentStepOverride={objectState.updateExperimentStepOverride}
         debouncedExperimentStepOverrides={objectState.debouncedExperimentStepOverrides}
         imagePreview={imagePreview}
         setImagePreview={setImagePreview}

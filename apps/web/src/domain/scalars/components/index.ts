@@ -4,6 +4,7 @@ export * from "./metric-chart";
 export * from "./scalars-controls-panel";
 export * from "./scalars-metrics-grid";
 export * from "./logged-objects-section";
+export * from "./live-refresh-indicator";
 export * from "./scalars-dialogs";
 export * from "./artifacts";
 export * from "./charts";
