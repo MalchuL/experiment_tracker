@@ -137,6 +137,23 @@ class ProjectUpdateDTO(BaseModel):
     model_config = model_config()
 
 
+class ProjectTeamTransferDTO(BaseModel):
+    """Request payload for moving a project to a team or making it standalone."""
+
+    team_id: Optional[UUID] = None
+    owner_id: Optional[UUID] = None
+
+    model_config = model_config()
+
+
+class ProjectOwnerTransferDTO(BaseModel):
+    """Request payload for transferring ownership of a standalone project."""
+
+    owner_id: UUID
+
+    model_config = model_config()
+
+
 class ProjectCreateDTO(ProjectBaseDTO):
     team_id: Optional[UUID] = None
 

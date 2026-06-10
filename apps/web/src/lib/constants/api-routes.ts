@@ -22,6 +22,9 @@ export const API_ROUTES = {
     ADMIN: {
       USERS: "api/admin/users",
       TEAMS: "api/admin/teams",
+      PROJECTS: "api/admin/projects",
+      PROJECT_TEAM: (projectId: string) => `api/admin/projects/${projectId}/team`,
+      PROJECT_OWNER: (projectId: string) => `api/admin/projects/${projectId}/owner`,
       RESET_PASSWORD: (userId: string) => `api/admin/users/${userId}/reset-password`,
       UPDATE_USER: (userId: string) => `api/admin/users/${userId}`,
       DELETE_USER: (userId: string) => `api/admin/users/${userId}`,
@@ -82,6 +85,8 @@ export const API_ROUTES = {
       BY_ID: {
         GET: (projectId: string) => `/api/projects/${projectId}`,
         UPDATE: (projectId: string) => `/api/projects/${projectId}`,
+        TEAM: (projectId: string) => `/api/projects/${projectId}/team`,
+        OWNER: (projectId: string) => `/api/projects/${projectId}/owner`,
         DELETE: (projectId: string) => `/api/projects/${projectId}`,
         USAGE: (projectId: string) => `/api/projects/${projectId}/usage`,
         CLEANUP: (projectId: string, category: string) =>

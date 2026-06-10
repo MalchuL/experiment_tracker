@@ -51,11 +51,13 @@ from .dto import (
     ProjectSettingDTO,
     ProjectUsageDTO,
     ProjectSettingValueUpdateDTO,
+    ProjectOwnerTransferDTO,
+    ProjectTeamTransferDTO,
     ProjectUpdateDTO,
 )
 from domain.experiments.error import ExperimentNotAccessibleError
 
-from .errors import ProjectNotAccessibleError, ProjectPermissionError
+from .errors import ProjectNotAccessibleError, ProjectPermissionError, ProjectTransferError
 from .service import ProjectCleanupCategory, ProjectService
 from api.routes.service_dependencies import (
     get_experiment_service,
@@ -107,6 +109,8 @@ def _raise_project_http_error(error: Exception) -> None:
         raise HTTPException(status_code=404, detail=str(error))
     if isinstance(error, ProjectPermissionError):
         raise HTTPException(status_code=403, detail=str(error))
+    if isinstance(error, ProjectTransferError):
+        raise HTTPException(status_code=400, detail=str(error))
     if isinstance(error, ProjectNotAccessibleError):
         raise HTTPException(status_code=404, detail=str(error))
     if isinstance(error, httpx.HTTPStatusError):
@@ -833,6 +837,75 @@ async def update_project(
     """
     try:
         return await project_service.update_project(user, project_id, data)
+    except Exception as exc:  # noqa: BLE001
+        _raise_project_http_error(exc)
+
+
+@router.patch("/{project_id}/team", response_model=ProjectDTO)
+async def change_project_team(
+    project_id: UUID,
+    data: ProjectTeamTransferDTO,
+    user: User = Depends(get_current_user_dual),
+    _: None = Depends(
+        require_api_token_scopes(
+            [
+                ProjectActions.EDIT_PROJECT,
+                TeamActions.CREATE_PROJECT,
+                TeamActions.DELETE_PROJECT,
+            ]
+        )
+    ),
+    project_service: ProjectService = Depends(get_project_service),
+):
+    """Move a project to another team or make it standalone.
+
+    Args:
+        project_id: Project identifier to transfer.
+        data: Destination team and optional owner payload.
+        user: Authenticated user requesting the transfer.
+        _: API-token scope guard requiring project edit, project create, and
+            team-project delete access.
+        project_service: Project application service dependency.
+
+    Returns:
+        ProjectDTO: Updated project with its resulting team and owner.
+
+    Raises:
+        HTTPException: Project error mapping for permissions, invalid transfers, and
+            missing resources.
+    """
+    try:
+        return await project_service.change_project_team(user, project_id, data)
+    except Exception as exc:  # noqa: BLE001
+        _raise_project_http_error(exc)
+
+
+@router.patch("/{project_id}/owner", response_model=ProjectDTO)
+async def change_project_owner(
+    project_id: UUID,
+    data: ProjectOwnerTransferDTO,
+    user: User = Depends(get_current_user_dual),
+    _: None = Depends(require_api_token_scopes(ProjectActions.EDIT_PROJECT)),
+    project_service: ProjectService = Depends(get_project_service),
+):
+    """Transfer ownership of a standalone project.
+
+    Args:
+        project_id: Standalone project identifier.
+        data: New owner payload.
+        user: Authenticated user requesting the transfer.
+        _: API-token scope guard requiring project edit access.
+        project_service: Project application service dependency.
+
+    Returns:
+        ProjectDTO: Updated project with the new owner.
+
+    Raises:
+        HTTPException: Project error mapping for permissions, invalid transfers, and
+            missing resources.
+    """
+    try:
+        return await project_service.change_project_owner(user, project_id, data)
     except Exception as exc:  # noqa: BLE001
         _raise_project_http_error(exc)
 

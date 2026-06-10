@@ -2,7 +2,8 @@ from typing import List
 from lib.db.base_repository import BaseRepository
 from lib.pagination import ListOptions, Page
 from lib.types import UUID_TYPE
-from models import Project, Team, TeamMember
+from models import Project, Team, TeamMember, User
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -28,6 +29,52 @@ class ProjectRepository(BaseRepository):
         return await self.advanced_alchemy_repository.get_one_or_none(
             *filters, load=self._load_options(full_load)
         )
+
+    async def get_active_user_by_id(self, user_id: UUID_TYPE) -> User | None:
+        """Return an active user by identifier.
+
+        Args:
+            user_id: User identifier to query.
+
+        Returns:
+            User | None: Active user row, or ``None`` when missing or inactive.
+        """
+        result = await self.db.execute(
+            select(User).where(User.id == user_id, User.is_active.is_(True))
+        )
+        return result.scalar_one_or_none()
+
+    async def update_project_transfer(
+        self,
+        project: Project,
+        *,
+        team_id: UUID_TYPE | None,
+        owner_id: UUID_TYPE,
+    ) -> Project:
+        """Persist the team and owner resulting from a project transfer.
+
+        Args:
+            project: Locked project row being transferred.
+            team_id: Resulting team identifier, or ``None`` for standalone.
+            owner_id: Resulting project owner identifier.
+
+        Returns:
+            Project: Updated project row.
+        """
+        project.team_id = team_id
+        project.owner_id = owner_id
+        return await self.advanced_alchemy_repository.update(project)
+
+    async def refresh_project_transfer(self, project: Project) -> None:
+        """Refresh owner and team relationships after a committed transfer.
+
+        Args:
+            project: Transferred project row to refresh.
+
+        Returns:
+            None: Owner and team relationships are refreshed in place.
+        """
+        await self.db.refresh(project, attribute_names=["owner", "team"])
 
     async def get_projects_by_ids(
         self,

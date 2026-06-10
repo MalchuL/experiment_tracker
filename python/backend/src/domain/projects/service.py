@@ -5,7 +5,11 @@ from domain.projects.mapper import (
     ProjectMapper,
     SchemaToDTOProps,
 )
-from domain.projects.errors import ProjectNotAccessibleError, ProjectPermissionError
+from domain.projects.errors import (
+    ProjectNotAccessibleError,
+    ProjectPermissionError,
+    ProjectTransferError,
+)
 from lib.db.error import DBNotFoundError
 from domain.rbac.permissions import ProjectActions
 from domain.rbac.service import PermissionService
@@ -28,6 +32,8 @@ from domain.projects.dto import (
     ProjectUsageScalarsDTO,
     ProjectUsageTotalDTO,
     ProjectUpdateDTO,
+    ProjectOwnerTransferDTO,
+    ProjectTeamTransferDTO,
     UsageBytesCountDTO,
 )
 from models import Role
@@ -259,6 +265,218 @@ class ProjectService:
                 SchemaToDTOProps(
                     experiment_count=len(updated_project.experiments),
                     hypothesis_count=len(updated_project.hypotheses),
+                ),
+            )
+        except Exception as e:
+            await self.db.rollback()
+            raise e
+
+    async def change_project_team(
+        self,
+        user: UserProtocol | None,
+        project_id: UUID_TYPE,
+        data: ProjectTeamTransferDTO,
+        *,
+        admin_bypass: bool = False,
+    ) -> ProjectDTO:
+        """Move a project to another team or make it standalone.
+
+        Direct project permissions are preserved. Team projects inherit ownership from
+        the destination team. A standalone project keeps its current owner and receives
+        explicit owner permissions.
+
+        Args:
+            user: Authenticated user requesting the transfer, or ``None`` for an
+                admin-key operation.
+            project_id: Project identifier to transfer.
+            data: Destination team and optional owner used for an ownerless detach.
+            admin_bypass: Whether to bypass user RBAC checks for an admin-key request.
+
+        Returns:
+            ProjectDTO: Updated project with its resulting team and owner.
+
+        Raises:
+            ProjectNotAccessibleError: If the project does not exist.
+            ProjectPermissionError: If a regular user cannot edit the project, remove
+                projects from the source team, or create projects in the destination
+                team.
+            ProjectTransferError: If the destination team is missing or ownerless, or
+                the standalone result has no active owner.
+            Exception: Propagates persistence errors after rolling back the transaction.
+        """
+        try:
+            project = await self.project_repository.get_project_by_id(
+                project_id, full_load=False
+            )
+            if project is None:
+                raise ProjectNotAccessibleError(f"Project {project_id} not accessible")
+
+            source_team_id = project.team_id
+            destination_team_id = data.team_id
+
+            if not admin_bypass:
+                if user is None or not await self.permission_checker.can_edit_project(
+                    user.id, project_id
+                ):
+                    raise ProjectPermissionError(
+                        f"User cannot change team for project {project_id}"
+                    )
+                if source_team_id is None:
+                    if project.owner_id != user.id and not getattr(
+                        user, "is_superuser", False
+                    ):
+                        raise ProjectPermissionError(
+                            "Only the current owner can move a standalone project"
+                        )
+                elif not await self.permission_checker.can_delete_team_project(
+                    user.id, source_team_id
+                ):
+                    raise ProjectPermissionError(
+                        "You do not have permission to remove projects from the source team"
+                    )
+                if destination_team_id is not None and not await self.permission_checker.can_create_project(
+                    user.id, destination_team_id
+                ):
+                    raise ProjectPermissionError(
+                        "You do not have permission to create projects in the destination team"
+                    )
+
+            if source_team_id == destination_team_id:
+                await self.db.commit()
+                loaded = await self.project_repository.get_project_by_id(
+                    project_id, full_load=True
+                )
+                return self.project_mapper.project_schema_to_dto(
+                    loaded,
+                    SchemaToDTOProps(
+                        experiment_count=len(loaded.experiments),
+                        hypothesis_count=len(loaded.hypotheses),
+                    ),
+                )
+
+            if destination_team_id is not None:
+                try:
+                    destination_team = await self.team_repository.get_by_id(
+                        destination_team_id
+                    )
+                except DBNotFoundError as exc:
+                    raise ProjectTransferError("Destination team not found") from exc
+                if destination_team.owner_id is None:
+                    raise ProjectTransferError("Destination team has no owner")
+                await self.project_repository.update_project_transfer(
+                    project,
+                    team_id=destination_team.id,
+                    owner_id=destination_team.owner_id,
+                )
+            else:
+                owner_id = project.owner_id or data.owner_id
+                if owner_id is None:
+                    raise ProjectTransferError(
+                        "An active owner is required when moving this project to standalone"
+                    )
+                owner = await self.project_repository.get_active_user_by_id(owner_id)
+                if owner is None:
+                    raise ProjectTransferError("Project owner must be an active user")
+                await self.project_repository.update_project_transfer(
+                    project,
+                    team_id=None,
+                    owner_id=owner.id,
+                )
+                await self.permission_service.add_user_to_project_permissions(
+                    owner.id, project.id, Role.ADMIN
+                )
+
+            await self.db.commit()
+            await self.project_repository.refresh_project_transfer(project)
+            loaded = await self.project_repository.get_project_by_id(
+                project_id, full_load=True
+            )
+            return self.project_mapper.project_schema_to_dto(
+                loaded,
+                SchemaToDTOProps(
+                    experiment_count=len(loaded.experiments),
+                    hypothesis_count=len(loaded.hypotheses),
+                ),
+            )
+        except Exception as e:
+            await self.db.rollback()
+            raise e
+
+    async def change_project_owner(
+        self,
+        user: UserProtocol | None,
+        project_id: UUID_TYPE,
+        data: ProjectOwnerTransferDTO,
+        *,
+        admin_bypass: bool = False,
+    ) -> ProjectDTO:
+        """Transfer ownership of a standalone project to an active user.
+
+        Args:
+            user: Authenticated user requesting the transfer, or ``None`` for an
+                admin-key operation.
+            project_id: Standalone project identifier.
+            data: New owner identifier.
+            admin_bypass: Whether to bypass user RBAC checks for an admin-key request.
+
+        Returns:
+            ProjectDTO: Updated project with the new owner.
+
+        Raises:
+            ProjectNotAccessibleError: If the project does not exist.
+            ProjectPermissionError: If a regular requester is not the current owner or
+                cannot edit the project.
+            ProjectTransferError: If the project belongs to a team or the new owner is
+                not an active user.
+            Exception: Propagates persistence errors after rolling back the transaction.
+        """
+        try:
+            project = await self.project_repository.get_project_by_id(
+                project_id, full_load=False
+            )
+            if project is None:
+                raise ProjectNotAccessibleError(f"Project {project_id} not accessible")
+            if project.team_id is not None:
+                raise ProjectTransferError(
+                    "Team project ownership follows the team owner"
+                )
+            if not admin_bypass:
+                if user is None or (
+                    project.owner_id != user.id
+                    and not getattr(user, "is_superuser", False)
+                ):
+                    raise ProjectPermissionError(
+                        "Only the current owner can transfer project ownership"
+                    )
+                if not await self.permission_checker.can_edit_project(
+                    user.id, project_id
+                ):
+                    raise ProjectPermissionError(
+                        "Current owner does not have permission to edit the project"
+                    )
+
+            new_owner = await self.project_repository.get_active_user_by_id(data.owner_id)
+            if new_owner is None:
+                raise ProjectTransferError("New owner must be an active user")
+
+            await self.project_repository.update_project_transfer(
+                project,
+                team_id=None,
+                owner_id=new_owner.id,
+            )
+            await self.permission_service.add_user_to_project_permissions(
+                new_owner.id, project.id, Role.ADMIN
+            )
+            await self.db.commit()
+            await self.project_repository.refresh_project_transfer(project)
+            loaded = await self.project_repository.get_project_by_id(
+                project_id, full_load=True
+            )
+            return self.project_mapper.project_schema_to_dto(
+                loaded,
+                SchemaToDTOProps(
+                    experiment_count=len(loaded.experiments),
+                    hypothesis_count=len(loaded.hypotheses),
                 ),
             )
         except Exception as e:

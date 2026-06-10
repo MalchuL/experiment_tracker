@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   AlertDialog,
@@ -20,7 +21,9 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { useProject } from "@/domain/projects/hooks/project-hook";
+import { projectMembersService } from "@/domain/projects/services/project-members-service";
 import { projectsService } from "@/domain/projects/services";
+import { teamsService } from "@/domain/teams/services";
 import { FRONTEND_ROUTES } from "@/lib/constants/frontend-routes";
 import { QUERY_KEYS } from "@/lib/constants/query-keys";
 import {
@@ -29,6 +32,7 @@ import {
 } from "@/lib/format-satellite-toast";
 import { bytesFrom, formatBytes } from "@/lib/format-storage-usage";
 import { useToast } from "@/lib/hooks/use-toast";
+import { getErrorMessage } from "@/lib/api/error-response";
 import { AlertTriangle, ChevronDown, ChevronUp } from "lucide-react";
 
 const PROJECT_USAGE_KEYS = ["projectArtifacts", "snapshots", "experimentBuckets", "scalars"] as const;
@@ -45,8 +49,16 @@ export function ProjectDangerZone({ projectId }: { projectId: string }) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { deleteProject, deleteIsPending } = useProject(projectId);
-
   const [zoneOpen, setZoneOpen] = useState(false);
+  const projectQuery = useQuery({
+    queryKey: [QUERY_KEYS.PROJECTS.GET_BY_ID(projectId)],
+    queryFn: () => projectsService.getById(projectId),
+  });
+  const teamsQuery = useQuery({
+    queryKey: ["project-transfer-teams"],
+    queryFn: () => teamsService.list({ limit: 100, offset: 0 }),
+    enabled: zoneOpen,
+  });
 
   const usageQuery = useQuery({
     queryKey: ["project-usage", projectId],
@@ -56,6 +68,10 @@ export function ProjectDangerZone({ projectId }: { projectId: string }) {
 
   const [cleanCategory, setCleanCategory] = useState<(typeof PROJECT_USAGE_KEYS)[number] | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [destinationTeamId, setDestinationTeamId] = useState("");
+  const [teamTransferOpen, setTeamTransferOpen] = useState(false);
+  const [ownerTarget, setOwnerTarget] = useState("");
+  const [ownerTransferOpen, setOwnerTransferOpen] = useState(false);
 
   const invalidateProject = () => {
     queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.PROJECTS.LIST] });
@@ -76,9 +92,54 @@ export function ProjectDangerZone({ projectId }: { projectId: string }) {
         variant: hasErrors ? "destructive" : "default",
       });
     },
-    onError: () => {
-      toast({ title: "Cleanup failed", variant: "destructive" });
+    onError: (error) => {
+      toast({
+        title: "Cleanup failed",
+        description: getErrorMessage(error, "The selected project data could not be cleaned."),
+        variant: "destructive",
+      });
     },
+  });
+
+  const teamTransferMutation = useMutation({
+    mutationFn: () => projectsService.changeTeam(projectId, destinationTeamId || null),
+    onSuccess: () => {
+      setTeamTransferOpen(false);
+      invalidateProject();
+      void projectQuery.refetch();
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.PROJECT_MEMBERS.LIST(projectId)] });
+      toast({ title: "Project team changed" });
+    },
+    onError: (error) =>
+      toast({
+        title: "Team change failed",
+        description: getErrorMessage(error, "The project team could not be changed."),
+        variant: "destructive",
+      }),
+  });
+
+  const ownerTransferMutation = useMutation({
+    mutationFn: async () => {
+      const target = ownerTarget.trim();
+      const ownerId = target.includes("@")
+        ? (await projectMembersService.lookupUser(projectId, target)).id
+        : target;
+      return projectsService.changeOwner(projectId, ownerId);
+    },
+    onSuccess: () => {
+      setOwnerTransferOpen(false);
+      setOwnerTarget("");
+      invalidateProject();
+      void projectQuery.refetch();
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.PROJECT_MEMBERS.LIST(projectId)] });
+      toast({ title: "Project owner changed" });
+    },
+    onError: (error) =>
+      toast({
+        title: "Ownership transfer failed",
+        description: getErrorMessage(error, "Project ownership could not be transferred."),
+        variant: "destructive",
+      }),
   });
 
   const handleConfirmCleanupCategory = () => {
@@ -97,7 +158,12 @@ export function ProjectDangerZone({ projectId }: { projectId: string }) {
         });
         router.push(FRONTEND_ROUTES.PROJECTS);
       },
-      onError: () => toast({ title: "Delete failed", variant: "destructive" }),
+      onError: (error) =>
+        toast({
+          title: "Delete failed",
+          description: getErrorMessage(error, "The project could not be deleted."),
+          variant: "destructive",
+        }),
     });
   };
 
@@ -176,6 +242,83 @@ export function ProjectDangerZone({ projectId }: { projectId: string }) {
 
               <section className="space-y-3 border-t border-destructive/20 pt-6">
                 <div>
+                  <h3 className="text-sm font-medium">Project assignment</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Changing the team immediately changes inherited access. Team projects follow the
+                    team owner.
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    You must be allowed to edit the project, remove projects from its current team,
+                    and create projects in the destination team.
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-end gap-2">
+                  <label className="space-y-1 text-sm">
+                    <span className="block text-muted-foreground">Destination</span>
+                    <select
+                      className="border-input bg-background h-9 min-w-[14rem] rounded-md border px-2"
+                      value={destinationTeamId}
+                      onChange={(event) => setDestinationTeamId(event.target.value)}
+                    >
+                      <option value="">Standalone (Personal Project)</option>
+                      {(teamsQuery.data?.data ?? []).map((team) => (
+                        <option key={team.id} value={team.id}>
+                          {team.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <Button type="button" variant="outline" onClick={() => setTeamTransferOpen(true)}>
+                    Change team…
+                  </Button>
+                </div>
+                <div className="space-y-2">
+                  <p className="text-sm text-muted-foreground">
+                    Current team:{" "}
+                    {projectQuery.data?.teamId ? (
+                      <Link
+                        href={FRONTEND_ROUTES.TEAM_BY_ID(projectQuery.data.teamId)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="font-semibold text-foreground underline underline-offset-4"
+                      >
+                        {projectQuery.data.teamName ?? projectQuery.data.teamId}
+                      </Link>
+                    ) : (
+                      <span className="font-semibold text-foreground">
+                        Standalone (Personal Project)
+                      </span>
+                    )}
+                  </p>
+                  <div className="flex flex-wrap items-end gap-2">
+                    <label className="space-y-1 text-sm">
+                      <span className="block text-muted-foreground">New owner email or UUID</span>
+                      <input
+                        className="border-input bg-background h-9 min-w-[18rem] rounded-md border px-3"
+                        value={ownerTarget}
+                        disabled={Boolean(projectQuery.data?.teamId)}
+                        onChange={(event) => setOwnerTarget(event.target.value)}
+                      />
+                    </label>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={Boolean(projectQuery.data?.teamId) || !ownerTarget.trim()}
+                      onClick={() => setOwnerTransferOpen(true)}
+                    >
+                      Change owner…
+                    </Button>
+                  </div>
+                  {projectQuery.data?.teamId && (
+                    <p className="text-sm text-muted-foreground">
+                      Ownership follows the team owner while this project belongs to a team.
+                    </p>
+                  )}
+                </div>
+              </section>
+
+              <section className="space-y-3 border-t border-destructive/20 pt-6">
+                <div>
                   <h3 className="text-sm font-medium">Delete project</h3>
                   <p className="text-sm text-muted-foreground">
                     Permanently removes this project and related satellite data where possible.
@@ -235,6 +378,57 @@ export function ProjectDangerZone({ projectId }: { projectId: string }) {
               onClick={handleConfirmDeleteProject}
             >
               {deleteIsPending ? "Deleting…" : "Delete project"}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={teamTransferOpen} onOpenChange={setTeamTransferOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Change this project&apos;s team?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Inherited access will change immediately. Destination:{" "}
+              {destinationTeamId
+                ? (teamsQuery.data?.data ?? []).find((team) => team.id === destinationTeamId)?.name ??
+                  destinationTeamId
+                : "Standalone (Personal Project)"}
+              . This requires permission to remove the project from its current team and create it
+              in the destination team when those teams apply.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={teamTransferMutation.isPending}>Cancel</AlertDialogCancel>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={teamTransferMutation.isPending}
+              onClick={() => teamTransferMutation.mutate()}
+            >
+              {teamTransferMutation.isPending ? "Changing…" : "Change team"}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={ownerTransferOpen} onOpenChange={setOwnerTransferOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Transfer project ownership?</AlertDialogTitle>
+            <AlertDialogDescription>
+              The new owner will receive full project permissions. The current owner keeps existing
+              direct access.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={ownerTransferMutation.isPending}>Cancel</AlertDialogCancel>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={ownerTransferMutation.isPending}
+              onClick={() => ownerTransferMutation.mutate()}
+            >
+              {ownerTransferMutation.isPending ? "Transferring…" : "Transfer ownership"}
             </Button>
           </AlertDialogFooter>
         </AlertDialogContent>

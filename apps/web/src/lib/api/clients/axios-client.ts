@@ -73,9 +73,18 @@ export function createServiceClient(config: ServiceConfig): AxiosInstance {
         }
         delete client.defaults.headers.common['Authorization'];
       }
-      let wrappedError = new ErrorResponse(error.status,
-         error.message,
-         error.code);
+      const detail = error.response?.data?.detail;
+      const message =
+        typeof detail === "string"
+          ? detail
+          : detail
+            ? JSON.stringify(detail)
+            : error.message;
+      let wrappedError = new ErrorResponse(
+        error.response?.status ?? error.status,
+        message,
+        error.code,
+      );
       return Promise.reject(wrappedError);
     }
   );
