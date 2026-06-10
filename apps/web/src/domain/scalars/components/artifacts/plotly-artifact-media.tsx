@@ -4,6 +4,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { Config, Layout, PlotData } from "plotly.js";
 import { Button } from "@/components/ui/button";
 import { MemoizedPlot } from "@/domain/scalars/components/plotly/stable-plot";
+import {
+  getPlotlyThemeLayout,
+  useIsDarkMode,
+} from "@/domain/scalars/components/plotly/plotly-theme";
 
 export interface PlotlyArtifactMediaProps {
   objectType: string;
@@ -121,6 +125,7 @@ export function PlotlyArtifactMedia({
   maxHeight,
   metadata,
 }: PlotlyArtifactMediaProps) {
+  const isDark = useIsDarkMode();
   const previewPayload = useMemo(
     () => previewPayloadFromMetadata(objectType, metadata),
     [objectType, metadata?.preview_data, metadata?.preview_kind]
@@ -161,11 +166,23 @@ export function PlotlyArtifactMedia({
   }, [traceTypeKeyValue]);
 
   const plotLayout = useMemo<Partial<Layout>>(() => {
+    const themeLayout = getPlotlyThemeLayout(isDark);
     const { transition: _payloadTransition, ...payloadLayout } = payload?.layout ?? {};
     return {
       autosize: true,
       margin: { l: 40, r: 16, t: 32, b: 36 },
       ...payloadLayout,
+      ...themeLayout,
+      paper_bgcolor: "rgba(0,0,0,0)",
+      plot_bgcolor: "rgba(0,0,0,0)",
+      xaxis: {
+        ...payloadLayout.xaxis,
+        ...themeLayout.xaxis,
+      },
+      yaxis: {
+        ...payloadLayout.yaxis,
+        ...themeLayout.yaxis,
+      },
       title: payload?.layout?.title ?? { text: title },
       uirevision: `${objectType}:${title}`,
       ...(enablePlotlyTransition
@@ -177,7 +194,7 @@ export function PlotlyArtifactMedia({
           }
         : {}),
     };
-  }, [enablePlotlyTransition, objectType, payload, title]);
+  }, [enablePlotlyTransition, isDark, objectType, payload, title]);
   const plotConfig = useMemo<Partial<Config>>(
     () => ({
       responsive: true,

@@ -3,6 +3,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 import type { Config, Layout, PlotData, PlotMouseEvent } from "plotly.js";
 import { MemoizedPlot } from "@/domain/scalars/components/plotly/stable-plot";
+import {
+  getPlotlyThemeLayout,
+  useIsDarkMode,
+} from "@/domain/scalars/components/plotly/plotly-theme";
 
 type RelayoutEvent = Readonly<Record<string, unknown>>;
 type PlotlyGraphDiv = Readonly<HTMLElement> & {
@@ -104,6 +108,8 @@ export function MetricChart({
   const relayoutingRef = useRef(false);
   const graphDivRef = useRef<PlotlyGraphDiv | null>(null);
   const [multiHover, setMultiHover] = useState<MultiHoverState | null>(null);
+
+  const isDark = useIsDarkMode();
 
   const plotData = useMemo(() => {
     const traces: Partial<PlotData>[] = [];
@@ -296,10 +302,12 @@ export function MetricChart({
   }, [onDomainChange]);
 
   const layout = useMemo<Partial<Layout>>(() => {
+    const themeLayout = getPlotlyThemeLayout(isDark);
+    const tickSize = isFullscreen ? 12 : 10;
     const xAxis: AxisWithUnifiedHoverTitle = {
-      title: isFullscreen ? { text: "Step", font: { size: 12 } } : undefined,
-      tickfont: { size: isFullscreen ? 12 : 10 },
-      gridcolor: "rgba(128, 128, 128, 0.2)",
+      ...themeLayout.xaxis,
+      title: isFullscreen ? { text: "Step", font: { size: 12, color: isDark ? "#f7f8f8" : undefined } } : undefined,
+      tickfont: { size: tickSize, color: isDark ? "#8a8f98" : undefined },
       range: domain?.x || undefined,
       autorange: domain?.x ? false : true,
       unifiedhovertitle: {
@@ -308,6 +316,7 @@ export function MetricChart({
     };
 
     return {
+      ...themeLayout,
       autosize: true,
       height: typeof height === "number" ? height : undefined,
       margin: {
@@ -318,29 +327,17 @@ export function MetricChart({
       },
       xaxis: xAxis,
       yaxis: {
-        tickfont: { size: isFullscreen ? 12 : 10 },
-        gridcolor: "rgba(128, 128, 128, 0.2)",
+        ...themeLayout.yaxis,
+        tickfont: { size: tickSize, color: isDark ? "#8a8f98" : undefined },
         range: domain?.y || undefined,
         autorange: domain?.y ? false : true,
       },
       showlegend: false,
       hovermode: hoverMode === "compare" ? "x unified" : "closest",
-      hoverlabel: {
-        align: "left",
-        namelength: -1,
-        bgcolor: "rgba(255, 255, 255, 0.9)",
-        bordercolor: "rgba(255, 255, 255, 0.7)",
-        font: {
-          color: "rgba(15, 23, 42, 0.95)",
-          family: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
-        },
-      },
-      paper_bgcolor: "transparent",
-      plot_bgcolor: "transparent",
       dragmode: dragMode,
       uirevision: metricName,
     };
-  }, [domain?.x, domain?.y, dragMode, height, hoverMode, isFullscreen, metricName]);
+  }, [domain?.x, domain?.y, dragMode, height, hoverMode, isDark, isFullscreen, metricName]);
 
   const config = useMemo<Partial<Config>>(() => {
     const modeBarButtonsToAdd = [
@@ -419,7 +416,7 @@ function MultiHoverTooltip({ hover }: { hover: MultiHoverState }) {
       : Math.max(TOOLTIP_EDGE_OFFSET_PX, hover.y - TOOLTIP_CURSOR_OFFSET_PX);
   return (
     <div
-      className="pointer-events-none absolute z-20 rounded border border-white/70 bg-white/90 px-2 py-1 font-mono text-[11px] text-slate-950 shadow"
+      className="pointer-events-none absolute z-20 rounded border border-border bg-popover px-2 py-1 font-mono text-[11px] text-popover-foreground shadow-md"
       style={{
         left,
         top,
