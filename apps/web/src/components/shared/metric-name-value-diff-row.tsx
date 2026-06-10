@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { TrendingDown, TrendingUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatMetricLabel } from "@/lib/metrics/format-metric-label";
@@ -109,6 +110,8 @@ export type MetricNameValueDiffRowProps = {
   colorizeDiffOutcome?: boolean;
   /** Per-node class overrides; see {@link MetricNameValueDiffRowClassNameProps}. */
   classNameProps?: MetricNameValueDiffRowClassNameProps;
+  /** When set, replaces the formatted value display (e.g. inline editor). */
+  valueOverride?: ReactNode;
   "data-testid"?: string;
 };
 
@@ -169,6 +172,7 @@ export function MetricNameValueDiffRow({
   metricTable,
   colorizeDiffOutcome = true,
   classNameProps,
+  valueOverride,
   "data-testid": dataTestId,
 }: MetricNameValueDiffRowProps) {
   const c = classNameProps ?? {};
@@ -193,11 +197,12 @@ export function MetricNameValueDiffRow({
 
   const valueTooltipText = formatMetricScalarTooltipFull(value);
 
-  const valueNode = (align: "right" | "left" | "solo-right") => (
-    <span className={valueSpanClass(align)} title={valueTooltipText}>
-      {formatMetricScalarForDisplay(value)}
-    </span>
-  );
+  const valueNode = (align: "right" | "left" | "solo-right") =>
+    valueOverride ?? (
+      <span className={valueSpanClass(align)} title={valueTooltipText}>
+        {formatMetricScalarForDisplay(value)}
+      </span>
+    );
 
   const diffNodeInline = showDiff ? (
     <MetricDeltaVsParent

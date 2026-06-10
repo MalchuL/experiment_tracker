@@ -12,6 +12,7 @@ import {
   useRef,
   useState,
   type MouseEvent,
+  type PointerEvent as ReactPointerEvent,
 } from "react";
 import {
   ReactFlow,
@@ -41,6 +42,7 @@ import {
   useSelectedExperimentStore,
   useDagLayoutStore,
   EMPTY_DAG_LAYOUT_POSITIONS,
+  EMPTY_DAG_NODE_SIZES,
 } from "@/domain/experiments/store";
 import { ExperimentSelectionOrderBadge } from "@/domain/experiments/components/experiment-selection-order-badge";
 import { ExperimentCompareBar } from "@/domain/experiments/components/experiment-compare-bar";
@@ -60,6 +62,8 @@ import {
   X,
   LayoutGrid,
   Loader2,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -68,7 +72,8 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { DAG_NODE_MAX_DISPLAY_METRICS, DAG_NODE_WIDTH_PX } from "@/lib/constants/dag";
+import { DAG_NODE_HEIGHT_PX, DAG_NODE_MAX_DISPLAY_METRICS, DAG_NODE_WIDTH_PX } from "@/lib/constants/dag";
+import { clampDagNodeWidth } from "@/domain/experiments/dag/clamp-dag-node-size";
 import { REFRESH_EXPERIMENTS_LIST_INTERVAL } from "@/lib/constants/rates";
 import { Metric } from "@/domain/metrics/types";
 import {
@@ -107,9 +112,13 @@ export interface ExperimentNodeData {
   metrics: MetricComparison[];
   isSelected?: boolean;
   isHighlighted?: boolean;
+  isSearchFocus?: boolean;
   selectionMode?: boolean;
   selectionOrder?: number | null;
   onSelectionToggle?: () => void;
+  nodeWidth: number;
+  onNodeResizeEnd?: (width: number) => void;
+  onAfterResizeDrag?: () => void;
   [key: string]: unknown;
 }
 
@@ -161,6 +170,55 @@ function buildMetricComparisons(
 }
 
 function ExperimentNode({ data }: { data: ExperimentNodeData }) {
+  const nodeRef = useRef<HTMLDivElement>(null);
+  const liveWidthRef = useRef<number | null>(null);
+  const [liveWidth, setLiveWidth] = useState<number | null>(null);
+
+  const width = liveWidth ?? data.nodeWidth;
+
+  const handleResizePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    event.stopPropagation();
+    event.preventDefault();
+    const element = nodeRef.current;
+    if (!element || !data.onNodeResizeEnd) return;
+
+    const startX = event.clientX;
+    const startWidth = element.getBoundingClientRect().width;
+    const onNodeResizeEnd = data.onNodeResizeEnd;
+    const onAfterResizeDrag = data.onAfterResizeDrag;
+    let didDrag = false;
+
+    const onPointerMove = (moveEvent: PointerEvent) => {
+      if (Math.abs(moveEvent.clientX - startX) > 2) {
+        didDrag = true;
+      }
+      const nextWidth = clampDagNodeWidth(startWidth + (moveEvent.clientX - startX));
+      liveWidthRef.current = nextWidth;
+      setLiveWidth(nextWidth);
+    };
+
+    const onPointerUp = (upEvent: PointerEvent) => {
+      upEvent.stopPropagation();
+      upEvent.preventDefault();
+      document.removeEventListener("pointermove", onPointerMove);
+      document.removeEventListener("pointerup", onPointerUp, true);
+      const finalWidth = liveWidthRef.current;
+      liveWidthRef.current = null;
+      setLiveWidth(null);
+      if (didDrag) {
+        onAfterResizeDrag?.();
+      }
+      if (finalWidth != null) {
+        queueMicrotask(() => {
+          onNodeResizeEnd(finalWidth);
+        });
+      }
+    };
+
+    document.addEventListener("pointermove", onPointerMove);
+    document.addEventListener("pointerup", onPointerUp, true);
+  };
+
   const getStatusIcon = (status: string) => {
     switch (status) {
       case "running":
@@ -187,12 +245,16 @@ function ExperimentNode({ data }: { data: ExperimentNodeData }) {
     <>
       <Handle type="target" position={Position.Top} className="w-2 h-2" />
       <div
+        ref={nodeRef}
         className={cn(
-          "min-w-0 shrink-0 px-2 py-1.5 rounded-md border bg-card shadow-sm cursor-pointer hover-elevate transition-all",
-          data.isSelected && "ring-2 ring-primary ring-offset-2 ring-offset-background"
+          "relative min-w-0 shrink-0 rounded-md border bg-card px-2 py-1.5 shadow-sm cursor-pointer hover-elevate transition-[width,box-shadow]",
+          data.isSelected && "ring-2 ring-primary ring-offset-2 ring-offset-background",
+          !data.isSelected &&
+            data.isSearchFocus &&
+            "ring-2 ring-amber-400 ring-offset-2 ring-offset-background"
         )}
         style={{
-          width: DAG_NODE_WIDTH_PX,
+          width,
           borderLeftColor: data.color,
           borderLeftWidth: "4px",
           ...highlightOpacity,
@@ -200,43 +262,29 @@ function ExperimentNode({ data }: { data: ExperimentNodeData }) {
         data-testid={`dag-node-${data.id}`}
         aria-selected={data.isSelected === true}
       >
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <div className="flex items-center gap-1.5 mb-0.5 min-w-0">
-              {data.selectionMode && data.onSelectionToggle ? (
-                <ExperimentSelectionOrderBadge
-                  experimentId={data.id}
-                  experimentName={data.label}
-                  orderNumber={data.selectionOrder ?? null}
-                  onToggle={data.onSelectionToggle}
-                />
-              ) : null}
-              <div
-                className="w-2 h-2 rounded-full shrink-0"
-                style={{ backgroundColor: data.color }}
-              />
-              <span className="text-xs font-medium truncate flex-1 min-w-0">
-                {data.label}
-              </span>
-              {getStatusIcon(data.status)}
-            </div>
-          </TooltipTrigger>
-          <TooltipContent side="top" className="max-w-sm">
-            <p className="font-medium break-words">{data.label}</p>
-          </TooltipContent>
-        </Tooltip>
+        <div className="flex items-start gap-1.5 mb-0.5 min-w-0">
+          {data.selectionMode && data.onSelectionToggle ? (
+            <ExperimentSelectionOrderBadge
+              experimentId={data.id}
+              experimentName={data.label}
+              orderNumber={data.selectionOrder ?? null}
+              onToggle={data.onSelectionToggle}
+            />
+          ) : null}
+          <div
+            className="mt-0.5 h-2 w-2 shrink-0 rounded-full"
+            style={{ backgroundColor: data.color }}
+          />
+          <span className="min-w-0 flex-1 break-words text-xs font-medium leading-snug">
+            {data.label}
+          </span>
+          {getStatusIcon(data.status)}
+        </div>
 
         {data.description ? (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <p className="text-[10px] text-muted-foreground line-clamp-2 leading-tight mb-0.5">
-                {data.description}
-              </p>
-            </TooltipTrigger>
-            <TooltipContent side="bottom" className="max-w-sm">
-              <p className="text-xs break-words">{data.description}</p>
-            </TooltipContent>
-          </Tooltip>
+          <p className="mb-0.5 break-words text-[10px] leading-snug text-muted-foreground">
+            {data.description}
+          </p>
         ) : null}
 
         {shownMetrics.length > 0 && (
@@ -259,8 +307,9 @@ function ExperimentNode({ data }: { data: ExperimentNodeData }) {
                   }}
                   classNameProps={{
                     root: "text-[10px]",
-                    nameCluster: DAG_METRIC_ROW_SEPARATOR_CLASS,
-                    nameTrigger: "text-muted-foreground",
+                    nameCluster: cn(DAG_METRIC_ROW_SEPARATOR_CLASS, "overflow-visible"),
+                    nameInnerCluster: "mr-0 w-full max-w-full items-start overflow-visible",
+                    nameTrigger: "whitespace-normal break-words text-muted-foreground",
                     valueCluster: DAG_METRIC_ROW_SEPARATOR_CLASS,
                     valueText: "text-[10px]",
                     deltaText: "font-mono text-[9px] tabular-nums leading-none",
@@ -286,10 +335,40 @@ function ExperimentNode({ data }: { data: ExperimentNodeData }) {
             />
           </div>
         )}
+        <div
+          role="button"
+          tabIndex={0}
+          aria-label={`Resize ${data.label} width`}
+          className="nodrag nopan absolute bottom-0 right-0 z-10 flex h-3.5 w-3.5 cursor-ew-resize items-end justify-end rounded-br-md p-0.5 text-muted-foreground/70 hover:text-foreground"
+          onPointerDown={handleResizePointerDown}
+          data-testid={`dag-node-resize-${data.id}`}
+        >
+          <svg
+            aria-hidden
+            viewBox="0 0 8 8"
+            className="h-2 w-2 shrink-0"
+            fill="currentColor"
+          >
+            <path d="M8 8H6V6H8V8ZM8 4H6V2H8V4ZM4 8H2V6H4V8Z" />
+          </svg>
+        </div>
       </div>
       <Handle type="source" position={Position.Bottom} className="w-2 h-2" />
     </>
   );
+}
+
+const DAG_SEARCH_FOCUS_ZOOM = 1;
+
+function getDagNodeCenter(
+  position: { x: number; y: number },
+  width: number,
+  height = DAG_NODE_HEIGHT_PX
+): { x: number; y: number } {
+  return {
+    x: position.x + width / 2,
+    y: position.y + height / 2,
+  };
 }
 
 const nodeTypes = { experiment: ExperimentNode };
@@ -324,15 +403,32 @@ function DagViewCanvas({
 }) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const { fitView } = useReactFlow();
+  const { fitView, setCenter, getNode } = useReactFlow();
   const savedPositions = useDagLayoutStore(
     (s) => s.layoutsByProject[projectId] ?? EMPTY_DAG_LAYOUT_POSITIONS
   );
+  const savedSizes = useDagLayoutStore(
+    (s) => s.sizesByProject[projectId] ?? EMPTY_DAG_NODE_SIZES
+  );
   const updateNodePosition = useDagLayoutStore((s) => s.updateNodePosition);
+  const updateNodeSize = useDagLayoutStore((s) => s.updateNodeSize);
   const replaceProjectLayout = useDagLayoutStore((s) => s.replaceProjectLayout);
 
   const { selectedExperimentId, setSelectedExperimentId } = useSelectedExperimentStore();
   const [searchQuery, setSearchQuery] = useState("");
+  const [searchMatchIndex, setSearchMatchIndex] = useState(0);
+  const searchTrimmed = searchQuery.trim().toLowerCase();
+  const matchingNodeIds = useMemo(() => {
+    if (!searchTrimmed) return [];
+    return experiments
+      .filter(
+        (exp) =>
+          exp.name.toLowerCase().includes(searchTrimmed) ||
+          (exp.description?.toLowerCase().includes(searchTrimmed) ?? false)
+      )
+      .map((exp) => exp.id);
+  }, [experiments, searchTrimmed]);
+  const matchingNodeIdsKey = matchingNodeIds.join(",");
   const {
     selectionMode,
     setSelectionMode,
@@ -342,11 +438,52 @@ function DagViewCanvas({
   } = useOrderedExperimentSelection();
   /** Node ids currently mid-drag — avoids syncing layout-derived nodes over RF state (error #015). */
   const draggingNodeIdsRef = useRef<Set<string>>(new Set());
+  const ignoreNextNodeClickRef = useRef(false);
 
   const layout = useMemo(
     () => calculateDagTreeLayout(experiments, savedPositions),
     [experiments, savedPositions]
   );
+
+  const focusNodeInViewport = useCallback(
+    (nodeId: string) => {
+      const run = () => {
+        const rfNode = getNode(nodeId);
+        const position = rfNode?.position ?? layout.positionsById[nodeId];
+        if (!position) return;
+
+        const width = savedSizes[nodeId]?.width ?? DAG_NODE_WIDTH_PX;
+        const center = getDagNodeCenter(position, width);
+        void setCenter(center.x, center.y, {
+          zoom: DAG_SEARCH_FOCUS_ZOOM,
+          duration: 300,
+        });
+      };
+
+      // Wait for React Flow to commit node positions before centering.
+      requestAnimationFrame(() => {
+        requestAnimationFrame(run);
+      });
+    },
+    [getNode, layout.positionsById, savedSizes, setCenter]
+  );
+
+  const focusSearchMatch = useCallback(
+    (index: number) => {
+      if (matchingNodeIds.length === 0) return;
+      const normalized =
+        ((index % matchingNodeIds.length) + matchingNodeIds.length) % matchingNodeIds.length;
+      setSearchMatchIndex(normalized);
+      focusNodeInViewport(matchingNodeIds[normalized]);
+    },
+    [focusNodeInViewport, matchingNodeIds]
+  );
+
+  useEffect(() => {
+    setSearchMatchIndex(0);
+    if (matchingNodeIds.length === 0) return;
+    focusNodeInViewport(matchingNodeIds[0]);
+  }, [searchTrimmed, matchingNodeIdsKey, focusNodeInViewport, matchingNodeIds]);
 
   /** Persist resolved coordinates for every experiment on the canvas (not only dragged nodes). */
   useEffect(() => {
@@ -361,11 +498,12 @@ function DagViewCanvas({
         aggregatedMetricsByExperiment,
         project
       );
-      const q = searchQuery.trim().toLowerCase();
+      const q = searchTrimmed;
       const matches =
         !q ||
         exp.name.toLowerCase().includes(q) ||
         (exp.description?.toLowerCase().includes(q) ?? false);
+      const focusedSearchMatchId = matchingNodeIds[searchMatchIndex];
       map.set(exp.id, {
         id: exp.id,
         label: exp.name,
@@ -375,10 +513,18 @@ function DagViewCanvas({
         progress: exp.progress,
         metrics,
         isSelected: selectedExperimentId === exp.id,
-        isHighlighted: searchQuery ? matches : undefined,
+        isHighlighted: searchTrimmed ? matches : undefined,
+        isSearchFocus: Boolean(searchTrimmed && focusedSearchMatchId === exp.id),
         selectionMode,
         selectionOrder: getOrderNumber(exp.id),
         onSelectionToggle: () => toggleExperiment(exp.id),
+        nodeWidth: savedSizes[exp.id]?.width ?? DAG_NODE_WIDTH_PX,
+        onNodeResizeEnd: (width) => {
+          updateNodeSize(projectId, exp.id, clampDagNodeWidth(width));
+        },
+        onAfterResizeDrag: () => {
+          ignoreNextNodeClickRef.current = true;
+        },
       });
     }
     return map;
@@ -386,11 +532,16 @@ function DagViewCanvas({
     experiments,
     aggregatedMetricsByExperiment,
     project,
-    searchQuery,
+    searchTrimmed,
+    matchingNodeIds,
+    searchMatchIndex,
     selectedExperimentId,
     selectionMode,
     getOrderNumber,
     toggleExperiment,
+    savedSizes,
+    projectId,
+    updateNodeSize,
   ]);
 
   const computedNodes = useMemo((): Node<ExperimentNodeData>[] => {
@@ -538,6 +689,10 @@ function DagViewCanvas({
 
   const onNodeClick = useCallback(
     (_: MouseEvent, node: Node) => {
+      if (ignoreNextNodeClickRef.current) {
+        ignoreNextNodeClickRef.current = false;
+        return;
+      }
       setSelectedExperimentId(node.id);
     },
     [setSelectedExperimentId]
@@ -600,7 +755,7 @@ function DagViewCanvas({
                   className="h-8 w-44 sm:w-52 text-sm"
                   data-testid="input-dag-search"
                 />
-                {searchQuery ? (
+                {searchTrimmed ? (
                   <Button
                     size="icon"
                     variant="ghost"
@@ -611,6 +766,42 @@ function DagViewCanvas({
                   >
                     <X className="h-3 w-3" />
                   </Button>
+                ) : null}
+                {searchTrimmed ? (
+                  matchingNodeIds.length > 0 ? (
+                    <div className="flex items-center gap-0.5">
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        className="h-6 w-6 shrink-0"
+                        onClick={() => focusSearchMatch(searchMatchIndex - 1)}
+                        aria-label="Previous search match"
+                        data-testid="button-dag-search-prev"
+                      >
+                        <ChevronLeft className="h-3.5 w-3.5" />
+                      </Button>
+                      <span
+                        className="min-w-10 text-center text-xs tabular-nums text-muted-foreground"
+                        data-testid="dag-search-match-count"
+                      >
+                        {searchMatchIndex + 1}/{matchingNodeIds.length}
+                      </span>
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        className="h-6 w-6 shrink-0"
+                        onClick={() => focusSearchMatch(searchMatchIndex + 1)}
+                        aria-label="Next search match"
+                        data-testid="button-dag-search-next"
+                      >
+                        <ChevronRight className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <span className="text-xs text-muted-foreground">No matches</span>
+                  )
                 ) : null}
                 <div className="hidden h-6 w-px shrink-0 bg-border sm:block" aria-hidden="true" />
                 <CompareLabeledSwitch

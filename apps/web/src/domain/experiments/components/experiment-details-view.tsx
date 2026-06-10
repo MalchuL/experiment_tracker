@@ -73,7 +73,12 @@ import {
   metricEditorValuesEffectivelyEqual,
 } from "@/lib/metrics/metric-value-display";
 import { MetricNameValueDiffRow } from "@/components/shared/metric-name-value-diff-row";
+import {
+  LoggedMetricAddDialog,
+  type LoggedMetricAddDialogMode,
+} from "@/components/shared/logged-metric-add-dialog";
 import { useToast } from "@/lib/hooks/use-toast";
+import { parseLoggedMetricValueInput } from "@/lib/metrics/logged-metric-value-input";
 import { GitBranch, ChevronDown, Trash2, X } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { experimentsService, experimentSnapshotsService } from "@/domain/experiments/services";
@@ -81,18 +86,6 @@ import { ExperimentDangerZoneCard } from "@/domain/experiments/components/experi
 import type { ExperimentSnapshot } from "@/domain/experiments/services";
 function formatExperimentParentOption(exp: Pick<Experiment, "name" | "id">): string {
   return `${exp.name} (${exp.id.slice(0, 7)})`;
-}
-
-/**
- * Strict parse for logged metric value fields. `Number.parseFloat` only reads a prefix and drops
- * trailing garbage (`parseFloat("1.2x") === 1.2`); `Number(trimmed)` requires the whole string to
- * be a numeric literal, so typos at the end are rejected instead of truncated.
- */
-function parseLoggedMetricValueInput(trimmed: string): number | null {
-  if (trimmed === "") return null;
-  const num = Number(trimmed);
-  if (!Number.isFinite(num)) return null;
-  return num;
 }
 
 export function ExperimentDetailsView({ projectId }: { projectId: string }) {
@@ -771,7 +764,7 @@ function ExperimentDetailsMetadataCard({
   );
 }
 
-type AddMetricDialogMode = "new-label" | "group";
+type AddMetricDialogMode = LoggedMetricAddDialogMode;
 
 function LoggedMetricsEditor({
   experimentId,
@@ -919,11 +912,7 @@ function LoggedMetricsEditor({
     let label: string | null;
     if (addMode === "new-label") {
       const trimmed = newLabel.trim();
-      if (!trimmed) {
-        toast({ title: "Label is required", variant: "destructive" });
-        return;
-      }
-      label = trimmed;
+      label = trimmed ? trimmed : null;
     } else {
       label = addGroupLabel;
     }
@@ -962,8 +951,8 @@ function LoggedMetricsEditor({
         ) : metricsByLabelGroups.length === 0 ? (
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground">No logged metrics yet.</p>
-            <Button size="sm" variant="secondary" onClick={() => openAddToGroup(null)}>
-              Add unlabeled metric
+            <Button size="sm" variant="secondary" onClick={openAddNewLabel}>
+              Add metric
             </Button>
           </div>
         ) : (
@@ -1072,52 +1061,19 @@ function LoggedMetricsEditor({
           ))
         )}
 
-        <Dialog open={addOpen} onOpenChange={setAddOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>
-                {addMode === "new-label" ? "Add label & metric" : "Add metric"}
-              </DialogTitle>
-            </DialogHeader>
-            <div className="space-y-3 py-2">
-              {addMode === "new-label" ? (
-                <div className="space-y-1">
-                  <Label>New label</Label>
-                  <Input
-                    value={newLabel}
-                    onChange={(e) => setNewLabel(e.target.value)}
-                    placeholder="e.g. fold_1"
-                    autoFocus
-                  />
-                </div>
-              ) : (
-                <div className="rounded-md bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
-                  {addGroupLabel != null ? (
-                    <>
-                      Adding under label: <span className="font-medium text-foreground">{addGroupLabel}</span>
-                    </>
-                  ) : (
-                    "Adding unlabeled metric"
-                  )}
-                </div>
-              )}
-              <div className="space-y-1">
-                <Label>Name</Label>
-                <Input value={newName} onChange={(e) => setNewName(e.target.value)} />
-              </div>
-              <div className="space-y-1">
-                <Label>Value</Label>
-                <Input value={newValue} onChange={(e) => setNewValue(e.target.value)} />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setAddOpen(false)}>
-                Cancel
-              </Button>
-              <Button onClick={() => void handleAdd()}>Add</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+        <LoggedMetricAddDialog
+          open={addOpen}
+          onOpenChange={setAddOpen}
+          mode={addMode}
+          groupLabel={addGroupLabel}
+          newName={newName}
+          onNewNameChange={setNewName}
+          newLabel={newLabel}
+          onNewLabelChange={setNewLabel}
+          newValue={newValue}
+          onNewValueChange={setNewValue}
+          onAdd={handleAdd}
+        />
       </CardContent>
     </Card>
   );

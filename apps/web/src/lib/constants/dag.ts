@@ -13,6 +13,9 @@ export const DAG_NODE_MAX_DISPLAY_METRICS = 20;
  */
 export const DAG_NODE_WIDTH_PX = 240;
 
+/** Minimum width for user-resizable DAG cards. */
+export const DAG_NODE_MIN_WIDTH_PX = 160;
+
 /**
  * Vertical footprint (px) used by the DAG tree layout for stacking children below parents.
  * Matches the approximate rendered card height used in layout math.

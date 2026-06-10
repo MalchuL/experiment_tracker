@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { GitCompare, Loader2, PencilLine, Trash2 } from "lucide-react";
+import { GitCompare, Loader2, Maximize2, PencilLine, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ExperimentDiffCountBadge } from "@/components/shared/experiment-diff-ui";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -63,6 +63,7 @@ export function ExperimentHparamsPanel({
   const [parseError, setParseError] = useState<string | null>(null);
   const [pendingDocument, setPendingDocument] = useState<HparamsDocument | null>(null);
   const [showDiffs, setShowDiffs] = useState(true);
+  const [expandedOpen, setExpandedOpen] = useState(false);
   const hparams = data?.hparams ?? null;
   const parentQuery = useExperimentHparamsQuery(
     parentExperimentId ?? "",
@@ -131,6 +132,18 @@ export function ExperimentHparamsPanel({
                 <GitCompare className="h-3.5 w-3.5" />
               </Button>
             ) : null}
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              className="h-8 w-8 shrink-0"
+              onClick={() => setExpandedOpen(true)}
+              aria-label="Expand hyperparameter diff"
+              title="Expand hyperparameter diff"
+              data-testid="button-expand-hparams-diff"
+            >
+              <Maximize2 className="h-3.5 w-3.5" />
+            </Button>
             {hparams !== null ? (
               <Button
                 type="button"
@@ -165,19 +178,24 @@ export function ExperimentHparamsPanel({
               <ExperimentDiffCountBadge status="changed" label="Changed" value={summary.changed} />
             </div>
           ) : null}
-          {hparams === null && !(showDiffs && parentHparams) ? (
-            <div className="rounded-md border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
-              No hyperparameters logged for this experiment. Use the SDK or UI to add hyperparameters.
-            </div>
-          ) : (
-            <ExperimentHparamsTree
-              hparams={hparams ?? {}}
-              parentHparams={parentHparams}
-              showDiffs={showDiffs}
-            />
-          )}
+          <HparamsView
+            hparams={hparams}
+            parentHparams={parentHparams}
+            showDiffs={showDiffs}
+          />
         </CardContent>
       </Card>
+
+      <HparamsExpandedModal
+        open={expandedOpen}
+        onOpenChange={setExpandedOpen}
+        hparams={hparams}
+        parentHparams={parentHparams}
+        parentExperimentId={parentExperimentId}
+        summary={summary}
+        showDiffs={showDiffs}
+        onShowDiffsChange={setShowDiffs}
+      />
 
       <Dialog open={editorOpen} onOpenChange={setEditorOpen}>
         <DialogContent className="max-w-2xl">
@@ -244,5 +262,92 @@ export function ExperimentHparamsPanel({
         </AlertDialogContent>
       </AlertDialog>
     </div>
+  );
+}
+
+function HparamsView({
+  hparams,
+  parentHparams,
+  showDiffs,
+}: {
+  hparams: HparamsDocument | null;
+  parentHparams: HparamsDocument | null;
+  showDiffs: boolean;
+}) {
+  if (hparams === null && !(showDiffs && parentHparams)) {
+    return (
+      <div className="rounded-md border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
+        No hyperparameters logged for this experiment. Use the SDK or UI to add hyperparameters.
+      </div>
+    );
+  }
+
+  return (
+    <ExperimentHparamsTree
+      hparams={hparams ?? {}}
+      parentHparams={parentHparams}
+      showDiffs={showDiffs}
+    />
+  );
+}
+
+function HparamsExpandedModal({
+  open,
+  onOpenChange,
+  hparams,
+  parentHparams,
+  parentExperimentId,
+  summary,
+  showDiffs,
+  onShowDiffsChange,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  hparams: HparamsDocument | null;
+  parentHparams: HparamsDocument | null;
+  parentExperimentId?: string | null;
+  summary: { added: number; removed: number; changed: number };
+  showDiffs: boolean;
+  onShowDiffsChange: (showDiffs: boolean) => void;
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="flex h-[min(60rem,calc(100dvh-1rem))] max-w-[min(64rem,calc(100vw-2rem))] flex-col gap-3 p-0">
+        <DialogHeader className="border-b px-4 py-3">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <DialogTitle>Hyperparameters</DialogTitle>
+              <DialogDescription>
+                Expanded hyperparameter comparison for this experiment.
+              </DialogDescription>
+            </div>
+            {parentExperimentId ? (
+              <Button
+                type="button"
+                variant={showDiffs ? "default" : "outline"}
+                size="icon"
+                className="mr-6 h-8 w-8 shrink-0"
+                onClick={() => onShowDiffsChange(!showDiffs)}
+                aria-pressed={showDiffs}
+                aria-label={showDiffs ? "Disable hyperparameter diffs" : "Enable hyperparameter diffs"}
+                title={showDiffs ? "Disable hyperparameter diffs" : "Enable hyperparameter diffs"}
+              >
+                <GitCompare className="h-3.5 w-3.5" />
+              </Button>
+            ) : null}
+          </div>
+          {showDiffs && parentHparams ? (
+            <div className="flex flex-wrap gap-1 pt-2">
+              <ExperimentDiffCountBadge status="added" label="Added" value={summary.added} />
+              <ExperimentDiffCountBadge status="removed" label="Removed" value={summary.removed} />
+              <ExperimentDiffCountBadge status="changed" label="Changed" value={summary.changed} />
+            </div>
+          ) : null}
+        </DialogHeader>
+        <div className="min-h-0 flex-1 overflow-auto px-4 pb-4">
+          <HparamsView hparams={hparams} parentHparams={parentHparams} showDiffs={showDiffs} />
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }

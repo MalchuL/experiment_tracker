@@ -20,12 +20,6 @@ import { RightSidebarShell, type RightSidebarVariant } from "@/components/shared
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
-import {
   Select,
   SelectContent,
   SelectItem,
@@ -54,6 +48,9 @@ import {
   MetricNameValueDiffRow,
   metricRowGroupTableClass,
 } from "@/components/shared/metric-name-value-diff-row";
+import {
+  METRIC_SIDEBAR_DENSE_CLASS_NAMES,
+} from "@/components/shared/experiment-sidebar-metric-styles";
 import { ExperimentFeaturesPanel } from "@/components/shared/experiment-features-panel";
 import {
   Tooltip,
@@ -75,11 +72,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { ExperimentHparamsPanel } from "@/components/shared/experiment-hparams-panel";
+import { ExperimentSidebarLoggedMetrics } from "@/components/shared/experiment-sidebar-logged-metrics";
 import { experimentSnapshotsService } from "@/domain/experiments/services";
 import { downloadBlob, sanitizeDownloadName } from "@/lib/downloads";
 
-/** One bucket of logged scalars sharing the same label (or “unlabeled”). */
-type LoggedMetricsLabelGroup = { label: string | null; items: Metric[] };
+/** Sidebar tab ids persisted in localStorage. */
 type ExperimentSidebarTab = "metrics" | "features" | "hparams" | "code";
 
 const EXPERIMENT_SIDEBAR_ACTIVE_TAB_STORAGE_KEY = "experiment-sidebar.active-tab";
@@ -88,21 +85,6 @@ const EXPERIMENT_SIDEBAR_TABS: ExperimentSidebarTab[] = ["metrics", "features", 
 const EXPERIMENT_SIDEBAR_MIN_WIDTH = 320;
 const EXPERIMENT_SIDEBAR_MAX_WIDTH = 760;
 const EXPERIMENT_SIDEBAR_DEFAULT_WIDTH = 400;
-const METRIC_SIDEBAR_ROW_SEPARATOR_CLASS = "border-b border-border/35 py-1";
-const METRIC_SIDEBAR_DENSE_CLASS_NAMES = {
-  root: "text-sm",
-  nameCluster: METRIC_SIDEBAR_ROW_SEPARATOR_CLASS,
-  valueCluster: METRIC_SIDEBAR_ROW_SEPARATOR_CLASS,
-  tableSlot1: METRIC_SIDEBAR_ROW_SEPARATOR_CLASS,
-  tableArrow: METRIC_SIDEBAR_ROW_SEPARATOR_CLASS,
-  tableSlot2: METRIC_SIDEBAR_ROW_SEPARATOR_CLASS,
-  deltaText: "font-mono text-xs tabular-nums leading-none",
-  deltaIcon: "w-2.5 h-2.5",
-};
-const METRIC_SIDEBAR_UNTRACKED_CLASS_NAMES = {
-  ...METRIC_SIDEBAR_DENSE_CLASS_NAMES,
-  root: "text-sm pl-0",
-};
 
 /**
  * Looks up the numeric value for a project “tracked” metric inside an experiment’s aggregated
@@ -119,31 +101,6 @@ function lookupAggregatedValueForTrackedMetric(
     )
   );
   return matchedRow?.value;
-}
-
-/**
- * Finds the project tracked-metric definition that matches a logged scalar row, if the project
- * tracks that name/label (used to know direction and whether we can compare to the parent).
- */
-function findTrackedDefinitionForLoggedMetric(
-  trackedDefinitions: ProjectMetric[],
-  loggedMetric: Pick<Metric, "name" | "label">
-): ProjectMetric | undefined {
-  return trackedDefinitions.find((tracked) =>
-    displayMetricKeyEquals(
-      { name: loggedMetric.name, label: loggedMetric.label },
-      { name: tracked.name, label: tracked.label ?? null }
-    )
-  );
-}
-
-/**
- * Stable `Accordion` item value for a label bucket. Null/empty labels map to a sentinel so default
- * open state does not collide with a real empty-string label.
- */
-function accordionItemValueForLoggedLabelGroup(label: string | null): string {
-  if (label == null || label === "") return "__unlabeled__";
-  return label;
 }
 
 /** Single-line label for parent dropdown rows (name + short id prefix). */
@@ -297,37 +254,6 @@ export function ExperimentSidebar({
 
   const trackedMetricDefinitions = project?.metrics.trackedMetrics ?? [];
   const experimentTags = experiment?.tags ?? [];
-
-  /** Logged scalars grouped by label for accordion sections (locale-sorted labels; unlabeled last). */
-  const loggedMetricsByLabel = useMemo((): LoggedMetricsLabelGroup[] => {
-    if (!metrics?.length) {
-      return [];
-    }
-    const metricsByLabelKey = new Map<string, Metric[]>();
-    for (const loggedMetric of metrics) {
-      const rawLabelKey = loggedMetric.label ?? "";
-      if (!metricsByLabelKey.has(rawLabelKey)) metricsByLabelKey.set(rawLabelKey, []);
-      metricsByLabelKey.get(rawLabelKey)!.push(loggedMetric);
-    }
-    const sortedLabelEntries = [...metricsByLabelKey.entries()];
-    sortedLabelEntries.sort((a, b) => {
-      if (a[0] === "" && b[0] !== "") return 1;
-      if (b[0] === "" && a[0] !== "") return -1;
-      return a[0].localeCompare(b[0]);
-    });
-    for (const [, itemsInLabel] of sortedLabelEntries) {
-      itemsInLabel.sort((a, b) => a.name.localeCompare(b.name));
-    }
-    return sortedLabelEntries.map(([rawLabelKey, itemsInLabel]) => ({
-      label: rawLabelKey === "" ? null : rawLabelKey,
-      items: itemsInLabel,
-    }));
-  }, [metrics]);
-
-  const defaultOpenLoggedMetricAccordionKeys = useMemo(
-    () => loggedMetricsByLabel.map((g) => accordionItemValueForLoggedLabelGroup(g.label)),
-    [loggedMetricsByLabel]
-  );
 
   /**
    * When any tracked column has both this experiment and parent values, the metrics grid uses an
@@ -845,114 +771,16 @@ export function ExperimentSidebar({
                 ) : null}
 
                 {/* Logged scalars from ClickHouse: grouped by label; compare to parent only when the metric is tracked */}
-                {metricsLoading ? (
-                  <Skeleton className="h-24 w-full" />
-                ) : metrics && metrics.length > 0 ? (
-                  <Card>
-                    <CardHeader className="py-2 px-3">
-                      <CardTitle className="text-xs font-medium text-muted-foreground">
-                        Logged Metrics
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="px-3 pb-3 pt-0">
-                      <Accordion
-                        type="multiple"
-                        className="w-full"
-                        defaultValue={defaultOpenLoggedMetricAccordionKeys}
-                      >
-                        {loggedMetricsByLabel.map((labelGroup) => {
-                          const accordionItemValue = accordionItemValueForLoggedLabelGroup(labelGroup.label);
-                          const groupTitle =
-                            labelGroup.label != null && labelGroup.label !== ""
-                              ? labelGroup.label
-                              : "Unlabeled";
-                          const loggedLabelGroupShowsParentDelta = labelGroup.items.some((loggedMetric) => {
-                            const trackedDefinition = findTrackedDefinitionForLoggedMetric(
-                              trackedMetricDefinitions,
-                              loggedMetric
-                            );
-                            if (!trackedDefinition) return false;
-                            const parentScalar = lookupAggregatedValueForTrackedMetric(
-                              parentLoggedMetrics,
-                              trackedDefinition
-                            );
-                            return loggedMetric.value != null && parentScalar != null;
-                          });
-                          return (
-                            <AccordionItem
-                              key={accordionItemValue}
-                              value={accordionItemValue}
-                              className="border-border last:border-b-0"
-                            >
-                              <AccordionTrigger className="py-2 text-xs font-medium hover:no-underline">
-                                <span className="truncate text-left">{groupTitle}</span>
-                              </AccordionTrigger>
-                              <AccordionContent className="pb-2 pt-0">
-                                <div className={metricRowGroupTableClass(loggedLabelGroupShowsParentDelta)}>
-                                  {labelGroup.items.map((loggedMetric) => {
-                                    const trackedDefinition = findTrackedDefinitionForLoggedMetric(
-                                      trackedMetricDefinitions,
-                                      loggedMetric
-                                    );
-                                    if (trackedDefinition) {
-                                      return (
-                                        <MetricNameValueDiffRow
-                                          key={loggedMetric.id}
-                                          metricName={trackedDefinition.name}
-                                          metricLabel={trackedDefinition.label ?? null}
-                                          nameTitleMode="name-only"
-                                          value={loggedMetric.value}
-                                          parentValue={lookupAggregatedValueForTrackedMetric(
-                                            parentLoggedMetrics,
-                                            trackedDefinition
-                                          )}
-                                          direction={
-                                            trackedDefinition.direction === "minimize"
-                                              ? "minimize"
-                                              : "maximize"
-                                          }
-                                          showDirectionHint
-                                          metricTable={{
-                                            scope: "group",
-                                            groupHasAnyDiff: loggedLabelGroupShowsParentDelta,
-                                          }}
-                                          classNameProps={METRIC_SIDEBAR_DENSE_CLASS_NAMES}
-                                          data-testid={`logged-metric-${loggedMetric.id}`}
-                                        />
-                                      );
-                                    }
-                                    return (
-                                      <MetricNameValueDiffRow
-                                        key={loggedMetric.id}
-                                        metricName={loggedMetric.name}
-                                        metricLabel={loggedMetric.label}
-                                        nameTitleMode="name-only"
-                                        value={loggedMetric.value}
-                                        parentValue={null}
-                                        direction="maximize"
-                                        showDiff={false}
-                                        metricTable={{
-                                          scope: "group",
-                                          groupHasAnyDiff: loggedLabelGroupShowsParentDelta,
-                                        }}
-                                        classNameProps={METRIC_SIDEBAR_UNTRACKED_CLASS_NAMES}
-                                        data-testid={`logged-metric-${loggedMetric.id}`}
-                                      />
-                                    );
-                                  })}
-                                </div>
-                              </AccordionContent>
-                            </AccordionItem>
-                          );
-                        })}
-                      </Accordion>
-                    </CardContent>
-                  </Card>
-                ) : (
-                  <p className="text-sm text-muted-foreground text-center py-4">
-                    No metrics logged yet
-                  </p>
-                )}
+                {experiment ? (
+                  <ExperimentSidebarLoggedMetrics
+                    experimentId={experiment.id}
+                    projectId={experiment.projectId}
+                    metrics={metrics}
+                    metricsLoading={metricsLoading}
+                    parentLoggedMetrics={parentLoggedMetrics}
+                    trackedMetricDefinitions={trackedMetricDefinitions}
+                  />
+                ) : null}
               </TabsContent>
 
               <TabsContent value="features" className="min-w-0 max-w-full space-y-2 overflow-hidden">

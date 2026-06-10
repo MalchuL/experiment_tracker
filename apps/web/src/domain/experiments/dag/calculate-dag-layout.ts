@@ -2,6 +2,11 @@ import type { Edge } from "@xyflow/react";
 import { MarkerType } from "@xyflow/react";
 import { DAG_NODE_HEIGHT_PX, DAG_NODE_WIDTH_PX } from "@/lib/constants/dag";
 import type { Experiment } from "../types";
+import {
+  dagNodeRectFromPosition,
+  findFreeDagNodePosition,
+  type DagNodeRect,
+} from "./find-free-dag-node-position";
 
 export type SavedPositions = Record<string, { x: number; y: number }>;
 
@@ -42,6 +47,13 @@ export function calculateDagTreeLayout(
 
   const positionsById: Record<string, { x: number; y: number }> = {};
 
+  /** Occupied rects for collision checks when placing nodes without a saved position. */
+  const placementObstacles: DagNodeRect[] = [];
+  for (const [experimentId, position] of Object.entries(savedPositions)) {
+    if (!experimentMap.has(experimentId)) continue;
+    placementObstacles.push(dagNodeRectFromPosition(position));
+  }
+
   function getSubtreeWidth(exp: Experiment): number {
     const children = childrenMap.get(exp.id) ?? [];
     if (children.length === 0) return DAG_NODE_WIDTH_PX;
@@ -53,8 +65,17 @@ export function calculateDagTreeLayout(
 
   function layoutTree(exp: Experiment, x: number, y: number) {
     const saved = savedPositions[exp.id];
-    const position = saved ?? { x, y: y + NEW_NODE_BOTTOM_OFFSET };
+    const position = saved
+      ? saved
+      : findFreeDagNodePosition(
+          { x, y: y + NEW_NODE_BOTTOM_OFFSET },
+          placementObstacles
+        );
+
     positionsById[exp.id] = position;
+    if (!saved) {
+      placementObstacles.push(dagNodeRectFromPosition(position));
+    }
 
     const children = childrenMap.get(exp.id) ?? [];
     if (children.length > 0) {
