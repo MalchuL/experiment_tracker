@@ -21,6 +21,7 @@ export interface ProjectsHookResult {
   deletionIsPending: boolean;
   createProject: (data: InsertProject, options?: ProjectsHookOptions) => Promise<void>;
   deleteProject: (id: string, options?: ProjectsHookOptions) => Promise<void>;
+  refetch: () => Promise<unknown>;
   error: Error | null;
 }
 
@@ -32,6 +33,7 @@ export function useProjects() {
     isFetchingNextPage,
     hasNextPage,
     fetchNextPage,
+    refetch,
     error,
   } = useInfiniteQuery({
     queryKey: [QUERY_KEYS.PROJECTS.LIST, { limit: DEFAULT_PAGE_SIZE }],
@@ -98,6 +100,7 @@ export function useProjects() {
     deletionIsPending: deleteMutation.isPending,
     createProject: createMutation.mutateAsync,
     deleteProject,
+    refetch,
     error: error as Error | null,
   };
 }

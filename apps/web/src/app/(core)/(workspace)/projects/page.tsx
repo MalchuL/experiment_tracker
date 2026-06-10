@@ -11,7 +11,7 @@ import { ProjectCard } from "@/domain/projects/components/project-card";
 import { ListSkeleton } from "@/components/shared/loading-skeleton";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/lib/hooks/use-toast";
-import { Plus, FolderKanban, AlertCircle, Users, ChevronDown } from "lucide-react";
+import { Plus, FolderKanban, AlertCircle, Users, ChevronDown, RefreshCw } from "lucide-react";
 import type { InsertProject, Project } from "@/domain/projects/types";
 import { insertProjectSchema } from "@/domain/projects/schemas";
 import { useProjects } from "@/domain/projects/hooks";
@@ -83,11 +83,18 @@ export default function Projects() {
   const {
     projects,
     isLoading,
+    isFetching,
     isFetchingNextPage,
     createProject,
     creationIsPending,
+    refetch,
     error,
   } = useProjects();
+
+  const isRefreshing = isFetching && !isLoading;
+  const handleRefresh = useCallback(() => {
+    void refetch();
+  }, [refetch]);
 
   const form = useForm<InsertProject>({
     resolver: zodResolver(insertProjectSchema as any),
@@ -185,23 +192,46 @@ export default function Projects() {
   );
 
   const headerActions = useMemo(() => {
-    if (isLoading || error) return null;
+    if (isLoading) return null;
     return (
       <div className="flex flex-wrap items-center justify-end gap-2">
-        <Button variant="outline" onClick={() => setTeamDialogOpen(true)} data-testid="button-create-team">
-          <Users className="mr-2 h-4 w-4" />
-          New team
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={handleRefresh}
+          disabled={isRefreshing}
+          data-testid="button-refresh-projects"
+          aria-label="Refresh projects"
+        >
+          <RefreshCw className={isRefreshing ? "animate-spin" : ""} />
         </Button>
-        <CreateProjectModal
-          isOpen={isDialogOpen}
-          onOpenChange={setIsDialogOpen}
-          form={form}
-          onSubmit={onSubmit}
-          creationIsPending={creationIsPending}
-        />
+        {!error && (
+          <>
+            <Button variant="outline" onClick={() => setTeamDialogOpen(true)} data-testid="button-create-team">
+              <Users className="mr-2 h-4 w-4" />
+              New team
+            </Button>
+            <CreateProjectModal
+              isOpen={isDialogOpen}
+              onOpenChange={setIsDialogOpen}
+              form={form}
+              onSubmit={onSubmit}
+              creationIsPending={creationIsPending}
+            />
+          </>
+        )}
       </div>
     );
-  }, [isLoading, error, isDialogOpen, form, onSubmit, creationIsPending]);
+  }, [
+    isLoading,
+    error,
+    handleRefresh,
+    isRefreshing,
+    isDialogOpen,
+    form,
+    onSubmit,
+    creationIsPending,
+  ]);
 
   useWorkspaceHeaderActions(headerActions);
 
@@ -223,7 +253,10 @@ export default function Projects() {
           title="Error"
           description="Failed to load projects. Please try again."
         />
-        <Button onClick={() => window.location.reload()}>Reload</Button>
+        <Button onClick={handleRefresh} disabled={isRefreshing}>
+          <RefreshCw className={isRefreshing ? "mr-2 h-4 w-4 animate-spin" : "mr-2 h-4 w-4"} />
+          Try again
+        </Button>
       </div>
     );
   }
