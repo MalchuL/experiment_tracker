@@ -15,6 +15,7 @@ import {
  * - ``exp`` — selected experiment ids (encoded list). Omitted when **every** experiment is selected.
  *   When ``exp`` is absent on first load, the newest
  *   ``SCALARS_DEFAULT_SELECTED_EXPERIMENT_COUNT`` experiments are selected (UI default only).
+ *   When that constant is ``null``, ``undefined``, or ``-1``, every experiment is selected instead.
  * - ``met`` — names of metrics **hidden** from charts (inverted semantics vs checkbox “visible”).
  * - ``art`` — ids of artifacts **hidden** from object cards (``artifact_type:name``).
  * - ``s`` — smoothing slider in ``[0, 1]``.
