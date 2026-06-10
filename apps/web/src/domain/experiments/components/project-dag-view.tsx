@@ -173,6 +173,7 @@ function ExperimentNode({ data }: { data: ExperimentNodeData }) {
   const nodeRef = useRef<HTMLDivElement>(null);
   const liveWidthRef = useRef<number | null>(null);
   const [liveWidth, setLiveWidth] = useState<number | null>(null);
+  const { getZoom } = useReactFlow();
 
   const width = liveWidth ?? data.nodeWidth;
 
@@ -182,17 +183,23 @@ function ExperimentNode({ data }: { data: ExperimentNodeData }) {
     const element = nodeRef.current;
     if (!element || !data.onNodeResizeEnd) return;
 
+    const resizeHandle = event.currentTarget;
+    resizeHandle.setPointerCapture(event.pointerId);
+
     const startX = event.clientX;
-    const startWidth = element.getBoundingClientRect().width;
+    /** Layout width in flow coords — not getBoundingClientRect (that includes viewport zoom). */
+    const startLayoutWidth = liveWidth ?? data.nodeWidth;
+    const startZoom = getZoom();
     const onNodeResizeEnd = data.onNodeResizeEnd;
     const onAfterResizeDrag = data.onAfterResizeDrag;
     let didDrag = false;
 
     const onPointerMove = (moveEvent: PointerEvent) => {
-      if (Math.abs(moveEvent.clientX - startX) > 2) {
+      const deltaFlowPx = (moveEvent.clientX - startX) / startZoom;
+      if (Math.abs(deltaFlowPx) > 2) {
         didDrag = true;
       }
-      const nextWidth = clampDagNodeWidth(startWidth + (moveEvent.clientX - startX));
+      const nextWidth = clampDagNodeWidth(startLayoutWidth + deltaFlowPx);
       liveWidthRef.current = nextWidth;
       setLiveWidth(nextWidth);
     };
@@ -200,6 +207,9 @@ function ExperimentNode({ data }: { data: ExperimentNodeData }) {
     const onPointerUp = (upEvent: PointerEvent) => {
       upEvent.stopPropagation();
       upEvent.preventDefault();
+      if (resizeHandle.hasPointerCapture(upEvent.pointerId)) {
+        resizeHandle.releasePointerCapture(upEvent.pointerId);
+      }
       document.removeEventListener("pointermove", onPointerMove);
       document.removeEventListener("pointerup", onPointerUp, true);
       const finalWidth = liveWidthRef.current;
