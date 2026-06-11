@@ -175,6 +175,39 @@ async def test_experiment_controller_tracked_upload_list_download_delete(
 
 
 @pytest.mark.asyncio
+async def test_experiment_controller_tracked_download_unicode_filename(
+    http_client,
+) -> None:
+    project_id = uuid4()
+    experiment_id = uuid4()
+    payload = b"mp4-bytes-placeholder"
+    artifact_hash = "f" * 64
+    display_name = "! Двач @dvachannel @rand2ch @ru2ch_ban ! (1).mp4"
+    artifact_path = "final/!_Двач_@dvachannel_@rand2ch_@ru2ch_ban_!_(1).mp4"
+
+    upload = await http_client.post(
+        f"/api/experiment-artifacts/projects/{project_id}/experiments/{experiment_id}/upload-tracked",
+        params={
+            "artifact_hash": artifact_hash,
+            "file_path": artifact_path,
+            "content_type": "video/mp4",
+        },
+        files={"file": (display_name, payload, "video/mp4")},
+    )
+    assert upload.status_code == 200
+
+    download = await http_client.get(
+        f"/api/experiment-artifacts/projects/{project_id}/experiments/{experiment_id}/artifacts/{artifact_hash}",
+        params={"tracked": "true"},
+    )
+    assert download.status_code == 200
+    assert download.content == payload
+    disposition = download.headers.get("content-disposition", "")
+    assert disposition.startswith("attachment; filename*=UTF-8''")
+    disposition.encode("latin-1")
+
+
+@pytest.mark.asyncio
 async def test_experiment_controller_tracked_no_hash_list_and_download_use_same_key(
     http_client,
 ) -> None:

@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useEffect } from "react";
-import { useInfiniteQuery, useQueries } from "@tanstack/react-query";
+import { useInfiniteQuery, useQueries, useQuery } from "@tanstack/react-query";
 import { QUERY_KEYS } from "@/lib/constants/query-keys";
 import { DEFAULT_PAGE_SIZE } from "@/lib/constants/pagination";
 import { experimentArtifactsService } from "./service";
@@ -100,6 +100,42 @@ export function useCompareFinalArtifacts(experimentIds: string[]) {
     artifactsByExperiment,
     isLoading,
     isFetching,
+  };
+}
+
+export function useFinalArtifactPreview(
+  artifact: NamedExperimentArtifact | undefined,
+  enabled = true
+) {
+  const maxBytes = artifact?.mimeType.startsWith("image/")
+    ? 10 * 1024 * 1024
+    : 2 * 1024 * 1024;
+
+  const { data, isLoading, isFetching, refetch } = useQuery({
+    queryKey: artifact
+      ? [
+          QUERY_KEYS.ARTIFACTS.NAMED_BY_EXPERIMENT(artifact.experimentId),
+          "preview",
+          artifact.name,
+          artifact.filepath,
+          maxBytes,
+        ]
+      : [],
+    queryFn: () =>
+      experimentArtifactsService.previewNamedArtifact(
+        artifact!.experimentId,
+        artifact!.name,
+        artifact!.filepath,
+        maxBytes
+      ),
+    enabled: enabled && !!artifact?.experimentId,
+  });
+
+  return {
+    preview: data,
+    isLoading,
+    isFetching,
+    refetch,
   };
 }
 
