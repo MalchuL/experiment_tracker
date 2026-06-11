@@ -37,6 +37,9 @@ export interface LoggedObjectsSectionProps {
   onImagePreview: (payload: { src: string; title: string }) => void;
   hiddenArtifactIds?: Set<string>;
   onlyArtifactId?: string | null;
+  artifactType?: string;
+  artifactNames?: string[];
+  showSectionHeader?: boolean;
 }
 
 export function LoggedObjectsSection({
@@ -57,6 +60,9 @@ export function LoggedObjectsSection({
   onImagePreview,
   hiddenArtifactIds = new Set(),
   onlyArtifactId = null,
+  artifactType,
+  artifactNames,
+  showSectionHeader = true,
 }: LoggedObjectsSectionProps) {
   const artifactExperiments = useMemo(
     () =>
@@ -66,19 +72,32 @@ export function LoggedObjectsSection({
     [visibleExperiments]
   );
 
-  if (Object.keys(objectGroups).length === 0) return null;
+  const typeEntries = useMemo(() => {
+    const entries = Object.entries(objectGroups as LoggedObjectGroups);
+    if (!artifactType) {
+      return entries;
+    }
+    const byName = objectGroups[artifactType];
+    return byName ? [[artifactType, byName] as const] : [];
+  }, [artifactType, objectGroups]);
+
+  if (typeEntries.length === 0) return null;
 
   return (
-    <div className="mt-4 space-y-4">
-      <div>
-        <h2 className="text-base font-semibold">Logged Objects</h2>
-        <p className="text-sm text-muted-foreground">
-          Objects are grouped by type and name; each card shows one object per selected experiment at the chosen step.
-        </p>
-      </div>
-      {Object.entries(objectGroups as LoggedObjectGroups).map(([objectType, byName]) => (
+    <div className={showSectionHeader ? "mt-4 space-y-4" : "space-y-4"}>
+      {showSectionHeader ? (
+        <div>
+          <h2 className="text-base font-semibold">Logged Objects</h2>
+          <p className="text-sm text-muted-foreground">
+            Objects are grouped by type and name; each card shows one object per selected experiment at the chosen step.
+          </p>
+        </div>
+      ) : null}
+      {typeEntries.map(([objectType, byName]) => (
         <div key={objectType} className="space-y-2">
-          <h3 className="text-sm font-medium capitalize">{objectType.replaceAll("_", " ")}</h3>
+          {showSectionHeader && !artifactType ? (
+            <h3 className="text-sm font-medium capitalize">{objectType.replaceAll("_", " ")}</h3>
+          ) : null}
           <div
             className="grid gap-3"
             style={{
@@ -88,6 +107,9 @@ export function LoggedObjectsSection({
           >
             {Object.entries(byName).map(([name, group]: [string, LoggedObjectNameGroup]) => {
               const selectionKey = `${objectType}:${name}`;
+              if (artifactNames && !artifactNames.includes(name)) {
+                return null;
+              }
               if (hiddenArtifactIds.has(selectionKey) || (onlyArtifactId && onlyArtifactId !== selectionKey)) {
                 return null;
               }

@@ -8,6 +8,11 @@ import type { LastLoggedExperimentsResult } from "@/domain/scalars/types";
 import { loggedObjectsService } from "@/domain/logged-objects/services";
 import type { ArtifactsInfoSummaryResult } from "@/domain/logged-objects/types";
 import { mergeArtifactsInfoPage } from "@/domain/logged-objects/utils";
+import {
+  computeIncrementalStartTime,
+  hasCompleteIncrementalBaseline,
+  pickIncrementalChanges,
+} from "@/domain/scalars/utils/incremental-refresh";
 
 /** Mirrors ``useScalarsLiveRefresh`` inputs but targets the artifacts infinite query key and merge helper. */
 interface UseArtifactsLiveRefreshParams {
@@ -49,20 +54,24 @@ export function useArtifactsLiveRefresh({
       );
       const cachedModifiedByExperiment = getCachedModifiedByExperiment(cached);
       const previous = previousByExperiment.current;
-      const getBaseline = (experimentId: string) =>
-        previous.get(experimentId) ?? cachedModifiedByExperiment.get(experimentId);
-      const hasCompleteBaseline = lastLogged.data.every((item) => !!getBaseline(item.experiment_id));
-      const changed = lastLogged.data
-        .map((item) => ({
-          item,
-          previousModified: getBaseline(item.experiment_id),
-          missingFromCache: !cachedExperimentIds.has(item.experiment_id),
-        }))
-        .filter(({ item, previousModified, missingFromCache }) => {
-          if (missingFromCache) return true;
-          if (!previousModified) return false;
-          return new Date(item.last_modified).getTime() > new Date(previousModified).getTime();
-        });
+      const previousModifiedByExperiment = new Map<string, string>();
+      lastLogged.data.forEach((item) => {
+        const baseline =
+          previous.get(item.experiment_id) ?? cachedModifiedByExperiment.get(item.experiment_id);
+        if (baseline) {
+          previousModifiedByExperiment.set(item.experiment_id, baseline);
+        }
+      });
+
+      const hasCompleteBaseline = hasCompleteIncrementalBaseline(
+        lastLogged.data,
+        previousModifiedByExperiment
+      );
+      const changed = pickIncrementalChanges({
+        lastLogged: lastLogged.data,
+        cachedExperimentIds,
+        previousModifiedByExperiment,
+      });
 
       lastLogged.data.forEach((item) => {
         previous.set(item.experiment_id, item.last_modified);
@@ -72,6 +81,7 @@ export function useArtifactsLiveRefresh({
         return hasCompleteBaseline ? "unchanged" : "unavailable";
       }
 
+      const startTime = computeIncrementalStartTime(changed);
       const changedWithBaseline = changed.filter(
         (entry): entry is typeof entry & { previousModified: string } =>
           !!entry.previousModified && !entry.missingFromCache
@@ -85,9 +95,7 @@ export function useArtifactsLiveRefresh({
           ? loggedObjectsService.getSummaryByProject(projectId, {
               experimentIds: changedWithBaseline.map(({ item }) => item.experiment_id),
               maxSteps,
-              startTime: changedWithBaseline
-                .map(({ previousModified }) => previousModified)
-                .sort()[0],
+              startTime,
               limit: changedWithBaseline.length,
             })
           : undefined,

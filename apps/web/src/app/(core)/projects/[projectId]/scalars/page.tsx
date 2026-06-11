@@ -21,12 +21,11 @@ import { metricsService } from "@/domain/metrics/services";
 import { useCurrentProject } from "@/domain/projects/hooks";
 import {
   CreateMetricFromPointDialog,
-  LoggedObjectsSection,
   ScalarExperimentsSidebar,
   ScalarPointContextMenu,
   ScalarViewSettingsSidebar,
   ScalarsDialogs,
-  ScalarsMetricsGrid,
+  ScalarsContentPanel,
   LiveRefreshIndicator,
 } from "@/domain/scalars/components";
 import {
@@ -55,6 +54,8 @@ import {
   getScalarsMaxPointsPerPlot,
   mergeScalarsPage,
 } from "@/domain/scalars/utils";
+import { findMissingExperimentIds } from "@/domain/scalars/utils/incremental-experiment-fetch";
+import { planManualRefreshActions } from "@/domain/scalars/utils/manual-refresh";
 import type { InsertExperiment } from "@/domain/experiments/types";
 import { EXPERIMENTS_LIST_POLL_INTERVAL_MS } from "@/lib/constants/live-refresh";
 import { QUERY_KEYS } from "@/lib/constants/query-keys";
@@ -224,13 +225,12 @@ export default function Scalars() {
   useEffect(() => {
     if (!queryStateInitialized || !projectId || !scalarsQueryKey.length || !artifactsQueryKey.length) return;
 
-    const fetchedIds = new Set([
-      ...requestedExperimentIds,
-      ...scalars.map((item) => item.experiment_id),
-    ]);
-    const missingIds = Array.from(selectedExperimentIds).filter(
-      (id) => !fetchedIds.has(id) && !incrementalInFlightIds.current.has(id)
-    );
+    const missingIds = findMissingExperimentIds({
+      selectedExperimentIds,
+      requestedExperimentIds,
+      fetchedExperimentIds: scalars.map((item) => item.experiment_id),
+      incrementalInFlightIds: incrementalInFlightIds.current,
+    });
     if (missingIds.length === 0) return;
 
     missingIds.forEach((id) => incrementalInFlightIds.current.add(id));
@@ -372,10 +372,14 @@ export default function Scalars() {
       refreshChangedArtifacts(),
     ]);
     await refetchExperiments();
-    if (incrementalScalarsRefresh === "unavailable") {
+    const refreshPlan = planManualRefreshActions(
+      incrementalScalarsRefresh,
+      incrementalArtifactsRefresh
+    );
+    if (refreshPlan.refetchScalars) {
       await refetchScalars();
     }
-    if (incrementalArtifactsRefresh === "unavailable") {
+    if (refreshPlan.refetchArtifacts) {
       await refetchObjects();
     }
   };
@@ -526,7 +530,7 @@ export default function Scalars() {
         </div>
 
         <div className="min-h-0 flex-1 overflow-auto">
-          <ScalarsMetricsGrid
+          <ScalarsContentPanel
             visibleMetrics={visibleMetrics}
             chartDataByMetric={chartDataByMetric}
             metricDomains={metricDomains}
@@ -548,14 +552,9 @@ export default function Scalars() {
               setCardMinWidth(width);
               setCardHeight(height);
             }}
-          />
-
-          <LoggedObjectsSection
             projectId={projectId}
             objectGroups={objectGroups}
-            visibleExperiments={visibleExperiments}
-            cardMinWidth={cardMinWidth}
-            cardHeight={cardHeight}
+            hiddenArtifactIds={hiddenArtifactIds}
             objectStepSelection={objectState.objectStepSelection}
             updateObjectStep={objectState.updateObjectStep}
             debouncedObjectStepSelection={objectState.debouncedObjectStepSelection}
@@ -566,7 +565,6 @@ export default function Scalars() {
             updateExperimentStepOverride={objectState.updateExperimentStepOverride}
             debouncedExperimentStepOverrides={objectState.debouncedExperimentStepOverrides}
             onImagePreview={setImagePreview}
-            hiddenArtifactIds={hiddenArtifactIds}
           />
         </div>
       </div>

@@ -139,6 +139,39 @@ describe("mergeScalarsPage", () => {
     });
   });
 
+  it("merges slash-prefixed metric names independently by full name key", () => {
+    const result = mergeScalarsPage(
+      page([
+        {
+          experiment_id: "exp-1",
+          scalars: {
+            "train/loss": { x: [1], y: [0.5] },
+            "val/loss": { x: [1], y: [0.9] },
+          },
+        },
+      ]),
+      [
+        {
+          experiment_id: "exp-1",
+          scalars: {
+            "train/loss": { x: [2], y: [0.4] },
+            "val/loss": { x: [2], y: [0.8] },
+          },
+        },
+      ],
+      { maxPoints: 10 }
+    );
+
+    expect(result.data[0]?.scalars["train/loss"]).toEqual({
+      x: [1, 2],
+      y: [0.5, 0.4],
+    });
+    expect(result.data[0]?.scalars["val/loss"]).toEqual({
+      x: [1, 2],
+      y: [0.9, 0.8],
+    });
+  });
+
   it("samples appended missing experiments too", () => {
     const result = mergeScalarsPage(
       page([]),

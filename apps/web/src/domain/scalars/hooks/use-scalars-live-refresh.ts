@@ -5,6 +5,11 @@ import { QUERY_KEYS } from "@/lib/constants/query-keys";
 import { scalarsService } from "@/domain/scalars/services";
 import type { LastLoggedExperimentsResult, ScalarsPointsResult } from "@/domain/scalars/types";
 import { mergeScalarsPage } from "@/domain/scalars/utils";
+import {
+  computeIncrementalStartTime,
+  hasCompleteIncrementalBaseline,
+  pickIncrementalChanges,
+} from "@/domain/scalars/utils/incremental-refresh";
 
 interface UseScalarsLiveRefreshParams {
   projectId?: string;
@@ -49,20 +54,12 @@ export function useScalarsLiveRefresh({
         cached?.pages.flatMap((page) => page.data.map((item) => item.experiment_id)) ?? []
       );
       const previous = previousByExperiment.current;
-      const hasCompleteBaseline = lastLogged.data.every((item) =>
-        previous.has(item.experiment_id)
-      );
-      const changed = lastLogged.data
-        .map((item) => ({
-          item,
-          previousModified: previous.get(item.experiment_id),
-          missingFromCache: !cachedExperimentIds.has(item.experiment_id),
-        }))
-        .filter(({ item, previousModified }) => {
-          if (!cachedExperimentIds.has(item.experiment_id)) return true;
-          if (!previousModified) return false;
-          return new Date(item.last_modified).getTime() > new Date(previousModified).getTime();
-        });
+      const hasCompleteBaseline = hasCompleteIncrementalBaseline(lastLogged.data, previous);
+      const changed = pickIncrementalChanges({
+        lastLogged: lastLogged.data,
+        cachedExperimentIds,
+        previousModifiedByExperiment: previous,
+      });
 
       lastLogged.data.forEach((item) => {
         previous.set(item.experiment_id, item.last_modified);
@@ -72,13 +69,7 @@ export function useScalarsLiveRefresh({
         return hasCompleteBaseline ? "unchanged" : "unavailable";
       }
 
-      const hasMissingCacheRows = changed.some(({ missingFromCache }) => missingFromCache);
-      const startTime = hasMissingCacheRows
-        ? undefined
-        : changed
-            .map(({ previousModified }) => previousModified)
-            .filter((value): value is string => !!value)
-            .sort()[0];
+      const startTime = computeIncrementalStartTime(changed);
       const latest = await scalarsService.getByProject(projectId, {
         experimentIds: changed.map(({ item }) => item.experiment_id),
         maxPoints,

@@ -1,31 +1,18 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { LoggedObjectGroups } from "@/domain/scalars/types";
+import {
+  applyFollowLatestObjectSteps,
+  applyFollowLatestOverrideSteps,
+  buildOverrideStepCatalog,
+  buildStepCatalog,
+} from "@/domain/scalars/utils/logged-objects-step-state";
 
-function buildStepCatalog(objectGroups: LoggedObjectGroups): Record<string, number[]> {
-  const catalog: Record<string, number[]> = {};
-  Object.entries(objectGroups).forEach(([objectType, byName]) => {
-    Object.entries(byName).forEach(([name, group]) => {
-      catalog[`${objectType}:${name}`] = group.steps;
-    });
-  });
-  return catalog;
-}
-
-function buildOverrideStepCatalog(objectGroups: LoggedObjectGroups): Record<string, number[]> {
-  const catalog: Record<string, number[]> = {};
-  Object.entries(objectGroups).forEach(([objectType, byName]) => {
-    Object.entries(byName).forEach(([name, group]) => {
-      const selectionKey = `${objectType}:${name}`;
-      Object.entries(group.byExperiment).forEach(([experimentId, stepMap]) => {
-        catalog[`${selectionKey}:${experimentId}`] = Object.keys(stepMap)
-          .map((step) => Number(step))
-          .filter((step) => Number.isFinite(step))
-          .sort((a, b) => a - b);
-      });
-    });
-  });
-  return catalog;
-}
+export {
+  applyFollowLatestObjectSteps,
+  applyFollowLatestOverrideSteps,
+  buildOverrideStepCatalog,
+  buildStepCatalog,
+} from "@/domain/scalars/utils/logged-objects-step-state";
 
 export function useLoggedObjectsState(objectGroups: LoggedObjectGroups = {}) {
   const [objectStepSelection, setObjectStepSelection] = useState<Record<string, number>>({});
@@ -54,24 +41,13 @@ export function useLoggedObjectsState(objectGroups: LoggedObjectGroups = {}) {
     return () => window.clearTimeout(timer);
   }, [objectStepSelection, experimentStepOverrides]);
 
-  /** When new steps arrive, keep pinned-to-end sliders on the latest step. */
   useEffect(() => {
     const catalog = JSON.parse(stepCatalogSignature) as Record<string, number[]>;
     setObjectStepSelection((prev) => {
-      let next: Record<string, number> | null = null;
-      const debouncedUpdates: Record<string, number> = {};
-
-      Object.entries(catalog).forEach(([key, steps]) => {
-        if (steps.length === 0) return;
-        if (followLatestStep[key] === false) return;
-
-        const latest = steps[steps.length - 1];
-        const current = (next ?? prev)[key];
-        if (current === latest) return;
-
-        if (!next) next = { ...prev };
-        next[key] = latest;
-        debouncedUpdates[key] = latest;
+      const { next, debouncedUpdates } = applyFollowLatestObjectSteps({
+        catalog,
+        previous: prev,
+        followLatestStep,
       });
 
       if (Object.keys(debouncedUpdates).length > 0) {
@@ -81,29 +57,18 @@ export function useLoggedObjectsState(objectGroups: LoggedObjectGroups = {}) {
         }));
       }
 
-      return next ?? prev;
+      return next;
     });
   }, [followLatestStep, stepCatalogSignature]);
 
-  /** When new per-experiment steps arrive, keep pinned override sliders on the latest step. */
   useEffect(() => {
     const catalog = JSON.parse(overrideStepCatalogSignature) as Record<string, number[]>;
     setExperimentStepOverrides((prev) => {
-      let next: Record<string, number> | null = null;
-      const debouncedUpdates: Record<string, number> = {};
-
-      Object.entries(catalog).forEach(([key, steps]) => {
-        if (steps.length === 0) return;
-        if (followLatestOverrideStep[key] !== true) return;
-        if (!experimentStepOverrideEnabled[key]) return;
-
-        const latest = steps[steps.length - 1];
-        const current = (next ?? prev)[key];
-        if (current === latest) return;
-
-        if (!next) next = { ...prev };
-        next[key] = latest;
-        debouncedUpdates[key] = latest;
+      const { next, debouncedUpdates } = applyFollowLatestOverrideSteps({
+        catalog,
+        previous: prev,
+        followLatestOverrideStep,
+        experimentStepOverrideEnabled,
       });
 
       if (Object.keys(debouncedUpdates).length > 0) {
@@ -113,7 +78,7 @@ export function useLoggedObjectsState(objectGroups: LoggedObjectGroups = {}) {
         }));
       }
 
-      return next ?? prev;
+      return next;
     });
   }, [experimentStepOverrideEnabled, followLatestOverrideStep, overrideStepCatalogSignature]);
 

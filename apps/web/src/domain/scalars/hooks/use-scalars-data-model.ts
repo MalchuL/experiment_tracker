@@ -1,8 +1,13 @@
 import { useMemo } from "react";
 import { parseISO } from "date-fns";
 import type { Experiment } from "@/domain/experiments/types";
-import type { ExperimentScalarsPoints, ScalarChartPoint, ScalarPointValue } from "@/domain/scalars/types";
-import { applySmoothing } from "@/domain/scalars/utils";
+import type { ExperimentScalarsPoints } from "@/domain/scalars/types";
+import {
+  buildChartDataByMetric,
+  resolveVisibleExperiments,
+} from "@/domain/scalars/utils/scalars-data-model";
+
+export { buildChartDataByMetric, resolveVisibleExperiments } from "@/domain/scalars/utils/scalars-data-model";
 
 export interface ScalarMetricItem {
   name: string;
@@ -16,16 +21,9 @@ export interface UseScalarsDataModelParams {
   smoothing: number;
   soloMode: boolean;
   chosenExperimentId: string | null;
-  /** When set, selected experiments follow this order (e.g. URL order on Details page). */
   experimentDisplayOrder?: string[] | null;
 }
 
-/**
- * Derives chart-ready structures from raw experiment scalars + sidebar selection state.
- *
- * Produces per-metric arrays of ``ScalarChartPoint`` (step → per-experiment original/smoothed values),
- * filtered by ``hiddenMetrics``, ``soloMode``, and optional ``experimentDisplayOrder`` for non-scalars UIs.
- */
 export function useScalarsDataModel({
   experiments,
   scalars,
@@ -56,60 +54,32 @@ export function useScalarsDataModel({
   }, [allLoggedMetricNames, hiddenMetrics]);
 
   const selectedExperiments = useMemo(() => {
-    const filtered = sortedExperiments.filter((experiment) =>
-      selectedExperimentIds.has(experiment.id)
-    );
-    const ordered = experimentDisplayOrder?.length
-      ? [...filtered].sort(
-          (a, b) =>
-            (experimentDisplayOrder.indexOf(a.id) ?? 999) -
-            (experimentDisplayOrder.indexOf(b.id) ?? 999)
-        )
-      : filtered;
-    // Plotly draws later traces on top — oldest first so the newest run stays visible.
-    return [...ordered].sort(
-      (a, b) => parseISO(a.createdAt).getTime() - parseISO(b.createdAt).getTime()
-    );
+    return resolveVisibleExperiments({
+      sortedExperiments,
+      selectedExperimentIds,
+      soloMode: false,
+      chosenExperimentId: null,
+      experimentDisplayOrder,
+    });
   }, [sortedExperiments, selectedExperimentIds, experimentDisplayOrder]);
 
   const visibleExperiments = useMemo(() => {
-    if (soloMode && chosenExperimentId) {
-      return sortedExperiments.filter((experiment) => experiment.id === chosenExperimentId);
-    }
-    return selectedExperiments;
-  }, [soloMode, chosenExperimentId, sortedExperiments, selectedExperiments]);
+    return resolveVisibleExperiments({
+      sortedExperiments,
+      selectedExperimentIds,
+      soloMode,
+      chosenExperimentId,
+      experimentDisplayOrder,
+    });
+  }, [soloMode, chosenExperimentId, sortedExperiments, selectedExperimentIds, experimentDisplayOrder]);
 
   const allChartDataByMetric = useMemo(() => {
-    const result: Record<string, ScalarChartPoint[]> = {};
-    if (scalars.length === 0 || visibleExperiments.length === 0) return result;
-
-    const scalarsByExperiment = new Map(scalars.map((entry) => [entry.experiment_id, entry.scalars]));
-    for (const metricName of allLoggedMetricNames) {
-      const stepMap = new Map<number, ScalarChartPoint>();
-      visibleExperiments.forEach((experiment) => {
-        const experimentScalars = scalarsByExperiment.get(experiment.id);
-        const series = experimentScalars?.[metricName];
-        if (!series || series.x.length === 0 || series.y.length === 0) return;
-        const smoothedValues = applySmoothing(series.y, smoothing);
-        series.x.forEach((step, i) => {
-          const existing = stepMap.get(step) || { step };
-          const original = series.y[i];
-          const smoothed = smoothedValues[i];
-          if (original === undefined || smoothed === undefined) {
-            return;
-          }
-          existing[experiment.id] = {
-            original,
-            smoothed,
-          } satisfies ScalarPointValue;
-          stepMap.set(step, existing);
-        });
-      });
-      result[metricName] = Array.from(stepMap.values()).sort(
-        (a, b) => (a.step as number) - (b.step as number)
-      );
-    }
-    return result;
+    return buildChartDataByMetric({
+      scalars,
+      allLoggedMetricNames,
+      visibleExperiments,
+      smoothing,
+    });
   }, [allLoggedMetricNames, scalars, visibleExperiments, smoothing]);
 
   const chartDataByMetric = useMemo(() => {
