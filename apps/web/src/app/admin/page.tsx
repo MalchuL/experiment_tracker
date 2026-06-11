@@ -40,6 +40,15 @@ type AdminTeamRow = {
   createdAt: string | null;
 };
 
+type AdminProjectRow = {
+  id: string;
+  name: string;
+  ownerId: string | null;
+  ownerEmail: string | null;
+  teamId: string | null;
+  teamName: string | null;
+};
+
 type AdminPaginated<T> = {
   items: T[];
   total: number;
@@ -106,6 +115,19 @@ async function adminFetch(
   return fetch(url, { ...init, headers });
 }
 
+async function adminErrorMessage(response: Response): Promise<string> {
+  const text = await response.text();
+  if (!text) return `${response.status} ${response.statusText}`.trim();
+  try {
+    const body = JSON.parse(text) as { detail?: unknown };
+    if (typeof body.detail === "string") return body.detail;
+    if (body.detail) return JSON.stringify(body.detail);
+  } catch {
+    return text;
+  }
+  return text;
+}
+
 async function probeAdminKey(adminKey: string): Promise<boolean> {
   const r = await adminFetch(
     `${API_ROUTES.ADMIN.USERS}?limit=1&offset=0`,
@@ -121,14 +143,19 @@ export default function AdminPage() {
   const [unlocked, setUnlocked] = useState(false);
   const [search, setSearch] = useState("");
   const [teamSearch, setTeamSearch] = useState("");
+  const [projectSearch, setProjectSearch] = useState("");
   const [userPageSize, setUserPageSize] = useState<(typeof PAGE_SIZE_OPTIONS)[number]>(20);
   const [teamPageSize, setTeamPageSize] = useState<(typeof PAGE_SIZE_OPTIONS)[number]>(20);
+  const [projectPageSize, setProjectPageSize] = useState<(typeof PAGE_SIZE_OPTIONS)[number]>(20);
   const [userOffset, setUserOffset] = useState(0);
   const [teamOffset, setTeamOffset] = useState(0);
+  const [projectOffset, setProjectOffset] = useState(0);
   const [users, setUsers] = useState<AdminUserRow[]>([]);
   const [teams, setTeams] = useState<AdminTeamRow[]>([]);
+  const [projects, setProjects] = useState<AdminProjectRow[]>([]);
   const [userTotal, setUserTotal] = useState(0);
   const [teamTotal, setTeamTotal] = useState(0);
+  const [projectTotal, setProjectTotal] = useState(0);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [resetResult, setResetResult] = useState<{ email: string; password: string } | null>(null);
   const [unlockError, setUnlockError] = useState<string | null>(null);
@@ -160,10 +187,13 @@ export default function AdminPage() {
     setUnlocked(false);
     setUsers([]);
     setTeams([]);
+    setProjects([]);
     setUserOffset(0);
     setTeamOffset(0);
+    setProjectOffset(0);
     setUserTotal(0);
     setTeamTotal(0);
+    setProjectTotal(0);
     setResetResult(null);
     setLoadError(null);
     setUnlockError(message);
@@ -196,10 +226,13 @@ export default function AdminPage() {
     setUnlocked(false);
     setUsers([]);
     setTeams([]);
+    setProjects([]);
     setUserOffset(0);
     setTeamOffset(0);
+    setProjectOffset(0);
     setUserTotal(0);
     setTeamTotal(0);
+    setProjectTotal(0);
     setResetResult(null);
     setUnlockError(null);
     setLoadError(null);
@@ -219,7 +252,7 @@ export default function AdminPage() {
         return;
       }
       if (!r.ok) {
-        setLoadError(await r.text());
+        setLoadError(await adminErrorMessage(r));
         return;
       }
       setLoadError(null);
@@ -242,7 +275,7 @@ export default function AdminPage() {
         return;
       }
       if (!r.ok) {
-        setLoadError(await r.text());
+        setLoadError(await adminErrorMessage(r));
         return;
       }
       setLoadError(null);
@@ -251,6 +284,28 @@ export default function AdminPage() {
       setUsers(items);
       setUserTotal(body.total ?? 0);
       setUserDrafts(Object.fromEntries(items.map((u) => [u.id, draftFromUser(u)])));
+    },
+    [invalidateAdminSession],
+  );
+
+  const loadProjects = useCallback(
+    async (q: string, offset: number, limit: number) => {
+      const qs = new URLSearchParams();
+      qs.set("limit", String(limit));
+      qs.set("offset", String(offset));
+      if (q.trim()) qs.set("q", q.trim());
+      const r = await adminFetch(`${API_ROUTES.ADMIN.PROJECTS}?${qs.toString()}`);
+      if (r.status === 403) {
+        invalidateAdminSession("Admin key was rejected. Unlock again.");
+        return;
+      }
+      if (!r.ok) {
+        setLoadError(await adminErrorMessage(r));
+        return;
+      }
+      const body = (await r.json()) as AdminPaginated<AdminProjectRow>;
+      setProjects(body.items ?? []);
+      setProjectTotal(body.total ?? 0);
     },
     [invalidateAdminSession],
   );
@@ -281,11 +336,22 @@ export default function AdminPage() {
     return () => clearTimeout(t);
   }, [unlocked, teamSearch, loadTeams, teamPageSize]);
 
+  useEffect(() => {
+    if (!unlocked) return;
+    const t = setTimeout(() => {
+      setProjectOffset(0);
+      void loadProjects(projectSearch, 0, projectPageSize);
+    }, 300);
+    return () => clearTimeout(t);
+  }, [unlocked, projectSearch, loadProjects, projectPageSize]);
+
   const userHasPrev = userOffset > 0;
   const userHasNext = userOffset + users.length < userTotal;
 
   const teamHasPrev = teamOffset > 0;
   const teamHasNext = teamOffset + teams.length < teamTotal;
+  const projectHasPrev = projectOffset > 0;
+  const projectHasNext = projectOffset + projects.length < projectTotal;
 
   const goPrevUsers = () => {
     const nextOffset = Math.max(0, userOffset - userPageSize);
@@ -311,6 +377,81 @@ export default function AdminPage() {
     void loadTeams(teamSearch, nextOffset, teamPageSize);
   };
 
+  const goPrevProjects = () => {
+    const nextOffset = Math.max(0, projectOffset - projectPageSize);
+    setProjectOffset(nextOffset);
+    void loadProjects(projectSearch, nextOffset, projectPageSize);
+  };
+
+  const goNextProjects = () => {
+    const nextOffset = projectOffset + projectPageSize;
+    setProjectOffset(nextOffset);
+    void loadProjects(projectSearch, nextOffset, projectPageSize);
+  };
+
+  const resolveAdminOwner = async (value: string): Promise<string | null> => {
+    const target = value.trim();
+    if (!target) return null;
+    if (!target.includes("@")) return target;
+    const r = await adminFetch(`${API_ROUTES.ADMIN.USERS}?q=${encodeURIComponent(target)}&limit=20&offset=0`);
+    if (!r.ok) {
+      setLoadError(await adminErrorMessage(r));
+      return null;
+    }
+    const body = (await r.json()) as AdminPaginated<AdminUserRow>;
+    return body.items.find((user) => user.email.toLowerCase() === target.toLowerCase())?.id ?? null;
+  };
+
+  const onChangeProjectTeam = async (project: AdminProjectRow) => {
+    const teamId = window.prompt(
+      "Enter destination team UUID, or leave empty to make the project standalone.",
+      project.teamId ?? "",
+    );
+    if (teamId === null) return;
+    let ownerId: string | null = null;
+    if (!teamId.trim() && !project.ownerId) {
+      const ownerTarget = window.prompt("This project has no owner. Enter an active owner email or UUID.");
+      if (ownerTarget === null) return;
+      ownerId = await resolveAdminOwner(ownerTarget);
+      if (!ownerId) {
+        setLoadError("Active owner was not found.");
+        return;
+      }
+    }
+    if (!window.confirm("Change this project's team? Inherited access will change immediately.")) return;
+    const r = await adminFetch(API_ROUTES.ADMIN.PROJECT_TEAM(project.id), {
+      method: "PATCH",
+      body: JSON.stringify({ teamId: teamId.trim() || null, ownerId }),
+    });
+    if (!r.ok) {
+      setLoadError(await adminErrorMessage(r));
+      return;
+    }
+    toast({ title: "Project team changed", description: project.name });
+    void loadProjects(projectSearch, projectOffset, projectPageSize);
+  };
+
+  const onChangeProjectOwner = async (project: AdminProjectRow) => {
+    const ownerTarget = window.prompt("Enter the new owner email or UUID.");
+    if (ownerTarget === null) return;
+    const ownerId = await resolveAdminOwner(ownerTarget);
+    if (!ownerId) {
+      setLoadError("Active owner was not found.");
+      return;
+    }
+    if (!window.confirm("Transfer ownership of this standalone project?")) return;
+    const r = await adminFetch(API_ROUTES.ADMIN.PROJECT_OWNER(project.id), {
+      method: "PATCH",
+      body: JSON.stringify({ ownerId }),
+    });
+    if (!r.ok) {
+      setLoadError(await adminErrorMessage(r));
+      return;
+    }
+    toast({ title: "Project owner changed", description: project.name });
+    void loadProjects(projectSearch, projectOffset, projectPageSize);
+  };
+
   const onReset = async (userId: string, email: string) => {
     if (
       !window.confirm(
@@ -326,7 +467,7 @@ export default function AdminPage() {
       return;
     }
     if (!r.ok) {
-      setLoadError(await r.text());
+      setLoadError(await adminErrorMessage(r));
       return;
     }
     const body = (await r.json()) as { temporaryPassword: string };
@@ -354,7 +495,7 @@ export default function AdminPage() {
         return;
       }
       if (!r.ok) {
-        setLoadError(await r.text());
+        setLoadError(await adminErrorMessage(r));
         return;
       }
       toast({ title: "User saved", description: user.email });
@@ -368,7 +509,7 @@ export default function AdminPage() {
     if (!window.confirm("Delete this inactive user and personal projects?")) return;
     const r = await adminFetch(API_ROUTES.ADMIN.DELETE_USER(userId), { method: "DELETE" });
     if (!r.ok) {
-      setLoadError(await r.text());
+      setLoadError(await adminErrorMessage(r));
       return;
     }
     const body = (await r.json()) as CategoryCleanupResponse;
@@ -615,6 +756,93 @@ export default function AdminPage() {
                 Previous
               </Button>
               <Button type="button" variant="outline" size="sm" disabled={!userHasNext} onClick={goNextUsers}>
+                Next
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Projects</CardTitle>
+          <CardDescription>
+            Search projects and repair team assignment or standalone ownership.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <Input
+              className="max-w-md flex-1"
+              placeholder="Search projects…"
+              value={projectSearch}
+              onChange={(e) => setProjectSearch(e.target.value)}
+            />
+            <label className="flex items-center gap-2 text-sm text-muted-foreground">
+              <span>Page size</span>
+              <select
+                className="border-input bg-background h-9 rounded-md border px-2"
+                value={projectPageSize}
+                onChange={(e) => {
+                  const v = Number(e.target.value) as (typeof PAGE_SIZE_OPTIONS)[number];
+                  setProjectPageSize(v);
+                  setProjectOffset(0);
+                }}
+              >
+                {PAGE_SIZE_OPTIONS.map((n) => (
+                  <option key={n} value={n}>{n}</option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Name</TableHead>
+                <TableHead>Project id</TableHead>
+                <TableHead>Owner</TableHead>
+                <TableHead>Team</TableHead>
+                <TableHead>Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {projects.map((project) => (
+                <TableRow key={project.id}>
+                  <TableCell>{project.name}</TableCell>
+                  <TableCell className="font-mono text-xs">{project.id}</TableCell>
+                  <TableCell>{project.ownerEmail ?? project.ownerId ?? "—"}</TableCell>
+                  <TableCell>{project.teamName ?? "Standalone"}</TableCell>
+                  <TableCell>
+                    <div className="flex flex-wrap gap-2">
+                      <Button type="button" size="sm" variant="outline" onClick={() => void onChangeProjectTeam(project)}>
+                        Change team
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled={Boolean(project.teamId)}
+                        onClick={() => void onChangeProjectOwner(project)}
+                      >
+                        Change owner
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+          <div className="flex flex-col gap-2 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-xs text-muted-foreground">
+              {projectTotal === 0
+                ? "No projects match"
+                : `Showing ${projectOffset + 1}–${projectOffset + projects.length} of ${projectTotal}`}
+            </p>
+            <div className="flex gap-2">
+              <Button type="button" variant="outline" size="sm" disabled={!projectHasPrev} onClick={goPrevProjects}>
+                Previous
+              </Button>
+              <Button type="button" variant="outline" size="sm" disabled={!projectHasNext} onClick={goNextProjects}>
                 Next
               </Button>
             </div>

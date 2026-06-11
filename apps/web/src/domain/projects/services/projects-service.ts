@@ -62,6 +62,8 @@ export interface ProjectsService {
   ) => Promise<MetricsByLabelSnapshot>;
   create: (project: InsertProject) => Promise<Project>;
   update: (id: string, updates: UpdateProject) => Promise<Project>;
+  changeTeam: (id: string, teamId: string | null) => Promise<Project>;
+  changeOwner: (id: string, ownerId: string) => Promise<Project>;
   delete: (id: string) => Promise<CategoryCleanupResponse>;
   getUsage: (id: string) => Promise<Record<string, unknown>>;
   cleanupCategory: (id: string, category: string) => Promise<CategoryCleanupResponse>;
@@ -111,6 +113,22 @@ export const projectsService: ProjectsService = {
 
   update: async (id: string, updates: UpdateProject): Promise<Project> => {
     const response = await serviceClients.api.patch<Project>(API_ROUTES.PROJECTS.BY_ID.UPDATE(id), updates);
+    return normalizeProject(response.data);
+  },
+
+  changeTeam: async (id: string, teamId: string | null): Promise<Project> => {
+    const response = await serviceClients.api.patch<Project>(
+      API_ROUTES.PROJECTS.BY_ID.TEAM(id),
+      { teamId },
+    );
+    return normalizeProject(response.data);
+  },
+
+  changeOwner: async (id: string, ownerId: string): Promise<Project> => {
+    const response = await serviceClients.api.patch<Project>(
+      API_ROUTES.PROJECTS.BY_ID.OWNER(id),
+      { ownerId },
+    );
     return normalizeProject(response.data);
   },
 

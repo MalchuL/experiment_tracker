@@ -1,6 +1,7 @@
 import type {
   ExperimentScalarsPoints,
   ScalarSeries,
+  ScalarWireValue,
   ScalarsPointsResult,
 } from "@/domain/scalars/types";
 
@@ -72,7 +73,7 @@ function mergeSeries(
   if (!current) {
     return sampleSeries(incoming, maxPoints);
   }
-  const byStep = new Map<number, number>();
+  const byStep = new Map<number, ScalarWireValue>();
   current.x.forEach((step, index) => {
     const value = current.y[index];
     if (value !== undefined) byStep.set(step, value);
@@ -84,12 +85,12 @@ function mergeSeries(
   const steps = sampleStepsByCoverage(Array.from(byStep.keys()), maxPoints);
   return {
     x: steps,
-    y: steps.map((step) => byStep.get(step) ?? 0),
+    y: steps.map((step) => byStep.get(step)!),
   };
 }
 
 function sampleSeries(series: ScalarSeries, maxPoints?: number): ScalarSeries {
-  const byStep = new Map<number, number>();
+  const byStep = new Map<number, ScalarWireValue>();
   series.x.forEach((step, index) => {
     const value = series.y[index];
     if (value !== undefined) byStep.set(step, value);
@@ -97,7 +98,7 @@ function sampleSeries(series: ScalarSeries, maxPoints?: number): ScalarSeries {
   const steps = sampleStepsByCoverage(Array.from(byStep.keys()), maxPoints);
   return {
     x: steps,
-    y: steps.map((step) => byStep.get(step) ?? 0),
+    y: steps.map((step) => byStep.get(step)!),
   };
 }
 

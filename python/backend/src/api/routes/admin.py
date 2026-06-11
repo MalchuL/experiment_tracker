@@ -47,7 +47,20 @@ from lib.deletion_outcome import (
 from lib.dto_config import model_config as dto_model_config
 from domain.scalars.service import NoOpScalarsService
 from domain.projects.satellite_teardown import teardown_project_for_delete
+from domain.projects.dto import (
+    ProjectDTO,
+    ProjectOwnerTransferDTO,
+    ProjectTeamTransferDTO,
+)
+from domain.projects.errors import ProjectNotAccessibleError, ProjectTransferError
+from domain.projects.repository import ProjectRepository
+from domain.projects.service import ProjectService
+from domain.rbac.repository import PermissionRepository
+from domain.rbac.service import PermissionService
+from domain.rbac.wrapper import PermissionChecker
+from domain.team.teams.repository import TeamRepository
 from models import Experiment, Project, Team, User
+from sqlalchemy.orm import selectinload
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -139,6 +152,30 @@ class AdminTeamListResponse(BaseModel):
     offset: int
 
 
+class AdminProjectRowDTO(BaseModel):
+    """Safe JSON row for a project in the admin panel list."""
+
+    model_config = dto_model_config()
+
+    id: uuid.UUID
+    name: str
+    owner_id: uuid.UUID | None = None
+    owner_email: str | None = None
+    team_id: uuid.UUID | None = None
+    team_name: str | None = None
+
+
+class AdminProjectListResponse(BaseModel):
+    """Paginated project catalog for the admin panel."""
+
+    model_config = dto_model_config()
+
+    items: list[AdminProjectRowDTO]
+    total: int
+    limit: int
+    offset: int
+
+
 class AdminResetPasswordResponse(BaseModel):
     """One-time response after forcing a new password (plaintext shown only in this payload)."""
 
@@ -224,6 +261,148 @@ async def admin_panel_list_all_teams(
         for t in rows
     ]
     return AdminTeamListResponse(items=items, total=total, limit=limit, offset=offset)
+
+
+@router.get(
+    "/projects",
+    response_model=AdminProjectListResponse,
+    response_model_by_alias=True,
+)
+async def admin_panel_list_all_projects(
+    _: None = Depends(require_admin_panel_key),
+    db: AsyncSession = Depends(get_async_session),
+    q: str | None = Query(default=None, max_length=200),
+    limit: int = Query(default=20, ge=1, le=MAX_ADMIN_LIST),
+    offset: int = Query(default=0, ge=0),
+) -> AdminProjectListResponse:
+    """Return a global, paginated catalog of projects.
+
+    Args:
+        _: Admin-panel key guard.
+        db: Database session used for project queries.
+        q: Optional substring filter for project name or UUID.
+        limit: Maximum number of projects to return.
+        offset: Number of projects to skip.
+
+    Returns:
+        AdminProjectListResponse: Paginated project rows with owner and team details.
+    """
+    stmt = select(Project).options(selectinload(Project.owner), selectinload(Project.team))
+    count_stmt = select(func.count()).select_from(Project)
+    if q and q.strip():
+        qq = q.strip()
+        needle = f"%{qq.lower()}%"
+        filter_expr = or_(
+            func.lower(Project.name).like(needle),
+            cast(Project.id, String).ilike(f"%{qq}%"),
+        )
+        stmt = stmt.where(filter_expr)
+        count_stmt = count_stmt.where(filter_expr)
+    stmt = stmt.order_by(Project.name).offset(offset).limit(limit)
+    total = int((await db.execute(count_stmt)).scalar_one() or 0)
+    rows = (await db.execute(stmt)).scalars().all()
+    return AdminProjectListResponse(
+        items=[
+            AdminProjectRowDTO(
+                id=project.id,
+                name=project.name,
+                owner_id=project.owner_id,
+                owner_email=project.owner.email if project.owner else None,
+                team_id=project.team_id,
+                team_name=project.team.name if project.team else None,
+            )
+            for project in rows
+        ],
+        total=total,
+        limit=limit,
+        offset=offset,
+    )
+
+
+def _admin_project_service(db: AsyncSession) -> ProjectService:
+    """Build a project service for admin-key transfer operations.
+
+    Args:
+        db: Database session shared by project and permission repositories.
+
+    Returns:
+        ProjectService: Service instance used with explicit admin bypass.
+    """
+    project_repository = ProjectRepository(db)
+    permission_service = PermissionService(
+        db, PermissionRepository(db), project_repository
+    )
+    return ProjectService(
+        db,
+        project_repository=project_repository,
+        permission_service=permission_service,
+        permission_checker=PermissionChecker(db, permission_service),
+        team_repository=TeamRepository(db),
+    )
+
+
+@router.patch("/projects/{project_id}/team", response_model=ProjectDTO)
+async def admin_panel_change_project_team(
+    project_id: uuid.UUID,
+    body: ProjectTeamTransferDTO,
+    _: None = Depends(require_admin_panel_key),
+    db: AsyncSession = Depends(get_async_session),
+) -> ProjectDTO:
+    """Move a project without applying user RBAC checks.
+
+    Args:
+        project_id: Project identifier to transfer.
+        body: Destination team and optional owner payload.
+        _: Admin-panel key guard.
+        db: Database session used for the transfer transaction.
+
+    Returns:
+        ProjectDTO: Updated project with its resulting team and owner.
+
+    Raises:
+        HTTPException: ``404`` when the project is missing or ``400`` when transfer
+            invariants are not satisfied.
+    """
+    try:
+        return await _admin_project_service(db).change_project_team(
+            None, project_id, body, admin_bypass=True
+        )
+    except ProjectNotAccessibleError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ProjectTransferError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.patch("/projects/{project_id}/owner", response_model=ProjectDTO)
+async def admin_panel_change_project_owner(
+    project_id: uuid.UUID,
+    body: ProjectOwnerTransferDTO,
+    _: None = Depends(require_admin_panel_key),
+    db: AsyncSession = Depends(get_async_session),
+) -> ProjectDTO:
+    """Transfer ownership of a standalone project without applying user RBAC checks.
+
+    Args:
+        project_id: Standalone project identifier.
+        body: New owner payload.
+        _: Admin-panel key guard.
+        db: Database session used for the transfer transaction.
+
+    Returns:
+        ProjectDTO: Updated project with the new owner.
+
+    Raises:
+        HTTPException: ``404`` when the project is missing or ``400`` when transfer
+            invariants are not satisfied.
+    """
+    try:
+        return await _admin_project_service(db).change_project_owner(
+            None, project_id, body, admin_bypass=True
+        )
+    except ProjectNotAccessibleError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ProjectTransferError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.post(

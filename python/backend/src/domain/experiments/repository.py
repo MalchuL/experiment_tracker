@@ -79,11 +79,13 @@ class ExperimentRepository(BaseRepository[Experiment]):
             # Portable across PostgreSQL and SQLite: avoid ``instr()`` (SQLite-only in practice for PG).
             pat = _case_insensitive_substring_pattern(term)
             desc_col = func.coalesce(Experiment.description, "")
+            tags_col = func.coalesce(cast(Experiment.tags, String), "[]")
             filters.append(
                 or_(
                     func.lower(Experiment.name).like(pat, escape="\\"),
                     func.lower(desc_col).like(pat, escape="\\"),
                     func.lower(cast(Experiment.id, String)).like(pat, escape="\\"),
+                    func.lower(tags_col).like(pat, escape="\\"),
                 )
             )
         return await self.list(

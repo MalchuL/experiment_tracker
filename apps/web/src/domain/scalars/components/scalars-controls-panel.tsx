@@ -34,7 +34,7 @@ export interface ScalarsControlsPanelProps {
   experiments: Experiment[];
   selectedExperimentIds: Set<string>;
   chosenExperimentId: string | null;
-  setChosenExperimentId: (id: string) => void;
+  onSoloExperimentSelect: (id: string) => void;
   onToggleExperiment: (experimentId: string) => void;
   onSelectAllExperiments: () => void;
   onClearAllExperiments: () => void;
@@ -65,7 +65,7 @@ export function ScalarsControlsPanel({
   experiments,
   selectedExperimentIds,
   chosenExperimentId,
-  setChosenExperimentId,
+  onSoloExperimentSelect,
   onToggleExperiment,
   onSelectAllExperiments,
   onClearAllExperiments,
@@ -196,7 +196,7 @@ export function ScalarsControlsPanel({
                   {soloMode && (
                     <button
                       type="button"
-                      onClick={() => setChosenExperimentId(experiment.id)}
+                      onClick={() => onSoloExperimentSelect(experiment.id)}
                       className={`h-3 w-3 rounded-full border flex-shrink-0 transition-colors ${
                         chosenExperimentId === experiment.id
                           ? "border-primary bg-primary"

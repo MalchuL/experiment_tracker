@@ -1,5 +1,7 @@
 "use client";
 
+import { useMemo } from "react";
+import { parseISO } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import type { Experiment } from "@/domain/experiments/types";
@@ -10,7 +12,7 @@ interface ScalarExperimentListProps {
   selectedExperimentIds: Set<string>;
   soloMode: boolean;
   chosenExperimentId: string | null;
-  setChosenExperimentId: (id: string) => void;
+  onSoloExperimentSelect: (id: string) => void;
   onToggleExperiment: (experimentId: string) => void;
   onSelectAllExperiments: () => void;
   onClearAllExperiments: () => void;
@@ -22,12 +24,20 @@ export function ScalarExperimentList({
   selectedExperimentIds,
   soloMode,
   chosenExperimentId,
-  setChosenExperimentId,
+  onSoloExperimentSelect,
   onToggleExperiment,
   onSelectAllExperiments,
   onClearAllExperiments,
   onEditExperiment,
 }: ScalarExperimentListProps) {
+  const listExperiments = useMemo(
+    () =>
+      [...experiments].sort(
+        (a, b) => parseISO(b.createdAt).getTime() - parseISO(a.createdAt).getTime()
+      ),
+    [experiments]
+  );
+
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
@@ -45,12 +55,12 @@ export function ScalarExperimentList({
       </div>
       <div className="h-[calc(100vh-14rem)] min-h-0 overflow-auto">
         <div className="min-w-80 space-y-0.5 pr-3">
-          {experiments.map((experiment, index) => (
+          {listExperiments.map((experiment, index) => (
             <div key={experiment.id} className="flex items-center gap-1.5 rounded px-1 py-0.5 hover:bg-muted/50">
               {soloMode ? (
                 <button
                   type="button"
-                  onClick={() => setChosenExperimentId(experiment.id)}
+                  onClick={() => onSoloExperimentSelect(experiment.id)}
                   className={`h-3 w-3 shrink-0 rounded-full border ${
                     chosenExperimentId === experiment.id
                       ? "border-primary bg-primary"

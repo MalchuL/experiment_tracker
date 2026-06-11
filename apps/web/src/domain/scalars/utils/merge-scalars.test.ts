@@ -112,6 +112,66 @@ describe("mergeScalarsPage", () => {
     expect(result.data[0]?.scalars.loss).toEqual({ x: [3], y: [30] });
   });
 
+  it("merges and preserves non-finite wire values alongside finite points", () => {
+    const result = mergeScalarsPage(
+      page([
+        {
+          experiment_id: "exp-1",
+          scalars: {
+            rng: { x: [1, 2, 4], y: [0.5, "nan", 0.25] },
+          },
+        },
+      ]),
+      [
+        {
+          experiment_id: "exp-1",
+          scalars: {
+            rng: { x: [3, 5], y: ["inf", 0.1] },
+          },
+        },
+      ],
+      { maxPoints: 10 }
+    );
+
+    expect(result.data[0]?.scalars.rng).toEqual({
+      x: [1, 2, 3, 4, 5],
+      y: [0.5, "nan", "inf", 0.25, 0.1],
+    });
+  });
+
+  it("merges slash-prefixed metric names independently by full name key", () => {
+    const result = mergeScalarsPage(
+      page([
+        {
+          experiment_id: "exp-1",
+          scalars: {
+            "train/loss": { x: [1], y: [0.5] },
+            "val/loss": { x: [1], y: [0.9] },
+          },
+        },
+      ]),
+      [
+        {
+          experiment_id: "exp-1",
+          scalars: {
+            "train/loss": { x: [2], y: [0.4] },
+            "val/loss": { x: [2], y: [0.8] },
+          },
+        },
+      ],
+      { maxPoints: 10 }
+    );
+
+    expect(result.data[0]?.scalars["train/loss"]).toEqual({
+      x: [1, 2],
+      y: [0.5, 0.4],
+    });
+    expect(result.data[0]?.scalars["val/loss"]).toEqual({
+      x: [1, 2],
+      y: [0.9, 0.8],
+    });
+  });
+
   it("samples appended missing experiments too", () => {
     const result = mergeScalarsPage(
       page([]),

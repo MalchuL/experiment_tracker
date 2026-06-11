@@ -4,6 +4,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { Config, Layout, PlotData } from "plotly.js";
 import { Button } from "@/components/ui/button";
 import { MemoizedPlot } from "@/domain/scalars/components/plotly/stable-plot";
+import {
+  getPlotlyThemeLayout,
+  useIsDarkMode,
+} from "@/domain/scalars/components/plotly/plotly-theme";
 
 export interface PlotlyArtifactMediaProps {
   objectType: string;
@@ -93,11 +97,22 @@ function normalizePlotlyPayload(value: unknown): PlotlyArtifactPayload | null {
   };
 }
 
-/** Plotly.react transitions work reliably for scatter; histogram/bar when trace shape is unchanged. */
+/** Plotly.react transitions work reliably for scatter when trace shape is unchanged. */
 const PLOTLY_ARTIFACT_TRANSITION_MS = 200;
 
 function artifactTypeSupportsPlotlyTransition(objectType: string): boolean {
-  return objectType === "scatter" || objectType === "histogram";
+  return objectType === "scatter";
+}
+
+function artifactUsesCartesianAxes(objectType: string): boolean {
+  return objectType === "histogram" || objectType === "scatter";
+}
+
+function defaultPlotMargins(objectType: string): Partial<Layout>["margin"] {
+  if (objectType === "pie") {
+    return { l: 8, r: 8, t: 32, b: 8 };
+  }
+  return { l: 40, r: 16, t: 32, b: 36 };
 }
 
 function traceTypeKey(data: Partial<PlotData>[]): string {
@@ -121,6 +136,7 @@ export function PlotlyArtifactMedia({
   maxHeight,
   metadata,
 }: PlotlyArtifactMediaProps) {
+  const isDark = useIsDarkMode();
   const previewPayload = useMemo(
     () => previewPayloadFromMetadata(objectType, metadata),
     [objectType, metadata?.preview_data, metadata?.preview_kind]
@@ -135,6 +151,8 @@ export function PlotlyArtifactMedia({
   const [error, setError] = useState<string | null>(null);
   const lastDisplayedPayloadRef = useRef<PlotlyArtifactPayload | null>(null);
   const prevTraceTypeKeyRef = useRef<string | null>(null);
+  const plotContainerRef = useRef<HTMLDivElement>(null);
+  const lastSizedContainerRef = useRef<{ width: number; height: number } | null>(null);
   const [plotRevision, setPlotRevision] = useState(0);
 
   const fullPayloadForSrc =
@@ -161,11 +179,17 @@ export function PlotlyArtifactMedia({
   }, [traceTypeKeyValue]);
 
   const plotLayout = useMemo<Partial<Layout>>(() => {
+    const themeLayout = getPlotlyThemeLayout(isDark);
     const { transition: _payloadTransition, ...payloadLayout } = payload?.layout ?? {};
-    return {
+    const usesCartesianAxes = artifactUsesCartesianAxes(objectType);
+    const layout: Partial<Layout> = {
       autosize: true,
-      margin: { l: 40, r: 16, t: 32, b: 36 },
+      margin: defaultPlotMargins(objectType),
       ...payloadLayout,
+      paper_bgcolor: "rgba(0,0,0,0)",
+      plot_bgcolor: "rgba(0,0,0,0)",
+      font: themeLayout.font,
+      hoverlabel: themeLayout.hoverlabel,
       title: payload?.layout?.title ?? { text: title },
       uirevision: `${objectType}:${title}`,
       ...(enablePlotlyTransition
@@ -177,7 +201,18 @@ export function PlotlyArtifactMedia({
           }
         : {}),
     };
-  }, [enablePlotlyTransition, objectType, payload, title]);
+    if (usesCartesianAxes) {
+      layout.xaxis = {
+        ...payloadLayout.xaxis,
+        ...themeLayout.xaxis,
+      };
+      layout.yaxis = {
+        ...payloadLayout.yaxis,
+        ...themeLayout.yaxis,
+      };
+    }
+    return layout;
+  }, [enablePlotlyTransition, isDark, objectType, payload, title]);
   const plotConfig = useMemo<Partial<Config>>(
     () => ({
       responsive: true,
@@ -190,6 +225,32 @@ export function PlotlyArtifactMedia({
   useEffect(() => {
     if (!payload) return;
     setPlotRevision((revision) => revision + 1);
+  }, [payload]);
+
+  useEffect(() => {
+    const element = plotContainerRef.current;
+    if (!element || !payload) return;
+
+    const relayoutIfSized = (width: number, height: number) => {
+      if (width <= 0 || height <= 0) {
+        lastSizedContainerRef.current = null;
+        return;
+      }
+      const previous = lastSizedContainerRef.current;
+      if (previous?.width === width && previous?.height === height) return;
+      lastSizedContainerRef.current = { width, height };
+      setPlotRevision((revision) => revision + 1);
+    };
+
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (!entry) return;
+      relayoutIfSized(entry.contentRect.width, entry.contentRect.height);
+    });
+    observer.observe(element);
+    relayoutIfSized(element.clientWidth, element.clientHeight);
+
+    return () => observer.disconnect();
   }, [payload]);
 
   useEffect(() => {
@@ -241,6 +302,7 @@ export function PlotlyArtifactMedia({
   return (
     <div className="space-y-2">
       <div
+        ref={plotContainerRef}
         className="w-full overflow-hidden rounded border"
         style={{ height: maxHeight }}
       >

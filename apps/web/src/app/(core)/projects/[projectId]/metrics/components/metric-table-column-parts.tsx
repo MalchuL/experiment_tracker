@@ -48,6 +48,7 @@ type ExperimentNameCellProps = {
   hiddenRowIds: Set<string>;
   setHiddenRowIds: Dispatch<SetStateAction<Set<string>>>;
   onSelectExperiment: (experimentId: string) => void;
+  wrapExperimentNames: boolean;
 };
 
 export function ExperimentNameCell({
@@ -56,9 +57,15 @@ export function ExperimentNameCell({
   hiddenRowIds,
   setHiddenRowIds,
   onSelectExperiment,
+  wrapExperimentNames,
 }: ExperimentNameCellProps) {
   const namePart = (
-    <div className="min-w-0 min-h-[1.5rem] flex-1 text-left">
+    <div
+      className={cn(
+        "min-w-0 min-h-[1.5rem] flex-1 text-left",
+        wrapExperimentNames ? "whitespace-normal break-words" : "overflow-hidden whitespace-nowrap"
+      )}
+    >
       <div
         className="flex w-full min-w-0 cursor-pointer items-center gap-2 rounded-sm px-0.5 -mx-0.5 py-0.5 text-left outline-none hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring"
         onClick={() => onSelectExperiment(row.experimentId)}
@@ -73,7 +80,10 @@ export function ExperimentNameCell({
         title="Open experiment details"
       >
         <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: row.experimentColor }} aria-hidden />
-        <span className="min-w-0 font-medium" title={row.experimentName}>
+        <span
+          className={cn("min-w-0 font-medium", !wrapExperimentNames && "truncate")}
+          title={row.experimentName}
+        >
           {row.experimentName}
         </span>
       </div>

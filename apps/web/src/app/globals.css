@@ -82,49 +82,89 @@
   --sidebar-accent-foreground: oklch(0.208 0.042 265.755);
   --sidebar-border: oklch(0.929 0.013 255.508);
   --sidebar-ring: oklch(0.704 0.04 256.788);
+  --scrollbar-thumb: var(--border);
+  --scrollbar-thumb-hover: var(--input);
 }
 
 .dark {
-  --background: oklch(0.129 0.042 264.695);
-  --foreground: oklch(0.984 0.003 247.858);
-  --card: oklch(0.208 0.042 265.755);
-  --card-foreground: oklch(0.984 0.003 247.858);
-  --popover: oklch(0.208 0.042 265.755);
-  --popover-foreground: oklch(0.984 0.003 247.858);
-  --primary: oklch(0.929 0.013 255.508);
-  --primary-foreground: oklch(0.208 0.042 265.755);
-  --secondary: oklch(0.279 0.041 260.031);
-  --secondary-foreground: oklch(0.984 0.003 247.858);
-  --muted: oklch(0.279 0.041 260.031);
-  --muted-foreground: oklch(0.704 0.04 256.788);
-  --accent: oklch(0.279 0.041 260.031);
-  --accent-foreground: oklch(0.984 0.003 247.858);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.551 0.027 264.364);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.208 0.042 265.755);
-  --sidebar-foreground: oklch(0.984 0.003 247.858);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.984 0.003 247.858);
-  --sidebar-accent: oklch(0.279 0.041 260.031);
-  --sidebar-accent-foreground: oklch(0.984 0.003 247.858);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.551 0.027 264.364);
+  /* Linear dark palette — DESIGN.md */
+  --background: #08090a;
+  --foreground: #f7f8f8;
+  --card: #161718;
+  --card-foreground: #f7f8f8;
+  --popover: #161718;
+  --popover-foreground: #f7f8f8;
+  --primary: #eb9b24;
+  --primary-foreground: #08090a;
+  --secondary: #0f1011;
+  --secondary-foreground: #f7f8f8;
+  --muted: #0f1011;
+  --muted-foreground: #8a8f98;
+  --accent: #23252a;
+  --accent-foreground: #f7f8f8;
+  --destructive: #eb5757;
+  --border: #23252a;
+  --input: #383b3f;
+  --ring: #5e6ad2;
+  --chart-1: #5e6ad2;
+  --chart-2: #27a644;
+  --chart-3: #02b8cc;
+  --chart-4: #e4f222;
+  --chart-5: #eb5757;
+  --sidebar: #0f1011;
+  --sidebar-foreground: #f7f8f8;
+  --sidebar-primary: #e4f222;
+  --sidebar-primary-foreground: #08090a;
+  --sidebar-accent: #161718;
+  --sidebar-accent-foreground: #f7f8f8;
+  --sidebar-border: #23252a;
+  --sidebar-ring: #5e6ad2;
+  --scrollbar-thumb: var(--input);
+  --scrollbar-thumb-hover: var(--muted-foreground);
+  color-scheme: dark;
 }
 
 @layer base {
   * {
     @apply border-border outline-ring/50;
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar-thumb) transparent;
+  }
+  *::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  *::-webkit-scrollbar-thumb {
+    background-color: var(--scrollbar-thumb);
+    border: 2px solid transparent;
+    border-radius: 9999px;
+    background-clip: content-box;
+  }
+  *::-webkit-scrollbar-thumb:hover {
+    background-color: var(--scrollbar-thumb-hover);
+  }
+  *::-webkit-scrollbar-corner {
+    background: transparent;
   }
   body {
     @apply bg-background text-foreground;
   }
+}
+
+/* Plotly renders a white SVG background rect by default — override in dark mode. */
+.dark .js-plotly-plot .main-svg .bg {
+  fill: transparent !important;
+}
+
+.dark .js-plotly-plot .modebar-btn {
+  color: #8a8f98;
+}
+
+.dark .js-plotly-plot .modebar-btn:hover {
+  color: #f7f8f8;
 }
 
 /* Project DAG: selected parent edges read clearly (React Flow class names). */

@@ -4,8 +4,12 @@ import { persist } from "zustand/middleware";
 /** Per-project map of experiment id → persisted canvas position */
 export type DagLayoutPositions = Record<string, { x: number; y: number }>;
 
+/** Per-project map of experiment id → persisted card width (px). */
+export type DagNodeSizes = Record<string, { width: number }>;
+
 /** Stable fallback for selectors — inline `{}` breaks useSyncExternalStore snapshot caching (React 19). */
 export const EMPTY_DAG_LAYOUT_POSITIONS: DagLayoutPositions = {};
+export const EMPTY_DAG_NODE_SIZES: DagNodeSizes = {};
 
 function layoutPositionsEqual(
   a: DagLayoutPositions,
@@ -26,10 +30,16 @@ function layoutPositionsEqual(
 
 interface DagLayoutStoreState {
   layoutsByProject: Record<string, DagLayoutPositions>;
+  sizesByProject: Record<string, DagNodeSizes>;
   updateNodePosition: (
     projectId: string,
     experimentId: string,
     position: { x: number; y: number }
+  ) => void;
+  updateNodeSize: (
+    projectId: string,
+    experimentId: string,
+    width: number
   ) => void;
   /** Replaces the whole project map so every visible node is persisted; drops removed experiment ids. */
   replaceProjectLayout: (
@@ -43,6 +53,7 @@ export const useDagLayoutStore = create<DagLayoutStoreState>()(
   persist(
     (set) => ({
       layoutsByProject: {},
+      sizesByProject: {},
       updateNodePosition: (projectId, experimentId, position) =>
         set((state) => ({
           layoutsByProject: {
@@ -50,6 +61,16 @@ export const useDagLayoutStore = create<DagLayoutStoreState>()(
             [projectId]: {
               ...(state.layoutsByProject[projectId] ?? EMPTY_DAG_LAYOUT_POSITIONS),
               [experimentId]: position,
+            },
+          },
+        })),
+      updateNodeSize: (projectId, experimentId, width) =>
+        set((state) => ({
+          sizesByProject: {
+            ...(state.sizesByProject ?? EMPTY_DAG_NODE_SIZES),
+            [projectId]: {
+              ...(state.sizesByProject?.[projectId] ?? EMPTY_DAG_NODE_SIZES),
+              [experimentId]: { width },
             },
           },
         })),
@@ -68,14 +89,19 @@ export const useDagLayoutStore = create<DagLayoutStoreState>()(
         }),
       clearProjectLayout: (projectId) =>
         set((state) => {
-          const next = { ...state.layoutsByProject };
-          delete next[projectId];
-          return { layoutsByProject: next };
+          const nextLayouts = { ...state.layoutsByProject };
+          const nextSizes = { ...(state.sizesByProject ?? EMPTY_DAG_NODE_SIZES) };
+          delete nextLayouts[projectId];
+          delete nextSizes[projectId];
+          return { layoutsByProject: nextLayouts, sizesByProject: nextSizes };
         }),
     }),
     {
       name: "experiment-tracker-dag-layouts",
-      partialize: (state) => ({ layoutsByProject: state.layoutsByProject }),
+      partialize: (state) => ({
+        layoutsByProject: state.layoutsByProject,
+        sizesByProject: state.sizesByProject,
+      }),
     }
   )
 );

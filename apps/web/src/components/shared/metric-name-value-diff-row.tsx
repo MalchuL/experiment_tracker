@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { TrendingDown, TrendingUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatMetricLabel } from "@/lib/metrics/format-metric-label";
@@ -64,7 +65,8 @@ export function metricRowGroupTableClass(groupHasAnyDiff: boolean): string {
  * box** on its own?
  *
  * - **`group`** — Part of the parent table: wrap sibling rows with {@link metricRowGroupTableClass}.
- *   This row uses `display: contents` so its pieces line up in **the same grid** as other metrics.
+ *   Uses `display: contents` by default. Pass {@link MetricNameValueDiffRowProps.rowHover} or
+ *   {@link MetricNameValueDiffRowProps.trailing} to wrap the row in a subgrid (full-row hover / extra cell).
  *
  * - **`cell`** — One box: parent gives a single cell (or any container); this row draws its **own**
  *   mini-grid inside that box. Columns align only within that box.
@@ -109,6 +111,12 @@ export type MetricNameValueDiffRowProps = {
   colorizeDiffOutcome?: boolean;
   /** Per-node class overrides; see {@link MetricNameValueDiffRowClassNameProps}. */
   classNameProps?: MetricNameValueDiffRowClassNameProps;
+  /** When set, replaces the formatted value display (e.g. inline editor). */
+  valueOverride?: ReactNode;
+  /** Wrap group-scope rows in a subgrid row (e.g. sidebar hover surface via `classNameProps.root`). */
+  rowHover?: boolean;
+  /** Extra grid cell after value columns (e.g. edit-mode remove button). Implies a subgrid row wrapper. */
+  trailing?: ReactNode;
   "data-testid"?: string;
 };
 
@@ -169,6 +177,9 @@ export function MetricNameValueDiffRow({
   metricTable,
   colorizeDiffOutcome = true,
   classNameProps,
+  valueOverride,
+  rowHover = false,
+  trailing,
   "data-testid": dataTestId,
 }: MetricNameValueDiffRowProps) {
   const c = classNameProps ?? {};
@@ -193,11 +204,12 @@ export function MetricNameValueDiffRow({
 
   const valueTooltipText = formatMetricScalarTooltipFull(value);
 
-  const valueNode = (align: "right" | "left" | "solo-right") => (
-    <span className={valueSpanClass(align)} title={valueTooltipText}>
-      {formatMetricScalarForDisplay(value)}
-    </span>
-  );
+  const valueNode = (align: "right" | "left" | "solo-right") =>
+    valueOverride ?? (
+      <span className={valueSpanClass(align)} title={valueTooltipText}>
+        {formatMetricScalarForDisplay(value)}
+      </span>
+    );
 
   const diffNodeInline = showDiff ? (
     <MetricDeltaVsParent
@@ -356,12 +368,30 @@ export function MetricNameValueDiffRow({
 
   if (metricTable?.scope === "group" && hasNameColumn) {
     const gh = metricTable.groupHasAnyDiff;
-    return (
-      <div className={cn("contents", c.root)} data-testid={dataTestId}>
+    const rowCells = (
+      <>
         {nameBlock}
         {gh ? tableTriple(true) : (
           <div className={cn("flex min-w-0 justify-end", c.valueCluster)}>{valueNode("solo-right")}</div>
         )}
+        {trailing}
+      </>
+    );
+
+    if (rowHover || trailing != null) {
+      return (
+        <div
+          className={cn("col-span-full grid grid-cols-subgrid", c.root)}
+          data-testid={dataTestId}
+        >
+          {rowCells}
+        </div>
+      );
+    }
+
+    return (
+      <div className={cn("contents", c.root)} data-testid={dataTestId}>
+        {rowCells}
       </div>
     );
   }

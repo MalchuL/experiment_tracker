@@ -450,7 +450,16 @@ def main() -> None:
             tracker.add_scalar("power", 10.0**power_exponent, global_step=step)
             tracker.add_scalar(
                 "rng",
-                float("NaN") if step % 3 == 0 else float(random.random()),
+                (
+                    random.choice(
+                        [
+                            random.choice([float("NaN"), float("-inf"), float("inf")]),
+                            float(random.random()),
+                        ]
+                    )
+                    if step % 3 == 0
+                    else float(random.random())
+                ),
                 global_step=step,
             )
             if step % 400 == 0:

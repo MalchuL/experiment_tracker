@@ -20,17 +20,10 @@ import { RightSidebarShell, type RightSidebarVariant } from "@/components/shared
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
-import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
@@ -41,6 +34,9 @@ import { useExperiments } from "@/domain/experiments/hooks/experiments-hook";
 import { Download, FileCode2, GitBranch, GitCompare, Loader2, RefreshCw, X, ChevronDown } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import type { Experiment } from "@/domain/experiments/types";
+import { ExperimentStatus } from "@/domain/experiments/types";
+import { buildCompareHref } from "@/domain/experiments/lib/build-compare-href";
+import { experimentMatchesSearch } from "@/domain/experiments/lib/experiment-matches-search";
 import type { Metric } from "@/domain/metrics/types";
 import type { ProjectMetric } from "@/domain/projects/types";
 import { useExperimentMetrics } from "@/domain/metrics/hooks";
@@ -53,6 +49,9 @@ import {
   MetricNameValueDiffRow,
   metricRowGroupTableClass,
 } from "@/components/shared/metric-name-value-diff-row";
+import {
+  METRIC_SIDEBAR_DENSE_CLASS_NAMES,
+} from "@/components/shared/experiment-sidebar-metric-styles";
 import { ExperimentFeaturesPanel } from "@/components/shared/experiment-features-panel";
 import {
   Tooltip,
@@ -74,11 +73,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { ExperimentHparamsPanel } from "@/components/shared/experiment-hparams-panel";
+import { ExperimentSidebarLoggedMetrics } from "@/components/shared/experiment-sidebar-logged-metrics";
 import { experimentSnapshotsService } from "@/domain/experiments/services";
 import { downloadBlob, sanitizeDownloadName } from "@/lib/downloads";
 
-/** One bucket of logged scalars sharing the same label (or “unlabeled”). */
-type LoggedMetricsLabelGroup = { label: string | null; items: Metric[] };
+/** Sidebar tab ids persisted in localStorage. */
 type ExperimentSidebarTab = "metrics" | "features" | "hparams" | "code";
 
 const EXPERIMENT_SIDEBAR_ACTIVE_TAB_STORAGE_KEY = "experiment-sidebar.active-tab";
@@ -87,21 +86,6 @@ const EXPERIMENT_SIDEBAR_TABS: ExperimentSidebarTab[] = ["metrics", "features", 
 const EXPERIMENT_SIDEBAR_MIN_WIDTH = 320;
 const EXPERIMENT_SIDEBAR_MAX_WIDTH = 760;
 const EXPERIMENT_SIDEBAR_DEFAULT_WIDTH = 400;
-const METRIC_SIDEBAR_ROW_SEPARATOR_CLASS = "border-b border-border/35 py-1";
-const METRIC_SIDEBAR_DENSE_CLASS_NAMES = {
-  root: "text-sm",
-  nameCluster: METRIC_SIDEBAR_ROW_SEPARATOR_CLASS,
-  valueCluster: METRIC_SIDEBAR_ROW_SEPARATOR_CLASS,
-  tableSlot1: METRIC_SIDEBAR_ROW_SEPARATOR_CLASS,
-  tableArrow: METRIC_SIDEBAR_ROW_SEPARATOR_CLASS,
-  tableSlot2: METRIC_SIDEBAR_ROW_SEPARATOR_CLASS,
-  deltaText: "font-mono text-xs tabular-nums leading-none",
-  deltaIcon: "w-2.5 h-2.5",
-};
-const METRIC_SIDEBAR_UNTRACKED_CLASS_NAMES = {
-  ...METRIC_SIDEBAR_DENSE_CLASS_NAMES,
-  root: "text-sm pl-0",
-};
 
 /**
  * Looks up the numeric value for a project “tracked” metric inside an experiment’s aggregated
@@ -120,51 +104,20 @@ function lookupAggregatedValueForTrackedMetric(
   return matchedRow?.value;
 }
 
-/**
- * Finds the project tracked-metric definition that matches a logged scalar row, if the project
- * tracks that name/label (used to know direction and whether we can compare to the parent).
- */
-function findTrackedDefinitionForLoggedMetric(
-  trackedDefinitions: ProjectMetric[],
-  loggedMetric: Pick<Metric, "name" | "label">
-): ProjectMetric | undefined {
-  return trackedDefinitions.find((tracked) =>
-    displayMetricKeyEquals(
-      { name: loggedMetric.name, label: loggedMetric.label },
-      { name: tracked.name, label: tracked.label ?? null }
-    )
-  );
-}
-
-/**
- * Stable `Accordion` item value for a label bucket. Null/empty labels map to a sentinel so default
- * open state does not collide with a real empty-string label.
- */
-function accordionItemValueForLoggedLabelGroup(label: string | null): string {
-  if (label == null || label === "") return "__unlabeled__";
-  return label;
-}
-
 /** Single-line label for parent dropdown rows (name + short id prefix). */
 function formatExperimentParentOption(exp: Pick<Experiment, "name" | "id">): string {
   return `${exp.name} (${exp.id.slice(0, 7)})`;
 }
 
 function buildCodeCompareHref(experiment: Pick<Experiment, "id" | "projectId" | "parentExperimentId">): string {
-  const params = new URLSearchParams();
-  if (experiment.parentExperimentId) {
-    params.append("exp", experiment.parentExperimentId);
-    params.append("exp", experiment.id);
-  } else {
-    params.append("exp", experiment.id);
-  }
-  return `${FRONTEND_ROUTES.PROJECT_PAGES.COMPARE(experiment.projectId)}?${params.toString()}`;
+  const ids = experiment.parentExperimentId
+    ? [experiment.parentExperimentId, experiment.id]
+    : [experiment.id];
+  return buildCompareHref(experiment.projectId, ids);
 }
 
 function buildCodeFilesHref(experiment: Pick<Experiment, "id" | "projectId">): string {
-  const params = new URLSearchParams();
-  params.append("exp", experiment.id);
-  return `${FRONTEND_ROUTES.PROJECT_PAGES.COMPARE(experiment.projectId)}?${params.toString()}`;
+  return buildCompareHref(experiment.projectId, [experiment.id]);
 }
 
 function readStoredSidebarTab(): ExperimentSidebarTab {
@@ -303,37 +256,6 @@ export function ExperimentSidebar({
   const trackedMetricDefinitions = project?.metrics.trackedMetrics ?? [];
   const experimentTags = experiment?.tags ?? [];
 
-  /** Logged scalars grouped by label for accordion sections (locale-sorted labels; unlabeled last). */
-  const loggedMetricsByLabel = useMemo((): LoggedMetricsLabelGroup[] => {
-    if (!metrics?.length) {
-      return [];
-    }
-    const metricsByLabelKey = new Map<string, Metric[]>();
-    for (const loggedMetric of metrics) {
-      const rawLabelKey = loggedMetric.label ?? "";
-      if (!metricsByLabelKey.has(rawLabelKey)) metricsByLabelKey.set(rawLabelKey, []);
-      metricsByLabelKey.get(rawLabelKey)!.push(loggedMetric);
-    }
-    const sortedLabelEntries = [...metricsByLabelKey.entries()];
-    sortedLabelEntries.sort((a, b) => {
-      if (a[0] === "" && b[0] !== "") return 1;
-      if (b[0] === "" && a[0] !== "") return -1;
-      return a[0].localeCompare(b[0]);
-    });
-    for (const [, itemsInLabel] of sortedLabelEntries) {
-      itemsInLabel.sort((a, b) => a.name.localeCompare(b.name));
-    }
-    return sortedLabelEntries.map(([rawLabelKey, itemsInLabel]) => ({
-      label: rawLabelKey === "" ? null : rawLabelKey,
-      items: itemsInLabel,
-    }));
-  }, [metrics]);
-
-  const defaultOpenLoggedMetricAccordionKeys = useMemo(
-    () => loggedMetricsByLabel.map((g) => accordionItemValueForLoggedLabelGroup(g.label)),
-    [loggedMetricsByLabel]
-  );
-
   /**
    * When any tracked column has both this experiment and parent values, the metrics grid uses an
    * extra column for Δ vs parent (see `metricRowGroupTableClass`).
@@ -371,14 +293,13 @@ export function ExperimentSidebar({
     return projectExperiments.filter((candidate) => candidate.id !== experiment.id);
   }, [projectExperiments, experiment]);
 
-  /** Dropdown list after applying the search box (case-insensitive name or id substring). */
+  /** Dropdown list after applying the search box (case-insensitive id, name, description, or tags). */
   const parentPickerRowsMatchingSearch = useMemo(() => {
-    const queryNormalized = parentSearchQuery.trim().toLowerCase();
+    const queryNormalized = parentSearchQuery.trim();
     if (!queryNormalized) return siblingExperimentsForParentPicker;
-    return siblingExperimentsForParentPicker.filter((candidate) => {
-      const menuLabel = formatExperimentParentOption(candidate).toLowerCase();
-      return menuLabel.includes(queryNormalized) || candidate.id.toLowerCase().includes(queryNormalized);
-    });
+    return siblingExperimentsForParentPicker.filter((candidate) =>
+      experimentMatchesSearch(candidate, queryNormalized)
+    );
   }, [siblingExperimentsForParentPicker, parentSearchQuery]);
 
   /** Keep draft parent id in sync when switching to another experiment in the sidebar. */
@@ -673,7 +594,7 @@ export function ExperimentSidebar({
                       <Input
                         ref={parentSearchInputRef}
                         type="search"
-                        placeholder="Filter by name or id…"
+                        placeholder="Filter by id, name, description, tags…"
                         value={parentSearchQuery}
                         onChange={(e) => setParentSearchQuery(e.target.value)}
                         className="h-9"
@@ -743,14 +664,19 @@ export function ExperimentSidebar({
                 value={experiment.status}
                 onValueChange={(value) => updateExperimentStatus(value as Experiment["status"])}
               >
-                <SelectTrigger className="w-32 h-8" data-testid="select-status">
-                  <SelectValue />
+                <SelectTrigger
+                  className="h-auto w-auto gap-1 border-0 bg-transparent p-0 shadow-none focus:ring-0 focus:ring-offset-0 [&>svg]:h-3.5 [&>svg]:w-3.5 [&>svg]:opacity-70"
+                  data-testid="select-status"
+                  aria-label="Experiment status"
+                >
+                  <StatusBadge status={experiment.status} />
                 </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="planned">Planned</SelectItem>
-                  <SelectItem value="running">Running</SelectItem>
-                  <SelectItem value="complete">Complete</SelectItem>
-                  <SelectItem value="failed">Failed</SelectItem>
+                <SelectContent align="start">
+                  {Object.values(ExperimentStatus).map((status) => (
+                    <SelectItem key={status} value={status} className="cursor-pointer py-2">
+                      <StatusBadge status={status} size="sm" />
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -841,6 +767,7 @@ export function ExperimentSidebar({
                               groupHasAnyDiff: trackedMetricsGridShowsParentDelta,
                             }}
                             classNameProps={METRIC_SIDEBAR_DENSE_CLASS_NAMES}
+                            rowHover
                             data-testid={`metric-${projectMetricKeyString(projectMetric)}`}
                           />
                         ))}
@@ -850,114 +777,16 @@ export function ExperimentSidebar({
                 ) : null}
 
                 {/* Logged scalars from ClickHouse: grouped by label; compare to parent only when the metric is tracked */}
-                {metricsLoading ? (
-                  <Skeleton className="h-24 w-full" />
-                ) : metrics && metrics.length > 0 ? (
-                  <Card>
-                    <CardHeader className="py-2 px-3">
-                      <CardTitle className="text-xs font-medium text-muted-foreground">
-                        Logged Metrics
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="px-3 pb-3 pt-0">
-                      <Accordion
-                        type="multiple"
-                        className="w-full"
-                        defaultValue={defaultOpenLoggedMetricAccordionKeys}
-                      >
-                        {loggedMetricsByLabel.map((labelGroup) => {
-                          const accordionItemValue = accordionItemValueForLoggedLabelGroup(labelGroup.label);
-                          const groupTitle =
-                            labelGroup.label != null && labelGroup.label !== ""
-                              ? labelGroup.label
-                              : "Unlabeled";
-                          const loggedLabelGroupShowsParentDelta = labelGroup.items.some((loggedMetric) => {
-                            const trackedDefinition = findTrackedDefinitionForLoggedMetric(
-                              trackedMetricDefinitions,
-                              loggedMetric
-                            );
-                            if (!trackedDefinition) return false;
-                            const parentScalar = lookupAggregatedValueForTrackedMetric(
-                              parentLoggedMetrics,
-                              trackedDefinition
-                            );
-                            return loggedMetric.value != null && parentScalar != null;
-                          });
-                          return (
-                            <AccordionItem
-                              key={accordionItemValue}
-                              value={accordionItemValue}
-                              className="border-border last:border-b-0"
-                            >
-                              <AccordionTrigger className="py-2 text-xs font-medium hover:no-underline">
-                                <span className="truncate text-left">{groupTitle}</span>
-                              </AccordionTrigger>
-                              <AccordionContent className="pb-2 pt-0">
-                                <div className={metricRowGroupTableClass(loggedLabelGroupShowsParentDelta)}>
-                                  {labelGroup.items.map((loggedMetric) => {
-                                    const trackedDefinition = findTrackedDefinitionForLoggedMetric(
-                                      trackedMetricDefinitions,
-                                      loggedMetric
-                                    );
-                                    if (trackedDefinition) {
-                                      return (
-                                        <MetricNameValueDiffRow
-                                          key={loggedMetric.id}
-                                          metricName={trackedDefinition.name}
-                                          metricLabel={trackedDefinition.label ?? null}
-                                          nameTitleMode="name-only"
-                                          value={loggedMetric.value}
-                                          parentValue={lookupAggregatedValueForTrackedMetric(
-                                            parentLoggedMetrics,
-                                            trackedDefinition
-                                          )}
-                                          direction={
-                                            trackedDefinition.direction === "minimize"
-                                              ? "minimize"
-                                              : "maximize"
-                                          }
-                                          showDirectionHint
-                                          metricTable={{
-                                            scope: "group",
-                                            groupHasAnyDiff: loggedLabelGroupShowsParentDelta,
-                                          }}
-                                          classNameProps={METRIC_SIDEBAR_DENSE_CLASS_NAMES}
-                                          data-testid={`logged-metric-${loggedMetric.id}`}
-                                        />
-                                      );
-                                    }
-                                    return (
-                                      <MetricNameValueDiffRow
-                                        key={loggedMetric.id}
-                                        metricName={loggedMetric.name}
-                                        metricLabel={loggedMetric.label}
-                                        nameTitleMode="name-only"
-                                        value={loggedMetric.value}
-                                        parentValue={null}
-                                        direction="maximize"
-                                        showDiff={false}
-                                        metricTable={{
-                                          scope: "group",
-                                          groupHasAnyDiff: loggedLabelGroupShowsParentDelta,
-                                        }}
-                                        classNameProps={METRIC_SIDEBAR_UNTRACKED_CLASS_NAMES}
-                                        data-testid={`logged-metric-${loggedMetric.id}`}
-                                      />
-                                    );
-                                  })}
-                                </div>
-                              </AccordionContent>
-                            </AccordionItem>
-                          );
-                        })}
-                      </Accordion>
-                    </CardContent>
-                  </Card>
-                ) : (
-                  <p className="text-sm text-muted-foreground text-center py-4">
-                    No metrics logged yet
-                  </p>
-                )}
+                {experiment ? (
+                  <ExperimentSidebarLoggedMetrics
+                    experimentId={experiment.id}
+                    projectId={experiment.projectId}
+                    metrics={metrics}
+                    metricsLoading={metricsLoading}
+                    parentLoggedMetrics={parentLoggedMetrics}
+                    trackedMetricDefinitions={trackedMetricDefinitions}
+                  />
+                ) : null}
               </TabsContent>
 
               <TabsContent value="features" className="min-w-0 max-w-full space-y-2 overflow-hidden">

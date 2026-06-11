@@ -16,4 +16,6 @@ export type PersistedMetricsUi = {
   columnSizing?: Record<string, number>;
   /** Pin the experiment column (and horizontal lead) inside the metrics grid scrollport. */
   pinLeadColumns?: boolean;
+  /** When true (default), experiment names wrap; when false, truncate to one line. */
+  wrapExperimentNames?: boolean;
 };

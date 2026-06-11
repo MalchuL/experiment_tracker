@@ -11,6 +11,7 @@ from starlette.background import BackgroundTask
 from starlette.responses import StreamingResponse
 
 from object_storage.api.service_dependencies import get_project_artifacts_service
+from object_storage.lib.http_headers import attachment_content_disposition
 from .dto import (
     BucketListResponseDTO,
     BlobCheckResponseDTO,
@@ -123,7 +124,7 @@ async def download_project_snapshot(
     return StreamingResponse(
         open(zip_path, "rb"),
         media_type="application/zip",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        headers={"Content-Disposition": attachment_content_disposition(filename)},
         background=BackgroundTask(_cleanup),
     )
 

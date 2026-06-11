@@ -15,7 +15,7 @@ interface ScalarExperimentsSidebarProps {
   selectedExperimentIds: Set<string>;
   soloMode: boolean;
   chosenExperimentId: string | null;
-  setChosenExperimentId: (id: string) => void;
+  onSoloExperimentSelect: (id: string) => void;
   onToggleExperiment: (experimentId: string) => void;
   onSelectAllExperiments: () => void;
   onClearAllExperiments: () => void;
@@ -28,7 +28,7 @@ export function ScalarExperimentsSidebar({
   selectedExperimentIds,
   soloMode,
   chosenExperimentId,
-  setChosenExperimentId,
+  onSoloExperimentSelect,
   onToggleExperiment,
   onSelectAllExperiments,
   onClearAllExperiments,
@@ -83,7 +83,7 @@ export function ScalarExperimentsSidebar({
           selectedExperimentIds={selectedExperimentIds}
           soloMode={soloMode}
           chosenExperimentId={chosenExperimentId}
-          setChosenExperimentId={setChosenExperimentId}
+          onSoloExperimentSelect={onSoloExperimentSelect}
           onToggleExperiment={onToggleExperiment}
           onSelectAllExperiments={onSelectAllExperiments}
           onClearAllExperiments={onClearAllExperiments}

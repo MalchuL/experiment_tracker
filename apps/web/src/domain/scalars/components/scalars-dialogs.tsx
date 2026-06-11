@@ -39,12 +39,13 @@ export interface ScalarsDialogsProps {
   cardMinWidth: number;
   cardHeight: number;
   objectStepSelection: Record<string, number>;
-  setObjectStepSelection: Dispatch<SetStateAction<Record<string, number>>>;
+  updateObjectStep: (selectionKey: string, step: number, followLatest: boolean) => void;
   debouncedObjectStepSelection: Record<string, number>;
   experimentStepOverrideEnabled: Record<string, boolean>;
   setExperimentStepOverrideEnabled: Dispatch<SetStateAction<Record<string, boolean>>>;
+  enableExperimentStepOverride: (overrideKey: string, step: number, followLatest?: boolean) => void;
   experimentStepOverrides: Record<string, number>;
-  setExperimentStepOverrides: Dispatch<SetStateAction<Record<string, number>>>;
+  updateExperimentStepOverride: (overrideKey: string, step: number, followLatest: boolean) => void;
   debouncedExperimentStepOverrides: Record<string, number>;
   imagePreview: { src: string; title: string } | null;
   setImagePreview: (value: { src: string; title: string } | null) => void;
@@ -76,12 +77,13 @@ export function ScalarsDialogs({
   cardMinWidth,
   cardHeight,
   objectStepSelection,
-  setObjectStepSelection,
+  updateObjectStep,
   debouncedObjectStepSelection,
   experimentStepOverrideEnabled,
   setExperimentStepOverrideEnabled,
+  enableExperimentStepOverride,
   experimentStepOverrides,
-  setExperimentStepOverrides,
+  updateExperimentStepOverride,
   debouncedExperimentStepOverrides,
   imagePreview,
   setImagePreview,
@@ -151,12 +153,13 @@ export function ScalarsDialogs({
               cardMinWidth={Math.max(cardMinWidth, 420)}
               cardHeight={Math.max(cardHeight, 420)}
               objectStepSelection={objectStepSelection}
-              setObjectStepSelection={setObjectStepSelection}
+              updateObjectStep={updateObjectStep}
               debouncedObjectStepSelection={debouncedObjectStepSelection}
               experimentStepOverrideEnabled={experimentStepOverrideEnabled}
               setExperimentStepOverrideEnabled={setExperimentStepOverrideEnabled}
+              enableExperimentStepOverride={enableExperimentStepOverride}
               experimentStepOverrides={experimentStepOverrides}
-              setExperimentStepOverrides={setExperimentStepOverrides}
+              updateExperimentStepOverride={updateExperimentStepOverride}
               debouncedExperimentStepOverrides={debouncedExperimentStepOverrides}
               onImagePreview={setImagePreview}
               onlyArtifactId={fullscreenArtifactId}

@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, Path, Query, Upload
 from starlette.responses import StreamingResponse
 
 from object_storage.api.service_dependencies import get_experiment_artifacts_service
+from object_storage.lib.http_headers import attachment_content_disposition
 from .dto import (
     DeleteArtifactResponseDTO,
     DeleteExperimentArtifactsResponseDTO,
@@ -252,7 +253,9 @@ async def download_artifact(
 
     headers: dict[str, str] = {}
     if artifact.filename:
-        headers["Content-Disposition"] = f'attachment; filename="{artifact.filename}"'
+        headers["Content-Disposition"] = attachment_content_disposition(
+            artifact.filename
+        )
 
     return StreamingResponse(
         _iter_stream(),

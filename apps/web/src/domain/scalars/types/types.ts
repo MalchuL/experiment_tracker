@@ -1,18 +1,22 @@
 import type { PaginatedResponse } from "@/lib/types/pagination";
 
+export type ScalarWireValue = number | "nan" | "inf" | "-inf";
+
+export type ScalarValueKind = "finite" | "nan" | "inf" | "-inf";
+
 export interface ScalarSeries {
   x: number[];
-  y: number[];
+  y: ScalarWireValue[];
 }
 
 export interface ScalarPointValue {
-  original: number;
-  smoothed: number;
+  original: ScalarWireValue;
+  smoothed: ScalarWireValue;
 }
 
 export interface ScalarChartPoint {
   step: number;
-  [experimentId: string]: number | ScalarPointValue | null;
+  [experimentId: string]: ScalarWireValue | ScalarPointValue | null;
 }
 
 export type ScalarHoverMode = "compare" | "nearest";
@@ -22,8 +26,8 @@ export interface ScalarPointSelection {
   experimentName: string;
   metricName: string;
   step: number;
-  originalValue: number;
-  smoothedValue: number;
+  originalValue: ScalarWireValue;
+  smoothedValue: ScalarWireValue;
 }
 
 export interface StepTags {

@@ -2,6 +2,7 @@ from enum import Enum
 from typing import Dict, List, Optional
 from uuid import UUID
 
+from experiment_tracker_shared.scalar_values import ScalarWireValue
 from pydantic import BaseModel, Field
 
 from app.lib.dto_config import model_config
@@ -21,7 +22,7 @@ class StepTagsDTO(BaseModel):
 
 class ScalarSeriesDTO(BaseModel):
     x: List[int]
-    y: List[float]
+    y: List[ScalarWireValue]
 
 
 class ExperimentsScalarsPointsResultDTO(BaseModel):
@@ -42,7 +43,7 @@ class LogScalarRequestDTO(BaseModel):
 
     model_config = model_config()
 
-    scalars: Dict[str, float]
+    scalars: Dict[str, ScalarWireValue]
     step: int
     tags: List[str] | None = None
 

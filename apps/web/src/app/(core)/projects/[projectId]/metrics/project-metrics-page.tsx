@@ -60,6 +60,13 @@ export function ProjectMetricsPage() {
     setSelectedExperimentId,
     pinLeadColumns,
     setPinLeadColumns,
+    wrapExperimentNames,
+    setWrapExperimentNames,
+    orderedMetricNames,
+    handleMetricReorder,
+    experimentRowOrder,
+    handleExperimentRowReorder,
+    rowReorderDisabled,
   } = useProjectMetricsPageState();
 
   const metricsScrollRef = useRef<HTMLDivElement>(null);
@@ -116,6 +123,10 @@ export function ProjectMetricsPage() {
             onEditModeChange={setEditMode}
             pinLeadColumns={pinLeadColumns}
             onPinLeadColumnsChange={setPinLeadColumns}
+            wrapExperimentNames={wrapExperimentNames}
+            onWrapExperimentNamesChange={setWrapExperimentNames}
+            orderedMetricNames={orderedMetricNames}
+            onMetricReorder={handleMetricReorder}
           />
 
           <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-hidden">
@@ -124,7 +135,7 @@ export function ProjectMetricsPage() {
             </div>
             <ProjectDataTableFrame
               pinLeadColumns={pinLeadColumns}
-              leadColumnCount={1}
+              leadColumnCount={2}
               scrollContainerRef={metricsScrollRef}
               className="min-h-0"
               toolbar={
@@ -179,6 +190,11 @@ export function ProjectMetricsPage() {
                 rowsInReport={rowsInReport}
                 filteredRows={filteredRows}
                 selectedExperimentId={selectedExperimentId}
+                wrapExperimentNames={wrapExperimentNames}
+                rowReorderDisabled={rowReorderDisabled}
+                experimentRowOrder={experimentRowOrder}
+                onExperimentRowReorder={handleExperimentRowReorder}
+                tableData={tableData}
               />
             </ProjectDataTableFrame>
             <div className="shrink-0">

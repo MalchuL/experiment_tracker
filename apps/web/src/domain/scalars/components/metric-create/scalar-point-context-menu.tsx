@@ -2,6 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import type { ScalarPointSelection } from "@/domain/scalars/types";
+import { formatScalarWireForDisplay } from "@/domain/scalars/utils/scalar-value";
 
 interface ScalarPointContextMenuProps {
   point: ScalarPointSelection | null;
@@ -29,7 +30,7 @@ export function ScalarPointContextMenu({
           <div className="truncate font-medium text-foreground">{point.metricName}</div>
           <div className="truncate">{point.experimentName}</div>
           <div>
-            step {point.step}, value {point.originalValue.toPrecision(6)}
+            step {point.step}, value {formatScalarWireForDisplay(point.originalValue)}
           </div>
         </div>
         <Button size="sm" className="h-8 w-full text-xs" onClick={() => onCreateMetric(point)}>

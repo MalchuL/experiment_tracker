@@ -289,6 +289,16 @@ Then start backend without its Compose PostgreSQL dependency:
 docker compose up -d --no-deps backend
 ```
 
+## Local Development
+
+To run the development stack locally, you can use the following commands:
+
+```bash
+docker compose -f docker-compose.dev.yml up -d --build
+```
+
+This will start the development stack with the dependencies running on the host.
+
 ### Build individual images
 
 Each Dockerfile uses paths from the repository root. Always build with context `.`:

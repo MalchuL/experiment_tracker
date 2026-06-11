@@ -34,6 +34,7 @@ async def _create_experiment(
     created_at: datetime | None = None,
     status: ExperimentStatus = ExperimentStatus.PLANNED,
     description: str = "Repo experiment",
+    tags: list[str] | None = None,
 ) -> Experiment:
     experiment = Experiment(
         project_id=project.id,
@@ -42,6 +43,7 @@ async def _create_experiment(
         status=status,
         started_by=started_by.id if started_by else None,
         created_at=created_at,
+        tags=tags or [],
     )
     db_session.add(experiment)
     await db_session.flush()
@@ -116,3 +118,29 @@ class TestExperimentRepository:
         )
         assert len(page.data) == 1
         assert page.data[0].id == e.id
+
+    async def test_get_experiments_by_project_search_tags(
+        self,
+        experiment_repository: ExperimentRepository,
+        db_session: AsyncSession,
+        test_user: User,
+    ) -> None:
+        project = await _create_project(db_session, test_user)
+        await _create_experiment(
+            db_session,
+            project,
+            name="run-a",
+            tags=["baseline", "gpu-a100"],
+        )
+        await _create_experiment(
+            db_session,
+            project,
+            name="run-b",
+            tags=["production"],
+        )
+
+        page = await experiment_repository.get_experiments_by_project(
+            project.id, list_options=ListOptions(limit=50, offset=0), search="gpu-a100"
+        )
+        assert {e.name for e in page.data} == {"run-a"}
+        assert page.total == 1

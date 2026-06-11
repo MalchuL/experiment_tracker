@@ -7,6 +7,11 @@ from typing import Literal, Sequence, cast
 from uuid import UUID, uuid4
 
 from experiment_tracker_shared import utc_naive_for_clickhouse_insert, utc_now_naive
+from experiment_tracker_shared.scalar_values import (
+    ScalarWireValue,
+    scalar_from_wire,
+    scalar_to_wire,
+)
 from experiment_tracker_shared.datetime_utc import to_json_utc_z
 
 from app.domain.projects.dto import (  # type: ignore
@@ -165,7 +170,10 @@ class ScalarsService:
             experiment_id,
             request.step,
             request.tags or [],
-        ] + [filtered_scalars[name] for name in mapped_columns.keys()]
+        ] + [
+            self._storage_scalar_value(filtered_scalars[name])
+            for name in mapped_columns.keys()
+        ]
         await self.client.insert(table=table_name, data=[row], column_names=columns)
         if self.last_logged_service:
             await self.last_logged_service.touch(
@@ -230,7 +238,10 @@ class ScalarsService:
                 item.step,
                 # Arrays can't be nullable in clickhouse, so we use empty list if tags are None.
                 item.tags or [],
-            ] + [item.scalars.get(name, None) for name in mapped_columns.keys()]
+            ] + [
+                self._storage_scalar_value(item.scalars.get(name, None))
+                for name in mapped_columns.keys()
+            ]
             rows.append(row)
         if rows:
             await self.client.insert(table=table_name, data=rows, column_names=columns)
@@ -932,7 +943,7 @@ class ScalarsService:
                 ScalarSeriesDTO(x=[], y=[]),
             )
             series.x.append(step)
-            series.y.append(cast(float, value))
+            series.y.append(scalar_to_wire(cast(float, value)))
             if return_tags:
                 tags = cast(list[str], row[col_index[tags_k]] or [])
                 if tags:
@@ -1006,20 +1017,26 @@ class ScalarsService:
             )
             await self.client.command(ddl)
 
+    @staticmethod
+    def _storage_scalar_value(value: ScalarWireValue | None) -> float | None:
+        if value is None:
+            return None
+        return scalar_from_wire(value)
+
     def _filter_conflicting_scalars(
-        self, scalars: dict[str, float]
-    ) -> tuple[dict[str, float], list[str]]:
+        self, scalars: dict[str, ScalarWireValue]
+    ) -> tuple[dict[str, ScalarWireValue], list[str]]:
         """Filter out conflicting scalars and return warnings if any.
         Keep in mind that scalars are not validated in any way.
         This method is used to filter out scalars that are not valid (uses internal names for scalars).
 
         Args:
-            scalars (dict[str, float]): The scalars to filter.
+            scalars (dict[str, ScalarWireValue]): The scalars to filter.
 
         Returns:
-            tuple[dict[str, float], list[str]]: The filtered scalars and warnings.
+            tuple[dict[str, ScalarWireValue], list[str]]: The filtered scalars and warnings.
         """
-        filtered: dict[str, float] = {}
+        filtered: dict[str, ScalarWireValue] = {}
         warnings: list[str] = []
         for name, value in scalars.items():
             cleaned_name = clean_scalar_name(name)

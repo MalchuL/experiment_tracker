@@ -29,6 +29,14 @@ Only finite numeric values should be logged. `NaN`, `Inf`, `-Inf`, and `null` ar
 If you see missing scalar points, check training logs for SDK warnings about non-finite values.
 :::
 
+## Default experiment selection
+
+When you open the scalars page without an `exp` query parameter, the UI pre-selects experiments so charts are not empty. By default the **20 newest** experiments are checked.
+
+This limit is controlled by the `SCALARS_DEFAULT_SELECTED_EXPERIMENT_COUNT` constant in `apps/web/src/domain/scalars/constants.ts`. Set it to a positive integer to cap how many newest runs are selected, or set it to **`null`**, **`undefined`**, or **`-1`** to select **every** experiment on first load.
+
+Selection is UI-only: the URL still omits `exp` when every experiment is selected, and you can change checkboxes at any time.
+
 ## Fetching and sampling
 
 The scalars page restricts the number of points returned per plot. By default the web app requests up to `1000` points per plot through `NEXT_PUBLIC_SCALARS_MAX_POINTS_PER_PLOT`.

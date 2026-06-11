@@ -9,3 +9,4 @@ export * from "./recent-experiments";
 export * from "./experiment-hook";
 export * from "./update-experiment-status-hook";
 export * from "./experiment-hparams-hook";
+export * from "./use-ordered-experiment-selection";

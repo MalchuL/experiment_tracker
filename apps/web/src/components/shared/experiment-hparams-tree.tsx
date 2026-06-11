@@ -251,7 +251,6 @@ function getStatus(
 ): DiffStatus {
   if (!parentPresent) return "added";
   if (!currentPresent) return "removed";
-  if (isJsonContainer(currentValue) && isJsonContainer(parentValue)) return "unchanged";
   return JSON.stringify(currentValue) === JSON.stringify(parentValue) ? "unchanged" : "changed";
 }
 

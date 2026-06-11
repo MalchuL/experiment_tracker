@@ -1,6 +1,7 @@
 "use client";
 
 import { PageHeader } from "@/components/shared/page-header";
+import { EntityIdDisplay } from "@/components/shared/entity-id-display";
 import { DashboardSkeleton } from "@/components/shared/loading-skeleton";
 import { ProjectStatsGrid } from "@/domain/projects/components/project-stats-grid";
 import { RecentExperimentsCard } from "@/domain/projects/components/recent-experiments-card";
@@ -32,10 +33,13 @@ export default function ProjectDashboard() {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Dashboard"
-        description="Overview of your research experiments and hypotheses"
-      />
+      <div className="space-y-3">
+        <PageHeader
+          title={project?.name ?? "Overview"}
+          description="Overview of your research experiments and hypotheses"
+        />
+        {project ? <EntityIdDisplay label="ID" value={project.id} /> : null}
+      </div>
 
       <ProjectStatsGrid stats={stats} />
 

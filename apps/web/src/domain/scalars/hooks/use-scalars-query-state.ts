@@ -1,17 +1,30 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReadonlyURLSearchParams } from "next/navigation";
 import type { Experiment } from "@/domain/experiments/types";
+import { getDefaultSelectedExperimentIds } from "@/domain/scalars/utils";
 import {
-  decodeLegacyNumberSelection,
-  decodeStringSelection,
-  encodeStringSelection,
-} from "@/domain/scalars/utils";
+  buildScalarsQueryString,
+  parseScalarsQueryParams,
+  syncSelectedExperimentsOnListGrowth,
+} from "@/domain/scalars/utils/scalars-query-state";
+
+export {
+  buildScalarsQueryString,
+  parseScalarsQueryParams,
+  syncSelectedExperimentsOnListGrowth,
+  toggleExperimentSelection,
+  toggleHiddenArtifact,
+  toggleHiddenMetric,
+} from "@/domain/scalars/utils/scalars-query-state";
 
 /**
  * URL-backed UI state for the project scalars page.
  *
  * Query params (see ``buildQueryString``):
  * - ``exp`` — selected experiment ids (encoded list). Omitted when **every** experiment is selected.
+ *   When ``exp`` is absent on first load, the newest
+ *   ``SCALARS_DEFAULT_SELECTED_EXPERIMENT_COUNT`` experiments are selected (UI default only).
+ *   When that constant is ``null``, ``undefined``, or ``-1``, every experiment is selected instead.
  * - ``met`` — names of metrics **hidden** from charts (inverted semantics vs checkbox “visible”).
  * - ``art`` — ids of artifacts **hidden** from object cards (``artifact_type:name``).
  * - ``s`` — smoothing slider in ``[0, 1]``.
@@ -64,70 +77,18 @@ export function useScalarsQueryState({
   const applySharedParams = useCallback(
     (params: URLSearchParams) => {
       try {
-        const expParam = params.get("exp");
-        const metParam = params.get("met");
-        const artParam = params.get("art");
-        const smoothParam = params.get("s");
-
-        if (expParam) {
-          const ids = decodeStringSelection(expParam);
-          if (ids.length > 0) {
-            const validIds = new Set(experiments.map((experiment) => experiment.id));
-            const selected = ids.filter((id) => validIds.has(id));
-            setSelectedExperimentIds(new Set(selected));
-          } else {
-            const legacyIndices = decodeLegacyNumberSelection(expParam);
-            const selected = legacyIndices
-              .map((index) => experiments[index]?.id)
-              .filter((id): id is string => typeof id === "string");
-            setSelectedExperimentIds(new Set(selected));
-          }
-        } else {
-          setSelectedExperimentIds(new Set(experiments.map((experiment) => experiment.id)));
-        }
-
-        if (metParam) {
-          const metricNames = decodeStringSelection(metParam);
-          if (metricNames.length > 0) {
-            const knownNames = new Set(allLoggedMetricNames);
-            setHiddenMetrics(new Set(metricNames.filter((name) => knownNames.has(name))));
-          } else {
-            const hiddenIndices = decodeLegacyNumberSelection(metParam);
-            const hiddenNames = hiddenIndices
-              .map((index) => allLoggedMetricNames[index])
-              .filter((name): name is string => typeof name === "string");
-            setHiddenMetrics(new Set(hiddenNames));
-          }
-        } else {
-          setHiddenMetrics(new Set());
-        }
-
-        if (artParam) {
-          const artifactIds = decodeStringSelection(artParam);
-          if (artifactIds.length > 0) {
-            const knownIds = new Set(allArtifactIds);
-            setHiddenArtifactIds(new Set(artifactIds.filter((id) => knownIds.has(id))));
-          } else {
-            const hiddenIndices = decodeLegacyNumberSelection(artParam);
-            const hiddenIds = hiddenIndices
-              .map((index) => allArtifactIds[index])
-              .filter((id): id is string => typeof id === "string");
-            setHiddenArtifactIds(new Set(hiddenIds));
-          }
-        } else {
-          setHiddenArtifactIds(new Set());
-        }
-
-        if (smoothParam) {
-          const s = Number.parseFloat(smoothParam);
-          if (!Number.isNaN(s) && s >= 0 && s <= 1) {
-            setSmoothing(s);
-            return;
-          }
-        }
-        setSmoothing(0);
+        const parsed = parseScalarsQueryParams(
+          params,
+          experiments,
+          allLoggedMetricNames,
+          allArtifactIds
+        );
+        setSelectedExperimentIds(parsed.selectedExperimentIds);
+        setHiddenMetrics(parsed.hiddenMetrics);
+        setHiddenArtifactIds(parsed.hiddenArtifactIds);
+        setSmoothing(parsed.smoothing);
       } catch {
-        setSelectedExperimentIds(new Set(experiments.map((experiment) => experiment.id)));
+        setSelectedExperimentIds(new Set(getDefaultSelectedExperimentIds(experiments)));
         setHiddenMetrics(new Set());
         setHiddenArtifactIds(new Set());
         setSmoothing(0);
@@ -160,20 +121,13 @@ export function useScalarsQueryState({
     const currentIds = new Set(experiments.map((e) => e.id));
     const prevIds = experimentsSnapshotRef.current;
 
-    setSelectedExperimentIds((selected) => {
-      let next = new Set([...selected].filter((id) => currentIds.has(id)));
-
-      const hadFullPreviousSelection =
-        prevIds.size > 0 &&
-        selected.size === prevIds.size &&
-        [...selected].every((id) => prevIds.has(id));
-
-      if (hadFullPreviousSelection && currentIds.size > prevIds.size) {
-        next = new Set(currentIds);
-      }
-
-      return next;
-    });
+    setSelectedExperimentIds((selected) =>
+      syncSelectedExperimentsOnListGrowth({
+        selected,
+        previousExperimentIds: prevIds,
+        currentExperimentIds: currentIds,
+      })
+    );
 
     experimentsSnapshotRef.current = currentIds;
   }, [experiments, initialized]);
@@ -185,23 +139,7 @@ export function useScalarsQueryState({
       hiddenMets: Set<string>,
       hiddenArtifacts: Set<string>,
       smooth: number
-    ) => {
-      const params = new URLSearchParams();
-      const allSelected = experimentIds.size === experiments.length;
-      if (!allSelected && experimentIds.size > 0) {
-        params.set("exp", encodeStringSelection(Array.from(experimentIds)));
-      }
-      if (hiddenMets.size > 0) {
-        params.set("met", encodeStringSelection(Array.from(hiddenMets)));
-      }
-      if (hiddenArtifacts.size > 0) {
-        params.set("art", encodeStringSelection(Array.from(hiddenArtifacts)));
-      }
-      if (smooth > 0) {
-        params.set("s", smooth.toFixed(2));
-      }
-      return params.toString();
-    },
+    ) => buildScalarsQueryString(experimentIds, hiddenMets, hiddenArtifacts, smooth, experiments.length),
     [experiments.length]
   );
 

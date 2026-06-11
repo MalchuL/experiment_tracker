@@ -2,6 +2,8 @@ import { serviceClients } from "@/lib/api/clients/axios-client";
 import { appendPaginationParams } from "@/lib/api/pagination";
 import { API_ROUTES } from "@/lib/constants/api-routes";
 import { DEFAULT_PAGE_SIZE } from "@/lib/constants/pagination";
+import { getAuthHeaders } from "@/domain/auth/utils/headers";
+import { getPublicApiBaseUrl } from "@/lib/runtime-config";
 import type { PaginatedResponse, PaginationParams } from "@/lib/types/pagination";
 import type { NamedArtifactPreview, NamedExperimentArtifact } from "./types";
 
@@ -91,6 +93,48 @@ export const experimentArtifactsService = {
   deleteTrackedArtifact: async (experimentId: string, filepath: string): Promise<void> => {
     const path = API_ROUTES.EXPERIMENT_ARTIFACTS.DELETE(experimentId, filepath);
     await serviceClients.api.delete(path);
+  },
+  upsertTrackedArtifact: async (
+    experimentId: string,
+    file: File,
+    options?: { name?: string; filepath?: string }
+  ): Promise<NamedExperimentArtifact> => {
+    const formData = new FormData();
+    formData.append("experiment_id", experimentId);
+    formData.append("filepath", options?.filepath?.trim() || file.name);
+    const name = options?.name?.trim();
+    if (name) {
+      formData.append("name", name);
+    }
+    formData.append("file", file);
+
+    const response = await fetch(
+      `${getPublicApiBaseUrl()}${API_ROUTES.EXPERIMENT_ARTIFACTS.UPSERT}`,
+      {
+        method: "POST",
+        body: formData,
+        credentials: "include",
+        headers: getAuthHeaders(),
+      }
+    );
+
+    if (!response.ok) {
+      let message = `Upload failed (${response.status})`;
+      try {
+        const body = (await response.json()) as { detail?: unknown };
+        if (typeof body.detail === "string") {
+          message = body.detail;
+        } else if (body.detail) {
+          message = JSON.stringify(body.detail);
+        }
+      } catch {
+        // keep default message
+      }
+      throw new Error(message);
+    }
+
+    const data = (await response.json()) as NamedExperimentArtifactWire;
+    return normalizeArtifact(data);
   },
 };
 

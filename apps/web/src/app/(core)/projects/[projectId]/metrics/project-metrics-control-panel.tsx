@@ -1,6 +1,7 @@
 "use client";
 
-import { Database, Filter, Wrench } from "lucide-react";
+import { ArrowDownUp, Database, Filter, Wrench } from "lucide-react";
+import { MetricsOrderList } from "./components/metrics-order-list";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -21,6 +22,10 @@ type ControlPanelProps = {
   onEditModeChange: (v: boolean) => void;
   pinLeadColumns: boolean;
   onPinLeadColumnsChange: (v: boolean) => void;
+  wrapExperimentNames: boolean;
+  onWrapExperimentNamesChange: (v: boolean) => void;
+  orderedMetricNames: string[];
+  onMetricReorder: (names: string[]) => void;
 };
 
 /**
@@ -40,6 +45,10 @@ export function ProjectMetricsControlPanel({
   onEditModeChange,
   pinLeadColumns,
   onPinLeadColumnsChange,
+  wrapExperimentNames,
+  onWrapExperimentNamesChange,
+  orderedMetricNames,
+  onMetricReorder,
 }: ControlPanelProps) {
   return (
     <aside
@@ -129,6 +138,20 @@ export function ProjectMetricsControlPanel({
             </Label>
           </div>
           <div className="flex shrink-0 items-center gap-2">
+            <Switch
+              id="wrap-experiment-names"
+              checked={wrapExperimentNames}
+              onCheckedChange={onWrapExperimentNamesChange}
+            />
+            <Label
+              htmlFor="wrap-experiment-names"
+              className="text-sm"
+              title="Wrap long experiment names onto multiple lines."
+            >
+              Wrap experiment names
+            </Label>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
             <Switch id="edit-mode" checked={editMode} onCheckedChange={onEditModeChange} data-testid="switch-edit-mode" />
             <Label htmlFor="edit-mode" className="text-sm">
               Edit mode
@@ -136,6 +159,21 @@ export function ProjectMetricsControlPanel({
           </div>
         </CardContent>
       </Card>
+
+      {orderedMetricNames.length > 0 ? (
+        <Card>
+          <CardHeader className="space-y-1 pb-3">
+            <div className="flex items-center gap-2 text-sm font-semibold">
+              <ArrowDownUp className="h-4 w-4 text-muted-foreground" aria-hidden />
+              <span>Metric order</span>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-2 pt-0">
+            <p className="text-xs text-muted-foreground">Drag to reorder metric columns in the table.</p>
+            <MetricsOrderList metricNames={orderedMetricNames} onReorder={onMetricReorder} />
+          </CardContent>
+        </Card>
+      ) : null}
     </aside>
   );
 }

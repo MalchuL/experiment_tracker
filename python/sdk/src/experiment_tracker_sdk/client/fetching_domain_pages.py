@@ -67,7 +67,7 @@ def fetch_all_project_experiments(
         project_id: Project UUID or UUID string whose experiments should be
             fetched.
         search: Optional server-side substring filter for experiment id, name,
-            and description.
+            description, and tags.
         include_features: Whether experiment list rows should include feature
             trees. Set to ``False`` for lighter list payloads.
         limit: Maximum number of experiments to request per page.

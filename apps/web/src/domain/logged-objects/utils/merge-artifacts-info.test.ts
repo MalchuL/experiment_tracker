@@ -103,6 +103,37 @@ describe("mergeArtifactsInfoPage", () => {
     ).toEqual(["exp-2", "exp-1"]);
   });
 
+  it("unions steps for slash-prefixed artifact names by full type+name key", () => {
+    const result = mergeArtifactsInfoPage(
+      page([
+        {
+          experiment_id: "exp-1",
+          artifacts_info: [
+            summaryEntry({ name: "train/sample", steps: [1] }),
+            summaryEntry({ name: "val/sample", steps: [5] }),
+          ],
+        },
+      ]),
+      [
+        {
+          experiment_id: "exp-1",
+          artifacts_info: [
+            summaryEntry({ name: "train/sample", steps: [2] }),
+            summaryEntry({ name: "val/sample", steps: [6] }),
+          ],
+        },
+      ]
+    );
+
+    const byName = Object.fromEntries(
+      (result.data[0]?.artifacts_info ?? []).map((item) => [item.name, item.steps])
+    );
+    expect(byName).toEqual({
+      "train/sample": [1, 2],
+      "val/sample": [5, 6],
+    });
+  });
+
   it("leaves unrelated experiments unchanged and sorts summary entries", () => {
     const textType: LoggedObjectType = "text";
     const result = mergeArtifactsInfoPage(

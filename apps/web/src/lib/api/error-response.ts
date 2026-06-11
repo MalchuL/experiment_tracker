@@ -9,3 +9,16 @@ export class ErrorResponse extends Error {
     this.code = code;
   }
 }
+
+/**
+ * Return a user-facing message from an API or runtime error.
+ */
+export function getErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof ErrorResponse && error.message) {
+    return error.message;
+  }
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+  return fallback;
+}
