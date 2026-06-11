@@ -21,7 +21,7 @@ import {
   DropdownMenuItem,
 } from "@/components/ui/dropdown-menu";
 import { type Project, type ProjectDisplayMetric, type ProjectMetric } from "../../types";
-import { Eye, ChevronDown, Check, TrendingUp, TrendingDown, GripVertical } from "lucide-react";
+import { Eye, ChevronDown, TrendingUp, TrendingDown, GripVertical } from "lucide-react";
 import {
   formatMetricLabel,
   isExplicitlyInDisplayList,
@@ -171,14 +171,13 @@ export function DisplayMetricsForm({
             <ChevronDown className="h-4 w-4" />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent className="w-64">
+        <DropdownMenuContent className="w-64 max-h-80 overflow-y-auto">
           <DropdownMenuItem
             onClick={() => {
               persist(project.metrics.trackedMetrics.map(trackedToDisplayKey));
             }}
             data-testid="menu-select-all-metrics"
           >
-            <Check className="h-4 w-4 mr-2" />
             Select All
           </DropdownMenuItem>
           <DropdownMenuItem
@@ -232,7 +231,7 @@ export function DisplayMetricsForm({
           </p>
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
             <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
-              <div className="divide-y rounded-md border bg-card">
+              <div className="max-h-80 divide-y overflow-y-auto rounded-md border bg-card">
                 {displayMetrics.map((entry) => (
                   <SortableDisplayMetricRow
                     key={sortableIdForDisplayMetric(entry)}
