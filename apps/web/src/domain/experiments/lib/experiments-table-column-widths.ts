@@ -169,6 +169,32 @@ export function saveExperimentsTablePinLead(projectId: string, pin: boolean): vo
   }
 }
 
+const WRAP_NAMES_STORAGE_PREFIX = "experiment-tracker:experiments-table:wrap-names:";
+
+export function experimentsTableWrapNamesStorageKey(projectId: string): string {
+  return `${WRAP_NAMES_STORAGE_PREFIX}${projectId}`;
+}
+
+export function loadExperimentsTableWrapNames(projectId: string): boolean {
+  if (typeof window === "undefined") return true;
+  try {
+    const raw = localStorage.getItem(experimentsTableWrapNamesStorageKey(projectId));
+    if (raw === null) return true;
+    return raw === "1" || raw === "true";
+  } catch {
+    return true;
+  }
+}
+
+export function saveExperimentsTableWrapNames(projectId: string, wrap: boolean): void {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(experimentsTableWrapNamesStorageKey(projectId), wrap ? "1" : "0");
+  } catch {
+    /* ignore */
+  }
+}
+
 export function computeExperimentsTableTotalWidthPx(
   resolved: Record<string, number>,
   _metricPxOverrideKeys: Set<string>,

@@ -52,6 +52,7 @@ interface ExperimentTableRowProps {
   selectionMode?: boolean;
   selectionOrderNumber?: number | null;
   onSelectionToggle?: () => void;
+  wrapExperimentNames?: boolean;
 }
 
 export function ExperimentTableRow({
@@ -69,6 +70,7 @@ export function ExperimentTableRow({
   selectionMode = false,
   selectionOrderNumber = null,
   onSelectionToggle,
+  wrapExperimentNames = true,
 }: ExperimentTableRowProps) {
   const dragDisabled = reorderDisabled || selectionMode;
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -156,7 +158,8 @@ export function ExperimentTableRow({
       </TableCell>
       <TableCell
         className={cn(
-          "overflow-hidden px-4 align-middle group-hover:bg-muted/50",
+          "px-4 align-middle group-hover:bg-muted/50",
+          !wrapExperimentNames && "overflow-hidden",
           rowSeparatorClass,
           experimentCellClass
         )}
@@ -168,9 +171,9 @@ export function ExperimentTableRow({
           ...stickyCellBackground,
         }}
       >
-        <div className="flex min-w-0 items-center gap-2">
+        <div className={cn("flex min-w-0 gap-2", wrapExperimentNames ? "items-start" : "items-center")}>
           <div
-            className="h-3 w-3 shrink-0 rounded-full"
+            className={cn("h-3 w-3 shrink-0 rounded-full", wrapExperimentNames && "mt-1")}
             style={{ backgroundColor: experiment.color }}
           />
           <div className="min-w-0 flex-1">
@@ -178,6 +181,7 @@ export function ExperimentTableRow({
               variant="table"
               text={experiment.name}
               className="font-medium"
+              tableWrap={wrapExperimentNames}
             />
             {experiment.description ? (
               <ExperimentTruncatedText

@@ -27,6 +27,8 @@ type ExperimentTruncatedTextProps = {
    * (`line-clamp-2`) for descriptions.
    */
   tableClamp?: "single" | "multi";
+  /** Table variant only: wrap onto multiple lines instead of truncating. */
+  tableWrap?: boolean;
 };
 
 function lineClampClass(lines: 1 | 2 | 3 | 4): string {
@@ -44,6 +46,7 @@ export function ExperimentTruncatedText({
   showTooltip = "auto",
   lineClamp = 2,
   tableClamp = "single",
+  tableWrap = false,
 }: ExperimentTruncatedTextProps) {
   const trimmed = text.trim();
   if (!trimmed) {
@@ -56,7 +59,11 @@ export function ExperimentTruncatedText({
         title={trimmed}
         className={cn(
           "m-0 min-w-0 w-full max-w-full",
-          tableClamp === "multi" ? "line-clamp-2 break-words" : "truncate",
+          tableWrap
+            ? "whitespace-normal break-words"
+            : tableClamp === "multi"
+              ? "line-clamp-2 break-words"
+              : "truncate",
           className
         )}
       >

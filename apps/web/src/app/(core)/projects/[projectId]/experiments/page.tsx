@@ -21,7 +21,9 @@ import { CreateExperimentDialog, ExperimentsTable } from "@/domain/experiments/c
 import { ExperimentCompareBar } from "@/domain/experiments/components/experiment-compare-bar";
 import {
   loadExperimentsTablePinLead,
+  loadExperimentsTableWrapNames,
   saveExperimentsTablePinLead,
+  saveExperimentsTableWrapNames,
 } from "@/domain/experiments/lib/experiments-table-column-widths";
 import { useOrderedExperimentSelection } from "@/domain/experiments/hooks";
 import { useSelectedExperimentStore } from "@/domain/experiments/store";
@@ -37,6 +39,7 @@ export default function Experiments() {
   const { selectedExperimentId, setSelectedExperimentId } = useSelectedExperimentStore();
   const [searchQuery, setSearchQuery] = useState("");
   const [pinLeadColumns, setPinLeadColumns] = useState(true);
+  const [wrapExperimentNames, setWrapExperimentNames] = useState(true);
   const [experimentsListReady, setExperimentsListReady] = useState(false);
   const {
     selectionMode,
@@ -74,6 +77,7 @@ export default function Experiments() {
   useEffect(() => {
     if (projectId) {
       setPinLeadColumns(loadExperimentsTablePinLead(projectId));
+      setWrapExperimentNames(loadExperimentsTableWrapNames(projectId));
     }
   }, [projectId]);
 
@@ -233,6 +237,26 @@ export default function Experiments() {
                 ariaLabel="Enable selection mode for compare"
               />
               <div className="flex items-center gap-2">
+                <Label
+                  htmlFor="experiments-wrap-names"
+                  className="text-sm font-normal"
+                  title="Wrap long experiment names onto multiple lines."
+                >
+                  Wrap experiment names
+                </Label>
+                <Switch
+                  id="experiments-wrap-names"
+                  checked={wrapExperimentNames}
+                  onCheckedChange={(v) => {
+                    setWrapExperimentNames(v);
+                    if (projectId) {
+                      saveExperimentsTableWrapNames(projectId, v);
+                    }
+                  }}
+                  aria-label="Wrap long experiment names onto multiple lines"
+                />
+              </div>
+              <div className="flex items-center gap-2">
                 <Label htmlFor="experiments-pin-lead" className="text-sm font-normal">
                   Pin lead columns
                 </Label>
@@ -332,6 +356,7 @@ export default function Experiments() {
                   selectionMode={selectionMode}
                   getSelectionOrderNumber={getOrderNumber}
                   onSelectionToggle={toggleExperiment}
+                  wrapExperimentNames={wrapExperimentNames}
                 />
                 <div ref={loadMoreRef} className="h-4 shrink-0" aria-hidden="true" />
               </ProjectDataTableFrame>

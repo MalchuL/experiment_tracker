@@ -132,6 +132,7 @@ interface ExperimentsTableProps {
   selectionMode?: boolean;
   getSelectionOrderNumber?: (experimentId: string) => number | null;
   onSelectionToggle?: (experimentId: string) => void;
+  wrapExperimentNames?: boolean;
 }
 
 export function ExperimentsTable({
@@ -149,6 +150,7 @@ export function ExperimentsTable({
   selectionMode = false,
   getSelectionOrderNumber,
   onSelectionToggle,
+  wrapExperimentNames = true,
 }: ExperimentsTableProps) {
   const { pinLeadColumns, leadColumnCount } = useProjectDataTableFrame();
   const sensors = useSensors(
@@ -352,6 +354,7 @@ export function ExperimentsTable({
                     onSelectionToggle={
                       onSelectionToggle ? () => onSelectionToggle(experiment.id) : undefined
                     }
+                    wrapExperimentNames={wrapExperimentNames}
                   />
                 );
               })}
