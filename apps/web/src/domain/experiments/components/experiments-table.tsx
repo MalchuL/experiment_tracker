@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import {
   DndContext,
   DragEndEvent,
@@ -47,6 +48,30 @@ const stickyExperimentTh = cn(
 
 const headerSeparatorClass =
   "after:absolute after:right-0 after:top-2 after:bottom-2 after:w-px after:bg-border after:content-['']";
+
+function ColumnHeaderLabel({
+  label,
+  align = "left",
+  children,
+}: {
+  label: string;
+  align?: "left" | "right";
+  children?: ReactNode;
+}) {
+  return (
+    <div
+      className={cn(
+        "flex min-w-0 items-center gap-1",
+        align === "right" ? "justify-end" : "justify-start"
+      )}
+    >
+      <span className="min-w-0 truncate" title={label}>
+        {label}
+      </span>
+      {children}
+    </div>
+  );
+}
 
 function HeaderResizeHandle({
   columnId,
@@ -202,7 +227,7 @@ export function ExperimentsTable({
               />
               <TableHead
                 className={cn(
-                  "relative h-12 overflow-hidden px-4 text-left align-middle font-medium text-muted-foreground",
+                  "relative h-12 min-w-0 overflow-hidden px-4 text-left align-middle font-medium text-muted-foreground",
                   experimentThClass,
                   headerSeparatorClass
                 )}
@@ -214,7 +239,7 @@ export function ExperimentsTable({
                 }}
                 title="Experiment"
               >
-                Experiment
+                <ColumnHeaderLabel label="Experiment" />
                 <HeaderResizeHandle
                   columnId={EXPERIMENTS_TABLE_COLUMN.experiment}
                   onBeginResize={startResize}
@@ -222,7 +247,7 @@ export function ExperimentsTable({
                 />
               </TableHead>
               <TableHead
-                className="relative h-12 overflow-hidden px-4 text-left align-middle font-medium text-muted-foreground"
+                className="relative h-12 min-w-0 overflow-hidden px-4 text-left align-middle font-medium text-muted-foreground"
                 style={{
                   width: getExperimentTableColumnWidth(EXPERIMENTS_TABLE_COLUMN.status),
                   minWidth: getExperimentTableColumnWidth(EXPERIMENTS_TABLE_COLUMN.status),
@@ -230,7 +255,7 @@ export function ExperimentsTable({
                 }}
                 title="Status"
               >
-                Status
+                <ColumnHeaderLabel label="Status" />
                 <HeaderResizeHandle
                   columnId={EXPERIMENTS_TABLE_COLUMN.status}
                   onBeginResize={startResize}
@@ -245,7 +270,7 @@ export function ExperimentsTable({
                 }}
                 title="Parent"
               >
-                Parent
+                <ColumnHeaderLabel label="Parent" />
                 <HeaderResizeHandle
                   columnId={EXPERIMENTS_TABLE_COLUMN.parent}
                   onBeginResize={startResize}
@@ -258,7 +283,7 @@ export function ExperimentsTable({
                 return (
                   <TableHead
                     key={metricColumnIdValue}
-                    className="relative h-12 overflow-hidden px-4 text-right align-middle font-medium text-muted-foreground"
+                    className="relative h-12 min-w-0 overflow-hidden px-4 text-right align-middle font-medium text-muted-foreground"
                     style={{
                       width: metricColumnWidthPx,
                       minWidth: metricColumnWidthPx,
@@ -266,22 +291,19 @@ export function ExperimentsTable({
                     }}
                     title={metricHeaderFullLabel}
                   >
-                    <div className="flex min-w-0 items-center justify-end gap-1">
-                      <span className="min-w-0 truncate" title={metricHeaderFullLabel}>
-                        {metricHeaderFullLabel}
-                      </span>
+                    <ColumnHeaderLabel label={metricHeaderFullLabel} align="right">
                       {metric.direction === "minimize" ? (
                         <TrendingDown className="h-3 w-3 shrink-0" />
                       ) : (
                         <TrendingUp className="h-3 w-3 shrink-0" />
                       )}
-                    </div>
+                    </ColumnHeaderLabel>
                     <HeaderResizeHandle columnId={metricColumnIdValue} onBeginResize={startResize} />
                   </TableHead>
                 );
               })}
               <TableHead
-                className="relative h-12 overflow-hidden px-4 text-left align-middle font-medium text-muted-foreground"
+                className="relative h-12 min-w-0 overflow-hidden px-4 text-left align-middle font-medium text-muted-foreground"
                 style={{
                   width: getExperimentTableColumnWidth(EXPERIMENTS_TABLE_COLUMN.created),
                   minWidth: getExperimentTableColumnWidth(EXPERIMENTS_TABLE_COLUMN.created),
@@ -289,7 +311,7 @@ export function ExperimentsTable({
                 }}
                 title="Created"
               >
-                Created
+                <ColumnHeaderLabel label="Created" />
                 <HeaderResizeHandle
                   columnId={EXPERIMENTS_TABLE_COLUMN.created}
                   onBeginResize={startResize}
