@@ -75,7 +75,7 @@ export function parseScalarsQueryParams(
       const hiddenIndices = decodeLegacyNumberSelection(metParam);
       const hiddenNames = hiddenIndices
         .map((index) => allLoggedMetricNames[index])
-        .filter((name): id is string => typeof name === "string");
+        .filter((name): name is string => typeof name === "string");
       hiddenMetrics = new Set(hiddenNames);
     }
   } else {

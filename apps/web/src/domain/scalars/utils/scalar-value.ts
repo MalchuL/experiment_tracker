@@ -31,6 +31,9 @@ export function formatScalarWireForDisplay(value: ScalarWireValue): string {
   if (kind === "-inf") {
     return "-∞";
   }
+  if (!isFiniteScalarValue(value)) {
+    return String(value);
+  }
   return Number.isInteger(value) ? String(value) : value.toPrecision(6);
 }
 

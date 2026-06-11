@@ -1,6 +1,7 @@
 import type { ScalarValueKind, ScalarWireValue } from "@/domain/scalars/types";
 import {
   classifyScalarValue,
+  isFiniteScalarValue,
   plotlySymbolForScalarKind,
 } from "@/domain/scalars/utils/scalar-value";
 
@@ -44,8 +45,8 @@ export function buildScalarPlotSeries(points: ScalarPlotPoint[]): ScalarPlotSeri
   let beforeMarkerPlaced = false;
 
   for (const point of sorted) {
-    const kind = classifyScalarValue(point.value);
-    if (kind !== "finite") {
+    if (!isFiniteScalarValue(point.value)) {
+      const kind = classifyScalarValue(point.value) as Exclude<ScalarValueKind, "finite">;
       if (lastFinite && !beforeMarkerPlaced) {
         markers.push({
           step: lastFinite.step,

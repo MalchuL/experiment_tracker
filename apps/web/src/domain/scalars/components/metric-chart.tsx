@@ -316,8 +316,8 @@ export function MetricChart({
       typeof experimentId !== "string" ||
       typeof experimentName !== "string" ||
       typeof pointMetricName !== "string" ||
-      (typeof originalValue !== "number" && typeof originalValue !== "string") ||
-      (typeof smoothedValue !== "number" && typeof smoothedValue !== "string") ||
+      !isScalarWireValue(originalValue) ||
+      !isScalarWireValue(smoothedValue) ||
       typeof step !== "number"
     ) {
       return;
@@ -514,15 +514,13 @@ function buildMultiHoverState(
         typeof experimentName !== "string" ||
         typeof color !== "string" ||
         typeof step !== "number" ||
-        (typeof originalValue !== "number" && typeof originalValue !== "string") ||
-        (typeof smoothedValue !== "number" && typeof smoothedValue !== "string") ||
+        !isScalarWireValue(originalValue) ||
+        !isScalarWireValue(smoothedValue) ||
         !Number.isFinite(sortValue)
       ) {
         return null;
       }
-      const displayValue = typeof originalValue === "number" || typeof originalValue === "string"
-        ? originalValue
-        : smoothedValue;
+      const displayValue = originalValue;
       return {
         experimentName,
         step,

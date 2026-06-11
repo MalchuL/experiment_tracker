@@ -15,7 +15,7 @@ export function applySmoothing(data: ScalarWireValue[], weight: number): ScalarW
       lastFinite = value;
       continue;
     }
-    const smoothedValue = lastFinite * weight + value * (1 - weight);
+    const smoothedValue: number = lastFinite * weight + value * (1 - weight);
     smoothed.push(smoothedValue);
     lastFinite = smoothedValue;
   }
