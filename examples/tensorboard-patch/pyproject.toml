@@ -1,0 +1,14 @@
+[project]
+name = "experiment-tracker-tensorboard-patch"
+version = "0.1.0"
+description = "Minimal TensorBoardX example using monkey_patch_tensorboard"
+requires-python = ">=3.10"
+dependencies = [
+  "experiment-tracker-sdk",
+  "numpy>=2.2.6",
+  "pillow>=12.1.1",
+  "tensorboardX>=2.6.4",
+]
+
+[tool.uv.sources]
+experiment-tracker-sdk = { path = "../../python/sdk" }
