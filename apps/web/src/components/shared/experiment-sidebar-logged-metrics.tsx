@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import * as AccordionPrimitive from "@radix-ui/react-accordion";
-import { ChevronDown, Plus, X } from "lucide-react";
+import { ChevronDown, GitCompare, Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -87,14 +87,38 @@ function writeStoredCollapsedLoggedMetricGroups(projectId: string, collapsedKeys
   }
 }
 
+const LOGGED_METRICS_DIFFS_STORAGE_KEY = "experiment-sidebar.logged-metrics-diffs";
+
+function readStoredLoggedMetricDiffsEnabled(fallback: boolean): boolean {
+  if (typeof window === "undefined") return fallback;
+  try {
+    const storedValue = window.localStorage.getItem(LOGGED_METRICS_DIFFS_STORAGE_KEY);
+    if (storedValue === "1") return true;
+    if (storedValue === "0") return false;
+    return fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function writeStoredLoggedMetricDiffsEnabled(enabled: boolean) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(LOGGED_METRICS_DIFFS_STORAGE_KEY, enabled ? "1" : "0");
+  } catch {
+    /* ignore quota / private mode */
+  }
+}
+
 function lookupLoggedMetricValue(
   metrics: Metric[] | undefined,
-  trackedMetric: ProjectMetric
+  name: string,
+  label: string | null
 ): number | null | undefined {
   const matchedRow = metrics?.find((row) =>
     displayMetricKeyEquals(
       { name: row.name, label: row.label ?? null },
-      { name: trackedMetric.name, label: trackedMetric.label ?? null }
+      { name, label }
     )
   );
   return matchedRow?.value;
@@ -231,6 +255,13 @@ export function ExperimentSidebarLoggedMetrics({
   const [newName, setNewName] = useState("");
   const [newLabel, setNewLabel] = useState("");
   const [newValue, setNewValue] = useState("0");
+  const [showLoggedMetricDiffs, setShowLoggedMetricDiffs] = useState(() =>
+    readStoredLoggedMetricDiffsEnabled(true)
+  );
+
+  useEffect(() => {
+    writeStoredLoggedMetricDiffsEnabled(showLoggedMetricDiffs);
+  }, [showLoggedMetricDiffs]);
 
   const loggedMetricsByLabel = useMemo(() => groupLoggedMetricsByLabel(metrics), [metrics]);
   const loggedMetricAccordionKeys = useMemo(
@@ -253,6 +284,8 @@ export function ExperimentSidebarLoggedMetrics({
     () => loggedMetricAccordionKeys.filter((key) => !collapsedAccordionKeys.includes(key)),
     [loggedMetricAccordionKeys, collapsedAccordionKeys]
   );
+
+  const hasParentLoggedMetrics = (parentLoggedMetrics?.length ?? 0) > 0;
 
   /* eslint-disable react-hooks/set-state-in-effect -- reset drafts when metrics refetch */
   useEffect(() => {
@@ -359,14 +392,28 @@ export function ExperimentSidebarLoggedMetrics({
     setNewValue("0");
   };
 
-  const renderLoggedMetricRow = (
-    loggedMetric: Metric,
-    loggedLabelGroupShowsParentDelta: boolean
-  ) => {
+  const renderLoggedMetricRow = (loggedMetric: Metric) => {
     const trackedDefinition = findTrackedDefinitionForLoggedMetric(
       trackedMetricDefinitions,
       loggedMetric
     );
+    const isTracked = Boolean(trackedDefinition);
+    const showUntrackedDiff = showLoggedMetricDiffs && !isTracked;
+    const showDiff = isTracked || showUntrackedDiff;
+    const parentValue =
+      isTracked && trackedDefinition
+        ? lookupLoggedMetricValue(
+            parentLoggedMetrics,
+            trackedDefinition.name,
+            trackedDefinition.label ?? null
+          )
+        : showUntrackedDiff
+          ? lookupLoggedMetricValue(
+              parentLoggedMetrics,
+              loggedMetric.name,
+              loggedMetric.label ?? null
+            )
+          : null;
     const valueOverride =
       editMode ? (
         <SidebarEditableMetricValue
@@ -405,11 +452,7 @@ export function ExperimentSidebarLoggedMetrics({
         metricLabel={trackedDefinition ? trackedDefinition.label ?? null : loggedMetric.label}
         nameTitleMode="name-only"
         value={loggedMetric.value}
-        parentValue={
-          trackedDefinition
-            ? lookupLoggedMetricValue(parentLoggedMetrics, trackedDefinition)
-            : null
-        }
+        parentValue={parentValue}
         direction={
           trackedDefinition
             ? trackedDefinition.direction === "minimize"
@@ -418,10 +461,11 @@ export function ExperimentSidebarLoggedMetrics({
             : "maximize"
         }
         showDirectionHint={Boolean(trackedDefinition)}
-        showDiff={Boolean(trackedDefinition)}
+        showDiff={showDiff}
+        colorizeDiffOutcome={isTracked}
         metricTable={{
           scope: "group",
-          groupHasAnyDiff: loggedLabelGroupShowsParentDelta,
+          groupHasAnyDiff: hasParentLoggedMetrics,
         }}
         classNameProps={rowClassNames}
         valueOverride={valueOverride}
@@ -439,8 +483,33 @@ export function ExperimentSidebarLoggedMetrics({
   return (
     <>
       <Card>
-        <CardHeader className="py-2 px-3">
-          <CardTitle className="text-xs font-medium text-muted-foreground">Logged Metrics</CardTitle>
+        <CardHeader className="flex min-w-0 flex-row items-center justify-between gap-2 px-3 py-2">
+          <CardTitle className="min-w-0 truncate text-xs font-medium text-muted-foreground">
+            Logged Metrics
+          </CardTitle>
+          {hasParentLoggedMetrics ? (
+            <Button
+              type="button"
+              variant={showLoggedMetricDiffs ? "default" : "outline"}
+              size="icon"
+              className="h-8 w-8 shrink-0"
+              onClick={() => setShowLoggedMetricDiffs((enabled) => !enabled)}
+              aria-pressed={showLoggedMetricDiffs}
+              aria-label={
+                showLoggedMetricDiffs
+                  ? "Hide diffs for non-tracked metrics"
+                  : "Show diffs for non-tracked metrics"
+              }
+              title={
+                showLoggedMetricDiffs
+                  ? "Hide diffs for non-tracked metrics"
+                  : "Show diffs for non-tracked metrics"
+              }
+              data-testid="button-logged-metrics-diffs"
+            >
+              <GitCompare className="h-3.5 w-3.5" />
+            </Button>
+          ) : null}
         </CardHeader>
         <CardContent className="space-y-3 px-3 pb-3 pt-0">
           {loggedMetricsByLabel.length === 0 ? (
@@ -462,18 +531,6 @@ export function ExperimentSidebarLoggedMetrics({
                   labelGroup.label != null && labelGroup.label !== ""
                     ? labelGroup.label
                     : "Unlabeled";
-                const loggedLabelGroupShowsParentDelta = labelGroup.items.some((loggedMetric) => {
-                  const trackedDefinition = findTrackedDefinitionForLoggedMetric(
-                    trackedMetricDefinitions,
-                    loggedMetric
-                  );
-                  if (!trackedDefinition) return false;
-                  const parentScalar = lookupLoggedMetricValue(
-                    parentLoggedMetrics,
-                    trackedDefinition
-                  );
-                  return loggedMetric.value != null && parentScalar != null;
-                });
 
                 return (
                   <AccordionItem
@@ -513,14 +570,9 @@ export function ExperimentSidebarLoggedMetrics({
                     </AccordionPrimitive.Header>
                     <AccordionContent className="pb-2 pt-0">
                       <div
-                        className={loggedMetricRowGroupTableClass(
-                          loggedLabelGroupShowsParentDelta,
-                          editMode
-                        )}
+                        className={loggedMetricRowGroupTableClass(hasParentLoggedMetrics, editMode)}
                       >
-                        {labelGroup.items.map((loggedMetric) =>
-                          renderLoggedMetricRow(loggedMetric, loggedLabelGroupShowsParentDelta)
-                        )}
+                        {labelGroup.items.map((loggedMetric) => renderLoggedMetricRow(loggedMetric))}
                       </div>
                     </AccordionContent>
                   </AccordionItem>
