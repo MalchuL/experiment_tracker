@@ -254,7 +254,6 @@ function ExperimentNode({ data }: { data: ExperimentNodeData }) {
 
   return (
     <>
-      <Handle type="target" position={Position.Top} className="w-2 h-2" />
       <div
         ref={nodeRef}
         className={cn(
@@ -364,7 +363,8 @@ function ExperimentNode({ data }: { data: ExperimentNodeData }) {
           </svg>
         </div>
       </div>
-      <Handle type="source" position={Position.Bottom} className="w-2 h-2" />
+      <Handle type="target" position={Position.Top} className="z-10 w-2 h-2" />
+      <Handle type="source" position={Position.Bottom} className="z-10 w-2 h-2" />
     </>
   );
 }
