@@ -1,7 +1,7 @@
 export interface PaginationParams {
   limit?: number;
   offset?: number;
-  /** Server-side substring on experiment id, name, and description (GET …/experiments?search=). */
+  /** Server-side substring on experiment id, name, description, and tags (GET …/experiments?search=). */
   search?: string;
   /** Opt into heavy feature-tree payloads on experiment list endpoints. */
   includeFeatures?: boolean;

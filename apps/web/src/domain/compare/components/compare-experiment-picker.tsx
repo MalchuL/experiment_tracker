@@ -11,20 +11,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Experiment } from "@/domain/experiments/types";
+import { experimentMatchesSearch } from "@/domain/experiments/lib/experiment-matches-search";
 import { cn } from "@/lib/utils";
-
-function experimentMatchesSearch(
-  experiment: Pick<Experiment, "id" | "name" | "description">,
-  query: string
-): boolean {
-  const normalized = query.trim().toLowerCase();
-  if (!normalized) return true;
-  return (
-    experiment.name.toLowerCase().includes(normalized) ||
-    experiment.id.toLowerCase().includes(normalized) ||
-    (experiment.description ?? "").toLowerCase().includes(normalized)
-  );
-}
 
 export function CompareExperimentPicker({
   experiments,

@@ -82,6 +82,7 @@ import { parseLoggedMetricValueInput } from "@/lib/metrics/logged-metric-value-i
 import { GitBranch, ChevronDown, Trash2, X } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { experimentsService, experimentSnapshotsService } from "@/domain/experiments/services";
+import { experimentMatchesSearch } from "@/domain/experiments/lib/experiment-matches-search";
 import { ExperimentDangerZoneCard } from "@/domain/experiments/components/experiment-danger-zone-card";
 import type { ExperimentSnapshot } from "@/domain/experiments/services";
 function formatExperimentParentOption(exp: Pick<Experiment, "name" | "id">): string {
@@ -574,12 +575,9 @@ function ExperimentDetailsMetadataCard({
   }, [projectExperiments, experiment.id]);
 
   const filteredParentCandidates = useMemo(() => {
-    const q = parentFilter.trim().toLowerCase();
+    const q = parentFilter.trim();
     if (!q) return parentCandidates;
-    return parentCandidates.filter((e) => {
-      const label = formatExperimentParentOption(e).toLowerCase();
-      return label.includes(q) || e.id.toLowerCase().includes(q);
-    });
+    return parentCandidates.filter((e) => experimentMatchesSearch(e, q));
   }, [parentCandidates, parentFilter]);
 
   return (
@@ -653,7 +651,7 @@ function ExperimentDetailsMetadataCard({
                 <div className="p-2 border-b">
                   <Input
                     ref={parentFilterInputRef}
-                    placeholder="Filter…"
+                    placeholder="Filter by id, name, description, tags…"
                     value={parentFilter}
                     onChange={(e) => setParentFilter(e.target.value)}
                   />

@@ -91,6 +91,7 @@ import { QUERY_KEYS } from "@/lib/constants/query-keys";
 import { useToast } from "@/lib/hooks/use-toast";
 import { calculateDagTreeLayout } from "@/domain/experiments/dag/calculate-dag-layout";
 import { wouldCreateCycle } from "@/domain/experiments/dag/dag-parent-utils";
+import { experimentMatchesSearch } from "@/domain/experiments/lib/experiment-matches-search";
 import { ListSkeleton } from "@/components/shared/loading-skeleton";
 import type { InsertExperiment } from "@/domain/experiments/types";
 
@@ -431,11 +432,7 @@ function DagViewCanvas({
   const matchingNodeIds = useMemo(() => {
     if (!searchTrimmed) return [];
     return experiments
-      .filter(
-        (exp) =>
-          exp.name.toLowerCase().includes(searchTrimmed) ||
-          (exp.description?.toLowerCase().includes(searchTrimmed) ?? false)
-      )
+      .filter((exp) => experimentMatchesSearch(exp, searchTrimmed))
       .map((exp) => exp.id);
   }, [experiments, searchTrimmed]);
   const matchingNodeIdsKey = matchingNodeIds.join(",");
@@ -509,10 +506,7 @@ function DagViewCanvas({
         project
       );
       const q = searchTrimmed;
-      const matches =
-        !q ||
-        exp.name.toLowerCase().includes(q) ||
-        (exp.description?.toLowerCase().includes(q) ?? false);
+      const matches = !q || experimentMatchesSearch(exp, q);
       const focusedSearchMatchId = matchingNodeIds[searchMatchIndex];
       map.set(exp.id, {
         id: exp.id,
@@ -759,7 +753,7 @@ function DagViewCanvas({
               <div className="flex flex-wrap items-center gap-2 bg-card/95 p-2 rounded-md border shadow-sm">
                 <Search className="h-4 w-4 text-muted-foreground shrink-0" />
                 <Input
-                  placeholder="Search experiments..."
+                  placeholder="Search id, name, description, tags…"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="h-8 w-44 sm:w-52 text-sm"

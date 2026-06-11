@@ -1,4 +1,4 @@
-import { useInfiniteQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, keepPreviousData } from "@tanstack/react-query";
 import { experimentsService } from "../services";
 import { QUERY_KEYS } from "@/lib/constants/query-keys";
 import { DEFAULT_PAGE_SIZE } from "@/lib/constants/pagination";
@@ -81,6 +81,7 @@ export function useExperiments(
         enabled: !!projectId && (options?.enabled ?? true),
         staleTime: 30000, // 30 seconds — refetchInterval still fires per TanStack Query rules
         refetchInterval: options?.refetchInterval,
+        placeholderData: keepPreviousData,
     });
     useEffect(() => {
         if (paginationMode === "auto" && hasNextPage && !isFetchingNextPage) {

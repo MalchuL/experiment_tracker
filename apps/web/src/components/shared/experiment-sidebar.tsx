@@ -36,6 +36,7 @@ import { Download, FileCode2, GitBranch, GitCompare, Loader2, RefreshCw, X, Chev
 import { format, parseISO } from "date-fns";
 import type { Experiment } from "@/domain/experiments/types";
 import { buildCompareHref } from "@/domain/experiments/lib/build-compare-href";
+import { experimentMatchesSearch } from "@/domain/experiments/lib/experiment-matches-search";
 import type { Metric } from "@/domain/metrics/types";
 import type { ProjectMetric } from "@/domain/projects/types";
 import { useExperimentMetrics } from "@/domain/metrics/hooks";
@@ -292,14 +293,13 @@ export function ExperimentSidebar({
     return projectExperiments.filter((candidate) => candidate.id !== experiment.id);
   }, [projectExperiments, experiment]);
 
-  /** Dropdown list after applying the search box (case-insensitive name or id substring). */
+  /** Dropdown list after applying the search box (case-insensitive id, name, description, or tags). */
   const parentPickerRowsMatchingSearch = useMemo(() => {
-    const queryNormalized = parentSearchQuery.trim().toLowerCase();
+    const queryNormalized = parentSearchQuery.trim();
     if (!queryNormalized) return siblingExperimentsForParentPicker;
-    return siblingExperimentsForParentPicker.filter((candidate) => {
-      const menuLabel = formatExperimentParentOption(candidate).toLowerCase();
-      return menuLabel.includes(queryNormalized) || candidate.id.toLowerCase().includes(queryNormalized);
-    });
+    return siblingExperimentsForParentPicker.filter((candidate) =>
+      experimentMatchesSearch(candidate, queryNormalized)
+    );
   }, [siblingExperimentsForParentPicker, parentSearchQuery]);
 
   /** Keep draft parent id in sync when switching to another experiment in the sidebar. */
@@ -594,7 +594,7 @@ export function ExperimentSidebar({
                       <Input
                         ref={parentSearchInputRef}
                         type="search"
-                        placeholder="Filter by name or id…"
+                        placeholder="Filter by id, name, description, tags…"
                         value={parentSearchQuery}
                         onChange={(e) => setParentSearchQuery(e.target.value)}
                         className="h-9"

@@ -120,8 +120,9 @@ export default function Experiments() {
 
   const showInitialPageSkeleton =
     projectLoading ||
-    metricsLoading ||
-    (Boolean(projectId) && !experimentsListReady && experimentsLoading);
+    (Boolean(projectId) &&
+      !experimentsListReady &&
+      (experimentsLoading || metricsLoading));
 
   const isRefreshing = experimentsFetching || metricsFetching || topMetricsFetching;
   const handleRefresh = () => {
@@ -213,12 +214,12 @@ export default function Experiments() {
 
           <div className="flex flex-wrap items-end justify-between gap-4">
             <div className="min-w-0 flex-1 space-y-1.5 sm:max-w-md">
-              <Label htmlFor="experiments-search">Search id, name, or description</Label>
+              <Label htmlFor="experiments-search">Search id, name, description, or tags</Label>
               <Input
                 id="experiments-search"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="e.g. uuid fragment, baseline, notes…"
+                placeholder="e.g. uuid fragment, baseline, gpu-a100…"
                 data-testid="input-experiments-search"
               />
             </div>
@@ -275,7 +276,7 @@ export default function Experiments() {
               <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 rounded-lg border border-border bg-card px-6 py-12 text-center">
                 <p className="text-sm font-medium text-foreground">No experiments match this search</p>
                 <p className="max-w-sm text-sm text-muted-foreground">
-                  Search runs on the server across the whole project (id, name, description). Try another
+                  Search runs on the server across the whole project (id, name, description, tags). Try another
                   substring or clear the field to see all experiments.
                 </p>
                 <Button variant="outline" size="sm" type="button" onClick={() => setSearchQuery("")}>

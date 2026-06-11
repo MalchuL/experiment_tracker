@@ -498,7 +498,7 @@ class ExperimentService:
             user: User requesting the list.
             project_id: Project whose experiments should be returned.
             list_options: Pagination limit and offset.
-            search: Optional substring filter over experiment id, name, or description.
+            search: Optional substring filter over experiment id, name, description, or tags.
             include_features: Whether to include feature tree data in each item.
 
         Returns:

@@ -204,7 +204,7 @@ async def get_project_experiments(
     search: str | None = Query(
         default=None,
         max_length=200,
-        description="Optional case-insensitive substring on experiment id, name, or description.",
+        description="Optional case-insensitive substring on experiment id, name, description, or tags.",
     ),
     include_features: bool = Query(
         default=True,
