@@ -97,7 +97,7 @@ const ColorPicker: React.FC<TColorPicker> = ({
 
   return (
     <Popover>
-      <PopoverTrigger>{children as any}</PopoverTrigger>
+      <PopoverTrigger asChild>{children as React.ReactElement}</PopoverTrigger>
       <PopoverContent align="center" side="top" className="w-[18rem] h-[25rem]">
         <div className="size-full flex flex-col items-center justify-between">
           <h1 className="font-medium text-xl">Colour Picker</h1>
