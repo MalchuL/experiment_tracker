@@ -1,5 +1,6 @@
 "use client";
 
+import { useRef } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -38,9 +39,16 @@ export function LoggedMetricAddDialog({
   onNewValueChange: (value: string) => void;
   onAdd: () => void | Promise<void>;
 }) {
+  const nameInputRef = useRef<HTMLInputElement>(null);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent
+        onOpenAutoFocus={(event) => {
+          event.preventDefault();
+          nameInputRef.current?.focus();
+        }}
+      >
         <DialogHeader>
           <DialogTitle>Add metric</DialogTitle>
         </DialogHeader>
@@ -53,7 +61,6 @@ export function LoggedMetricAddDialog({
                 value={newLabel}
                 onChange={(event) => onNewLabelChange(event.target.value)}
                 placeholder="e.g. fold_1"
-                autoFocus
               />
               <p className="text-xs text-muted-foreground">
                 Leave empty to add an unlabeled metric.
@@ -71,8 +78,13 @@ export function LoggedMetricAddDialog({
             </div>
           )}
           <div className="space-y-1">
-            <Label>Name</Label>
-            <Input value={newName} onChange={(event) => onNewNameChange(event.target.value)} />
+            <Label htmlFor="logged-metric-new-name">Name</Label>
+            <Input
+              ref={nameInputRef}
+              id="logged-metric-new-name"
+              value={newName}
+              onChange={(event) => onNewNameChange(event.target.value)}
+            />
           </div>
           <div className="space-y-1">
             <Label>Value</Label>

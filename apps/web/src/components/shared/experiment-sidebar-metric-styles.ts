@@ -4,9 +4,12 @@ import { cn } from "@/lib/utils";
 
 export const METRIC_SIDEBAR_ROW_SEPARATOR_CLASS = "border-b border-border/35 py-1";
 
+/** Sidebar metric row hover (applied via {@link MetricNameValueDiffRowProps.rowHover} + `classNameProps.root`). */
+export const METRIC_SIDEBAR_ROW_HOVER_CLASS = "hover:bg-muted/50";
+
 /** Shared row density for Project Metrics and Logged Metrics in the experiment sidebar. */
 export const METRIC_SIDEBAR_DENSE_CLASS_NAMES = {
-  root: "text-sm",
+  root: cn("text-sm", METRIC_SIDEBAR_ROW_HOVER_CLASS),
   nameCluster: METRIC_SIDEBAR_ROW_SEPARATOR_CLASS,
   valueCluster: METRIC_SIDEBAR_ROW_SEPARATOR_CLASS,
   tableSlot1: METRIC_SIDEBAR_ROW_SEPARATOR_CLASS,
@@ -18,7 +21,7 @@ export const METRIC_SIDEBAR_DENSE_CLASS_NAMES = {
 
 export const METRIC_SIDEBAR_UNTRACKED_CLASS_NAMES = {
   ...METRIC_SIDEBAR_DENSE_CLASS_NAMES,
-  root: "text-sm pl-0",
+  root: cn(METRIC_SIDEBAR_DENSE_CLASS_NAMES.root, "pl-0"),
 } satisfies MetricNameValueDiffRowClassNameProps;
 
 /** Matches {@link MetricNameValueDiffRow} value cell typography in sidebar table layout. */

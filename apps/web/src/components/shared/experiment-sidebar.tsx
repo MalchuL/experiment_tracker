@@ -24,7 +24,6 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
@@ -35,6 +34,7 @@ import { useExperiments } from "@/domain/experiments/hooks/experiments-hook";
 import { Download, FileCode2, GitBranch, GitCompare, Loader2, RefreshCw, X, ChevronDown } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import type { Experiment } from "@/domain/experiments/types";
+import { ExperimentStatus } from "@/domain/experiments/types";
 import { buildCompareHref } from "@/domain/experiments/lib/build-compare-href";
 import { experimentMatchesSearch } from "@/domain/experiments/lib/experiment-matches-search";
 import type { Metric } from "@/domain/metrics/types";
@@ -664,14 +664,19 @@ export function ExperimentSidebar({
                 value={experiment.status}
                 onValueChange={(value) => updateExperimentStatus(value as Experiment["status"])}
               >
-                <SelectTrigger className="w-32 h-8" data-testid="select-status">
-                  <SelectValue />
+                <SelectTrigger
+                  className="h-auto w-auto gap-1 border-0 bg-transparent p-0 shadow-none focus:ring-0 focus:ring-offset-0 [&>svg]:h-3.5 [&>svg]:w-3.5 [&>svg]:opacity-70"
+                  data-testid="select-status"
+                  aria-label="Experiment status"
+                >
+                  <StatusBadge status={experiment.status} />
                 </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="planned">Planned</SelectItem>
-                  <SelectItem value="running">Running</SelectItem>
-                  <SelectItem value="complete">Complete</SelectItem>
-                  <SelectItem value="failed">Failed</SelectItem>
+                <SelectContent align="start">
+                  {Object.values(ExperimentStatus).map((status) => (
+                    <SelectItem key={status} value={status} className="cursor-pointer py-2">
+                      <StatusBadge status={status} size="sm" />
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -762,6 +767,7 @@ export function ExperimentSidebar({
                               groupHasAnyDiff: trackedMetricsGridShowsParentDelta,
                             }}
                             classNameProps={METRIC_SIDEBAR_DENSE_CLASS_NAMES}
+                            rowHover
                             data-testid={`metric-${projectMetricKeyString(projectMetric)}`}
                           />
                         ))}

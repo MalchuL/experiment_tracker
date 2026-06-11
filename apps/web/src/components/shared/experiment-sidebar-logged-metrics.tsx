@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react";
+import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import * as AccordionPrimitive from "@radix-ui/react-accordion";
 import { ChevronDown, Plus, X } from "lucide-react";
@@ -53,6 +53,38 @@ type LoggedMetricsLabelGroup = { label: string | null; items: Metric[] };
 function accordionItemValueForLoggedLabelGroup(label: string | null): string {
   if (label == null || label === "") return "__unlabeled__";
   return label;
+}
+
+const LOGGED_METRICS_COLLAPSED_STORAGE_KEY = "experiment-sidebar.logged-metrics-collapsed";
+
+function loggedMetricsCollapsedStorageKey(projectId: string): string {
+  return `${LOGGED_METRICS_COLLAPSED_STORAGE_KEY}.${projectId}`;
+}
+
+function readStoredCollapsedLoggedMetricGroups(projectId: string): string[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.localStorage.getItem(loggedMetricsCollapsedStorageKey(projectId));
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as unknown;
+    return Array.isArray(parsed) ? parsed.filter((key): key is string => typeof key === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeStoredCollapsedLoggedMetricGroups(projectId: string, collapsedKeys: string[]) {
+  if (typeof window === "undefined") return;
+  try {
+    const key = loggedMetricsCollapsedStorageKey(projectId);
+    if (collapsedKeys.length === 0) {
+      window.localStorage.removeItem(key);
+    } else {
+      window.localStorage.setItem(key, JSON.stringify(collapsedKeys));
+    }
+  } catch {
+    /* ignore quota / private mode */
+  }
 }
 
 function lookupLoggedMetricValue(
@@ -201,9 +233,25 @@ export function ExperimentSidebarLoggedMetrics({
   const [newValue, setNewValue] = useState("0");
 
   const loggedMetricsByLabel = useMemo(() => groupLoggedMetricsByLabel(metrics), [metrics]);
-  const defaultOpenLoggedMetricAccordionKeys = useMemo(
+  const loggedMetricAccordionKeys = useMemo(
     () => loggedMetricsByLabel.map((group) => accordionItemValueForLoggedLabelGroup(group.label)),
     [loggedMetricsByLabel]
+  );
+  const [collapsedAccordionKeys, setCollapsedAccordionKeys] = useState<string[]>(() =>
+    readStoredCollapsedLoggedMetricGroups(projectId)
+  );
+
+  useEffect(() => {
+    setCollapsedAccordionKeys(readStoredCollapsedLoggedMetricGroups(projectId));
+  }, [projectId]);
+
+  useEffect(() => {
+    writeStoredCollapsedLoggedMetricGroups(projectId, collapsedAccordionKeys);
+  }, [projectId, collapsedAccordionKeys]);
+
+  const openAccordionKeys = useMemo(
+    () => loggedMetricAccordionKeys.filter((key) => !collapsedAccordionKeys.includes(key)),
+    [loggedMetricAccordionKeys, collapsedAccordionKeys]
   );
 
   /* eslint-disable react-hooks/set-state-in-effect -- reset drafts when metrics refetch */
@@ -346,50 +394,41 @@ export function ExperimentSidebarLoggedMetrics({
       </div>
     ) : null;
 
-    if (trackedDefinition) {
-      return (
-        <Fragment key={loggedMetric.id}>
-          <MetricNameValueDiffRow
-            metricName={trackedDefinition.name}
-            metricLabel={trackedDefinition.label ?? null}
-            nameTitleMode="name-only"
-            value={loggedMetric.value}
-            parentValue={lookupLoggedMetricValue(parentLoggedMetrics, trackedDefinition)}
-            direction={trackedDefinition.direction === "minimize" ? "minimize" : "maximize"}
-            showDirectionHint
-            metricTable={{
-              scope: "group",
-              groupHasAnyDiff: loggedLabelGroupShowsParentDelta,
-            }}
-            classNameProps={METRIC_SIDEBAR_DENSE_CLASS_NAMES}
-            valueOverride={valueOverride}
-            data-testid={`logged-metric-${loggedMetric.id}`}
-          />
-          {removeButton}
-        </Fragment>
-      );
-    }
+    const rowClassNames = trackedDefinition
+      ? METRIC_SIDEBAR_DENSE_CLASS_NAMES
+      : METRIC_SIDEBAR_UNTRACKED_CLASS_NAMES;
 
     return (
-      <Fragment key={loggedMetric.id}>
-        <MetricNameValueDiffRow
-          metricName={loggedMetric.name}
-          metricLabel={loggedMetric.label}
-          nameTitleMode="name-only"
-          value={loggedMetric.value}
-          parentValue={null}
-          direction="maximize"
-          showDiff={false}
-          metricTable={{
-            scope: "group",
-            groupHasAnyDiff: loggedLabelGroupShowsParentDelta,
-          }}
-          classNameProps={METRIC_SIDEBAR_UNTRACKED_CLASS_NAMES}
-          valueOverride={valueOverride}
-          data-testid={`logged-metric-${loggedMetric.id}`}
-        />
-        {removeButton}
-      </Fragment>
+      <MetricNameValueDiffRow
+        key={loggedMetric.id}
+        metricName={trackedDefinition ? trackedDefinition.name : loggedMetric.name}
+        metricLabel={trackedDefinition ? trackedDefinition.label ?? null : loggedMetric.label}
+        nameTitleMode="name-only"
+        value={loggedMetric.value}
+        parentValue={
+          trackedDefinition
+            ? lookupLoggedMetricValue(parentLoggedMetrics, trackedDefinition)
+            : null
+        }
+        direction={
+          trackedDefinition
+            ? trackedDefinition.direction === "minimize"
+              ? "minimize"
+              : "maximize"
+            : "maximize"
+        }
+        showDirectionHint={Boolean(trackedDefinition)}
+        showDiff={Boolean(trackedDefinition)}
+        metricTable={{
+          scope: "group",
+          groupHasAnyDiff: loggedLabelGroupShowsParentDelta,
+        }}
+        classNameProps={rowClassNames}
+        valueOverride={valueOverride}
+        rowHover
+        trailing={removeButton}
+        data-testid={`logged-metric-${loggedMetric.id}`}
+      />
     );
   };
 
@@ -407,7 +446,16 @@ export function ExperimentSidebarLoggedMetrics({
           {loggedMetricsByLabel.length === 0 ? (
             <p className="py-2 text-center text-sm text-muted-foreground">No metrics logged yet</p>
           ) : (
-            <Accordion type="multiple" className="w-full" defaultValue={defaultOpenLoggedMetricAccordionKeys}>
+            <Accordion
+              type="multiple"
+              className="w-full"
+              value={openAccordionKeys}
+              onValueChange={(nextOpen) =>
+                setCollapsedAccordionKeys(
+                  loggedMetricAccordionKeys.filter((key) => !nextOpen.includes(key))
+                )
+              }
+            >
               {loggedMetricsByLabel.map((labelGroup) => {
                 const accordionItemValue = accordionItemValueForLoggedLabelGroup(labelGroup.label);
                 const groupTitle =
