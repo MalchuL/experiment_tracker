@@ -14,6 +14,12 @@ import { CHART_COLORS } from "@/domain/scalars/constants";
 import { useSelectedExperimentStore } from "@/domain/experiments/store";
 import type { MetricsTableRow } from "../lib/types";
 import { buildByNameForRow } from "../lib/metrics-column-order";
+import {
+  metricNamesFromColumnOrder,
+  orderRowsByIds,
+  rebuildColumnOrder,
+  syncExperimentRowOrder,
+} from "../lib/row-order";
 import { loadPersistedMetricsUi, savePersistedMetricsUi } from "../lib/persisted-ui";
 import { metricCellStyleKey } from "../lib/constants";
 import { useMetricTableColumns } from "./use-metric-table-columns";
@@ -38,6 +44,8 @@ export function useProjectMetricsPageState() {
   const [includeAll, setIncludeAll] = useState(false);
   const [nameFilter, setNameFilter] = useState("");
   const [pinLeadColumns, setPinLeadColumns] = useState(true);
+  const [wrapExperimentNames, setWrapExperimentNames] = useState(true);
+  const [experimentRowOrder, setExperimentRowOrder] = useState<string[]>([]);
   const [columnOrder, setColumnOrder] = useState<ColumnOrderState>([]);
   const [columnSizing, setColumnSizing] = useState<Record<string, number>>({});
   const [sorting, setSorting] = useState<SortingState>([]);
@@ -75,6 +83,7 @@ export function useProjectMetricsPageState() {
     if (s?.columnSizing) setColumnSizing(s.columnSizing);
     if (s?.label !== undefined) setLabel(s.label);
     if (s?.pinLeadColumns != null) setPinLeadColumns(!!s.pinLeadColumns);
+    if (s?.wrapExperimentNames != null) setWrapExperimentNames(!!s.wrapExperimentNames);
   }, [projectId]);
 
   useEffect(() => {
@@ -124,6 +133,16 @@ export function useProjectMetricsPageState() {
     }));
   }, [pages, baseNames]);
 
+  useEffect(() => {
+    setExperimentRowOrder((prev) => syncExperimentRowOrder(prev, flatRows));
+  }, [flatRows]);
+
+  const orderedFlatRows = useMemo(
+    () =>
+      sorting.length > 0 ? flatRows : orderRowsByIds(flatRows, experimentRowOrder),
+    [flatRows, experimentRowOrder, sorting.length]
+  );
+
   const metricNameKey = useMemo(() => baseNames.join("|"), [baseNames]);
   const metricKeySeen = useRef("");
 
@@ -167,9 +186,25 @@ export function useProjectMetricsPageState() {
 
   const filteredRows = useMemo(() => {
     const q = nameFilter.trim().toLowerCase();
-    if (!q) return flatRows;
-    return flatRows.filter((r) => r.experimentName.toLowerCase().includes(q));
-  }, [flatRows, nameFilter]);
+    if (!q) return orderedFlatRows;
+    return orderedFlatRows.filter((r) => r.experimentName.toLowerCase().includes(q));
+  }, [orderedFlatRows, nameFilter]);
+
+  const orderedMetricNames = useMemo(
+    () => metricNamesFromColumnOrder(columnOrder),
+    [columnOrder]
+  );
+
+  const handleMetricReorder = useCallback((nextNames: string[]) => {
+    setColumnOrder(rebuildColumnOrder(nextNames));
+  }, []);
+
+  const handleExperimentRowReorder = useCallback((orderedIds: string[]) => {
+    setExperimentRowOrder(orderedIds);
+  }, []);
+
+  const rowReorderDisabled =
+    nameFilter.trim().length > 0 || sorting.length > 0;
 
   const rowsInReport = useMemo(
     () => filteredRows.filter((r) => !hiddenRowIds.has(r.experimentId)),
@@ -231,6 +266,7 @@ export function useProjectMetricsPageState() {
     cellTints,
     cycleCellTint,
     onSelectExperiment,
+    wrapExperimentNames,
   });
 
   const table = useReactTable<MetricsTableRow>({
@@ -253,6 +289,7 @@ export function useProjectMetricsPageState() {
         label: label ?? undefined,
         includeAll,
         pinLeadColumns,
+        wrapExperimentNames,
         columnOrder: columnOrder.filter(
           (c) => c !== "experiment" && c !== "experimentId" && c !== "createdAt"
         ),
@@ -260,7 +297,7 @@ export function useProjectMetricsPageState() {
       });
     }, 200);
     return () => clearTimeout(t);
-  }, [projectId, label, includeAll, pinLeadColumns, columnOrder, columnSizing]);
+  }, [projectId, label, includeAll, pinLeadColumns, wrapExperimentNames, columnOrder, columnSizing]);
 
   const hasAnyLabel = (labelData?.labels.length ?? 0) > 0 || (labelData?.hasUnlabeled ?? false);
 
@@ -281,6 +318,14 @@ export function useProjectMetricsPageState() {
     setEditMode,
     pinLeadColumns,
     setPinLeadColumns,
+    wrapExperimentNames,
+    setWrapExperimentNames,
+    orderedMetricNames,
+    handleMetricReorder,
+    experimentRowOrder,
+    handleExperimentRowReorder,
+    rowReorderDisabled,
+    sorting,
     isError,
     dataLoading,
     latest,

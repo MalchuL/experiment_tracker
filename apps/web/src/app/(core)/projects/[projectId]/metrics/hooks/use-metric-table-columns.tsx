@@ -37,6 +37,7 @@ export type UseMetricTableColumnsOptions = {
   cellTints: Record<string, 1 | 2 | 3 | 4>;
   cycleCellTint: (experimentId: string, metricName: string) => void;
   onSelectExperiment: (experimentId: string) => void;
+  wrapExperimentNames: boolean;
 };
 
 function policyForPivotColumn(id: string): ColumnWidthPolicy {
@@ -70,6 +71,7 @@ export function useMetricTableColumns(o: UseMetricTableColumnsOptions) {
     cellTints,
     cycleCellTint,
     onSelectExperiment,
+    wrapExperimentNames,
   } = o;
 
   return useMemo((): ColumnDef<MetricsTableRow, unknown>[] => {
@@ -85,6 +87,7 @@ export function useMetricTableColumns(o: UseMetricTableColumnsOptions) {
             hiddenRowIds={hiddenRowIds}
             setHiddenRowIds={setHiddenRowIds}
             onSelectExperiment={onSelectExperiment}
+            wrapExperimentNames={wrapExperimentNames}
           />
         ),
         size: 200,
@@ -184,5 +187,6 @@ export function useMetricTableColumns(o: UseMetricTableColumnsOptions) {
     cellTints,
     cycleCellTint,
     onSelectExperiment,
+    wrapExperimentNames,
   ]);
 }

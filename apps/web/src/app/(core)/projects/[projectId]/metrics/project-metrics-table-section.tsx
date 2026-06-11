@@ -1,19 +1,30 @@
 "use client";
 
 import type { CSSProperties } from "react";
+import {
+  DndContext,
+  type DragEndEvent,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
+import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { flexRender, type Column, type Table as TTable } from "@tanstack/react-table";
 import { Loader2 } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import { useProjectDataTableFrame } from "@/components/shared/project-data-table-frame";
-import { getExperimentSelectionSurfaceStyle } from "@/domain/experiments/experiment-selection-style";
+import { EXPERIMENTS_TABLE_GRIP_PX } from "@/domain/experiments/lib/experiments-table-column-widths";
+import { reorderIdSubset } from "./lib/row-order";
 import type { MetricsTableRow } from "./lib/types";
+import { MetricsTableSortableRow } from "./components/metrics-table-sortable-row";
 
-const stickyExperimentTh = cn(
-  "sticky left-0 z-[21] bg-background shadow-[4px_0_12px_-8px_rgba(0,0,0,0.08)] box-border"
+const stickyGripTh = cn(
+  "sticky left-0 z-[21] bg-background shadow-[4px_0_12px_-8px_rgba(0,0,0,0.08)] box-border overflow-hidden"
 );
-const stickyExperimentCell = cn(
-  "sticky left-0 z-[2] bg-background shadow-[4px_0_12px_-8px_rgba(0,0,0,0.08)] box-border"
+const stickyExperimentTh = cn(
+  "sticky z-[21] bg-background shadow-[4px_0_12px_-8px_rgba(0,0,0,0.08)] box-border"
 );
 const headerSeparatorClass =
   "after:absolute after:right-0 after:top-2 after:bottom-2 after:w-px after:bg-border after:content-['']";
@@ -37,6 +48,11 @@ type ProjectMetricsTableSectionProps = {
   filteredRows: MetricsTableRow[];
   /** Highlights this row in the table while the experiment sidebar is open. */
   selectedExperimentId: string | null;
+  wrapExperimentNames: boolean;
+  rowReorderDisabled: boolean;
+  experimentRowOrder: string[];
+  onExperimentRowReorder: (orderedIds: string[]) => void;
+  tableData: MetricsTableRow[];
 };
 
 /** Pivot table body: scrolls inside `ProjectDataTableFrame` (toolbar/footer live on the page). */
@@ -49,8 +65,35 @@ export function ProjectMetricsTableSection({
   rowsInReport,
   filteredRows,
   selectedExperimentId,
+  wrapExperimentNames,
+  rowReorderDisabled,
+  experimentRowOrder,
+  onExperimentRowReorder,
+  tableData,
 }: ProjectMetricsTableSectionProps) {
   const { pinLeadColumns, leadColumnCount } = useProjectDataTableFrame();
+  const gripWidthPx = EXPERIMENTS_TABLE_GRIP_PX;
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
+  );
+
+  const pinGrip = pinLeadColumns && leadColumnCount >= 1;
+  const pinExperiment = pinLeadColumns && leadColumnCount >= 2;
+
+  const rowIds = table.getRowModel().rows.map((r) => r.id);
+
+  const handleDragEnd = ({ active, over }: DragEndEvent) => {
+    if (rowReorderDisabled || !over || active.id === over.id) return;
+    const subsetIds = tableData.map((r) => r.experimentId);
+    onExperimentRowReorder(
+      reorderIdSubset(experimentRowOrder, subsetIds, String(active.id), String(over.id))
+    );
+  };
+
+  const gripReorderTitle = rowReorderDisabled
+    ? "Clear the name filter and column sorting to reorder experiments"
+    : "Reorder";
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
@@ -69,121 +112,110 @@ export function ProjectMetricsTableSection({
 
       {canShowTable && (
         <div className="min-h-0 min-w-0 flex-1">
-          <Table
-            containerClassName="overflow-visible w-full min-w-0"
-            className="table-fixed border-separate border-spacing-0"
-            style={{ width: table.getTotalSize() }}
-          >
-            <TableHeader className="sticky top-0 z-20 bg-background shadow-[0_1px_0_0_hsl(var(--border))]">
-              {table.getHeaderGroups().map((hg) => (
-                <TableRow key={hg.id}>
-                  {hg.headers.map((h) => {
-                    const pinExperiment =
-                      pinLeadColumns && leadColumnCount >= 1 && h.column.id === "experiment";
-                    const layout = layoutForColumn(table, h.column);
-                    return (
-                      <TableHead
-                        key={h.id}
-                        colSpan={h.colSpan}
-                        className={cn(
-                          "relative align-top px-4",
-                          editMode ? "h-auto min-h-12" : "h-12",
-                          h.column.id === "experiment" ? "text-left" : "text-right",
-                          pinExperiment && stickyExperimentTh,
-                          h.column.id === "experiment" && headerSeparatorClass,
-                          layout.className
-                        )}
-                        style={layout.style}
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            <Table
+              containerClassName="overflow-visible w-full min-w-0"
+              className="table-fixed border-separate border-spacing-0"
+              style={{ width: table.getTotalSize() + gripWidthPx }}
+            >
+              <TableHeader className="sticky top-0 z-20 bg-background shadow-[0_1px_0_0_hsl(var(--border))]">
+                {table.getHeaderGroups().map((hg) => (
+                  <TableRow key={hg.id}>
+                    <TableHead
+                      className={cn(
+                        "relative h-12 px-2 text-left align-middle font-medium text-muted-foreground",
+                        pinGrip && stickyGripTh,
+                        headerSeparatorClass
+                      )}
+                      style={{
+                        width: gripWidthPx,
+                        minWidth: gripWidthPx,
+                        maxWidth: gripWidthPx,
+                      }}
+                      aria-label="Reorder"
+                      title={gripReorderTitle}
+                    />
+                    {hg.headers.map((h) => {
+                      const isExperiment = h.column.id === "experiment";
+                      const layout = layoutForColumn(table, h.column);
+                      return (
+                        <TableHead
+                          key={h.id}
+                          colSpan={h.colSpan}
+                          className={cn(
+                            "relative align-top px-4",
+                            editMode ? "h-auto min-h-12" : "h-12",
+                            isExperiment ? "text-left" : "text-right",
+                            pinExperiment && isExperiment && stickyExperimentTh,
+                            isExperiment && headerSeparatorClass,
+                            layout.className
+                          )}
+                          style={
+                            pinExperiment && isExperiment
+                              ? { ...layout.style, left: gripWidthPx }
+                              : layout.style
+                          }
+                        >
+                          {flexRender(h.column.columnDef.header, h.getContext())}
+                          {h.column.getCanResize() && (
+                            <div
+                              onMouseDown={h.getResizeHandler()}
+                              onTouchStart={h.getResizeHandler()}
+                              className={cn(
+                                "absolute right-0 top-0 z-10 flex h-full w-2.5 cursor-col-resize items-center justify-center",
+                                "touch-none select-none"
+                              )}
+                            >
+                              {isExperiment ? null : (
+                                <span
+                                  aria-hidden
+                                  className={cn(
+                                    "block h-[calc(100%-1rem)] w-px shrink-0 self-center bg-border transition-colors",
+                                    "hover:bg-muted-foreground/70",
+                                    h.column.getIsResizing() && "bg-primary"
+                                  )}
+                                />
+                              )}
+                            </div>
+                          )}
+                        </TableHead>
+                      );
+                    })}
+                  </TableRow>
+                ))}
+              </TableHeader>
+              <SortableContext items={rowIds} strategy={verticalListSortingStrategy}>
+                <TableBody>
+                  {table.getRowModel().rows.length === 0 ? (
+                    <TableRow>
+                      <TableCell
+                        colSpan={Math.max(1, table.getVisibleLeafColumns().length + 1)}
+                        className="text-center text-sm text-muted-foreground"
                       >
-                        {flexRender(h.column.columnDef.header, h.getContext())}
-                        {h.column.getCanResize() && (
-                          <div
-                            onMouseDown={h.getResizeHandler()}
-                            onTouchStart={h.getResizeHandler()}
-                            className={cn(
-                              "absolute right-0 top-0 z-10 flex h-full w-2.5 cursor-col-resize items-center justify-center",
-                              "touch-none select-none"
-                            )}
-                          >
-                            {h.column.id === "experiment" ? null : (
-                              <span
-                                aria-hidden
-                                className={cn(
-                                  "block h-[calc(100%-1rem)] w-px shrink-0 self-center bg-border transition-colors",
-                                  "hover:bg-muted-foreground/70",
-                                  h.column.getIsResizing() && "bg-primary"
-                                )}
-                              />
-                            )}
-                          </div>
-                        )}
-                      </TableHead>
-                    );
-                  })}
-                </TableRow>
-              ))}
-            </TableHeader>
-            <TableBody>
-              {table.getRowModel().rows.length === 0 ? (
-                <TableRow>
-                  <TableCell
-                    colSpan={Math.max(1, table.getVisibleLeafColumns().length)}
-                    className="text-center text-sm text-muted-foreground"
-                  >
-                    {rowsInReport.length === 0 && filteredRows.length > 0
-                      ? "All matching experiments are hidden. Turn on Edit mode to re-enable rows with checkboxes."
-                      : "No rows on this page. Try a different label or “include experiments without metrics”."}
-                  </TableCell>
-                </TableRow>
-              ) : (
-                table.getRowModel().rows.map((row) => {
-                  const isRowSelected = selectedExperimentId === row.original.experimentId;
-                  const expColor = row.original.experimentColor;
-                  const selectedRowStyle = isRowSelected
-                    ? getExperimentSelectionSurfaceStyle(expColor)
-                    : undefined;
-                  return (
-                    <TableRow
-                      key={row.id}
-                      data-state={isRowSelected ? "selected" : undefined}
-                      className={cn("group", isRowSelected ? "transition-colors" : undefined)}
-                      style={selectedRowStyle}
-                    >
-                      {row.getVisibleCells().map((cell) => {
-                        const pinExperiment =
-                          pinLeadColumns &&
-                          leadColumnCount >= 1 &&
-                          cell.column.id === "experiment";
-                        const layout = layoutForColumn(table, cell.column);
-                        return (
-                          <TableCell
-                            key={cell.id}
-                            className={cn(
-                              "align-top",
-                              pinExperiment && stickyExperimentCell,
-                              pinExperiment && "group-hover:bg-muted/50",
-                              layout.className
-                            )}
-                            style={
-                              pinExperiment && selectedRowStyle
-                                ? {
-                                    ...layout.style,
-                                    ...selectedRowStyle,
-                                    boxShadow: `${selectedRowStyle.boxShadow}, 4px 0 12px -8px rgba(0,0,0,0.08)`,
-                                  }
-                                : layout.style
-                            }
-                          >
-                            {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                          </TableCell>
-                        );
-                      })}
+                        {rowsInReport.length === 0 && filteredRows.length > 0
+                          ? "All matching experiments are hidden. Turn on Edit mode to re-enable rows with checkboxes."
+                          : "No rows on this page. Try a different label or “include experiments without metrics”."}
+                      </TableCell>
                     </TableRow>
-                  );
-                })
-              )}
-            </TableBody>
-          </Table>
+                  ) : (
+                    table.getRowModel().rows.map((row) => (
+                      <MetricsTableSortableRow
+                        key={row.id}
+                        row={row}
+                        table={table}
+                        isRowSelected={selectedExperimentId === row.original.experimentId}
+                        pinLeadColumns={pinLeadColumns}
+                        leadColumnCount={leadColumnCount}
+                        gripWidthPx={gripWidthPx}
+                        rowReorderDisabled={rowReorderDisabled}
+                        wrapExperimentNames={wrapExperimentNames}
+                      />
+                    ))
+                  )}
+                </TableBody>
+              </SortableContext>
+            </Table>
+          </DndContext>
         </div>
       )}
     </div>
