@@ -73,7 +73,7 @@ wheels = [
 
 [[package]]
 name = "experiment-tracker-sdk"
-version = "0.12.1"
+version = "0.12.3"
 source = { directory = "../../python/sdk" }
 dependencies = [
     { name = "click" },
@@ -106,7 +106,7 @@ provides-extras = ["dev"]
 
 [[package]]
 name = "experiment-tracker-shared"
-version = "0.12.1"
+version = "0.12.3"
 source = { editable = "../../python/shared" }
 dependencies = [
     { name = "pendulum" },

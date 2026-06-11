@@ -7,9 +7,10 @@ from typing import Any
 
 from ...console.utils.bootstrap import register_run_bootstrap_hook
 from ...console.utils.context import RunCliContext
+from ...exp_tracker import ExpTracker
 
 _defaults_registered = False
-_active_tracker: Any | None = None
+_active_tracker: ExpTracker | None = None
 _logger = logging.getLogger(__name__)
 
 
@@ -388,7 +389,7 @@ def _patch_summary_writer_module(module_name: str) -> None:
         _patch_summary_writer(writer_cls)
 
 
-def monkey_patch_tensorboard(tracker: Any | None = None) -> None:
+def monkey_patch_tensorboard(tracker: ExpTracker | None = None) -> None:
     """Patch installed TensorBoard writer implementations.
 
     Args:
