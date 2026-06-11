@@ -536,7 +536,7 @@ provides-extras = ["dev"]
 
 [[package]]
 name = "experiment-tracker-shared"
-version = "0.12.1"
+version = "0.12.2"
 source = { editable = "../shared" }
 dependencies = [
     { name = "pendulum" },

@@ -16,6 +16,14 @@ from experiment_tracker_shared.limits import (
     ENTITY_DESCRIPTION_MAX_LEN,
     ENTITY_NAME_MAX_LEN,
 )
+from experiment_tracker_shared.scalar_values import (
+    ScalarSpecial,
+    ScalarValueKind,
+    ScalarWireValue,
+    classify_scalar_wire,
+    scalar_from_wire,
+    scalar_to_wire,
+)
 from experiment_tracker_shared.sqlalchemy_types import UtcNaiveDateTime
 
 __all__ = [
@@ -29,5 +37,11 @@ __all__ = [
     "to_json_utc_z",
     "utc_naive_for_clickhouse_insert",
     "utc_now_naive",
+    "ScalarSpecial",
+    "ScalarValueKind",
+    "ScalarWireValue",
     "UtcNaiveDateTime",
+    "classify_scalar_wire",
+    "scalar_from_wire",
+    "scalar_to_wire",
 ]

@@ -22,7 +22,7 @@ interface MultiHoverRow {
   experimentName: string;
   step: number;
   /** Raw logged value shown in the tooltip */
-  value: number;
+  value: ScalarWireValue;
   /** Smoothed value used only for ordering rows when smoothing is on */
   sortValue: number;
   color: string;
@@ -65,8 +65,17 @@ import type {
   ScalarHoverMode,
   ScalarPointSelection,
   ScalarPointValue,
+  ScalarWireValue,
 } from "@/domain/scalars/types";
 import { CHART_COLORS } from "@/domain/scalars/constants";
+import {
+  buildScalarPlotSeries,
+  markerSymbolForScalarMarker,
+} from "@/domain/scalars/utils/scalar-plot-series";
+import {
+  formatScalarWireForDisplay,
+  isFiniteScalarValue,
+} from "@/domain/scalars/utils/scalar-value";
 
 export interface MetricChartProps {
   metricName: string;
@@ -122,45 +131,66 @@ export function MetricChart({
     selectedExperiments.forEach((experiment) => {
       const originalIndex = allExperiments.findIndex((item) => item.id === experiment.id);
       const experimentColor = experiment.color || CHART_COLORS[originalIndex % CHART_COLORS.length];
-      const xValues: number[] = [];
-      const originalValues: number[] = [];
-      const smoothedValues: number[] = [];
-      const customData: Array<[string, string, string, number, number, number, string, string, string, string, string]> = [];
+      const plotPoints = data
+        .map((point) => {
+          const value = normalizePointValue(point[experiment.id]);
+          if (!value) {
+            return null;
+          }
+          return {
+            step: point.step,
+            original: value.original,
+            smoothed: value.smoothed,
+          };
+        })
+        .filter((point): point is { step: number; original: ScalarWireValue; smoothed: ScalarWireValue } => point !== null);
 
-      data.forEach((point) => {
-        const step = point.step;
-        const rawValue = point[experiment.id];
-        const value = normalizePointValue(rawValue);
-        if (value) {
-          xValues.push(step);
-          originalValues.push(value.original);
-          smoothedValues.push(value.smoothed);
-          customData.push([
+      const originalSeries = buildScalarPlotSeries(
+        plotPoints.map((point) => ({ step: point.step, value: point.original }))
+      );
+      const smoothedSeries = buildScalarPlotSeries(
+        plotPoints.map((point) => ({ step: point.step, value: point.smoothed }))
+      );
+      const activeSeries = smoothing > 0 ? smoothedSeries : originalSeries;
+
+      const plotPointByStep = new Map(plotPoints.map((point) => [point.step, point]));
+      const buildCustomData = (lineX: number[], lineY: Array<number | null>) =>
+        lineX.map((step, index) => {
+          const point = plotPointByStep.get(step);
+          const activeValue =
+            smoothing > 0 ? point?.smoothed : point?.original;
+          const displayValue =
+            lineY[index] === null || activeValue === undefined
+              ? "—"
+              : formatScalarWireForDisplay(activeValue);
+          return [
             experiment.id,
             experiment.name,
             metricName,
-            value.original,
-            value.smoothed,
+            point?.original ?? activeValue ?? "—",
+            point?.smoothed ?? activeValue ?? "—",
             step,
             experimentColor,
             padColumn(truncateName(experiment.name, hoverNameColumnWidth), hoverNameColumnWidth),
             padColumn(String(step), 4, "left"),
-            padColumn(formatScalarValue(value.original), 8, "left"),
+            padColumn(displayValue, 8, "left"),
             truncateName(experiment.name, hoverNameMaxLength),
-          ]);
-        }
-      });
+          ];
+        });
 
-      const mode = xValues.length <= dotThreshold ? "lines+markers" : "lines";
-      if (smoothing > 0) {
+      const finitePointCount = plotPoints.filter((point) => isFiniteScalarValue(point.original)).length;
+      const mode = finitePointCount <= dotThreshold ? "lines+markers" : "lines";
+
+      if (smoothing > 0 && originalSeries.line.x.length > 0) {
         traces.push({
-          x: xValues,
-          y: originalValues,
-          customdata: customData,
+          x: originalSeries.line.x,
+          y: originalSeries.line.y,
+          customdata: buildCustomData(originalSeries.line.x, originalSeries.line.y),
           type: "scatter",
           mode,
           name: `${experiment.name} original`,
           opacity: 0.24,
+          connectgaps: false,
           line: {
             color: experimentColor,
             width: isFullscreen ? 1.5 : 1,
@@ -173,24 +203,44 @@ export function MetricChart({
         });
       }
 
-      traces.push({
-        x: xValues,
-        y: smoothing > 0 ? smoothedValues : originalValues,
-        customdata: customData,
-        type: "scatter",
-        mode,
-        name: experiment.name,
-        line: {
-          color: experimentColor,
-          width: isFullscreen ? 2 : 1.5,
-        },
-        marker: {
-          color: experimentColor,
-          size: isFullscreen ? 5 : 4,
-        },
-        hoverinfo: hoverMode === "compare" ? "none" : undefined,
-        hovertemplate: hoverMode === "compare" ? undefined : hoverTemplate(hoverMode),
-      });
+      if (activeSeries.line.x.length > 0) {
+        traces.push({
+          x: activeSeries.line.x,
+          y: activeSeries.line.y,
+          customdata: buildCustomData(activeSeries.line.x, activeSeries.line.y),
+          type: "scatter",
+          mode,
+          name: experiment.name,
+          connectgaps: false,
+          line: {
+            color: experimentColor,
+            width: isFullscreen ? 2 : 1.5,
+          },
+          marker: {
+            color: experimentColor,
+            size: isFullscreen ? 5 : 4,
+          },
+          hoverinfo: hoverMode === "compare" ? "none" : undefined,
+          hovertemplate: hoverMode === "compare" ? undefined : hoverTemplate(hoverMode),
+        });
+      }
+
+      if (activeSeries.markers.length > 0) {
+        traces.push({
+          x: activeSeries.markers.map((marker) => marker.step),
+          y: activeSeries.markers.map((marker) => marker.y),
+          type: "scatter",
+          mode: "markers",
+          name: `${experiment.name} non-finite`,
+          showlegend: false,
+          marker: {
+            color: experimentColor,
+            size: isFullscreen ? 9 : 7,
+            symbol: activeSeries.markers.map((marker) => markerSymbolForScalarMarker(marker)),
+          },
+          hoverinfo: "skip",
+        });
+      }
     });
     return traces;
   }, [allExperiments, data, dotThreshold, hoverMode, hoverNameMaxLength, isFullscreen, metricName, selectedExperiments, smoothing]);
@@ -266,8 +316,8 @@ export function MetricChart({
       typeof experimentId !== "string" ||
       typeof experimentName !== "string" ||
       typeof pointMetricName !== "string" ||
-      typeof originalValue !== "number" ||
-      typeof smoothedValue !== "number" ||
+      (typeof originalValue !== "number" && typeof originalValue !== "string") ||
+      (typeof smoothedValue !== "number" && typeof smoothedValue !== "string") ||
       typeof step !== "number"
     ) {
       return;
@@ -464,21 +514,24 @@ function buildMultiHoverState(
         typeof experimentName !== "string" ||
         typeof color !== "string" ||
         typeof step !== "number" ||
-        typeof originalValue !== "number" ||
-        typeof smoothedValue !== "number" ||
+        (typeof originalValue !== "number" && typeof originalValue !== "string") ||
+        (typeof smoothedValue !== "number" && typeof smoothedValue !== "string") ||
         !Number.isFinite(sortValue)
       ) {
         return null;
       }
+      const displayValue = typeof originalValue === "number" || typeof originalValue === "string"
+        ? originalValue
+        : smoothedValue;
       return {
         experimentName,
         step,
-        value: originalValue,
+        value: displayValue,
         sortValue,
         color,
         displayName: padColumn(truncateName(experimentName, hoverNameMaxLength), hoverNameMaxLength),
         displayStep: padColumn(String(step), 4, "left"),
-        displayValue: padColumn(formatScalarValue(originalValue), 8, "left"),
+        displayValue: padColumn(formatScalarWireForDisplay(displayValue), 8, "left"),
       };
     })
     .filter((row): row is MultiHoverRow => row !== null)
@@ -557,13 +610,22 @@ function findPlotlyGraphElement(target: EventTarget | null): Element | null {
   return target.closest(".js-plotly-plot");
 }
 
+function isScalarWireValue(value: unknown): value is ScalarWireValue {
+  return (
+    typeof value === "number" ||
+    value === "nan" ||
+    value === "inf" ||
+    value === "-inf"
+  );
+}
+
 function normalizePointValue(
-  value: number | ScalarPointValue | null | undefined
+  value: ScalarWireValue | ScalarPointValue | null | undefined
 ): ScalarPointValue | null {
-  if (typeof value === "number") {
+  if (isScalarWireValue(value)) {
     return { original: value, smoothed: value };
   }
-  if (!value || typeof value.original !== "number" || typeof value.smoothed !== "number") {
+  if (!value || !isScalarWireValue(value.original) || !isScalarWireValue(value.smoothed)) {
     return null;
   }
   return value;
@@ -573,7 +635,7 @@ function hoverTemplate(hoverMode: ScalarHoverMode): string {
   if (hoverMode === "nearest") {
     return (
       "<span style='color:%{customdata[6]};font-weight:700'>━━━━</span> " +
-      "%{customdata[10]} %{customdata[5]} %{customdata[3]:.6g}<extra></extra>"
+      "%{customdata[10]} %{customdata[5]} %{customdata[9]}<extra></extra>"
     );
   }
   return "%{customdata[7]} %{customdata[8]} %{customdata[9]}<extra></extra>";
@@ -595,8 +657,8 @@ function padColumn(value: string, width: number, align: "left" | "right" = "righ
   return align === "left" ? `${padding}${value}` : `${value}${padding}`;
 }
 
-function formatScalarValue(value: number): string {
-  return Number.isInteger(value) ? String(value) : value.toPrecision(6);
+function formatScalarValue(value: ScalarWireValue): string {
+  return formatScalarWireForDisplay(value);
 }
 
 function getValueColumnWidths(rows: MultiHoverRow[]): ValueColumnWidths {
@@ -609,7 +671,7 @@ function getValueColumnWidths(rows: MultiHoverRow[]): ValueColumnWidths {
   };
 }
 
-function formatScalarValueForColumn(value: number, widths: ValueColumnWidths): string {
+function formatScalarValueForColumn(value: ScalarWireValue, widths: ValueColumnWidths): string {
   const part = splitScalarValue(formatScalarValue(value));
   const integer = padColumn(part.integer, widths.integer, "left");
   const decimal = widths.hasDecimal ? "." : "";

@@ -6,6 +6,7 @@ from typing import Any
 from uuid import UUID
 
 from experiment_tracker_shared.datetime_utc import to_json_utc_z
+from experiment_tracker_shared.scalar_values import ScalarWireValue
 from pydantic import BaseModel, Field
 
 from lib.datetime_types import ApiDateTime
@@ -104,7 +105,7 @@ class ScalarsDropStorageTableResponseDTO(BaseModel):
 class LogScalarRequestDTO(BaseModel):
     model_config = model_config()
 
-    scalars: dict[str, float]
+    scalars: dict[str, ScalarWireValue]
     step: int
     tags: list[str] | None = None
 
@@ -120,7 +121,7 @@ class LogScalarResponseDTO(BaseModel):
 
 class ScalarSeriesDTO(BaseModel):
     x: list[int]
-    y: list[float]
+    y: list[ScalarWireValue]
 
 
 class StepTagsDTO(BaseModel):

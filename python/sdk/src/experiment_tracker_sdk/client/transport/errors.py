@@ -30,5 +30,5 @@ def convert_payload_to_json(
 ) -> dict[str, Any] | None:
     """Normalize ``ApiRequestSpec.request_payload`` to a JSON-serializable dict."""
     if isinstance(payload, BaseModel):
-        return payload.model_dump(exclude_unset=True)
+        return payload.model_dump(mode="json", exclude_unset=True)
     return payload

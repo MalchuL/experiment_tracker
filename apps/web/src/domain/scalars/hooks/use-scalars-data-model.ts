@@ -95,12 +95,13 @@ export function useScalarsDataModel({
           const existing = stepMap.get(step) || { step };
           const original = series.y[i];
           const smoothed = smoothedValues[i];
-          if (original !== undefined && smoothed !== undefined) {
-            existing[experiment.id] = {
-              original,
-              smoothed,
-            } satisfies ScalarPointValue;
+          if (original === undefined || smoothed === undefined) {
+            return;
           }
+          existing[experiment.id] = {
+            original,
+            smoothed,
+          } satisfies ScalarPointValue;
           stepMap.set(step, existing);
         });
       });

@@ -1,11 +1,23 @@
-export function applySmoothing(data: number[], weight: number): number[] {
+import type { ScalarWireValue } from "@/domain/scalars/types";
+import { isFiniteScalarValue } from "@/domain/scalars/utils/scalar-value";
+
+export function applySmoothing(data: ScalarWireValue[], weight: number): ScalarWireValue[] {
   if (weight === 0 || data.length === 0) return data;
-  const smoothed: number[] = [];
-  let last = data[0];
+  const smoothed: ScalarWireValue[] = [];
+  let lastFinite: number | null = null;
   for (const value of data) {
-    const smoothedValue = last * weight + value * (1 - weight);
+    if (!isFiniteScalarValue(value)) {
+      smoothed.push(value);
+      continue;
+    }
+    if (lastFinite === null) {
+      smoothed.push(value);
+      lastFinite = value;
+      continue;
+    }
+    const smoothedValue = lastFinite * weight + value * (1 - weight);
     smoothed.push(smoothedValue);
-    last = smoothedValue;
+    lastFinite = smoothedValue;
   }
   return smoothed;
 }

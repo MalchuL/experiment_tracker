@@ -1,5 +1,7 @@
 from datetime import datetime
-from pydantic import BaseModel
+
+from experiment_tracker_shared.scalar_values import ScalarWireValue, scalar_to_wire
+from pydantic import BaseModel, field_serializer
 
 from ...pagination import PaginatedResponse
 
@@ -12,7 +14,7 @@ class StepTagsResponse(BaseModel):
 
 class ScalarSeriesResponse(BaseModel):
     x: list[int]
-    y: list[float]
+    y: list[ScalarWireValue]
 
 
 class ExperimentScalarsPointsResponse(BaseModel):
@@ -29,6 +31,12 @@ class LogScalarRequest(BaseModel):
     scalars: dict[str, float]
     step: int
     tags: list[str] | None = None
+
+    @field_serializer("scalars")
+    def _serialize_scalars(
+        self, scalars: dict[str, float]
+    ) -> dict[str, ScalarWireValue]:
+        return {name: scalar_to_wire(value) for name, value in scalars.items()}
 
 
 class LogScalarsRequest(BaseModel):

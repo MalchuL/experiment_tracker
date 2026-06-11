@@ -12,6 +12,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { ScalarPointSelection } from "@/domain/scalars/types";
+import { formatScalarWireForDisplay } from "@/domain/scalars/utils/scalar-value";
 
 interface CreateMetricFromPointDialogProps {
   point: ScalarPointSelection | null;
@@ -40,7 +41,7 @@ export function CreateMetricFromPointDialog({
   useEffect(() => {
     if (!point || !open) return;
     setName(point.metricName);
-    setValue(String(point.originalValue));
+    setValue(formatScalarWireForDisplay(point.originalValue));
     setLabel("");
   }, [open, point]);
 
