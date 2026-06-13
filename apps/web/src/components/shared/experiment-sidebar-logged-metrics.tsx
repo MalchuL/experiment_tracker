@@ -1,20 +1,25 @@
 "use client";
 
-import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react";
+import { useEffect, useMemo, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import * as AccordionPrimitive from "@radix-ui/react-accordion";
-import { ChevronDown, GitCompare, Plus, X } from "lucide-react";
+import { ChevronDown, GitCompare, Maximize2, PencilLine, Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Accordion,
   AccordionContent,
   AccordionItem,
 } from "@/components/ui/accordion";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Switch } from "@/components/ui/switch";
 import {
   LoggedMetricAddDialog,
   type LoggedMetricAddDialogMode,
@@ -230,6 +235,245 @@ function SidebarEditableMetricValue({
   );
 }
 
+type LoggedMetricsListProps = {
+  loggedMetricsByLabel: LoggedMetricsLabelGroup[];
+  openAccordionKeys: string[];
+  onOpenAccordionKeysChange: (nextOpen: string[]) => void;
+  hasParentLoggedMetrics: boolean;
+  editMode: boolean;
+  renderLoggedMetricRow: (loggedMetric: Metric) => ReactNode;
+  onAddToGroup: (groupLabel: string | null) => void;
+};
+
+function LoggedMetricsList({
+  loggedMetricsByLabel,
+  openAccordionKeys,
+  onOpenAccordionKeysChange,
+  hasParentLoggedMetrics,
+  editMode,
+  renderLoggedMetricRow,
+  onAddToGroup,
+}: LoggedMetricsListProps) {
+  if (loggedMetricsByLabel.length === 0) {
+    return <p className="py-2 text-center text-sm text-muted-foreground">No metrics logged yet</p>;
+  }
+
+  return (
+    <Accordion
+      type="multiple"
+      className="w-full"
+      value={openAccordionKeys}
+      onValueChange={onOpenAccordionKeysChange}
+    >
+      {loggedMetricsByLabel.map((labelGroup) => {
+        const accordionItemValue = accordionItemValueForLoggedLabelGroup(labelGroup.label);
+        const groupTitle =
+          labelGroup.label != null && labelGroup.label !== "" ? labelGroup.label : "Unlabeled";
+
+        return (
+          <AccordionItem
+            key={accordionItemValue}
+            value={accordionItemValue}
+            className="border-border last:border-b-0"
+          >
+            <AccordionPrimitive.Header className="flex items-center gap-1">
+              <AccordionPrimitive.Trigger
+                className={cn(
+                  "flex flex-1 items-center justify-between gap-2 py-2 text-xs font-medium text-muted-foreground transition-all hover:no-underline [&[data-state=open]>svg]:rotate-180"
+                )}
+              >
+                <span className="min-w-0 flex-1 truncate text-left">{groupTitle}</span>
+                <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-200" />
+              </AccordionPrimitive.Trigger>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-4 w-4 shrink-0 text-muted-foreground hover:text-foreground"
+                aria-label={
+                  labelGroup.label != null
+                    ? `Add metric under label ${labelGroup.label}`
+                    : "Add unlabeled metric"
+                }
+                title={
+                  labelGroup.label != null
+                    ? `Add metric under ${labelGroup.label}`
+                    : "Add unlabeled metric"
+                }
+                data-testid={`button-add-metric-group-${labelGroup.label ?? "unlabeled"}`}
+                onClick={() => onAddToGroup(labelGroup.label)}
+              >
+                <Plus className="h-4 w-4" />
+              </Button>
+            </AccordionPrimitive.Header>
+            <AccordionContent className="pb-2 pt-0">
+              <div className={loggedMetricRowGroupTableClass(hasParentLoggedMetrics, editMode)}>
+                {labelGroup.items.map((loggedMetric) => renderLoggedMetricRow(loggedMetric))}
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+        );
+      })}
+    </Accordion>
+  );
+}
+
+type LoggedMetricsHeaderActionsProps = {
+  hasParentLoggedMetrics: boolean;
+  showLoggedMetricDiffs: boolean;
+  onToggleDiffs: () => void;
+  onAddNewLabel: () => void;
+  editMode: boolean;
+  onToggleEditMode: () => void;
+  includeExpand?: boolean;
+  onExpand?: () => void;
+  expandTestId?: string;
+  headerActionsClassName?: string;
+};
+
+function LoggedMetricsHeaderActions({
+  hasParentLoggedMetrics,
+  showLoggedMetricDiffs,
+  onToggleDiffs,
+  onAddNewLabel,
+  editMode,
+  onToggleEditMode,
+  includeExpand = false,
+  onExpand,
+  expandTestId = "button-expand-logged-metrics",
+  headerActionsClassName,
+}: LoggedMetricsHeaderActionsProps) {
+  return (
+    <div className={cn("flex shrink-0 items-center gap-2", headerActionsClassName)}>
+      {hasParentLoggedMetrics ? (
+        <Button
+          type="button"
+          variant={showLoggedMetricDiffs ? "default" : "outline"}
+          size="icon"
+          className="h-8 w-8 shrink-0"
+          onClick={onToggleDiffs}
+          aria-pressed={showLoggedMetricDiffs}
+          aria-label={
+            showLoggedMetricDiffs
+              ? "Hide diffs for non-tracked metrics"
+              : "Show diffs for non-tracked metrics"
+          }
+          title={
+            showLoggedMetricDiffs
+              ? "Hide diffs for non-tracked metrics"
+              : "Show diffs for non-tracked metrics"
+          }
+          data-testid="button-logged-metrics-diffs"
+        >
+          <GitCompare className="h-3.5 w-3.5" />
+        </Button>
+      ) : null}
+      {includeExpand && onExpand ? (
+        <Button
+          type="button"
+          variant="outline"
+          size="icon"
+          className="h-8 w-8 shrink-0"
+          onClick={onExpand}
+          aria-label="Expand logged metrics"
+          title="Expand logged metrics"
+          data-testid={expandTestId}
+        >
+          <Maximize2 className="h-3.5 w-3.5" />
+        </Button>
+      ) : null}
+      <Button
+        type="button"
+        size="icon"
+        variant="outline"
+        className="h-8 w-8 shrink-0"
+        onClick={onAddNewLabel}
+        data-testid="button-add-metric-label"
+        aria-label="Add label & metric"
+        title="Add label & metric"
+      >
+        <Plus className="h-3.5 w-3.5" />
+      </Button>
+      <Button
+        type="button"
+        variant={editMode ? "default" : "outline"}
+        size="icon"
+        className="h-8 w-8 shrink-0"
+        onClick={onToggleEditMode}
+        aria-pressed={editMode}
+        aria-label={editMode ? "Stop editing existing metrics" : "Edit existing metrics"}
+        title={editMode ? "Stop editing existing metrics" : "Edit existing metrics"}
+        data-testid="switch-sidebar-logged-metrics-edit-mode"
+      >
+        <PencilLine className="h-3.5 w-3.5" />
+      </Button>
+    </div>
+  );
+}
+
+function LoggedMetricsExpandedModal({
+  open,
+  onOpenChange,
+  loggedMetricsByLabel,
+  openAccordionKeys,
+  onOpenAccordionKeysChange,
+  hasParentLoggedMetrics,
+  editMode,
+  renderLoggedMetricRow,
+  onAddToGroup,
+  showLoggedMetricDiffs,
+  onToggleDiffs,
+  onAddNewLabel,
+  onToggleEditMode,
+}: LoggedMetricsListProps &
+  Pick<
+    LoggedMetricsHeaderActionsProps,
+    | "hasParentLoggedMetrics"
+    | "showLoggedMetricDiffs"
+    | "onToggleDiffs"
+    | "onAddNewLabel"
+    | "editMode"
+    | "onToggleEditMode"
+  > & {
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+  }) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="flex h-[min(60rem,calc(100dvh-1rem))] max-w-[min(64rem,calc(100vw-2rem))] flex-col gap-3 p-0">
+        <DialogHeader className="border-b px-4 py-3">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <DialogTitle>Logged Metrics</DialogTitle>
+              <DialogDescription>Expanded logged metrics for this experiment.</DialogDescription>
+            </div>
+            <LoggedMetricsHeaderActions
+              hasParentLoggedMetrics={hasParentLoggedMetrics}
+              showLoggedMetricDiffs={showLoggedMetricDiffs}
+              onToggleDiffs={onToggleDiffs}
+              onAddNewLabel={onAddNewLabel}
+              editMode={editMode}
+              onToggleEditMode={onToggleEditMode}
+              headerActionsClassName="mr-6"
+            />
+          </div>
+        </DialogHeader>
+        <div className="min-h-0 flex-1 overflow-auto px-4 pb-4">
+          <LoggedMetricsList
+            loggedMetricsByLabel={loggedMetricsByLabel}
+            openAccordionKeys={openAccordionKeys}
+            onOpenAccordionKeysChange={onOpenAccordionKeysChange}
+            hasParentLoggedMetrics={hasParentLoggedMetrics}
+            editMode={editMode}
+            renderLoggedMetricRow={renderLoggedMetricRow}
+            onAddToGroup={onAddToGroup}
+          />
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export function ExperimentSidebarLoggedMetrics({
   experimentId,
   projectId,
@@ -258,6 +502,7 @@ export function ExperimentSidebarLoggedMetrics({
   const [showLoggedMetricDiffs, setShowLoggedMetricDiffs] = useState(() =>
     readStoredLoggedMetricDiffsEnabled(true)
   );
+  const [expandedOpen, setExpandedOpen] = useState(false);
 
   useEffect(() => {
     writeStoredLoggedMetricDiffsEnabled(showLoggedMetricDiffs);
@@ -284,6 +529,12 @@ export function ExperimentSidebarLoggedMetrics({
     () => loggedMetricAccordionKeys.filter((key) => !collapsedAccordionKeys.includes(key)),
     [loggedMetricAccordionKeys, collapsedAccordionKeys]
   );
+
+  const handleOpenAccordionKeysChange = (nextOpen: string[]) => {
+    setCollapsedAccordionKeys(
+      loggedMetricAccordionKeys.filter((key) => !nextOpen.includes(key))
+    );
+  };
 
   const hasParentLoggedMetrics = (parentLoggedMetrics?.length ?? 0) > 0;
 
@@ -487,125 +738,45 @@ export function ExperimentSidebarLoggedMetrics({
           <CardTitle className="min-w-0 truncate text-xs font-medium text-muted-foreground">
             Logged Metrics
           </CardTitle>
-          {hasParentLoggedMetrics ? (
-            <Button
-              type="button"
-              variant={showLoggedMetricDiffs ? "default" : "outline"}
-              size="icon"
-              className="h-8 w-8 shrink-0"
-              onClick={() => setShowLoggedMetricDiffs((enabled) => !enabled)}
-              aria-pressed={showLoggedMetricDiffs}
-              aria-label={
-                showLoggedMetricDiffs
-                  ? "Hide diffs for non-tracked metrics"
-                  : "Show diffs for non-tracked metrics"
-              }
-              title={
-                showLoggedMetricDiffs
-                  ? "Hide diffs for non-tracked metrics"
-                  : "Show diffs for non-tracked metrics"
-              }
-              data-testid="button-logged-metrics-diffs"
-            >
-              <GitCompare className="h-3.5 w-3.5" />
-            </Button>
-          ) : null}
+          <LoggedMetricsHeaderActions
+            hasParentLoggedMetrics={hasParentLoggedMetrics}
+            showLoggedMetricDiffs={showLoggedMetricDiffs}
+            onToggleDiffs={() => setShowLoggedMetricDiffs((enabled) => !enabled)}
+            onAddNewLabel={openAddNewLabel}
+            editMode={editMode}
+            onToggleEditMode={() => setEditMode((enabled) => !enabled)}
+            includeExpand
+            onExpand={() => setExpandedOpen(true)}
+          />
         </CardHeader>
         <CardContent className="space-y-3 px-3 pb-3 pt-0">
-          {loggedMetricsByLabel.length === 0 ? (
-            <p className="py-2 text-center text-sm text-muted-foreground">No metrics logged yet</p>
-          ) : (
-            <Accordion
-              type="multiple"
-              className="w-full"
-              value={openAccordionKeys}
-              onValueChange={(nextOpen) =>
-                setCollapsedAccordionKeys(
-                  loggedMetricAccordionKeys.filter((key) => !nextOpen.includes(key))
-                )
-              }
-            >
-              {loggedMetricsByLabel.map((labelGroup) => {
-                const accordionItemValue = accordionItemValueForLoggedLabelGroup(labelGroup.label);
-                const groupTitle =
-                  labelGroup.label != null && labelGroup.label !== ""
-                    ? labelGroup.label
-                    : "Unlabeled";
-
-                return (
-                  <AccordionItem
-                    key={accordionItemValue}
-                    value={accordionItemValue}
-                    className="border-border last:border-b-0"
-                  >
-                    <AccordionPrimitive.Header className="flex items-center gap-1">
-                      <AccordionPrimitive.Trigger
-                        className={cn(
-                          "flex flex-1 items-center justify-between gap-2 py-2 text-xs font-medium text-muted-foreground transition-all hover:no-underline [&[data-state=open]>svg]:rotate-180"
-                        )}
-                      >
-                        <span className="min-w-0 flex-1 truncate text-left">{groupTitle}</span>
-                        <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-200" />
-                      </AccordionPrimitive.Trigger>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="h-4 w-4 shrink-0 text-muted-foreground hover:text-foreground"
-                        aria-label={
-                          labelGroup.label != null
-                            ? `Add metric under label ${labelGroup.label}`
-                            : "Add unlabeled metric"
-                        }
-                        title={
-                          labelGroup.label != null
-                            ? `Add metric under ${labelGroup.label}`
-                            : "Add unlabeled metric"
-                        }
-                        data-testid={`button-add-metric-group-${labelGroup.label ?? "unlabeled"}`}
-                        onClick={() => openAddToGroup(labelGroup.label)}
-                      >
-                        <Plus className="h-4 w-4" />
-                      </Button>
-                    </AccordionPrimitive.Header>
-                    <AccordionContent className="pb-2 pt-0">
-                      <div
-                        className={loggedMetricRowGroupTableClass(hasParentLoggedMetrics, editMode)}
-                      >
-                        {labelGroup.items.map((loggedMetric) => renderLoggedMetricRow(loggedMetric))}
-                      </div>
-                    </AccordionContent>
-                  </AccordionItem>
-                );
-              })}
-            </Accordion>
-          )}
-
-          <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-t border-border/50 pt-3">
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="h-8 text-xs"
-              onClick={openAddNewLabel}
-              data-testid="button-add-metric-label"
-            >
-              Add label & metric
-            </Button>
-            <div className="flex items-center gap-2">
-              <Switch
-                id="sidebar-logged-metrics-edit-mode"
-                checked={editMode}
-                onCheckedChange={setEditMode}
-                data-testid="switch-sidebar-logged-metrics-edit-mode"
-              />
-              <Label htmlFor="sidebar-logged-metrics-edit-mode" className="text-sm font-normal">
-                Edit existing metrics
-              </Label>
-            </div>
-          </div>
+          <LoggedMetricsList
+            loggedMetricsByLabel={loggedMetricsByLabel}
+            openAccordionKeys={openAccordionKeys}
+            onOpenAccordionKeysChange={handleOpenAccordionKeysChange}
+            hasParentLoggedMetrics={hasParentLoggedMetrics}
+            editMode={editMode}
+            renderLoggedMetricRow={renderLoggedMetricRow}
+            onAddToGroup={openAddToGroup}
+          />
         </CardContent>
       </Card>
+
+      <LoggedMetricsExpandedModal
+        open={expandedOpen}
+        onOpenChange={setExpandedOpen}
+        loggedMetricsByLabel={loggedMetricsByLabel}
+        openAccordionKeys={openAccordionKeys}
+        onOpenAccordionKeysChange={handleOpenAccordionKeysChange}
+        hasParentLoggedMetrics={hasParentLoggedMetrics}
+        editMode={editMode}
+        renderLoggedMetricRow={renderLoggedMetricRow}
+        onAddToGroup={openAddToGroup}
+        showLoggedMetricDiffs={showLoggedMetricDiffs}
+        onToggleDiffs={() => setShowLoggedMetricDiffs((enabled) => !enabled)}
+        onAddNewLabel={openAddNewLabel}
+        onToggleEditMode={() => setEditMode((enabled) => !enabled)}
+      />
 
       <LoggedMetricAddDialog
         open={addOpen}
