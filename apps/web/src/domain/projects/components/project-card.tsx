@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { format, parseISO } from "date-fns";
 import { Card, CardContent } from "@/components/ui/card";
-import { FolderKanban, FlaskConical, Lightbulb, Calendar } from "lucide-react";
+import { FolderKanban, FlaskConical, /* Lightbulb, */ Calendar } from "lucide-react";
 import type { Project } from "@/domain/projects/types";
 import { FRONTEND_ROUTES } from "@/lib/constants/frontend-routes";
 
@@ -44,10 +44,10 @@ export function ProjectCard({ project }: ProjectCardProps) {
               <FlaskConical className="w-3 h-3" />
               <span>{project.experimentCount} experiments</span>
             </div>
-            <div className="flex items-center gap-1">
+            {/* <div className="flex items-center gap-1">
               <Lightbulb className="w-3 h-3" />
               <span>{project.hypothesisCount} hypotheses</span>
-            </div>
+            </div> */}
           </div>
 
           <div className="flex items-center gap-1 text-xs text-muted-foreground mt-3 pt-3 border-t">

@@ -1,6 +1,6 @@
 # Projects
 
-Projects group experiments, metrics, hypotheses, and settings for one research effort.
+Projects group experiments, metrics, and settings for one research effort.
 
 ## Creating and opening
 

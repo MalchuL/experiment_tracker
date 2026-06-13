@@ -48,4 +48,3 @@ Reports are still under development. The current implementation persists JSON do
 
 - [Experiments](/docs/domains/experiments)
 - [Metrics](/docs/domains/metrics)
-- [Hypotheses](/docs/domains/hypotheses)

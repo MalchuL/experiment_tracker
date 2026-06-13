@@ -1,6 +1,6 @@
 # Projects
 
-Projects are the main workspace unit for experiments. A project owns experiments, project settings, tracked/display metric configuration, members, hypotheses, reports, and project-level storage.
+Projects are the main workspace unit for experiments. A project owns experiments, project settings, tracked/display metric configuration, members, reports, and project-level storage.
 
 ## Project fields
 
@@ -12,7 +12,6 @@ Projects are the main workspace unit for experiments. A project owns experiments
 | `team` | Optional owning team. |
 | `owner` | User who owns the project. |
 | `experimentCount` | Number of experiments. |
-| `hypothesisCount` | Number of hypotheses. |
 | `metrics` | Tracked and displayed metric config. |
 | `settings` | Typed project settings. |
 

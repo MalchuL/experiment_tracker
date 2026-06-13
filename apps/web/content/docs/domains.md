@@ -14,7 +14,6 @@ Experiment Tracker is organized around a small set of product domains. Projects 
 | Experiments -> Metrics | Runs store comparison values. |
 | Experiments -> Artifacts | Runs store at-step and final files. |
 | Projects -> Artifacts | Projects can store shared CAS artifacts and snapshots. |
-| Projects -> Hypotheses | Hypotheses describe project-scoped research claims. |
 | Projects -> Reports | Reports summarize project results and decisions. |
 
 ## Pages
@@ -27,7 +26,6 @@ Experiment Tracker is organized around a small set of product domains. Projects 
 - [Scalars](/docs/domains/scalars) — time-series values for plots and training progress.
 - [Metrics](/docs/domains/metrics) — final or comparison values, labels, project metric settings, and UI display.
 - [Artifacts](/docs/domains/artifacts) — at-step outputs, final experiment artifacts, and project CAS artifacts.
-- [Hypotheses](/docs/domains/hypotheses) — project-scoped research claims and target metrics.
 - [Reports](/docs/domains/reports) — project report documents for summarizing experiment results.
 
 ## What to use where

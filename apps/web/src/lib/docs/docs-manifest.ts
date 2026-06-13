@@ -31,7 +31,7 @@ export const DOCS_MANIFEST: DocManifestEntry[] = [
   {
     path: "domains",
     title: "Domains",
-    description: "Product concepts: users, teams, projects, experiments, scalars, metrics, artifacts, reports, and hypotheses.",
+    description: "Product concepts: users, teams, projects, experiments, scalars, metrics, artifacts, and reports.",
   },
   {
     path: "domains/artifacts",
@@ -42,11 +42,6 @@ export const DOCS_MANIFEST: DocManifestEntry[] = [
     path: "domains/experiments",
     title: "Experiments",
     description: "Concrete runs: status, progress, colors, tags, parents, feature trees, and owned data.",
-  },
-  {
-    path: "domains/hypotheses",
-    title: "Hypotheses",
-    description: "Project-scoped research claims, target metrics, statuses, and current limitations.",
   },
   {
     path: "domains/metrics",

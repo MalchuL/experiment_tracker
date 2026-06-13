@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/sidebar";
 import {
   FlaskConical,
-  Lightbulb,
+  // Lightbulb,
   KanbanSquare,
   GitBranch,
   Settings,
@@ -52,11 +52,11 @@ const getProjectItems = (projectId: string) => [
     url: FRONTEND_ROUTES.PROJECT_PAGES.REPORTS(projectId),
     icon: FileText,
   },
-  {
-    title: "Hypotheses",
-    url: FRONTEND_ROUTES.PROJECT_PAGES.HYPOTHESES(projectId),
-    icon: Lightbulb,
-  },
+  // {
+  //   title: "Hypotheses",
+  //   url: FRONTEND_ROUTES.PROJECT_PAGES.HYPOTHESES(projectId),
+  //   icon: Lightbulb,
+  // },
   {
     title: "Kanban",
     url: FRONTEND_ROUTES.PROJECT_PAGES.KANBAN(projectId),

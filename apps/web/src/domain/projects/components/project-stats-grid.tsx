@@ -1,5 +1,5 @@
 import { StatCard } from "@/components/shared/stat-card";
-import { FolderKanban, FlaskConical, Lightbulb, TrendingUp } from "lucide-react";
+import { FolderKanban, FlaskConical, /* Lightbulb, */ TrendingUp } from "lucide-react";
 import type { DashboardStats } from "../types";
 
 interface ProjectStatsGridProps {
@@ -21,12 +21,12 @@ export function ProjectStatsGrid({ stats }: ProjectStatsGridProps) {
         icon={FlaskConical}
         description={`${stats?.runningExperiments ?? 0} currently running`}
       />
-      <StatCard
+      {/* <StatCard
         title="Hypotheses"
         value={stats?.totalHypotheses ?? 0}
         icon={Lightbulb}
         description={`${stats?.supportedHypotheses ?? 0} supported`}
-      />
+      /> */}
       <StatCard
         title="Success Rate"
         value={

@@ -6,7 +6,7 @@ Welcome to **ResearchTrack**. This guide covers the basics of working in the web
 
 ## Projects
 
-Open **Projects** from the sidebar or the top navigation to see every project you can access. Create a project from the workspace view, then open it to manage experiments, metrics, hypotheses, and more.
+Open **Projects** from the sidebar or the top navigation to see every project you can access. Create a project from the workspace view, then open it to manage experiments, metrics, and more.
 
 ## Teams
 
@@ -24,7 +24,7 @@ Authors can use **callouts** (warnings, tips, …) and **expandable sections** i
 
 - [Workspace & navigation](/docs/getting-started/workspace) — sidebar, header, and docs layout.
 - [Projects](/docs/getting-started/projects) — creating and working inside a project.
-- [Domains](/docs/domains) — users, teams, projects, experiments, scalars, metrics, artifacts, hypotheses, and reports.
+- [Domains](/docs/domains) — users, teams, projects, experiments, scalars, metrics, artifacts, and reports.
 - [SDK](/docs/sdk) — install the Python SDK, configure the CLI, and log experiments from training scripts.
 - [File descriptors & local services](/docs/getting-started/file-descriptors) — `Too many open files`, local `uvicorn --reload`, and where to look in the repo when scalars or the backend exhaust FDs.
 - [Admin panel](/docs/reference/admin-panel) — `ADMIN_PANEL_KEY`, `/admin` user management, and `/admin/storage` for operators.
