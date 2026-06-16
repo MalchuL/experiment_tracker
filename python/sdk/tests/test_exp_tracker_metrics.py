@@ -203,9 +203,7 @@ def test_log_hparams_sends_complete_replacement_synchronously() -> None:
 
     tracker.log_hparams({"optimizer": {"lr": 0.001}})
 
-    assert registry.experiment_data.calls == [
-        ("exp-id", {"optimizer": {"lr": 0.001}})
-    ]
+    assert registry.experiment_data.calls == [("exp-id", {"optimizer": {"lr": 0.001}})]
     assert len(client.request_calls) == 1
     assert client.queued_calls == []
 
