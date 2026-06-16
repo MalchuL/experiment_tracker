@@ -327,7 +327,7 @@ def test_run_snapshot_logs_before_completion(
             """
             events.append(("init", None))
 
-        def log_snapshot(self, path) -> None:
+        def log_snapshot(self, path, *, verbose: bool = False) -> None:
             """Record the snapshot path selected by the CLI.
 
             Args:
@@ -407,7 +407,7 @@ def test_run_snapshot_forwards_unlimited_size(
             """
             pass
 
-        def log_snapshot(self, path, *, max_file_size) -> None:
+        def log_snapshot(self, path, *, max_file_size, verbose: bool = False) -> None:
             """Record snapshot path and explicit size limit.
 
             Args:
@@ -479,17 +479,17 @@ def test_run_snapshot_rejects_offline(
     assert exc.value.code == 2
 
 
-def test_run_snapshot_not_called_when_script_errors(
+def test_run_snapshot_runs_before_script_and_marks_failure_on_error(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Verify failed scripts mark failure and skip snapshot logging.
+    """Verify ``--snapshot`` logs before the script and failure is marked on error.
 
     Args:
         tmp_path: Temporary directory used for a script that raises.
         monkeypatch: Pytest helper used to patch argv, cwd, and runner class.
 
     Returns:
-        None. The test asserts only the failure marker is recorded.
+        None. The test asserts snapshot-then-failure call ordering.
     """
     script = tmp_path / "entry.py"
     script.write_text("raise RuntimeError('boom')\n", encoding="utf-8")
@@ -518,11 +518,12 @@ def test_run_snapshot_not_called_when_script_errors(
             """
             pass
 
-        def log_snapshot(self, path) -> None:
-            """Record any unexpected snapshot call.
+        def log_snapshot(self, path, *, verbose: bool = False) -> None:
+            """Record snapshot logging before script execution.
 
             Args:
                 path: Directory passed to snapshot logging.
+                verbose: Progress-bar flag forwarded by the CLI.
 
             Returns:
                 None.
@@ -553,7 +554,7 @@ def test_run_snapshot_not_called_when_script_errors(
 
     with pytest.raises(RuntimeError, match="boom"):
         main()
-    assert events == [("failed", None)]
+    assert events == [("snapshot", tmp_path), ("failed", None)]
 
 
 def test_run_rejects_script_args_without_separator(

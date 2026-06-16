@@ -275,3 +275,36 @@ def test_flush_drains_current_scalar_batch(monkeypatch) -> None:
     assert len(scalars) == 1
     assert scalars[0].step == 0
     assert scalars[0].scalars == {"loss": 1.0, "accuracy": 0.5}
+
+
+def test_exp_tracker_init_assigns_random_color(monkeypatch) -> None:
+    from types import SimpleNamespace
+
+    assigned_colors: list[str] = []
+
+    class FakeStrategy:
+        api_requests_registry = SimpleNamespace()
+        request_client = SimpleNamespace()
+
+        def init(self, **kwargs):
+            return SimpleNamespace(
+                experiment=SimpleNamespace(id="exp-id"),
+                project=SimpleNamespace(id="proj-id"),
+            )
+
+    def fake_color(self, color: str) -> None:
+        assigned_colors.append(color)
+
+    monkeypatch.setattr(
+        "experiment_tracker_sdk.exp_tracker.ExperimentInitStrategy",
+        lambda: FakeStrategy(),
+    )
+    monkeypatch.setattr(ExpTracker, "color", fake_color)
+    monkeypatch.setattr(
+        "experiment_tracker_sdk.exp_tracker.random_hex_color",
+        lambda: "#aabbcc",
+    )
+
+    ExpTracker.init(project="project", experiment="experiment")
+
+    assert assigned_colors == ["#aabbcc"]

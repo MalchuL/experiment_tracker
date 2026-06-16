@@ -10,6 +10,10 @@ from typing import TYPE_CHECKING, Any, IO, TypeAlias, TypeGuard, cast
 from uuid import uuid4
 
 from experiment_tracker_sdk.error import ExpTrackerAPIError
+from experiment_tracker_sdk.utils.chart.tensor_values import (
+    _is_torch_tensor,
+    _to_cpu_numpy,
+)
 
 FinalArtifactContent = bytes | str | Path | IO[bytes] | IO[str]
 StructuredFinalArtifactContent = (
@@ -20,7 +24,7 @@ if TYPE_CHECKING:
     import numpy as np  # type: ignore[reportMissingImports]
     from PIL import Image as PILImage  # type: ignore[reportMissingImports]
 
-    ImageDataContent: TypeAlias = PILImage.Image | np.ndarray
+    ImageDataContent: TypeAlias = PILImage.Image | np.ndarray | "torch.Tensor"  # pyright: ignore[reportUndefinedVariable]
     ImageContent: TypeAlias = FinalArtifactContent | ImageDataContent
 else:
     ImageDataContent: TypeAlias = Any
@@ -367,8 +371,16 @@ def prepare_step_text_content(
     )
 
 
+def _looks_like_chw_array(arr: Any) -> bool:
+    ndim = getattr(arr, "ndim", None)
+    shape = getattr(arr, "shape", None)
+    if ndim != 3 or shape is None:
+        return False
+    return int(shape[0]) in (1, 3, 4)
+
+
 def image_data_to_png_bytes(image_input: ImageDataContent) -> bytes:
-    """Convert PIL image or numpy ndarray to PNG bytes.
+    """Convert PIL image, numpy ndarray, or torch Tensor to PNG bytes.
 
     ndarray contract:
     - layout must be HW or HWC
@@ -376,6 +388,10 @@ def image_data_to_png_bytes(image_input: ImageDataContent) -> bytes:
     - HWC supports only 3 (RGB) or 4 (RGBA) channels
     - float dtypes are normalized to [0, 1] (min-max if out of range), then scaled to uint8
     - non-uint8 integer-like dtypes are clipped to [0, 255] and cast to uint8
+
+    torch.Tensor contract:
+    - converted to CPU numpy via ``detach().cpu().numpy()``
+    - CHW tensors with 1, 3, or 4 channels are converted to HW or HWC before encoding
     """
     errors = []
     try:
@@ -396,6 +412,16 @@ def image_data_to_png_bytes(image_input: ImageDataContent) -> bytes:
         raise ExpTrackerAPIError(
             f"Failed to import experiment tracker dependencies. Errors: {errors}"
         )
+
+    if _is_torch_tensor(image_input):
+        image_input = _to_cpu_numpy(image_input)
+        if not isinstance(image_input, np.ndarray):
+            image_input = np.asarray(image_input)
+        if _looks_like_chw_array(image_input):
+            if int(image_input.shape[0]) == 1:
+                image_input = image_input[0]
+            else:
+                image_input = np.moveaxis(image_input, 0, -1)
 
     image = None
     if isinstance(image_input, Image.Image):
@@ -445,7 +471,9 @@ def image_data_to_png_bytes(image_input: ImageDataContent) -> bytes:
         image = Image.fromarray(arr, mode=mode)
     else:
         raise ExpTrackerAPIError(
-            "Unsupported image type. add_image accepts PIL.Image.Image or numpy.ndarray."
+            "Unsupported image type "
+            f"{type(image_input)!r}. add_image accepts PIL.Image.Image, "
+            "numpy.ndarray, or torch.Tensor."
         )
 
     buffer = io.BytesIO()

@@ -159,7 +159,7 @@ def test_runner_log_snapshot_uses_tracker_default_when_size_omitted(tmp_path) ->
             Test double for ``RunSample.exp_tracker``.
         """
 
-        def log_snapshot(self, path) -> None:
+        def log_snapshot(self, path, *, verbose: bool = False) -> None:
             """Record snapshot path and implicit default size behavior.
 
             Args:
@@ -201,7 +201,7 @@ def test_runner_log_snapshot_passes_size_override(tmp_path) -> None:
             Test double for ``RunSample.exp_tracker``.
         """
 
-        def log_snapshot(self, path, *, max_file_size) -> None:
+        def log_snapshot(self, path, *, max_file_size, verbose: bool = False) -> None:
             """Record snapshot path and explicit maximum file size.
 
             Args:

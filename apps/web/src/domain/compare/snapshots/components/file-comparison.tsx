@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
+import { computeSideBySideDiff, type SideBySideDiffLine } from "../lib/diff";
 import { getLanguageFromExtension } from "../lib/file-tree";
 import { ExpandUnchangedControl } from "./expand-unchanged-control";
 import { InlineDiffText } from "./inline-diff-text";
@@ -25,14 +26,6 @@ interface FileComparisonProps {
   rightFile: ComparedFile;
   className?: string;
 }
-
-type SideBySideDiffLine = {
-  type: "same" | "added" | "removed" | "changed";
-  leftLineNumber?: number;
-  rightLineNumber?: number;
-  leftContent?: string;
-  rightContent?: string;
-};
 
 type VisibleComparisonRow =
   | { type: "line"; line: SideBySideDiffLine; originalIndex: number }
@@ -56,48 +49,6 @@ type ExpandedRangeState = {
   ranges: Array<{ start: number; end: number }>;
 } | null;
 
-function computeSimpleDiff(leftLines: string[], rightLines: string[]): SideBySideDiffLine[] {
-  const result: SideBySideDiffLine[] = [];
-  const maxLines = Math.max(leftLines.length, rightLines.length);
-
-  for (let index = 0; index < maxLines; index += 1) {
-    const leftLine = leftLines[index];
-    const rightLine = rightLines[index];
-
-    if (leftLine === undefined && rightLine !== undefined) {
-      result.push({
-        type: "added",
-        rightLineNumber: index + 1,
-        rightContent: rightLine,
-      });
-    } else if (leftLine !== undefined && rightLine === undefined) {
-      result.push({
-        type: "removed",
-        leftLineNumber: index + 1,
-        leftContent: leftLine,
-      });
-    } else if (leftLine === rightLine) {
-      result.push({
-        type: "same",
-        leftLineNumber: index + 1,
-        rightLineNumber: index + 1,
-        leftContent: leftLine,
-        rightContent: rightLine,
-      });
-    } else {
-      result.push({
-        type: "changed",
-        leftLineNumber: index + 1,
-        rightLineNumber: index + 1,
-        leftContent: leftLine,
-        rightContent: rightLine,
-      });
-    }
-  }
-
-  return result;
-}
-
 export function FileComparison({ leftFile, rightFile, className }: FileComparisonProps) {
   const [expandUnchanged, setExpandUnchanged] = useState(false);
   const [navigation, setNavigation] = useState<NavigationState>(null);
@@ -105,9 +56,10 @@ export function FileComparison({ leftFile, rightFile, className }: FileCompariso
   const [expandedRanges, setExpandedRanges] = useState<ExpandedRangeState>(null);
   const rowRefs = useRef(new Map<number, HTMLDivElement>());
 
-  const leftLines = useMemo(() => leftFile.content.split("\n"), [leftFile.content]);
-  const rightLines = useMemo(() => rightFile.content.split("\n"), [rightFile.content]);
-  const diff = useMemo(() => computeSimpleDiff(leftLines, rightLines), [leftLines, rightLines]);
+  const diff = useMemo(
+    () => computeSideBySideDiff(leftFile.content, rightFile.content),
+    [leftFile.content, rightFile.content]
+  );
   const leftFileName = leftFile.path.split("/").pop() || leftFile.path;
   const rightFileName = rightFile.path.split("/").pop() || rightFile.path;
   const leftLanguage = getLanguageFromExtension(leftFile.extension ?? leftFileName.split(".").pop());

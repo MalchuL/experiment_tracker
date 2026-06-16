@@ -71,6 +71,7 @@ from experiment_tracker_sdk.utils.experiment_init_strategy import (
     ExperimentInitStrategy,
     InitParams,
 )
+from experiment_tracker_sdk.utils.color_utils import random_hex_color
 
 _SNAPSHOT_MAX_FILE_SIZE_UNSET = object()
 
@@ -208,7 +209,7 @@ class ExpTracker:
             team_name_or_id=team,
             init_params=resolved_init_params,
         )
-        return cls(
+        tracker = cls(
             result.experiment.id,
             result.project.id,
             strategy.api_requests_registry,
@@ -216,6 +217,8 @@ class ExpTracker:
             experiment_instance=result.experiment,
             verbose=verbose,
         )
+        tracker.color(random_hex_color())
+        return tracker
 
     def add_scalar(
         self, tag: str, scalar_value, global_step: int = 0, walltime: float = 0
@@ -277,6 +280,7 @@ class ExpTracker:
         Supported inputs:
         - PIL.Image.Image
         - numpy.ndarray in HW or HWC layout
+        - torch.Tensor in CHW, HW, or HWC layout
 
         Args:
             verbose: Upload progress bar for this call only. ``None`` uses the
