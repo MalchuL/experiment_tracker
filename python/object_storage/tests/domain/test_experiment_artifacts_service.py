@@ -155,6 +155,23 @@ class FakeArtifactsRepository:
 
 
 @pytest.mark.asyncio
+async def test_ensure_experiment_bucket_commits_registry_and_storage() -> None:
+    project_id = uuid4()
+    experiment_id = uuid4()
+    buckets_service = FakeBucketsService()
+    repo = FakeArtifactsRepository()
+    service = ArtifactsStorageService(buckets_service, repo)
+
+    result = await service.ensure_experiment_bucket(project_id, experiment_id)
+
+    assert result.bucket_name == "bucket"
+    assert buckets_service.ensure_bucket_calls == [
+        (str(project_id), str(experiment_id))
+    ]
+    assert buckets_service.committed is True
+
+
+@pytest.mark.asyncio
 async def test_upload_artifact_and_forget_stores_hash_and_size() -> None:
     project_id = uuid4()
     experiment_id = uuid4()

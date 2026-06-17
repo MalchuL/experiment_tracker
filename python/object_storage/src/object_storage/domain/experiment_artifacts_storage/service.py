@@ -21,6 +21,7 @@ from .dto import (
     ArtifactStreamResponseDTO,
     DeleteArtifactResponseDTO,
     DeleteExperimentArtifactsResponseDTO,
+    EnsureExperimentBucketResponseDTO,
     ExperimentArtifactsUsageItemDTO,
     ExperimentArtifactsUsageResponseDTO,
     TrackedArtifactsListResponseDTO,
@@ -53,6 +54,17 @@ class ArtifactsStorageService:
         self._buckets_service = buckets_service
         self._artifacts_repository = artifacts_repository
         self._mapper = ArtifactsStorageMapper()
+
+    async def ensure_experiment_bucket(
+        self, project_id: UUID, experiment_id: UUID
+    ) -> EnsureExperimentBucketResponseDTO:
+        """Create or verify the experiment-scoped bucket in Postgres and object storage."""
+
+        bucket_name = await self._buckets_service.ensure_bucket(
+            project_id, experiment_id
+        )
+        await self._buckets_service.commit()
+        return EnsureExperimentBucketResponseDTO(bucket_name=bucket_name)
 
     def _remove_orphan_object_after_failed_upload(
         self, bucket_name: str, blob_hash: str

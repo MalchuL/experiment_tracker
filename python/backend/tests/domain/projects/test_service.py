@@ -1,8 +1,9 @@
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from clients.object_storage import EnsureProjectBucketResponseDTO
 from domain.projects.dto import ProjectCreateDTO, ProjectUpdateDTO
 from domain.projects.dto import ProjectSettingDTO
 from domain.projects.errors import ProjectNotAccessibleError, ProjectPermissionError
@@ -53,6 +54,19 @@ async def _create_project(
     return project
 
 
+class FakeObjectStorageClient:
+    def __init__(self) -> None:
+        self.ensure_project_bucket_calls: list[UUID] = []
+
+    async def ensure_project_bucket(
+        self, project_id: UUID
+    ) -> EnsureProjectBucketResponseDTO:
+        self.ensure_project_bucket_calls.append(project_id)
+        return EnsureProjectBucketResponseDTO(
+            bucket_name=f"project-{project_id}"
+        )
+
+
 class TestProjectService:
     @pytest.fixture
     def project_service(self, db_session: AsyncSession) -> ProjectService:
@@ -80,6 +94,19 @@ class TestProjectService:
         )
         permissions_map = {item.action: item.allowed for item in permissions}
         assert permissions_map == role_to_project_permissions(Role.ADMIN)
+
+    async def test_create_project_provisions_object_storage_bucket(
+        self,
+        db_session: AsyncSession,
+        test_user: User,
+    ) -> None:
+        storage = FakeObjectStorageClient()
+        project_service = ProjectService(db_session, object_storage_client=storage)
+        dto = ProjectCreateDTO(name="Bucket Project", description="With bucket")
+
+        created = await project_service.create_project(test_user, dto)
+
+        assert storage.ensure_project_bucket_calls == [created.id]
 
     async def test_create_project_in_team_requires_permission(
         self,

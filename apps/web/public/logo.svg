@@ -1,37 +1,30 @@
 <?xml version="1.0" encoding="utf-8"?>
-<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <defs>
-    <linearGradient id="folderTop" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#6D5BFF"/>
-      <stop offset="1" stop-color="#4B46FF"/>
-    </linearGradient>
-    <linearGradient id="folderMid" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#7B92FF"/>
-      <stop offset="1" stop-color="#5B72FF"/>
-    </linearGradient>
-    <linearGradient id="folderTeal" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#59D9D2"/>
-      <stop offset="1" stop-color="#44C7C1"/>
-    </linearGradient>
-    <linearGradient id="folderBottom" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#B06CFF"/>
-      <stop offset="1" stop-color="#8A4DFF"/>
-    </linearGradient>
-  </defs>
-  <rect x="7.701" y="6.458" width="495.742" height="498.126" rx="80" ry="80" style="stroke: rgb(255, 255, 255); fill: rgb(255, 255, 255);"/>
-  <g transform="matrix(0.855968, 0, 0, 0.855968, 6.250968, 29.841908)" style="">
-    <path d="M140 80 H320 M140 80 V430 H320 M140 255 H320 M230 255 V340 H320" stroke="#1E225B" stroke-width="54" stroke-linecap="round" stroke-linejoin="round"/>
-    <g transform="matrix(1, 0, 0, 1, 300, 15.456766)">
-      <path d="M18 20 H72 L88 36 H150 Q162 36 162 48 V102 Q162 114 150 114 H18 Q6 114 6 102 V32 Q6 20 18 20Z" fill="url(#folderTop)"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="1.375 -194.02 914.084 858.401" width="914.084px" height="858.401px">
+  <rect x="2.197" y="-194.02" width="913.262" height="858.401" style="stroke: rgb(0, 0, 0); fill: rgb(60, 46, 86);"/>
+  <g id="cyan-main-mark" fill="#12D7EE">
+    <path d="M 352 0 L 894 0 L 700 91 L 407 91 L 361 171 L 637 171 L 478 249 L 321 249 L 271 338 L 435 338 L 281 429 L 131 429 L 320 131 L 248.137 131 L 253 116 L 352 0 Z"/>
+  </g>
+  <g id="white-foreground-mark" fill="#FFFFFF">
+    <polygon points="577 171 905 171 731 254 629 254 476 527 371 527 528 254 401 254"/>
+  </g>
+  <g id="left-speed-streaks">
+    <polygon fill="#0EAFF4" points="72.462 131.253 228.485 122.253 257.225 131.253 228.485 139.253" style=""/>
+    <polygon fill="#0EAFF4" points="40.307 225.632 165.259 219.625 209.259 227.625 165.259 235.625"/>
+    <polygon fill="#087EFF" points="1.375 324.375 113.375 317.375 154.375 324.375 113.375 332.375"/>
+  </g>
+  <g transform="matrix(1, 0, 0, 1, -52.264442443847656, 0)">
+    <g id="network-connectors" fill="none" stroke-linecap="round" stroke-linejoin="round">
+      <line x1="236" y1="229" x2="302" y2="131" stroke="#16CFF0" stroke-width="6"/>
+      <line x1="178" y1="323" x2="236" y2="229" stroke="#149FF5" stroke-width="6"/>
+      <line x1="236" y1="229" x2="326" y2="229" stroke="#13D7EE" stroke-width="6"/>
+      <line x1="302" y1="131" x2="357" y2="229" stroke="#13D7EE" stroke-width="6"/>
+      <line x1="236" y1="229" x2="284" y2="323" stroke="#11B7F2" stroke-width="6"/>
+      <line x1="178" y1="323" x2="284" y2="323" stroke="#0A8DFF" stroke-width="6"/>
     </g>
-    <g transform="matrix(1, 0, 0, 1, 300, 189.692444)">
-      <path d="M18 20 H72 L88 36 H150 Q162 36 162 48 V102 Q162 114 150 114 H18 Q6 114 6 102 V32 Q6 20 18 20Z" fill="url(#folderMid)"/>
-    </g>
-    <g transform="matrix(0.82, 0, 0, 0.82, 301.079987, 289.328156)">
-      <path d="M18 20 H72 L88 36 H150 Q162 36 162 48 V102 Q162 114 150 114 H18 Q6 114 6 102 V32 Q6 20 18 20Z" fill="url(#folderTeal)"/>
-    </g>
-    <g transform="matrix(1, 0, 0, 1, 300, 365.456757)">
-      <path d="M18 20 H72 L88 36 H150 Q162 36 162 48 V102 Q162 114 150 114 H18 Q6 114 6 102 V32 Q6 20 18 20Z" fill="url(#folderBottom)"/>
+    <g id="network-nodes">
+      <circle cx="302" cy="131" r="19" fill="#18DDEB"/>
+      <circle cx="236" cy="229" r="19" fill="#13C9EF"/>
+      <circle cx="178" cy="323" r="19" fill="#087EFF"/>
     </g>
   </g>
 </svg>

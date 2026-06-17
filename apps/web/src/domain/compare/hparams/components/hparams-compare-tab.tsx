@@ -9,10 +9,14 @@ import {
   type ExperimentDataCompareRow,
   type ExperimentDataDiffStatus,
 } from "@/domain/compare/components/experiment-data-compare-table";
-import { InlineDiffText } from "@/domain/compare/snapshots/components/inline-diff-text";
+import {
+  displayHparamsValue,
+  hparamsValueClassName,
+} from "@/domain/experiments/lib/hparams-display";
 import type { Experiment } from "@/domain/experiments/types";
 import type { JsonValue } from "@/domain/experiments/types";
 import { QUERY_KEYS } from "@/lib/constants/query-keys";
+import { cn } from "@/lib/utils";
 import { buildHparamsCompareRows } from "../lib/hparams-compare";
 import { hparamsListService } from "../services/hparams-list-service";
 
@@ -84,7 +88,7 @@ export function HparamsCompareTab({
       columns={columns}
       rows={rows}
       renderValue={renderHparamsValue}
-      valueTitle={(value, _referenceValue, _status, _row) => displayHparamsValue(value)}
+      valueTitle={(value, _referenceValue, _status, _row) => formatCompareHparamsValue(value)}
       defaultOverflowMode="wrap"
     />
   );
@@ -99,13 +103,14 @@ function renderHparamsValue(
   if (status === "changed" && referenceValue !== undefined && value !== undefined) {
     return (
       <ExperimentDataDiffValue status={status}>
-        <InlineDiffText
-          content={displayHparamsValue(value)}
-          compareWith={displayHparamsValue(referenceValue)}
-          side="new"
-          language="json"
-          className="text-xs text-foreground"
-        />
+        <div className="flex flex-col gap-0.5 text-xs">
+          <code className={cn("break-all line-through", hparamsValueClassName(referenceValue))}>
+            {formatCompareHparamsValue(referenceValue)}
+          </code>
+          <code className={cn("break-all", hparamsValueClassName(value))}>
+            {formatCompareHparamsValue(value)}
+          </code>
+        </div>
       </ExperimentDataDiffValue>
     );
   }
@@ -113,20 +118,21 @@ function renderHparamsValue(
   return (
     <ExperimentDataDiffValue status={status}>
       <code
-        className={
+        className={cn(
+          "break-all text-xs",
           status === "removed" || status === "missing"
-            ? "text-xs text-muted-foreground"
-            : "text-xs text-foreground"
-        }
+            ? "text-muted-foreground line-through"
+            : hparamsValueClassName(value)
+        )}
       >
-        {displayHparamsValue(value)}
+        {formatCompareHparamsValue(value)}
       </code>
     </ExperimentDataDiffValue>
   );
 }
 
-function displayHparamsValue(value: JsonValue | undefined): string {
-  return value === undefined ? "Not set" : JSON.stringify(value);
+function formatCompareHparamsValue(value: JsonValue | undefined): string {
+  return value === undefined ? "Not set" : displayHparamsValue(value);
 }
 
 function Centered({

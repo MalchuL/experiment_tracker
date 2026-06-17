@@ -17,6 +17,8 @@ from experiment_tracker_sdk.client.artifact_client import ArtifactClient
 from experiment_tracker_sdk.client.client import ExperimentTrackerClient
 from experiment_tracker_sdk.client.domain.experiment_data.dto import SnapshotFileEntry
 from experiment_tracker_sdk.constants import DEFAULT_SNAPSHOT_MAX_FILE_SIZE_BYTES
+from experiment_tracker_sdk.settings import get_exp_tracker_settings
+from experiment_tracker_sdk.utils.parallel import ParallelTaskRunner
 
 SnapshotPathInput: TypeAlias = str | Path | Iterable[str | Path]
 IgnoreFileInput: TypeAlias = str | Path | Iterable[str | Path]
@@ -711,6 +713,31 @@ class SnapshotUploader:
         self._request_client = request_client
         self._artifacts = ArtifactClient(registry, request_client)
 
+    def _hash_snapshot_file(
+        self, item: SnapshotScanFile
+    ) -> tuple[SnapshotScanFile, str]:
+        return item, compute_file_sha256_hexdigest(item.path)
+
+    def _upload_snapshot_file(
+        self,
+        project_id: str,
+        item_and_hash: tuple[SnapshotScanFile, str],
+        *,
+        verbose: bool,
+    ) -> str:
+        item, item_hash = item_and_hash
+        with item.path.open("rb") as file_obj:
+            upload_result = self._artifacts.upload_project_artifact(
+                project_id=project_id,
+                filename=item.path.name,
+                content=file_obj,
+                content_type=_content_type(item.path),
+                artifact_hash=item_hash,
+                size=item.size,
+                verbose=verbose,
+            )
+        return upload_result.detail
+
     def log_snapshot(
         self,
         *,
@@ -721,6 +748,7 @@ class SnapshotUploader:
         ignore_file: IgnoreFileInput = DEFAULT_IGNORE_FILES,
         max_file_size: int | None = DEFAULT_SNAPSHOT_MAX_FILE_SIZE_BYTES,
         verbose: bool = False,
+        max_workers: int | None = None,
     ) -> SnapshotUploadResult:
         """Log a filesystem snapshot for one experiment.
 
@@ -735,6 +763,8 @@ class SnapshotUploader:
             max_file_size: Maximum included file size in bytes; ``None`` or a
                 negative value disables size filtering.
             verbose: Whether upload progress bars should be shown.
+            max_workers: Parallel worker count for hashing and uploads; defaults
+                to ``settings.num_workers``.
 
         Returns:
             ``SnapshotUploadResult`` summarizing included, skipped, uploaded,
@@ -746,35 +776,33 @@ class SnapshotUploader:
             ignore_file=ignore_file,
             max_file_size=max_file_size,
         )
-        hashed_files = [
-            (item, compute_file_sha256_hexdigest(item.path)) for item in scan.included
-        ]
+        resolved_workers = (
+            get_exp_tracker_settings().num_workers
+            if max_workers is None
+            else max_workers
+        )
+        runner = ParallelTaskRunner(max_workers=resolved_workers)
+        hashed_files = runner.map(self._hash_snapshot_file, scan.included)
         hashes = [item_hash for _, item_hash in hashed_files]
         missing = set(
             self._artifacts.check_project_artifacts(project_id, hashes).missing
             if hashes
             else []
         )
-        uploaded = 0
-        existing = 0
-        for item, item_hash in hashed_files:
-            if item_hash not in missing:
-                existing += 1
-                continue
-            with item.path.open("rb") as file_obj:
-                upload_result = self._artifacts.upload_project_artifact(
-                    project_id=project_id,
-                    filename=item.path.name,
-                    content=file_obj,
-                    content_type=_content_type(item.path),
-                    artifact_hash=item_hash,
-                    size=item.size,
-                    verbose=verbose,
-                )
-            if upload_result.detail == "uploaded":
-                uploaded += 1
-            else:
-                existing += 1
+        to_upload = [
+            (item, item_hash) for item, item_hash in hashed_files if item_hash in missing
+        ]
+        existing = len(hashed_files) - len(to_upload)
+        upload_details = runner.map(
+            lambda item_and_hash: self._upload_snapshot_file(
+                project_id,
+                item_and_hash,
+                verbose=verbose,
+            ),
+            to_upload,
+        )
+        uploaded = sum(1 for detail in upload_details if detail == "uploaded")
+        existing += sum(1 for detail in upload_details if detail != "uploaded")
 
         manifest = [
             SnapshotFileEntry(path=item.relative_path, hash=item_hash, size=item.size)

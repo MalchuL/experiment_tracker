@@ -19,6 +19,7 @@ from .dto import (
     ClearStorageBucketResponseDTO,
     DeleteProjectSnapshotResponseDTO,
     DeleteStorageBucketResponseDTO,
+    EnsureProjectBucketResponseDTO,
     BlobCheckResponseDTO,
     DeleteBlobResponseDTO,
     ExperimentBucketsUsageDTO,
@@ -113,6 +114,15 @@ class ObjectStorageService:
             await self._buckets_service.delete_bucket(project_id, eid)
         await self._repository.commit()
         return True
+
+    async def ensure_project_bucket(
+        self, project_id: UUID
+    ) -> EnsureProjectBucketResponseDTO:
+        """Create or verify the project-scoped CAS bucket in Postgres and object storage."""
+
+        bucket_name = await self._buckets_service.ensure_bucket(project_id, None)
+        await self._repository.commit()
+        return EnsureProjectBucketResponseDTO(bucket_name=bucket_name)
 
     async def check_project_blobs(
         self, project_id: UUID, hashes: list[str]

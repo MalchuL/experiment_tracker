@@ -129,7 +129,7 @@ class ExperimentService:
     async def create_experiment(
         self, user: UserProtocol, data: ExperimentCreateDTO
     ) -> ExperimentDTO:
-        """Create an experiment row.
+        """Create an experiment row and provision its object-storage bucket.
 
         Args:
             user: User creating the experiment.
@@ -141,6 +141,8 @@ class ExperimentService:
         Raises:
             ExperimentNotAccessibleError: If the user cannot create in the project, the
                 parent does not exist, or the parent belongs to another project.
+            Exception: Propagates repository or object-storage provisioning failures after
+                rollback.
         """
         if not await self.permission_checker.can_create_experiment(
             user.id, data.project_id
@@ -160,9 +162,17 @@ class ExperimentService:
                     f"Parent experiment {parent_id} not in project {data.project_id}"
                 )
 
-        experiment = self.experiment_mapper.experiment_create_dto_to_schema(data)
-        await self.experiment_repository.create(experiment)
-        await self.db.commit()
+        try:
+            experiment = self.experiment_mapper.experiment_create_dto_to_schema(data)
+            await self.experiment_repository.create(experiment)
+            if self.object_storage_client is not None:
+                await self.object_storage_client.ensure_experiment_bucket(
+                    data.project_id, experiment.id
+                )
+            await self.db.commit()
+        except Exception as e:
+            await self.db.rollback()
+            raise e
         return self.experiment_mapper.experiment_schema_to_dto(experiment)
 
     async def update_experiment(

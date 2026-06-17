@@ -13,6 +13,7 @@ from experiment_tracker_sdk.constants import (
     DEFAULT_SCATTER_METADATA_MAX_POINTS,
     DEFAULT_SNAPSHOT_MAX_FILE_SIZE_BYTES,
 )
+from experiment_tracker_sdk.utils.parallel import default_parallel_worker_count
 
 DEFAULT_CONFIG_DIR = Path.home() / ".experiment-tracker"
 DEFAULT_CONFIG_PATH = DEFAULT_CONFIG_DIR / "config.json"
@@ -63,6 +64,13 @@ class ExpTrackerSettings(BaseSettings):
         ge=-1,
         description=(
             "Maximum file size in bytes included in snapshots. Use -1 to disable."
+        ),
+    )
+    num_workers: int = Field(
+        default_factory=default_parallel_worker_count,
+        ge=1,
+        description=(
+            "Number of parallel workers used when hashing and uploading snapshots."
         ),
     )
 

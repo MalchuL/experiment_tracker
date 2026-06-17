@@ -14,6 +14,7 @@ from object_storage.lib.http_headers import attachment_content_disposition
 from .dto import (
     DeleteArtifactResponseDTO,
     DeleteExperimentArtifactsResponseDTO,
+    EnsureExperimentBucketResponseDTO,
     ExperimentArtifactsUsageResponseDTO,
     TrackedArtifactsListResponseDTO,
     TrackedArtifactInfoResponseDTO,
@@ -40,6 +41,20 @@ def _parse_metadata_query(raw: str | None) -> dict[str, Any] | None:
     if not isinstance(parsed, dict):
         raise HTTPException(status_code=400, detail="metadata must be a JSON object")
     return parsed
+
+
+@router.post(
+    "/projects/{project_id}/experiments/{experiment_id}/ensure-bucket",
+    response_model=EnsureExperimentBucketResponseDTO,
+)
+async def ensure_experiment_bucket(
+    project_id: UUID,
+    experiment_id: UUID,
+    service: ArtifactsStorageService = Depends(get_experiment_artifacts_service),
+) -> EnsureExperimentBucketResponseDTO:
+    """Ensure the experiment-scoped bucket exists in registry and object storage."""
+
+    return await service.ensure_experiment_bucket(project_id, experiment_id)
 
 
 @router.post(
