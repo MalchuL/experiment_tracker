@@ -33,6 +33,18 @@ class DeleteProjectResponseDTO(BaseModel):
     deleted: bool | None = None
 
 
+class EnsureProjectBucketResponseDTO(BaseModel):
+    model_config = model_config()
+
+    bucket_name: str
+
+
+class EnsureExperimentBucketResponseDTO(BaseModel):
+    model_config = model_config()
+
+    bucket_name: str
+
+
 class SnapshotCreateResponseDTO(BaseModel):
     model_config = model_config()
 

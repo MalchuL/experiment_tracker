@@ -8,17 +8,20 @@ import { GripVertical } from "lucide-react";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import { EXPERIMENTS_TABLE_GRIP_PX } from "@/domain/experiments/lib/experiments-table-column-widths";
-import { getExperimentSelectionSurfaceStyle } from "@/domain/experiments/experiment-selection-style";
+import { getExperimentSelectionMetricsCellStyle } from "@/domain/experiments/experiment-selection-style";
+import { SHOW_IN_REPORT_COLUMN_ID, SHOW_IN_REPORT_COLUMN_PX, METRICS_TABLE_ROW_BORDER_CLASS } from "../lib/constants";
 import type { MetricsTableRow } from "../lib/types";
 
 const GRIP_LEAD_SLOT_CLASS = "flex h-6 w-6 shrink-0 items-center justify-center";
 
+const stickyLeadShadowClass = "shadow-[4px_0_12px_-8px_rgba(0,0,0,0.08)]";
+
 const stickyGripCell = cn(
-  "sticky left-0 z-[2] bg-background shadow-[4px_0_12px_-8px_rgba(0,0,0,0.08)] box-border overflow-hidden"
+  "sticky left-0 z-[2] bg-background box-border overflow-hidden",
+  stickyLeadShadowClass
 );
-const stickyExperimentCell = cn(
-  "sticky z-[2] bg-background shadow-[4px_0_12px_-8px_rgba(0,0,0,0.08)] box-border"
-);
+const stickyExperimentCell = cn("sticky z-[2] bg-background box-border", stickyLeadShadowClass);
+const stickyShowInReportCell = cn("sticky z-[2] bg-background box-border", stickyLeadShadowClass);
 
 type MetricsTableSortableRowProps = {
   row: Row<MetricsTableRow>;
@@ -28,12 +31,20 @@ type MetricsTableSortableRowProps = {
   leadColumnCount: number;
   gripWidthPx: number;
   rowReorderDisabled: boolean;
+  editMode: boolean;
   wrapExperimentNames: boolean;
+  wrapValues: boolean;
 };
 
 function layoutForColumn<T>(table: TTable<T>, column: Column<T, unknown>): { className: string; style: CSSProperties } {
   const width = column.getSize();
   return { className: "", style: { width, minWidth: width, maxWidth: width } };
+}
+
+function metricsCellRole(columnId: string): "showInReport" | "experiment" | "metric" {
+  if (columnId === SHOW_IN_REPORT_COLUMN_ID) return "showInReport";
+  if (columnId === "experiment") return "experiment";
+  return "metric";
 }
 
 export function MetricsTableSortableRow({
@@ -44,7 +55,9 @@ export function MetricsTableSortableRow({
   leadColumnCount,
   gripWidthPx,
   rowReorderDisabled,
+  editMode,
   wrapExperimentNames,
+  wrapValues,
 }: MetricsTableSortableRowProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: row.id,
@@ -52,17 +65,20 @@ export function MetricsTableSortableRow({
   });
 
   const expColor = row.original.experimentColor;
-  const selectedRowStyle = isRowSelected ? getExperimentSelectionSurfaceStyle(expColor) : undefined;
   const transformStr = transform ? CSS.Transform.toString(transform) : undefined;
 
   const pinGrip = pinLeadColumns && leadColumnCount >= 1;
-  const pinExperiment = pinLeadColumns && leadColumnCount >= 2;
+  const pinShowInReport = pinLeadColumns && leadColumnCount >= 2 && editMode;
+  const pinExperiment = pinLeadColumns && leadColumnCount >= (editMode ? 3 : 2);
+  const showInReportWidth = editMode
+    ? (table.getColumn(SHOW_IN_REPORT_COLUMN_ID)?.getSize() ?? SHOW_IN_REPORT_COLUMN_PX)
+    : 0;
+  const experimentStickyLeft = gripWidthPx + (editMode ? showInReportWidth : 0);
 
-  const style = {
+  const rowStyle = {
     ...(transformStr ? { transform: transformStr } : {}),
     transition,
     opacity: isDragging ? 0.5 : 1,
-    ...(selectedRowStyle ?? {}),
   };
 
   const gripReorderTitle = rowReorderDisabled
@@ -73,21 +89,20 @@ export function MetricsTableSortableRow({
     <TableRow
       ref={setNodeRef}
       data-state={isRowSelected ? "selected" : undefined}
-      className={cn("group", isRowSelected ? "transition-colors" : undefined)}
-      style={style}
+      className={cn("group hover:bg-transparent", isRowSelected ? "transition-colors" : undefined)}
+      style={rowStyle}
     >
       <TableCell
         className={cn(
           "px-2 py-2 align-middle group-hover:bg-muted/50",
+          METRICS_TABLE_ROW_BORDER_CLASS,
           pinGrip && stickyGripCell
         )}
         style={{
           width: gripWidthPx,
           minWidth: gripWidthPx,
           maxWidth: gripWidthPx,
-          ...(selectedRowStyle?.backgroundColor
-            ? { backgroundColor: selectedRowStyle.backgroundColor }
-            : {}),
+          ...getExperimentSelectionMetricsCellStyle("grip", isRowSelected, expColor),
         }}
       >
         <div
@@ -106,34 +121,38 @@ export function MetricsTableSortableRow({
       </TableCell>
       {row.getVisibleCells().map((cell) => {
         const isExperiment = cell.column.id === "experiment";
+        const isShowInReport = cell.column.id === SHOW_IN_REPORT_COLUMN_ID;
+        const wrapCell = isExperiment ? wrapExperimentNames : isShowInReport ? false : wrapValues;
         const layout = layoutForColumn(table, cell.column);
+        const cellStyle: CSSProperties = {
+          ...layout.style,
+          ...getExperimentSelectionMetricsCellStyle(
+            metricsCellRole(cell.column.id),
+            isRowSelected,
+            expColor
+          ),
+        };
+
+        if (pinShowInReport && isShowInReport) {
+          cellStyle.left = gripWidthPx;
+        } else if (pinExperiment && isExperiment) {
+          cellStyle.left = experimentStickyLeft;
+        }
+
         return (
           <TableCell
             key={cell.id}
             className={cn(
-              "align-top",
-              isExperiment &&
-                (wrapExperimentNames
-                  ? "whitespace-normal break-words"
-                  : "overflow-hidden whitespace-nowrap"),
+              METRICS_TABLE_ROW_BORDER_CLASS,
+              "group-hover:bg-muted/50",
+              isShowInReport ? "align-middle px-1 py-2" : "align-top",
+              !isShowInReport &&
+                (wrapCell ? "whitespace-normal break-words" : "overflow-hidden whitespace-nowrap"),
+              pinShowInReport && isShowInReport && stickyShowInReportCell,
               pinExperiment && isExperiment && stickyExperimentCell,
-              pinExperiment && isExperiment && "group-hover:bg-muted/50",
               layout.className
             )}
-            style={
-              pinExperiment && isExperiment
-                ? {
-                    ...layout.style,
-                    left: gripWidthPx,
-                    ...(selectedRowStyle
-                      ? {
-                          ...selectedRowStyle,
-                          boxShadow: `${selectedRowStyle.boxShadow}, 4px 0 12px -8px rgba(0,0,0,0.08)`,
-                        }
-                      : {}),
-                  }
-                : layout.style
-            }
+            style={cellStyle}
           >
             {flexRender(cell.column.columnDef.cell, cell.getContext())}
           </TableCell>

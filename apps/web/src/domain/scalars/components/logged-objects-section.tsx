@@ -2,8 +2,7 @@
 
 import { useMemo } from "react";
 import { parseISO } from "date-fns";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
 import type { Dispatch, SetStateAction } from "react";
 import type { Experiment } from "@/domain/experiments/types";
@@ -124,7 +123,7 @@ export function LoggedObjectsSection({
                 availableSteps.findIndex((step) => step === selectedStep)
               );
               return (
-                <Card key={selectionKey}>
+                <Card key={selectionKey} className="border-0 shadow-none">
                   <CardHeader className="px-2.5 py-1.5">
                     <CardTitle className="text-sm flex items-center justify-between gap-2">
                       <span className="truncate">{name}</span>
@@ -144,7 +143,7 @@ export function LoggedObjectsSection({
                         updateObjectStep(selectionKey, step, maxStepIndex <= 0 || idx >= maxStepIndex);
                       }}
                     />
-                    <div className="space-y-1.5" style={{ minHeight: cardHeight }}>
+                    <div className="divide-y divide-border" style={{ minHeight: cardHeight }}>
                       {artifactExperiments.map((experiment, idx) => {
                         const experimentOverrideKey = `${selectionKey}:${experiment.id}`;
                         const isOverrideEnabled = experimentStepOverrideEnabled[experimentOverrideKey] ?? false;
@@ -173,65 +172,75 @@ export function LoggedObjectsSection({
                           )
                         );
                         return (
-                          <div key={`${selectionKey}:${experiment.id}`} className="space-y-1 rounded border p-1.5">
-                            <div className="flex items-center gap-2">
+                          <div key={`${selectionKey}:${experiment.id}`} className="space-y-1 py-1.5">
+                            <div className="flex min-w-0 items-center gap-1.5">
                               <span
-                                className="inline-block w-2.5 h-2.5 rounded-full"
+                                className="inline-block h-2.5 w-2.5 shrink-0 rounded-full"
                                 style={{ backgroundColor: experimentColor }}
                               />
-                              <span className="text-xs font-medium truncate">{experiment.name}</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Checkbox
-                                id={`override-${experimentOverrideKey}`}
-                                checked={isOverrideEnabled}
-                                onCheckedChange={(checked) => {
-                                  if (checked === true) {
-                                    const latestStep = experimentSteps[experimentSteps.length - 1];
-                                    const initialStep =
-                                      closestStep(selectedStep, experimentSteps) ?? selectedStep;
-                                    const followLatest =
-                                      latestStep !== undefined && initialStep === latestStep;
-                                    enableExperimentStepOverride(
-                                      experimentOverrideKey,
-                                      initialStep,
-                                      followLatest
-                                    );
-                                    return;
-                                  }
-                                  setExperimentStepOverrideEnabled((prev) => ({
-                                    ...prev,
-                                    [experimentOverrideKey]: false,
-                                  }));
-                                }}
-                              />
-                              <Label htmlFor={`override-${experimentOverrideKey}`} className="text-xs">
-                                Override step
-                              </Label>
-                            </div>
-                            {isOverrideEnabled && experimentSteps.length > 0 && (
-                              <div className="space-y-1">
-                                <Slider
-                                  value={[currentOverrideIndex]}
-                                  min={0}
-                                  max={Math.max(0, experimentSteps.length - 1)}
-                                  step={1}
-                                  onValueChange={(value) => {
-                                    const idxValue = value[0] ?? 0;
-                                    const maxOverrideIndex = Math.max(0, experimentSteps.length - 1);
-                                    const stepValue = experimentSteps[idxValue] ?? experimentSteps[0];
-                                    updateExperimentStepOverride(
-                                      experimentOverrideKey,
-                                      stepValue,
-                                      maxOverrideIndex <= 0 || idxValue >= maxOverrideIndex
-                                    );
+                              <span
+                                className="min-w-0 flex-1 truncate text-xs font-medium"
+                                title={experiment.name}
+                              >
+                                {experiment.name}
+                              </span>
+                              {nearestStep !== null ? (
+                                <span
+                                  className="shrink-0 cursor-default text-[10px] tabular-nums text-muted-foreground"
+                                  title="Closest step this experiment logged for the step chosen on the slider."
+                                >
+                                  step {nearestStep}
+                                </span>
+                              ) : null}
+                              <span
+                                className="shrink-0"
+                                title="Choose a step for this experiment independently of the card slider."
+                              >
+                                <Switch
+                                  id={`override-${experimentOverrideKey}`}
+                                  checked={isOverrideEnabled}
+                                  className="h-4 w-7 shrink-0 [&>span]:h-3 [&>span]:w-3 [&>span]:data-[state=checked]:translate-x-3"
+                                  aria-label="Override step"
+                                  onCheckedChange={(checked) => {
+                                    if (checked === true) {
+                                      const latestStep = experimentSteps[experimentSteps.length - 1];
+                                      const initialStep =
+                                        closestStep(selectedStep, experimentSteps) ?? selectedStep;
+                                      const followLatest =
+                                        latestStep !== undefined && initialStep === latestStep;
+                                      enableExperimentStepOverride(
+                                        experimentOverrideKey,
+                                        initialStep,
+                                        followLatest
+                                      );
+                                      return;
+                                    }
+                                    setExperimentStepOverrideEnabled((prev) => ({
+                                      ...prev,
+                                      [experimentOverrideKey]: false,
+                                    }));
                                   }}
                                 />
-                                <p className="text-[10px] text-muted-foreground">
-                                  override step {experimentStepOverrides[experimentOverrideKey] ?? selectedStep}
-                                </p>
-                              </div>
-                            )}
+                              </span>
+                            </div>
+                            {isOverrideEnabled && experimentSteps.length > 0 ? (
+                              <Slider
+                                value={[currentOverrideIndex]}
+                                min={0}
+                                max={Math.max(0, experimentSteps.length - 1)}
+                                step={1}
+                                onValueChange={(value) => {
+                                  const idxValue = value[0] ?? 0;
+                                  const maxOverrideIndex = Math.max(0, experimentSteps.length - 1);
+                                  const stepValue = experimentSteps[idxValue] ?? experimentSteps[0];
+                                  updateExperimentStepOverride(
+                                    experimentOverrideKey,
+                                    stepValue,
+                                    maxOverrideIndex <= 0 || idxValue >= maxOverrideIndex
+                                  );
+                                }}
+                              />
+                            ) : null}
                             {!objectAtStep || nearestStep === null ? (
                               <p className="text-xs text-muted-foreground">No object for this step</p>
                             ) : (
@@ -246,9 +255,6 @@ export function LoggedObjectsSection({
                                 maxHeight={Math.max(120, cardHeight - 50)}
                                 onImagePreview={onImagePreview}
                               />
-                            )}
-                            {nearestStep !== null && (
-                              <p className="text-[10px] text-muted-foreground">closest step {nearestStep}</p>
                             )}
                           </div>
                         );

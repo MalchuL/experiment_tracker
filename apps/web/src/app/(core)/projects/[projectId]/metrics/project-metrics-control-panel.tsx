@@ -24,6 +24,8 @@ type ControlPanelProps = {
   onPinLeadColumnsChange: (v: boolean) => void;
   wrapExperimentNames: boolean;
   onWrapExperimentNamesChange: (v: boolean) => void;
+  wrapValues: boolean;
+  onWrapValuesChange: (v: boolean) => void;
   orderedMetricNames: string[];
   onMetricReorder: (names: string[]) => void;
 };
@@ -47,6 +49,8 @@ export function ProjectMetricsControlPanel({
   onPinLeadColumnsChange,
   wrapExperimentNames,
   onWrapExperimentNamesChange,
+  wrapValues,
+  onWrapValuesChange,
   orderedMetricNames,
   onMetricReorder,
 }: ControlPanelProps) {
@@ -149,6 +153,20 @@ export function ProjectMetricsControlPanel({
               title="Wrap long experiment names onto multiple lines."
             >
               Wrap experiment names
+            </Label>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            <Switch
+              id="wrap-values"
+              checked={wrapValues}
+              onCheckedChange={onWrapValuesChange}
+            />
+            <Label
+              htmlFor="wrap-values"
+              className="text-sm"
+              title="Wrap long metric values onto multiple lines. Turn off to truncate to one line."
+            >
+              Wrap values
             </Label>
           </div>
           <div className="flex shrink-0 items-center gap-2">

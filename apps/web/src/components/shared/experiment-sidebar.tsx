@@ -7,11 +7,11 @@
 
 import Link from "next/link";
 import { StatusBadge } from "@/components/shared/status-badge";
-import { EntityIdDisplay } from "@/components/shared/entity-id-display";
 import {
   ExperimentEditForm,
   type ExperimentEditSavePayload,
 } from "@/components/shared/experiment-edit-form";
+import { MissingSnapshotNotice } from "@/components/shared/missing-snapshot-notice";
 import { ExperimentTagsEditor } from "@/domain/experiments/components/experiment-tags-editor";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -29,13 +29,16 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/lib/hooks/use-toast";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useExperiment } from "@/domain/experiments/hooks/experiment-hook";
 import { useExperiments } from "@/domain/experiments/hooks/experiments-hook";
-import { Download, FileCode2, GitBranch, GitCompare, Loader2, RefreshCw, X, ChevronDown } from "lucide-react";
+import { useSelectedExperimentStore } from "@/domain/experiments/store/selected-experiment-store";
+import { ArrowUp, Download, FileCode2, GitBranch, GitCompare, Loader2, RefreshCw, X, ChevronDown } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import type { Experiment } from "@/domain/experiments/types";
 import { ExperimentStatus } from "@/domain/experiments/types";
 import { buildCompareHref } from "@/domain/experiments/lib/build-compare-href";
+import { ExperimentNameTooltip } from "@/domain/compare/components/experiment-name-tooltip";
 import { experimentMatchesSearch } from "@/domain/experiments/lib/experiment-matches-search";
 import type { Metric } from "@/domain/metrics/types";
 import type { ProjectMetric } from "@/domain/projects/types";
@@ -43,6 +46,7 @@ import { useExperimentMetrics } from "@/domain/metrics/hooks";
 import { useProject } from "@/domain/projects/hooks/project-hook";
 import { REFRESH_EXPERIMENT_SIDEBAR_INTERVAL } from "@/lib/constants/rates";
 import { FRONTEND_ROUTES } from "@/lib/constants/frontend-routes";
+import { QUERY_KEYS } from "@/lib/constants/query-keys";
 import { cn } from "@/lib/utils";
 import { displayMetricKeyEquals, projectMetricKeyString } from "@/lib/metrics/format-metric-label";
 import {
@@ -171,6 +175,9 @@ export function ExperimentSidebar({
   variant = "overlay",
 }: ExperimentSidebarProps) {
   const { toast } = useToast();
+  const setSelectedExperimentId = useSelectedExperimentStore(
+    (state) => state.setSelectedExperimentId
+  );
 
   // Parent picker: dropdown filter + draft selection (committed from the edit form on save).
   const [parentMenuOpen, setParentMenuOpen] = useState(false);
@@ -245,6 +252,15 @@ export function ExperimentSidebar({
     updateExperiment,
     refetch,
   } = useExperiment(experimentId || "", { refetchInterval: REFRESH_EXPERIMENT_SIDEBAR_INTERVAL });
+
+  const snapshotExperimentIds = experiment?.id ? [experiment.id] : [];
+  const snapshotQuery = useQuery({
+    queryKey: [QUERY_KEYS.EXPERIMENTS.SNAPSHOTS(snapshotExperimentIds)],
+    queryFn: () => experimentSnapshotsService.list(snapshotExperimentIds),
+    enabled: snapshotExperimentIds.length > 0 && activeTab === "code",
+  });
+  const experimentSnapshot = snapshotQuery.data?.[0] ?? null;
+  const hasLoggedSnapshot = Boolean(experimentSnapshot?.snapshotId);
 
   const { metrics, isLoading: metricsLoading } = useExperimentMetrics(experimentId || "");
   const { metrics: parentLoggedMetrics } = useExperimentMetrics(experiment?.parentExperimentId ?? "");
@@ -450,8 +466,12 @@ export function ExperimentSidebar({
       title={
         experimentLoading ? (
           <Skeleton className="h-5 w-32" />
+        ) : experiment?.name ? (
+          <ExperimentNameTooltip name={experiment.name}>
+            <span className="block min-w-0 truncate">{experiment.name}</span>
+          </ExperimentNameTooltip>
         ) : (
-          experiment?.name || "Experiment"
+          "Experiment"
         )
       }
       headerPrefix={
@@ -527,135 +547,155 @@ export function ExperimentSidebar({
               />
             </div>
 
-            {/* Parent lineage: choose another experiment in the project; saved with the edit form */}
-            <div className="min-w-0 space-y-2">
-              <p className="text-sm text-muted-foreground">Parent experiment</p>
-              <div className="flex w-full min-w-0 max-w-full items-stretch gap-1 overflow-hidden">
-                <DropdownMenu open={parentMenuOpen} onOpenChange={setParentMenuOpen}>
-                  <DropdownMenuTrigger asChild>
-                    <button
-                      type="button"
-                      disabled={updateIsPending}
-                      data-testid="button-parent-experiment-menu"
-                      className={cn(
-                        "flex h-9 w-0 min-w-0 flex-1 items-center gap-2 rounded-md border border-input bg-background px-3 py-2 text-left text-sm shadow-sm ring-offset-background",
-                        "placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
-                        "disabled:cursor-not-allowed disabled:opacity-50"
-                      )}
-                    >
-                      <GitBranch className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                      {draftParentExperimentId &&
-                      !draftParentExperimentLoading &&
-                      draftParentExperiment ? (
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <span className="min-w-0 flex-1 truncate">
-                              {formatExperimentParentOption(draftParentExperiment)}
-                            </span>
-                          </TooltipTrigger>
-                          <TooltipContent side="top" className="max-w-sm">
-                            <p className="break-words text-sm">
-                              {formatExperimentParentOption(draftParentExperiment)}
-                            </p>
-                          </TooltipContent>
-                        </Tooltip>
-                      ) : (
-                        <span className="min-w-0 flex-1 truncate">
-                          {draftParentExperimentId ? (
-                            draftParentExperimentLoading ? (
-                              <Skeleton className="inline-block h-4 w-40 align-middle" />
-                            ) : (
-                              draftParentExperimentId.slice(0, 7)
-                            )
-                          ) : (
-                            <span className="text-muted-foreground">No parent</span>
-                          )}
-                        </span>
-                      )}
-                      <ChevronDown className="h-4 w-4 shrink-0 opacity-50" aria-hidden />
-                    </button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent
-                    className="flex max-h-[min(40rem,calc(100dvh-2rem))] w-[min(36rem,calc(100vw-1.5rem))] flex-col overflow-hidden p-0"
-                    align="start"
-                    sideOffset={4}
-                    onCloseAutoFocus={(e) => e.preventDefault()}
-                  >
-                    <div
-                      className="shrink-0 border-b border-border p-2"
-                      onPointerDown={(e) => {
-                        if (e.target instanceof HTMLInputElement) {
-                          return;
-                        }
-                        e.preventDefault();
-                        parentSearchInputRef.current?.focus();
-                      }}
-                    >
-                      <Input
-                        ref={parentSearchInputRef}
-                        type="search"
-                        placeholder="Filter by id, name, description, tags…"
-                        value={parentSearchQuery}
-                        onChange={(e) => setParentSearchQuery(e.target.value)}
-                        className="h-9"
-                        aria-label="Filter parent experiments"
-                        autoComplete="off"
-                        onKeyDown={(e) => e.stopPropagation()}
-                        onPointerDown={(e) => e.stopPropagation()}
-                      />
-                    </div>
-                    <div className="max-h-[min(32rem,calc(100dvh-7rem))] min-h-0 flex-1 overflow-y-auto overscroll-contain p-1 [scrollbar-gutter:stable]">
-                      {projectExperimentsLoading ? (
-                        <div className="space-y-2 p-2">
-                          <Skeleton className="h-9 w-full" />
-                          <Skeleton className="h-9 w-full" />
-                          <Skeleton className="h-9 w-full" />
-                        </div>
-                      ) : siblingExperimentsForParentPicker.length === 0 ? (
-                        <p className="px-2 py-3 text-sm text-muted-foreground">
-                          No other experiments in this project
-                        </p>
-                      ) : parentPickerRowsMatchingSearch.length === 0 ? (
-                        <p className="px-2 py-3 text-sm text-muted-foreground">
-                          No experiments match your filter
-                        </p>
-                      ) : (
-                        parentPickerRowsMatchingSearch.map((candidate) => (
-                          <DropdownMenuItem
-                            key={candidate.id}
-                            className="cursor-pointer"
-                            onSelect={() => selectParentExperimentFromMenu(candidate.id)}
-                          >
-                            {formatExperimentParentOption(candidate)}
-                          </DropdownMenuItem>
-                        ))
-                      )}
-                    </div>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-                {draftParentExperimentId ? (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    className="h-9 w-9 shrink-0 border-input"
-                    onClick={() => setDraftParentExperimentId(null)}
-                    disabled={updateIsPending}
-                    aria-label="Clear parent selection"
-                    data-testid="button-clear-parent-experiment"
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                ) : null}
-              </div>
-            </div>
-
             <ExperimentEditForm
               experiment={experiment}
               onSave={persistExperimentEdits}
               isSaving={updateIsPending}
               draftParentExperimentId={draftParentExperimentId}
               savedParentExperimentId={experiment.parentExperimentId ?? null}
+              afterDescription={
+                <div className="min-w-0 space-y-2">
+                  <p className="text-sm text-muted-foreground">Parent experiment</p>
+                  <div className="flex w-full min-w-0 max-w-full items-stretch gap-1 overflow-hidden">
+                    <DropdownMenu open={parentMenuOpen} onOpenChange={setParentMenuOpen}>
+                      <DropdownMenuTrigger asChild>
+                        <button
+                          type="button"
+                          disabled={updateIsPending}
+                          data-testid="button-parent-experiment-menu"
+                          className={cn(
+                            "flex h-9 w-0 min-w-0 flex-1 items-center gap-2 rounded-md border border-input bg-background px-3 py-2 text-left text-sm shadow-sm ring-offset-background",
+                            "placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                            "disabled:cursor-not-allowed disabled:opacity-50"
+                          )}
+                        >
+                          <GitBranch className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                          {draftParentExperimentId &&
+                          !draftParentExperimentLoading &&
+                          draftParentExperiment ? (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="min-w-0 flex-1 truncate">
+                                  {formatExperimentParentOption(draftParentExperiment)}
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent side="top" className="max-w-sm">
+                                <p className="break-words text-sm">
+                                  {formatExperimentParentOption(draftParentExperiment)}
+                                </p>
+                              </TooltipContent>
+                            </Tooltip>
+                          ) : (
+                            <span className="min-w-0 flex-1 truncate">
+                              {draftParentExperimentId ? (
+                                draftParentExperimentLoading ? (
+                                  <Skeleton className="inline-block h-4 w-40 align-middle" />
+                                ) : (
+                                  draftParentExperimentId.slice(0, 7)
+                                )
+                              ) : (
+                                <span className="text-muted-foreground">No parent</span>
+                              )}
+                            </span>
+                          )}
+                          <ChevronDown className="h-4 w-4 shrink-0 opacity-50" aria-hidden />
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent
+                        className="flex max-h-[min(40rem,calc(100dvh-2rem))] w-[min(36rem,calc(100vw-1.5rem))] flex-col overflow-hidden p-0"
+                        align="start"
+                        sideOffset={4}
+                        onCloseAutoFocus={(e) => e.preventDefault()}
+                      >
+                        <div
+                          className="shrink-0 border-b border-border p-2"
+                          onPointerDown={(e) => {
+                            if (e.target instanceof HTMLInputElement) {
+                              return;
+                            }
+                            e.preventDefault();
+                            parentSearchInputRef.current?.focus();
+                          }}
+                        >
+                          <Input
+                            ref={parentSearchInputRef}
+                            type="search"
+                            placeholder="Filter by id, name, description, tags…"
+                            value={parentSearchQuery}
+                            onChange={(e) => setParentSearchQuery(e.target.value)}
+                            className="h-9"
+                            aria-label="Filter parent experiments"
+                            autoComplete="off"
+                            onKeyDown={(e) => e.stopPropagation()}
+                            onPointerDown={(e) => e.stopPropagation()}
+                          />
+                        </div>
+                        <div className="max-h-[min(32rem,calc(100dvh-7rem))] min-h-0 flex-1 overflow-y-auto overscroll-contain p-1 [scrollbar-gutter:stable]">
+                          {projectExperimentsLoading ? (
+                            <div className="space-y-2 p-2">
+                              <Skeleton className="h-9 w-full" />
+                              <Skeleton className="h-9 w-full" />
+                              <Skeleton className="h-9 w-full" />
+                            </div>
+                          ) : siblingExperimentsForParentPicker.length === 0 ? (
+                            <p className="px-2 py-3 text-sm text-muted-foreground">
+                              No other experiments in this project
+                            </p>
+                          ) : parentPickerRowsMatchingSearch.length === 0 ? (
+                            <p className="px-2 py-3 text-sm text-muted-foreground">
+                              No experiments match your filter
+                            </p>
+                          ) : (
+                            parentPickerRowsMatchingSearch.map((candidate) => (
+                              <DropdownMenuItem
+                                key={candidate.id}
+                                className="cursor-pointer"
+                                onSelect={() => selectParentExperimentFromMenu(candidate.id)}
+                              >
+                                {formatExperimentParentOption(candidate)}
+                              </DropdownMenuItem>
+                            ))
+                          )}
+                        </div>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                    {experiment.parentExperimentId ? (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            className="h-9 w-9 shrink-0 border-input"
+                            onClick={() =>
+                              setSelectedExperimentId(experiment.parentExperimentId!)
+                            }
+                            aria-label="Open parent experiment"
+                            data-testid="button-open-parent-experiment"
+                          >
+                            <ArrowUp className="h-4 w-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent side="top">Open parent experiment</TooltipContent>
+                      </Tooltip>
+                    ) : null}
+                    {draftParentExperimentId ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        className="h-9 w-9 shrink-0 border-input"
+                        onClick={() => setDraftParentExperimentId(null)}
+                        disabled={updateIsPending}
+                        aria-label="Clear parent selection"
+                        data-testid="button-clear-parent-experiment"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    ) : null}
+                  </div>
+                </div>
+              }
             />
 
             <div className="flex items-center gap-2">
@@ -712,8 +752,6 @@ export function ExperimentSidebar({
                 </p>
               </div>
             </div>
-
-            <EntityIdDisplay label="ID" value={experiment.id} />
 
             {/* Metrics / features / diff — keeps heavy JSON and git output out of the first paint path */}
             <Tabs
@@ -813,51 +851,59 @@ export function ExperimentSidebar({
 
               <TabsContent value="code" className="space-y-2">
                 <div className="space-y-2 rounded-md border bg-muted/20 p-3">
-                  <Button
-                    asChild
-                    variant="outline"
-                    size="sm"
-                    className="w-full justify-start"
-                    data-testid="button-open-code-compare"
-                  >
-                    <Link
-                      href={buildCodeCompareHref(experiment)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      <GitCompare className="h-4 w-4" />
-                      <span>{experiment.parentExperimentId ? "Open code compare" : "Open files"}</span>
-                    </Link>
-                  </Button>
-                  {experiment.parentExperimentId ? (
-                    <Button
-                      asChild
-                      variant="outline"
-                      size="sm"
-                      className="w-full justify-start"
-                      data-testid="button-open-code-files"
-                    >
-                      <Link
-                        href={buildCodeFilesHref(experiment)}
-                        target="_blank"
-                        rel="noopener noreferrer"
+                  {snapshotQuery.isLoading ? (
+                    <p className="text-sm text-muted-foreground">Loading snapshot…</p>
+                  ) : !hasLoggedSnapshot ? (
+                    <MissingSnapshotNotice />
+                  ) : (
+                    <>
+                      <Button
+                        asChild
+                        variant="outline"
+                        size="sm"
+                        className="w-full justify-start"
+                        data-testid="button-open-code-compare"
                       >
-                        <FileCode2 className="h-4 w-4" />
-                        <span>Open files</span>
-                      </Link>
-                    </Button>
-                  ) : null}
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="w-full justify-start"
-                    data-testid="button-download-snapshot"
-                    onClick={() => setDownloadSnapshotOpen(true)}
-                  >
-                    <Download className="h-4 w-4" />
-                    <span>Download snapshot</span>
-                  </Button>
+                        <Link
+                          href={buildCodeCompareHref(experiment)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          <GitCompare className="h-4 w-4" />
+                          <span>{experiment.parentExperimentId ? "Open code compare" : "Open files"}</span>
+                        </Link>
+                      </Button>
+                      {experiment.parentExperimentId ? (
+                        <Button
+                          asChild
+                          variant="outline"
+                          size="sm"
+                          className="w-full justify-start"
+                          data-testid="button-open-code-files"
+                        >
+                          <Link
+                            href={buildCodeFilesHref(experiment)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            <FileCode2 className="h-4 w-4" />
+                            <span>Open files</span>
+                          </Link>
+                        </Button>
+                      ) : null}
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="w-full justify-start"
+                        data-testid="button-download-snapshot"
+                        onClick={() => setDownloadSnapshotOpen(true)}
+                      >
+                        <Download className="h-4 w-4" />
+                        <span>Download snapshot</span>
+                      </Button>
+                    </>
+                  )}
                 </div>
               </TabsContent>
             </Tabs>

@@ -303,7 +303,7 @@ export function PlotlyArtifactMedia({
     <div className="space-y-2">
       <div
         ref={plotContainerRef}
-        className="w-full overflow-hidden rounded border"
+        className="w-full overflow-hidden rounded"
         style={{ height: maxHeight }}
       >
         <MemoizedPlot

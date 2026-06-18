@@ -63,6 +63,12 @@ class DeleteProjectResponseDTO(BaseModel):
     deleted: bool
 
 
+class EnsureProjectBucketResponseDTO(BaseModel):
+    """Response DTO after provisioning the project-scoped CAS bucket."""
+
+    bucket_name: str
+
+
 class BucketListRowDTO(BaseModel):
     """API bucket row used by admin listing and usage responses.
 

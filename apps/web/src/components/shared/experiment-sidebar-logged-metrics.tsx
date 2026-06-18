@@ -44,6 +44,7 @@ import { cn } from "@/lib/utils";
 
 import {
   METRIC_SIDEBAR_DENSE_CLASS_NAMES,
+  METRIC_SIDEBAR_ROW_HOVER_CLASS,
   METRIC_SIDEBAR_ROW_REMOVE_BUTTON_CLASS,
   METRIC_SIDEBAR_ROW_REMOVE_CELL_CLASS,
   METRIC_SIDEBAR_ROW_REMOVE_ICON_CLASS,
@@ -279,7 +280,8 @@ function LoggedMetricsList({
             <AccordionPrimitive.Header className="flex items-center gap-1">
               <AccordionPrimitive.Trigger
                 className={cn(
-                  "flex flex-1 items-center justify-between gap-2 py-2 text-xs font-medium text-muted-foreground transition-all hover:no-underline [&[data-state=open]>svg]:rotate-180"
+                  "flex flex-1 items-center justify-between gap-2 rounded-sm py-2 text-xs font-medium text-muted-foreground transition-colors hover:no-underline [&[data-state=open]>svg]:rotate-180",
+                  METRIC_SIDEBAR_ROW_HOVER_CLASS
                 )}
               >
                 <span className="min-w-0 flex-1 truncate text-left">{groupTitle}</span>

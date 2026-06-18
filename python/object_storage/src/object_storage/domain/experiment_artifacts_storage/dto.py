@@ -73,6 +73,12 @@ class DeleteExperimentArtifactsResponseDTO(BaseModel):
     deleted_count: int
 
 
+class EnsureExperimentBucketResponseDTO(BaseModel):
+    """Response DTO after provisioning the experiment-scoped storage bucket."""
+
+    bucket_name: str
+
+
 class ExperimentArtifactsSizeResponseDTO(BaseModel):
     """Response DTO returning total artifacts size for one experiment."""
 

@@ -21,7 +21,7 @@ import {
   syncExperimentRowOrder,
 } from "../lib/row-order";
 import { loadPersistedMetricsUi, savePersistedMetricsUi } from "../lib/persisted-ui";
-import { metricCellStyleKey } from "../lib/constants";
+import { metricCellStyleKey, SHOW_IN_REPORT_COLUMN_ID, SHOW_IN_REPORT_COLUMN_PX } from "../lib/constants";
 import { useMetricTableColumns } from "./use-metric-table-columns";
 import { inferMetricColumnWidthPx } from "@/lib/table/column-width-inference";
 
@@ -45,6 +45,7 @@ export function useProjectMetricsPageState() {
   const [nameFilter, setNameFilter] = useState("");
   const [pinLeadColumns, setPinLeadColumns] = useState(true);
   const [wrapExperimentNames, setWrapExperimentNames] = useState(true);
+  const [wrapValues, setWrapValues] = useState(true);
   const [experimentRowOrder, setExperimentRowOrder] = useState<string[]>([]);
   const [columnOrder, setColumnOrder] = useState<ColumnOrderState>([]);
   const [columnSizing, setColumnSizing] = useState<Record<string, number>>({});
@@ -84,6 +85,7 @@ export function useProjectMetricsPageState() {
     if (s?.label !== undefined) setLabel(s.label);
     if (s?.pinLeadColumns != null) setPinLeadColumns(!!s.pinLeadColumns);
     if (s?.wrapExperimentNames != null) setWrapExperimentNames(!!s.wrapExperimentNames);
+    if (s?.wrapValues != null) setWrapValues(!!s.wrapValues);
   }, [projectId]);
 
   useEffect(() => {
@@ -154,7 +156,11 @@ export function useProjectMetricsPageState() {
       const co = raw.map((c) =>
         c === "experiment_id" ? "experimentId" : c === "created_at" ? "createdAt" : c
       );
-      const fixed = (c: string) => c === "experiment" || c === "experimentId" || c === "createdAt";
+      const fixed = (c: string) =>
+        c === "experiment" ||
+        c === SHOW_IN_REPORT_COLUMN_ID ||
+        c === "experimentId" ||
+        c === "createdAt";
       const savedMetricOrder = projectId ? loadPersistedMetricsUi(projectId)?.columnOrder : undefined;
       const fromData = co.filter(
         (c) => !fixed(c) && baseNames.includes(c)
@@ -176,13 +182,14 @@ export function useProjectMetricsPageState() {
           if (!middle.includes(b)) middle.push(b);
         }
       }
-      const next = ["experiment" as const, ...middle, "experimentId" as const, "createdAt" as const];
+      const lead = editMode ? ([SHOW_IN_REPORT_COLUMN_ID] as const) : [];
+      const next = [...lead, "experiment" as const, ...middle, "experimentId" as const, "createdAt" as const];
       if (!keyChanged && co.length > 0 && co.length === next.length && co.every((id, i) => id === next[i])) {
         return raw;
       }
       return next;
     });
-  }, [baseNames, metricNameKey, projectId]);
+  }, [baseNames, metricNameKey, projectId, editMode]);
 
   const filteredRows = useMemo(() => {
     const q = nameFilter.trim().toLowerCase();
@@ -241,7 +248,10 @@ export function useProjectMetricsPageState() {
   }, [baseNames, editMode, tableData]);
 
   const columnVisibility = useMemo(() => {
-    const vis: Record<string, boolean> = { experiment: true };
+    const vis: Record<string, boolean> = {
+      experiment: true,
+      [SHOW_IN_REPORT_COLUMN_ID]: editMode,
+    };
     for (const n of baseNames) {
       vis[n] = editMode ? true : !hiddenColumnIds.has(n);
     }
@@ -249,6 +259,20 @@ export function useProjectMetricsPageState() {
     vis["createdAt"] = editMode ? true : !hiddenColumnIds.has("createdAt");
     return vis;
   }, [baseNames, editMode, hiddenColumnIds]);
+
+  const effectiveColumnOrder = useMemo(() => {
+    const without = columnOrder.filter((c) => c !== SHOW_IN_REPORT_COLUMN_ID);
+    if (!editMode) return without;
+    return [SHOW_IN_REPORT_COLUMN_ID, ...without];
+  }, [columnOrder, editMode]);
+
+  const effectiveColumnSizing = useMemo(
+    () => ({
+      ...columnSizing,
+      [SHOW_IN_REPORT_COLUMN_ID]: SHOW_IN_REPORT_COLUMN_PX,
+    }),
+    [columnSizing]
+  );
 
   const columns = useMetricTableColumns({
     baseNames,
@@ -267,12 +291,13 @@ export function useProjectMetricsPageState() {
     cycleCellTint,
     onSelectExperiment,
     wrapExperimentNames,
+    wrapValues,
   });
 
   const table = useReactTable<MetricsTableRow>({
     data: tableData,
     columns,
-    state: { columnOrder, columnSizing, sorting, columnVisibility },
+    state: { columnOrder: effectiveColumnOrder, columnSizing: effectiveColumnSizing, sorting, columnVisibility },
     onColumnOrderChange: setColumnOrder,
     onColumnSizingChange: setColumnSizing,
     onSortingChange: setSorting,
@@ -290,14 +315,19 @@ export function useProjectMetricsPageState() {
         includeAll,
         pinLeadColumns,
         wrapExperimentNames,
+        wrapValues,
         columnOrder: columnOrder.filter(
-          (c) => c !== "experiment" && c !== "experimentId" && c !== "createdAt"
+          (c) =>
+            c !== "experiment" &&
+            c !== SHOW_IN_REPORT_COLUMN_ID &&
+            c !== "experimentId" &&
+            c !== "createdAt"
         ),
         columnSizing,
       });
     }, 200);
     return () => clearTimeout(t);
-  }, [projectId, label, includeAll, pinLeadColumns, wrapExperimentNames, columnOrder, columnSizing]);
+  }, [projectId, label, includeAll, pinLeadColumns, wrapExperimentNames, wrapValues, columnOrder, columnSizing]);
 
   const hasAnyLabel = (labelData?.labels.length ?? 0) > 0 || (labelData?.hasUnlabeled ?? false);
 
@@ -320,6 +350,8 @@ export function useProjectMetricsPageState() {
     setPinLeadColumns,
     wrapExperimentNames,
     setWrapExperimentNames,
+    wrapValues,
+    setWrapValues,
     orderedMetricNames,
     handleMetricReorder,
     experimentRowOrder,

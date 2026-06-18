@@ -161,7 +161,7 @@ class ProjectService:
     async def create_project(
         self, user: UserProtocol, data: ProjectCreateDTO
     ) -> ProjectDTO:
-        """Create a project and provision its scalars table.
+        """Create a project and provision its scalars table and object-storage bucket.
 
         Team projects inherit ownership from the team owner; standalone projects grant
         the creator project admin permissions. If any step fails, the database
@@ -203,6 +203,8 @@ class ProjectService:
                     user.id, project_model.id, Role.ADMIN
                 )
             await self.scalars_service.create_project_table(project_model.id)
+            if self.object_storage_client is not None:
+                await self.object_storage_client.ensure_project_bucket(project_model.id)
             await self.db.commit()
         except Exception as e:
             await self.db.rollback()

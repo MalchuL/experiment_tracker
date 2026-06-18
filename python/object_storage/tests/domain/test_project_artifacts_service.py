@@ -217,6 +217,23 @@ async def test_check_blobs_returns_only_missing_normalized_hashes() -> None:
 
 
 @pytest.mark.asyncio
+async def test_ensure_project_bucket_commits_registry_and_storage() -> None:
+    project_id = uuid4()
+    repo = FakeRepository()
+    storage = FakeStorage()
+    buckets = FakeBucketsService(storage)
+    service = ObjectStorageService(repo, buckets, FakeExperimentArtifactsRepository())
+
+    result = await service.ensure_project_bucket(project_id)
+
+    expected_name = project_experiment_bucket_name(project_id, None)
+    assert result.bucket_name == expected_name
+    assert buckets.ensure_bucket_calls == [(project_id, None)]
+    assert storage.ensure_bucket_calls == [expected_name]
+    assert repo.commit_calls == 1
+
+
+@pytest.mark.asyncio
 async def test_upload_blob_rejects_hash_mismatch() -> None:
     project_id = uuid4()
     repo = FakeRepository()
@@ -382,10 +399,11 @@ async def test_prepare_snapshot_download_includes_missing_manifest_file() -> Non
     missing_hash = "b" * 64
     repo = FakeRepository()
     repo.snapshot_to_return = SimpleNamespace(
+        project_id=project_id,
         manifest=[
             {"path": "existing.bin", "hash": present_hash},
             {"path": "missing.bin", "hash": missing_hash},
-        ]
+        ],
     )
     storage = FakeStorage()
     bucket_name = project_experiment_bucket_name(project_id, None)
@@ -412,7 +430,8 @@ async def test_prepare_snapshot_download_rejects_invalid_manifest_paths() -> Non
     project_id = uuid4()
     repo = FakeRepository()
     repo.snapshot_to_return = SimpleNamespace(
-        manifest=[{"path": "bad:path.txt", "hash": "c" * 64}]
+        project_id=project_id,
+        manifest=[{"path": "bad:path.txt", "hash": "c" * 64}],
     )
     storage = FakeStorage()
     buckets = FakeBucketsService(storage)

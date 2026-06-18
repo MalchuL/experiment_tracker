@@ -210,10 +210,10 @@ export function ExperimentsTable({
           style={{ width: experimentTableTotalWidthPx }}
         >
           <TableHeader className="sticky top-0 z-20 bg-background shadow-[0_1px_0_0_hsl(var(--border))]">
-            <TableRow>
+            <TableRow className="group">
               <TableHead
                 className={cn(
-                  "relative h-12 px-2 text-left align-middle font-medium text-muted-foreground",
+                  "relative h-12 px-2 text-left align-middle font-medium text-muted-foreground group-hover:bg-muted/50",
                   gripThClass,
                   headerSeparatorClass
                 )}
@@ -229,7 +229,7 @@ export function ExperimentsTable({
               />
               <TableHead
                 className={cn(
-                  "relative h-12 min-w-0 overflow-hidden px-4 text-left align-middle font-medium text-muted-foreground",
+                  "relative h-12 min-w-0 overflow-hidden px-4 text-left align-middle font-medium text-muted-foreground group-hover:bg-muted/50",
                   experimentThClass,
                   headerSeparatorClass
                 )}

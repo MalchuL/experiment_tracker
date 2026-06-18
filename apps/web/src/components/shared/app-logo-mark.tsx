@@ -10,7 +10,7 @@ export function AppLogoMark({ className }: { className?: string }) {
       )}
     >
       <Image
-        src="/logo.svg"
+        src="/logo.png"
         alt=""
         width={32}
         height={32}

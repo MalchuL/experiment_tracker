@@ -61,6 +61,31 @@ def test_exp_tracker_settings_allows_unlimited_snapshot_size(
     assert get_exp_tracker_settings().snapshot_max_file_size == -1
 
 
+def test_exp_tracker_settings_reads_num_workers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify worker count is loaded from the environment."""
+    from experiment_tracker_sdk.settings import get_exp_tracker_settings
+
+    monkeypatch.setenv("EXP_TRACKER_NUM_WORKERS", "8")
+
+    assert get_exp_tracker_settings().num_workers == 8
+
+
+def test_exp_tracker_settings_defaults_num_workers_to_min_four_cpus(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify default workers use ``min(4, cpu_count)``."""
+    import os
+
+    from experiment_tracker_sdk.settings import get_exp_tracker_settings
+
+    monkeypatch.delenv("EXP_TRACKER_NUM_WORKERS", raising=False)
+    monkeypatch.setattr(os, "cpu_count", lambda: 16)
+
+    assert get_exp_tracker_settings().num_workers == 4
+
+
 def test_exp_tracker_settings_reads_config_path_and_api_token(
     tmp_path,
     monkeypatch: pytest.MonkeyPatch,

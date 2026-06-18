@@ -62,6 +62,8 @@ export function ProjectMetricsPage() {
     setPinLeadColumns,
     wrapExperimentNames,
     setWrapExperimentNames,
+    wrapValues,
+    setWrapValues,
     orderedMetricNames,
     handleMetricReorder,
     experimentRowOrder,
@@ -125,6 +127,8 @@ export function ProjectMetricsPage() {
             onPinLeadColumnsChange={setPinLeadColumns}
             wrapExperimentNames={wrapExperimentNames}
             onWrapExperimentNamesChange={setWrapExperimentNames}
+            wrapValues={wrapValues}
+            onWrapValuesChange={setWrapValues}
             orderedMetricNames={orderedMetricNames}
             onMetricReorder={handleMetricReorder}
           />
@@ -135,7 +139,7 @@ export function ProjectMetricsPage() {
             </div>
             <ProjectDataTableFrame
               pinLeadColumns={pinLeadColumns}
-              leadColumnCount={2}
+              leadColumnCount={editMode ? 3 : 2}
               scrollContainerRef={metricsScrollRef}
               className="min-h-0"
               toolbar={
@@ -191,6 +195,7 @@ export function ProjectMetricsPage() {
                 filteredRows={filteredRows}
                 selectedExperimentId={selectedExperimentId}
                 wrapExperimentNames={wrapExperimentNames}
+                wrapValues={wrapValues}
                 rowReorderDisabled={rowReorderDisabled}
                 experimentRowOrder={experimentRowOrder}
                 onExperimentRowReorder={handleExperimentRowReorder}

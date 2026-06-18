@@ -12,6 +12,10 @@ from experiment_tracker_sdk.snapshot import (
     normalize_snapshot_max_file_size,
     scan_snapshot_files,
 )
+from experiment_tracker_sdk.utils.parallel import (
+    ParallelTaskRunner,
+    default_parallel_worker_count,
+)
 
 
 def test_scan_snapshot_files_uses_gitignore_and_exp_tracker_ignore(tmp_path):
@@ -499,3 +503,96 @@ def test_snapshot_uploader_streams_files_and_closes_handles(
     assert snapshot_files[0].size == len(b"payload")
     assert uploaded_handles
     assert uploaded_handles[0].closed
+
+
+def test_default_parallel_worker_count_uses_min_four_cpus(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify default worker count caps at four cores."""
+    import os
+
+    monkeypatch.setattr(os, "cpu_count", lambda: 16)
+    assert default_parallel_worker_count() == 4
+
+    monkeypatch.setattr(os, "cpu_count", lambda: 2)
+    assert default_parallel_worker_count() == 2
+
+    monkeypatch.setattr(os, "cpu_count", lambda: None)
+    assert default_parallel_worker_count() == 1
+
+
+def test_parallel_task_runner_preserves_order() -> None:
+    """Verify parallel map preserves input order."""
+    runner = ParallelTaskRunner(max_workers=4)
+    assert runner.map(lambda value: value * 2, [1, 2, 3, 4]) == [2, 4, 6, 8]
+
+
+def test_snapshot_uploader_uploads_multiple_files_in_parallel(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify snapshot uploads can process multiple missing files concurrently."""
+    import threading
+
+    (tmp_path / "first.bin").write_bytes(b"first")
+    (tmp_path / "second.bin").write_bytes(b"second")
+    (tmp_path / "third.bin").write_bytes(b"third")
+    active_uploads = 0
+    max_active_uploads = 0
+    lock = threading.Lock()
+    snapshot_files = []
+
+    class FakeArtifacts:
+        def __init__(self, *_args, **_kwargs) -> None:
+            pass
+
+        def check_project_artifacts(self, _project_id, hashes):
+            return CheckProjectArtifactsResponse(missing=hashes)
+
+        def upload_project_artifact(self, **kwargs):
+            nonlocal active_uploads, max_active_uploads
+            with lock:
+                active_uploads += 1
+                max_active_uploads = max(max_active_uploads, active_uploads)
+            try:
+                content = kwargs["content"]
+                assert not content.closed
+                assert content.read()
+                return SimpleNamespace(detail="uploaded")
+            finally:
+                with lock:
+                    active_uploads -= 1
+
+    class FakeExperimentData:
+        def upsert_snapshot(self, **kwargs):
+            snapshot_files.extend(kwargs["files"])
+            return kwargs
+
+    class FakeClient:
+        def request(self, _spec):
+            return SimpleNamespace(snapshot_id="snapshot-1")
+
+    from experiment_tracker_sdk import snapshot as snapshot_module
+
+    monkeypatch.setattr(snapshot_module, "ArtifactClient", FakeArtifacts)
+    uploader = SnapshotUploader(
+        registry=SimpleNamespace(experiment_data=FakeExperimentData()),
+        request_client=FakeClient(),
+    )
+
+    result = uploader.log_snapshot(
+        project_id="project-1",
+        experiment_id="experiment-1",
+        path=tmp_path,
+        max_file_size=None,
+        max_workers=3,
+    )
+
+    assert result.uploaded == 3
+    assert result.existing == 0
+    assert max_active_uploads >= 2
+    assert {entry.path for entry in snapshot_files} == {
+        "first.bin",
+        "second.bin",
+        "third.bin",
+    }

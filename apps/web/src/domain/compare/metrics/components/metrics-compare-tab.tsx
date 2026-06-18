@@ -237,7 +237,7 @@ function renderCompareMetricValue(
       direction={direction}
       showDiff={canDiff}
       colorizeDiffOutcome={false}
-      valueDiffClusterOrder="value-first"
+      valueDiffClusterOrder="diff-first"
       metricTable={{
         scope: "cell",
         groupHasAnyDiff: canDiff,

@@ -400,6 +400,8 @@ def service_constructor_compat(monkeypatch: pytest.MonkeyPatch) -> None:
         db: AsyncSession,
         experiment_repository: ExperimentRepository | None = None,
         permission_checker: PermissionChecker | None = None,
+        scalars_service=None,
+        object_storage_client=None,
     ) -> None:
         experiment_repository = experiment_repository or ExperimentRepository(db)
         permission_checker = permission_checker or _make_permission_checker(db)
@@ -408,6 +410,8 @@ def service_constructor_compat(monkeypatch: pytest.MonkeyPatch) -> None:
             db,
             experiment_repository=experiment_repository,
             permission_checker=permission_checker,
+            scalars_service=scalars_service,
+            object_storage_client=object_storage_client,
         )
 
     def _hypothesis_init_compat(
@@ -476,6 +480,7 @@ def service_constructor_compat(monkeypatch: pytest.MonkeyPatch) -> None:
         permission_checker: PermissionChecker | None = None,
         team_repository: TeamRepository | None = None,
         scalars_service=None,
+        object_storage_client=None,
     ) -> None:
         project_repository = project_repository or ProjectRepository(db)
         permission_service = permission_service or PermissionService(
@@ -494,6 +499,7 @@ def service_constructor_compat(monkeypatch: pytest.MonkeyPatch) -> None:
             permission_checker=permission_checker,
             team_repository=team_repository,
             scalars_service=scalars_service,
+            object_storage_client=object_storage_client,
         )
 
     def _dashboard_init_compat(

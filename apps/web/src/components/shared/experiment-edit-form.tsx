@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, type ReactNode } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -23,6 +23,7 @@ import { Save, Palette } from "lucide-react";
 import { EXPERIMENT_COLORS } from "@/domain/experiments/schemas";
 import type { Experiment } from "@/domain/experiments/types";
 import { ColorList } from "./color-list";
+import { EntityIdDisplay } from "./entity-id-display";
 
 const experimentEditSchema = z.object({
   name: z.string().min(1, "Name is required").max(ENTITY_NAME_MAX_LEN),
@@ -43,6 +44,8 @@ interface ExperimentEditFormProps {
   /** When set together with `savedParentExperimentId`, parent is included in Save and can show the button when only parent differs. */
   draftParentExperimentId?: string | null;
   savedParentExperimentId?: string | null;
+  /** Optional content rendered after the description field (e.g. parent picker in sidebar). */
+  afterDescription?: ReactNode;
 }
 
 export function ExperimentEditForm({
@@ -51,6 +54,7 @@ export function ExperimentEditForm({
   isSaving = false,
   draftParentExperimentId,
   savedParentExperimentId,
+  afterDescription,
 }: ExperimentEditFormProps) {
   const form = useForm<ExperimentEditFormData>({
     resolver: zodResolver(experimentEditSchema as any),
@@ -95,6 +99,8 @@ export function ExperimentEditForm({
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+        <EntityIdDisplay label="ID" value={experiment.id} />
+
         <FormField
           control={form.control}
           name="name"
@@ -133,6 +139,8 @@ export function ExperimentEditForm({
             </FormItem>
           )}
         />
+
+        {afterDescription}
 
         <FormField
           control={form.control}

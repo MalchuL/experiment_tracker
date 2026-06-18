@@ -20,6 +20,8 @@ from .dto import (
     DeleteProjectArtifactResponseDTO,
     DeleteProjectSnapshotResponseDTO,
     DeleteProjectResponseDTO,
+    EnsureExperimentBucketResponseDTO,
+    EnsureProjectBucketResponseDTO,
     ExperimentArtifactsUsageResponseDTO,
     ExperimentTrackedArtifactListDTO,
     ExperimentTrackedArtifactInfoDTO,
@@ -134,6 +136,7 @@ class ObjectStorageClient:
     # Endpoint map grouped by operation names used in this client.
     ENDPOINTS: dict[str, Any] = {
         "check_project_artifacts": lambda project_id: f"/project-artifacts/{project_id}/check",
+        "ensure_project_bucket": lambda project_id: f"/project-artifacts/{project_id}/ensure-bucket",
         "upload_project_artifact": lambda project_id: f"/project-artifacts/{project_id}/upload",
         "download_project_artifact": lambda project_id, artifact_hash: f"/project-artifacts/{project_id}/artifacts/{artifact_hash}",
         "create_project_snapshot": lambda project_id: f"/project-artifacts/{project_id}/snapshots",
@@ -188,6 +191,9 @@ class ObjectStorageClient:
         "get_experiment_usage": lambda pid, eid: (
             f"/experiment-artifacts/projects/{pid}/experiments/{eid}/usage"
         ),
+        "ensure_experiment_bucket": lambda pid, eid: (
+            f"/experiment-artifacts/projects/{pid}/experiments/{eid}/ensure-bucket"
+        ),
     }
 
     def __init__(
@@ -218,6 +224,25 @@ class ObjectStorageClient:
             json_payload=hashes,
         )
         return CheckProjectArtifactsResponseDTO.model_validate(response)
+
+    async def ensure_project_bucket(
+        self, project_id: UUID
+    ) -> EnsureProjectBucketResponseDTO:
+        """Ensure the project-scoped CAS bucket exists in object storage."""
+        response = await self._request(
+            "POST", self.ENDPOINTS["ensure_project_bucket"](project_id)
+        )
+        return EnsureProjectBucketResponseDTO.model_validate(response)
+
+    async def ensure_experiment_bucket(
+        self, project_id: UUID, experiment_id: UUID
+    ) -> EnsureExperimentBucketResponseDTO:
+        """Ensure the experiment-scoped bucket exists in object storage."""
+        response = await self._request(
+            "POST",
+            self.ENDPOINTS["ensure_experiment_bucket"](project_id, experiment_id),
+        )
+        return EnsureExperimentBucketResponseDTO.model_validate(response)
 
     async def upload_project_artifact(
         self, project_id: UUID, artifact_hash: str, upload: UploadFile

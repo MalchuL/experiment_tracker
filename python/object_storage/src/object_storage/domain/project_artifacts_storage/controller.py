@@ -20,6 +20,7 @@ from .dto import (
     DeleteStorageBucketResponseDTO,
     DeleteBlobResponseDTO,
     DeleteProjectResponseDTO,
+    EnsureProjectBucketResponseDTO,
     ProjectUsageResponseDTO,
     ReconcileStorageBucketResponseDTO,
     SnapshotCreateRequestDTO,
@@ -32,6 +33,16 @@ from .service import ObjectStorageService
 router = APIRouter(prefix="/project-artifacts")
 
 _ARTIFACT_HASH_HEX_MAX_LEN = 64
+
+
+@router.post("/{project_id}/ensure-bucket", response_model=EnsureProjectBucketResponseDTO)
+async def ensure_project_bucket(
+    project_id: UUID,
+    service: ObjectStorageService = Depends(get_project_artifacts_service),
+):
+    """Ensure the project-scoped CAS bucket exists in registry and object storage."""
+
+    return await service.ensure_project_bucket(project_id)
 
 
 @router.post("/{project_id}/check", response_model=BlobCheckResponseDTO)

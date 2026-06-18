@@ -149,7 +149,7 @@ export function ExperimentHparamsPanel({
                 type="button"
                 variant="outline"
                 size="icon"
-                className="h-8 w-8"
+                className="h-8 w-8 shrink-0"
                 onClick={() => setDeleteConfirmOpen(true)}
                 aria-label="Remove hyperparameters"
                 title="Remove hyperparameters"
@@ -161,7 +161,7 @@ export function ExperimentHparamsPanel({
               type="button"
               variant="outline"
               size="icon"
-              className="h-8 w-8"
+              className="h-8 w-8 shrink-0"
               onClick={openEditor}
               aria-label={hparams === null ? "Add hyperparameters" : "Edit hyperparameters"}
               title={hparams === null ? "Add hyperparameters" : "Edit hyperparameters"}

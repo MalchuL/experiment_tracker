@@ -17,6 +17,8 @@ from .dto import (
     DeleteProjectArtifactResponseDTO,
     DeleteProjectSnapshotResponseDTO,
     DeleteProjectResponseDTO,
+    EnsureExperimentBucketResponseDTO,
+    EnsureProjectBucketResponseDTO,
     ExperimentArtifactsUsageResponseDTO,
     ExperimentTrackedArtifactListDTO,
     ExperimentTrackedArtifactInfoDTO,
@@ -43,6 +45,16 @@ class ObjectStorageClientProtocol(Protocol):
         Returns:
             The response from the object storage.
         """
+
+    async def ensure_project_bucket(
+        self, project_id: UUID
+    ) -> EnsureProjectBucketResponseDTO:
+        """Ensure the project-scoped CAS bucket exists in object storage."""
+
+    async def ensure_experiment_bucket(
+        self, project_id: UUID, experiment_id: UUID
+    ) -> EnsureExperimentBucketResponseDTO:
+        """Ensure the experiment-scoped bucket exists in object storage."""
 
     async def upload_project_artifact(
         self, project_id: UUID, artifact_hash: str, upload: UploadFile

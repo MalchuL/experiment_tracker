@@ -1,9 +1,10 @@
 from datetime import datetime
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from clients.object_storage import EnsureExperimentBucketResponseDTO
 from domain.experiments.dto import ExperimentCreateDTO, ExperimentUpdateDTO
 from domain.experiments.error import ExperimentNotAccessibleError
 from domain.experiments.service import ExperimentService
@@ -57,6 +58,19 @@ async def _create_experiment(
     await db_session.flush()
     # await db_session.commit()
     return experiment
+
+
+class FakeObjectStorageClient:
+    def __init__(self) -> None:
+        self.ensure_experiment_bucket_calls: list[tuple[UUID, UUID]] = []
+
+    async def ensure_experiment_bucket(
+        self, project_id: UUID, experiment_id: UUID
+    ) -> EnsureExperimentBucketResponseDTO:
+        self.ensure_experiment_bucket_calls.append((project_id, experiment_id))
+        return EnsureExperimentBucketResponseDTO(
+            bucket_name=f"project-{project_id}-experiment-{experiment_id}"
+        )
 
 
 class TestExperimentService:
@@ -131,6 +145,33 @@ class TestExperimentService:
 
         with pytest.raises(ExperimentNotAccessibleError):
             await experiment_service.create_experiment(test_user, dto)
+
+    async def test_create_experiment_provisions_object_storage_bucket(
+        self,
+        db_session: AsyncSession,
+        test_user: User,
+    ) -> None:
+        project = await _create_project(db_session, test_user)
+        permission_service = PermissionService(db_session, auto_commit=True)
+        await permission_service.add_permission(
+            user_id=test_user.id,
+            action=ProjectActions.CREATE_EXPERIMENT,
+            allowed=True,
+            project_id=project.id,
+        )
+        storage = FakeObjectStorageClient()
+        experiment_service = ExperimentService(
+            db_session, object_storage_client=storage
+        )
+        dto = ExperimentCreateDTO(
+            project_id=project.id,
+            name="Bucket Experiment",
+            description="With bucket",
+        )
+
+        created = await experiment_service.create_experiment(test_user, dto)
+
+        assert storage.ensure_experiment_bucket_calls == [(project.id, created.id)]
 
     async def test_create_experiment_sets_parent_id(
         self,
