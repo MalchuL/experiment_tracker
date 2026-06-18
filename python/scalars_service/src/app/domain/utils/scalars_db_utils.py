@@ -231,12 +231,11 @@ class ClickHouseScalarsDBUtils:
             columns_str.extend(
                 [f"{col} {SCALAR_COLUMN_TYPE}" for col in scalar_columns]
             )
-        # ORDER BY = sorting + dedup identity for ReplacingMergeTree
         ts_col = ProjectTableColumns.TIMESTAMP.value
         return (
             f"CREATE TABLE IF NOT EXISTS {table_name} "
             f"({', '.join(columns_str)}) "
-            f"ENGINE = ReplacingMergeTree({ts_col}) "
+            f"ENGINE = MergeTree() "
             f"PARTITION BY toDate({ts_col}) "
             f"ORDER BY ({ProjectTableColumns.EXPERIMENT_ID.value}, {ProjectTableColumns.STEP.value})"
         )
@@ -607,7 +606,9 @@ class ClickHouseScalarsDBUtils:
         start_time: datetime | None = None,
         end_time: datetime | None = None,
     ) -> str:
-        select = f"SELECT {', '.join(ARTIFACTS_INFO_BASE_COLUMNS_STR)} FROM {table_name}"
+        select = (
+            f"SELECT {', '.join(ARTIFACTS_INFO_BASE_COLUMNS_STR)} FROM {table_name}"
+        )
         where_clauses: list[str] = []
         if experiment_ids:
             uuids = ", ".join(

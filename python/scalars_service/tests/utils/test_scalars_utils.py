@@ -12,7 +12,7 @@ def test_build_create_table_statement():
     result = (
         "CREATE TABLE IF NOT EXISTS scalars_123 "
         "(__timestamp__ DateTime64(3), __experiment_id__ UUID, __step__ Int64, __tags__ Array(String)) "
-        "ENGINE = ReplacingMergeTree(__timestamp__) "
+        "ENGINE = MergeTree() "
         "PARTITION BY toDate(__timestamp__) ORDER BY (__experiment_id__, __step__)"
     )
     assert (
@@ -25,7 +25,7 @@ def test_build_create_table_statement_with_scalars():
         "CREATE TABLE IF NOT EXISTS scalars_123 "
         "(__timestamp__ DateTime64(3), __experiment_id__ UUID, __step__ Int64, __tags__ Array(String), "
         "loss Nullable(Float64), acc Nullable(Float64)) "
-        "ENGINE = ReplacingMergeTree(__timestamp__) "
+        "ENGINE = MergeTree() "
         "PARTITION BY toDate(__timestamp__) ORDER BY (__experiment_id__, __step__)"
     )
     assert (
