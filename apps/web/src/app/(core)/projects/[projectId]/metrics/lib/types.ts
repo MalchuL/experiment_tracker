@@ -18,4 +18,6 @@ export type PersistedMetricsUi = {
   pinLeadColumns?: boolean;
   /** When true (default), experiment names wrap; when false, truncate to one line. */
   wrapExperimentNames?: boolean;
+  /** When true (default), metric cell values wrap; when false, truncate to one line. */
+  wrapValues?: boolean;
 };

@@ -1,6 +1,6 @@
 import type { MetricsTableRow } from "./types";
 
-const FIXED_COLUMN_IDS = new Set(["experiment", "experimentId", "createdAt"]);
+const FIXED_COLUMN_IDS = new Set(["experiment", "showInReport", "experimentId", "createdAt"]);
 
 /** Middle segment of column order (metric names only). */
 export function metricNamesFromColumnOrder(columnOrder: string[]): string[] {

@@ -16,6 +16,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { cn } from "@/lib/utils";
 import { useProjectDataTableFrame } from "@/components/shared/project-data-table-frame";
 import { EXPERIMENTS_TABLE_GRIP_PX } from "@/domain/experiments/lib/experiments-table-column-widths";
+import { SHOW_IN_REPORT_COLUMN_ID, SHOW_IN_REPORT_COLUMN_PX, METRICS_TABLE_ROW_BORDER_CLASS } from "./lib/constants";
 import { reorderIdSubset } from "./lib/row-order";
 import type { MetricsTableRow } from "./lib/types";
 import { MetricsTableSortableRow } from "./components/metrics-table-sortable-row";
@@ -24,6 +25,9 @@ const stickyGripTh = cn(
   "sticky left-0 z-[21] bg-background shadow-[4px_0_12px_-8px_rgba(0,0,0,0.08)] box-border overflow-hidden"
 );
 const stickyExperimentTh = cn(
+  "sticky z-[21] bg-background shadow-[4px_0_12px_-8px_rgba(0,0,0,0.08)] box-border"
+);
+const stickyShowInReportTh = cn(
   "sticky z-[21] bg-background shadow-[4px_0_12px_-8px_rgba(0,0,0,0.08)] box-border"
 );
 const headerSeparatorClass =
@@ -49,6 +53,7 @@ type ProjectMetricsTableSectionProps = {
   /** Highlights this row in the table while the experiment sidebar is open. */
   selectedExperimentId: string | null;
   wrapExperimentNames: boolean;
+  wrapValues: boolean;
   rowReorderDisabled: boolean;
   experimentRowOrder: string[];
   onExperimentRowReorder: (orderedIds: string[]) => void;
@@ -66,6 +71,7 @@ export function ProjectMetricsTableSection({
   filteredRows,
   selectedExperimentId,
   wrapExperimentNames,
+  wrapValues,
   rowReorderDisabled,
   experimentRowOrder,
   onExperimentRowReorder,
@@ -79,7 +85,12 @@ export function ProjectMetricsTableSection({
   );
 
   const pinGrip = pinLeadColumns && leadColumnCount >= 1;
-  const pinExperiment = pinLeadColumns && leadColumnCount >= 2;
+  const pinShowInReport = pinLeadColumns && leadColumnCount >= 2 && editMode;
+  const pinExperiment = pinLeadColumns && leadColumnCount >= (editMode ? 3 : 2);
+  const showInReportWidth = editMode
+    ? (table.getColumn(SHOW_IN_REPORT_COLUMN_ID)?.getSize() ?? SHOW_IN_REPORT_COLUMN_PX)
+    : 0;
+  const experimentStickyLeft = gripWidthPx + (editMode ? showInReportWidth : 0);
 
   const rowIds = table.getRowModel().rows.map((r) => r.id);
 
@@ -120,10 +131,11 @@ export function ProjectMetricsTableSection({
             >
               <TableHeader className="sticky top-0 z-20 bg-background shadow-[0_1px_0_0_hsl(var(--border))]">
                 {table.getHeaderGroups().map((hg) => (
-                  <TableRow key={hg.id}>
+                  <TableRow key={hg.id} className="hover:bg-transparent">
                     <TableHead
                       className={cn(
                         "relative h-12 px-2 text-left align-middle font-medium text-muted-foreground",
+                        METRICS_TABLE_ROW_BORDER_CLASS,
                         pinGrip && stickyGripTh,
                         headerSeparatorClass
                       )}
@@ -137,23 +149,31 @@ export function ProjectMetricsTableSection({
                     />
                     {hg.headers.map((h) => {
                       const isExperiment = h.column.id === "experiment";
+                      const isShowInReport = h.column.id === SHOW_IN_REPORT_COLUMN_ID;
                       const layout = layoutForColumn(table, h.column);
                       return (
                         <TableHead
                           key={h.id}
                           colSpan={h.colSpan}
+                          aria-label={isShowInReport ? "Show in report" : undefined}
                           className={cn(
-                            "relative align-top px-4",
+                            "relative align-top",
+                            METRICS_TABLE_ROW_BORDER_CLASS,
+                            isShowInReport ? "px-1" : "px-4",
                             editMode ? "h-auto min-h-12" : "h-12",
-                            isExperiment ? "text-left" : "text-right",
+                            !isExperiment && !isShowInReport && !editMode && "overflow-hidden",
+                            isExperiment || isShowInReport ? "text-left" : "text-right",
+                            pinShowInReport && isShowInReport && stickyShowInReportTh,
                             pinExperiment && isExperiment && stickyExperimentTh,
-                            isExperiment && headerSeparatorClass,
+                            (isExperiment || isShowInReport) && headerSeparatorClass,
                             layout.className
                           )}
                           style={
-                            pinExperiment && isExperiment
+                            pinShowInReport && isShowInReport
                               ? { ...layout.style, left: gripWidthPx }
-                              : layout.style
+                              : pinExperiment && isExperiment
+                                ? { ...layout.style, left: experimentStickyLeft }
+                                : layout.style
                           }
                         >
                           {flexRender(h.column.columnDef.header, h.getContext())}
@@ -185,12 +205,15 @@ export function ProjectMetricsTableSection({
                 ))}
               </TableHeader>
               <SortableContext items={rowIds} strategy={verticalListSortingStrategy}>
-                <TableBody>
+                <TableBody className="[&_tr:last-child_td]:border-b-0">
                   {table.getRowModel().rows.length === 0 ? (
-                    <TableRow>
+                    <TableRow className="hover:bg-transparent">
                       <TableCell
                         colSpan={Math.max(1, table.getVisibleLeafColumns().length + 1)}
-                        className="text-center text-sm text-muted-foreground"
+                        className={cn(
+                          "text-center text-sm text-muted-foreground",
+                          METRICS_TABLE_ROW_BORDER_CLASS
+                        )}
                       >
                         {rowsInReport.length === 0 && filteredRows.length > 0
                           ? "All matching experiments are hidden. Turn on Edit mode to re-enable rows with checkboxes."
@@ -208,7 +231,9 @@ export function ProjectMetricsTableSection({
                         leadColumnCount={leadColumnCount}
                         gripWidthPx={gripWidthPx}
                         rowReorderDisabled={rowReorderDisabled}
+                        editMode={editMode}
                         wrapExperimentNames={wrapExperimentNames}
+                        wrapValues={wrapValues}
                       />
                     ))
                   )}

@@ -14,3 +14,11 @@ export const METRIC_CELL_TINTS: Record<1 | 2 | 3 | 4, string> = {
 /** Key for per-cell color marks in the edit-session `cellTints` map. */
 export const metricCellStyleKey = (row: Pick<MetricsTableRow, "experimentId">, metricName: string) =>
   `${row.experimentId}::${metricName}`;
+
+/** Edit-mode-only column: row visibility in the exported report. */
+export const SHOW_IN_REPORT_COLUMN_ID = "showInReport";
+/** Checkbox (16px) + minimal horizontal padding. */
+export const SHOW_IN_REPORT_COLUMN_PX = 36;
+
+/** Per-cell bottom rule (`border-separate` tables need borders on cells, not rows). */
+export const METRICS_TABLE_ROW_BORDER_CLASS = "box-border border-b border-border";

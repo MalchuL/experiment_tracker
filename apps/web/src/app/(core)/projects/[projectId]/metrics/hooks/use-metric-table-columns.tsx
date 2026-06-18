@@ -8,6 +8,7 @@ import {
   metricColumnId,
 } from "@/domain/experiments/lib/experiments-table-column-widths";
 import type { MetricsTableRow } from "../lib/types";
+import { SHOW_IN_REPORT_COLUMN_ID, SHOW_IN_REPORT_COLUMN_PX } from "../lib/constants";
 import {
   CreatedAtCell,
   ExperimentColumnHeader,
@@ -16,6 +17,7 @@ import {
   MetricColumnHeader,
   MetricValueCell,
   ReadonlyMetaColumnHeader,
+  ShowInReportCell,
 } from "../components/metric-table-column-parts";
 
 const UNRESTRICTED_RESIZE_MIN_PX = 1;
@@ -38,9 +40,13 @@ export type UseMetricTableColumnsOptions = {
   cycleCellTint: (experimentId: string, metricName: string) => void;
   onSelectExperiment: (experimentId: string) => void;
   wrapExperimentNames: boolean;
+  wrapValues: boolean;
 };
 
 function policyForPivotColumn(id: string): ColumnWidthPolicy {
+  if (id === SHOW_IN_REPORT_COLUMN_ID) {
+    return { mode: "fixed", defaultPx: SHOW_IN_REPORT_COLUMN_PX, minPx: SHOW_IN_REPORT_COLUMN_PX, maxPx: SHOW_IN_REPORT_COLUMN_PX };
+  }
   if (id === "experiment") return experimentsTableColumnPolicy("experiment");
   if (id === "experimentId") {
     return { mode: "fixed", defaultPx: 140, minPx: 100, maxPx: 360 };
@@ -72,20 +78,36 @@ export function useMetricTableColumns(o: UseMetricTableColumnsOptions) {
     cycleCellTint,
     onSelectExperiment,
     wrapExperimentNames,
+    wrapValues,
   } = o;
 
   return useMemo((): ColumnDef<MetricsTableRow, unknown>[] => {
     return [
       {
+        id: SHOW_IN_REPORT_COLUMN_ID,
+        header: () => null,
+        accessorFn: (r) => !hiddenRowIds.has(r.experimentId),
+        cell: (c) => (
+          <ShowInReportCell
+            row={c.row.original}
+            hiddenRowIds={hiddenRowIds}
+            setHiddenRowIds={setHiddenRowIds}
+          />
+        ),
+        size: SHOW_IN_REPORT_COLUMN_PX,
+        minSize: SHOW_IN_REPORT_COLUMN_PX,
+        maxSize: SHOW_IN_REPORT_COLUMN_PX,
+        enableSorting: false,
+        enableResizing: false,
+        meta: { widthPolicy: policyForPivotColumn(SHOW_IN_REPORT_COLUMN_ID) },
+      } as ColumnDef<MetricsTableRow, unknown>,
+      {
         id: "experiment",
-        header: (ctx) => <ExperimentColumnHeader editMode={editMode} header={ctx} />,
+        header: (ctx) => <ExperimentColumnHeader header={ctx} />,
         accessorFn: (r) => r.experimentName,
         cell: (c) => (
           <ExperimentNameCell
             row={c.row.original}
-            editMode={editMode}
-            hiddenRowIds={hiddenRowIds}
-            setHiddenRowIds={setHiddenRowIds}
             onSelectExperiment={onSelectExperiment}
             wrapExperimentNames={wrapExperimentNames}
           />
@@ -124,6 +146,7 @@ export function useMetricTableColumns(o: UseMetricTableColumnsOptions) {
                 maxHighlightColumnIds={maxHighlightColumnIds}
                 cellTints={cellTints}
                 cycleCellTint={cycleCellTint}
+                wrapValues={wrapValues}
               />
             ),
             size: inferredMetricColumnWidths[n] ?? 120,
@@ -145,7 +168,7 @@ export function useMetricTableColumns(o: UseMetricTableColumnsOptions) {
           />
         ),
         accessorKey: "experimentId",
-        cell: (c) => <ExperimentIdCell value={c.getValue() as string} />,
+        cell: (c) => <ExperimentIdCell value={c.getValue() as string} wrapValues={wrapValues} />,
         size: 140,
         minSize: UNRESTRICTED_RESIZE_MIN_PX,
         maxSize: UNRESTRICTED_RESIZE_MAX_PX,
@@ -163,7 +186,7 @@ export function useMetricTableColumns(o: UseMetricTableColumnsOptions) {
           />
         ),
         accessorFn: (r) => r.createdAt,
-        cell: (c) => <CreatedAtCell raw={c.row.original.createdAt} />,
+        cell: (c) => <CreatedAtCell raw={c.row.original.createdAt} wrapValues={wrapValues} />,
         size: 180,
         minSize: UNRESTRICTED_RESIZE_MIN_PX,
         maxSize: UNRESTRICTED_RESIZE_MAX_PX,
@@ -188,5 +211,6 @@ export function useMetricTableColumns(o: UseMetricTableColumnsOptions) {
     cycleCellTint,
     onSelectExperiment,
     wrapExperimentNames,
+    wrapValues,
   ]);
 }
