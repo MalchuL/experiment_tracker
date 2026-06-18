@@ -17,7 +17,7 @@ export function ExperimentNameTooltip({
     <TooltipProvider delayDuration={250}>
       <Tooltip>
         <TooltipTrigger asChild>{children}</TooltipTrigger>
-        <TooltipContent side="top" className="max-w-sm break-all">
+        <TooltipContent side="top" className="max-w-none whitespace-normal">
           {name}
         </TooltipContent>
       </Tooltip>

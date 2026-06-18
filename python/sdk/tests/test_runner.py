@@ -61,7 +61,7 @@ def test_runner_init_sets_random_tracker_color(monkeypatch) -> None:
     assert events == [
         ("enter", None),
         ("status", ExperimentStatus.RUNNING),
-        ("progress", 1),
+        ("progress", 0),
         ("color", "#0000ff"),
         ("exit", None),
     ]

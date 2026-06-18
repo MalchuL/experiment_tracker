@@ -58,6 +58,25 @@ export function saveCompareBoolean(scope: string, setting: string, value: boolea
   }
 }
 
+export function loadCompareString(scope: string, setting: string, fallback: string): string {
+  if (typeof window === "undefined") return fallback;
+  try {
+    const value = localStorage.getItem(storageKey(scope, setting));
+    return value ?? fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+export function saveCompareString(scope: string, setting: string, value: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(storageKey(scope, setting), value);
+  } catch {
+    /* ignore */
+  }
+}
+
 export function useExperimentDataCompareLayout(scope: string) {
   const [widths, setWidths] = useState<Widths>(() => loadWidths(scope));
 

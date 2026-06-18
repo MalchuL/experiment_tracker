@@ -29,9 +29,22 @@ import { CompareExperimentPicker } from "./compare-experiment-picker";
 import { ExperimentNameTooltip } from "./experiment-name-tooltip";
 import {
   loadCompareBoolean,
+  loadCompareString,
   saveCompareBoolean,
+  saveCompareString,
 } from "../hooks/use-experiment-data-compare-layout";
 import { cn } from "@/lib/utils";
+
+type CompareShellTab = "files" | "metrics" | "hparams";
+
+const COMPARE_SHELL_TABS: CompareShellTab[] = ["files", "metrics", "hparams"];
+
+function readStoredCompareTab(scope: string): CompareShellTab {
+  const storedValue = loadCompareString(scope, "active-tab", "files");
+  return COMPARE_SHELL_TABS.includes(storedValue as CompareShellTab)
+    ? (storedValue as CompareShellTab)
+    : "files";
+}
 
 interface CompareShellProps {
   projectId: string;
@@ -44,6 +57,9 @@ export function CompareShell({ projectId }: CompareShellProps) {
   const compareStorageScope = `compare:${projectId}`;
   const [experimentsOpen, setExperimentsOpen] = useState(
     () => !loadCompareBoolean(compareStorageScope, "experiments-collapsed", false)
+  );
+  const [activeTab, setActiveTab] = useState<CompareShellTab>(() =>
+    readStoredCompareTab(compareStorageScope)
   );
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
@@ -62,6 +78,10 @@ export function CompareShell({ projectId }: CompareShellProps) {
   useEffect(() => {
     setExperimentsOpen(!loadCompareBoolean(compareStorageScope, "experiments-collapsed", false));
   }, [compareStorageScope]);
+
+  useEffect(() => {
+    saveCompareString(compareStorageScope, "active-tab", activeTab);
+  }, [compareStorageScope, activeTab]);
 
   useEffect(() => {
     const urlOrder = urlSelectedIds.join(",");
@@ -164,7 +184,11 @@ export function CompareShell({ projectId }: CompareShellProps) {
         </CollapsibleContent>
       </Collapsible>
 
-      <Tabs defaultValue="files" className="flex min-h-0 flex-1 flex-col">
+      <Tabs
+        value={activeTab}
+        onValueChange={(value) => setActiveTab(value as CompareShellTab)}
+        className="flex min-h-0 flex-1 flex-col"
+      >
         <div className="border-b px-5 py-2">
           <TabsList>
             <TabsTrigger value="files">Files</TabsTrigger>

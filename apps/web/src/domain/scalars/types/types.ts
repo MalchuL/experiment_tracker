@@ -19,7 +19,7 @@ export interface ScalarChartPoint {
   [experimentId: string]: ScalarWireValue | ScalarPointValue | null;
 }
 
-export type ScalarHoverMode = "compare" | "nearest";
+export type ScalarHoverMode = "compare" | "visible" | "nearest";
 
 export interface ScalarPointSelection {
   experimentId: string;

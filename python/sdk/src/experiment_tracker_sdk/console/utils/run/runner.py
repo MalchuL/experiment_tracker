@@ -70,7 +70,7 @@ class RunSample:
         )
         with self.exp_tracker:
             self.exp_tracker.status(ExperimentStatus.RUNNING)
-            self.exp_tracker.progress(1)
+            self.exp_tracker.progress(0)
             self.exp_tracker.color(random_hex_color())
 
     def mark_completed(self) -> None:

@@ -8,6 +8,7 @@ import {
 } from "@/components/ui/collapsible";
 import { parse as parseToml } from "toml";
 import { parse as parseYaml } from "yaml";
+import { isMarkdownFilepath, MarkdownPreview } from "@/components/shared/markdown-preview";
 import type { NamedArtifactPreview } from "@/domain/experiment-artifacts/types";
 
 const STRUCTURED_EXTENSIONS = new Set(["json", "yaml", "yml", "toml"]);
@@ -150,8 +151,8 @@ export function StructuredArtifactPreview({
   }
 
   const relaxed = density === "relaxed";
-  const scrollMax = relaxed ? "max-h-[min(85vh,56rem)]" : "max-h-80";
-  const preMax = relaxed ? "max-h-[min(85vh,56rem)]" : "max-h-64";
+  const scrollMax = relaxed ? "" : "max-h-80 overflow-auto";
+  const preMax = relaxed ? "" : "max-h-64 overflow-auto";
   const imgWrap = relaxed ? "max-h-[min(90vh,64rem)]" : "max-h-96";
 
   if (preview.status === "image_ok") {
@@ -196,16 +197,26 @@ export function StructuredArtifactPreview({
   if (structuredValue !== null) {
     return (
       <div
-        className={`rounded border border-border bg-background/80 p-2 overflow-auto ${scrollMax}`}
+        className={`rounded border border-border bg-background/80 p-2 ${scrollMax}`}
       >
         <StructuredNode nodeKey="root" value={structuredValue} depth={0} />
       </div>
     );
   }
 
+  if (preview.status === "ok" && isMarkdownFilepath(filepath, preview.contentType)) {
+    return (
+      <div
+        className={`rounded border border-border bg-background/80 p-3 ${scrollMax}`}
+      >
+        <MarkdownPreview markdown={preview.text} className="docs-prose text-sm" />
+      </div>
+    );
+  }
+
   return (
     <pre
-      className={`text-xs bg-background/80 border border-border p-2 rounded overflow-auto whitespace-pre-wrap ${preMax}`}
+      className={`text-xs bg-background/80 border border-border p-2 rounded whitespace-pre-wrap ${preMax}`}
     >
       {preview.text}
     </pre>

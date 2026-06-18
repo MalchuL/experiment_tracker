@@ -1,6 +1,6 @@
 [project]
 name = "experiment-tracker-backend"
-version = "0.12.8"
+version = "0.12.9"
 description = "MVP backend-first experiment tracker"
 authors = [{ name = "Experiment Tracker Team" }]
 requires-python = ">=3.10"

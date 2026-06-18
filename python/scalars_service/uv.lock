@@ -273,7 +273,7 @@ wheels = [
 
 [[package]]
 name = "experiment-tracker-shared"
-version = "0.12.3"
+version = "0.12.8"
 source = { editable = "../shared" }
 dependencies = [
     { name = "pendulum" },
@@ -994,7 +994,7 @@ wheels = [
 
 [[package]]
 name = "scalars-service"
-version = "0.12.3"
+version = "0.12.8"
 source = { editable = "." }
 dependencies = [
     { name = "aiosqlite" },
