@@ -486,7 +486,7 @@ wheels = [
 
 [[package]]
 name = "experiment-tracker-backend"
-version = "0.12.8"
+version = "0.12.9"
 source = { editable = "." }
 dependencies = [
     { name = "advanced-alchemy" },
@@ -536,7 +536,7 @@ provides-extras = ["dev"]
 
 [[package]]
 name = "experiment-tracker-shared"
-version = "0.12.8"
+version = "0.12.9"
 source = { editable = "../shared" }
 dependencies = [
     { name = "pendulum" },

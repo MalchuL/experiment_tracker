@@ -21,6 +21,7 @@ from .dto import (
     ScalarsListStorageTablesResponseDTO,
     ScalarsProjectUsageResponseDTO,
     ScalarsQueryDTO,
+    ScalarNamesResponseDTO,
 )
 
 
@@ -44,6 +45,8 @@ class ScalarsClientProtocol(Protocol):
     ) -> LogScalarResponseDTO: ...
 
     async def get_scalars(self, query: ScalarsQueryDTO) -> GetScalarsResponseDTO: ...
+
+    async def get_scalar_names(self, project_id: UUID) -> ScalarNamesResponseDTO: ...
 
     async def get_last_logged_experiments(
         self, project_id: UUID, payload: LastLoggedExperimentsRequestDTO

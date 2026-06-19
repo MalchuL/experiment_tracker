@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import {
@@ -23,6 +23,10 @@ import { QUERY_KEYS } from "@/lib/constants/query-keys";
 import { formatMetricScalarForDisplay, formatMetricSignedDeltaForDisplay } from "@/lib/metrics/metric-value-display";
 import { displayMetricKeyEquals, projectMetricKeyString } from "@/lib/metrics/format-metric-label";
 import { buildAllLabelsCompareTableData } from "../lib/build-metrics-compare-rows";
+import {
+  loadPersistedMetricsComparePlots,
+  savePersistedMetricsComparePlots,
+} from "../lib/persisted-metrics-plots";
 import type { ComparePlotConfig } from "../types/metrics-compare";
 import { uniqueDimensionsToOptions } from "./metrics-compare-metric-picker";
 import { MetricsComparePlotsSection } from "./metrics-compare-plots-section";
@@ -40,8 +44,15 @@ export function MetricsCompareTab({
 }) {
   const experimentIds = selectedExperiments.map((experiment) => experiment.id);
   const latestExperiment = allExperiments[0] ?? null;
+  const plotStorageScope = `compare:${projectId}`;
 
-  const [plots, setPlots] = useState<ComparePlotConfig[]>([]);
+  const [plots, setPlots] = useState<ComparePlotConfig[]>(() =>
+    loadPersistedMetricsComparePlots(plotStorageScope)
+  );
+
+  useEffect(() => {
+    savePersistedMetricsComparePlots(plotStorageScope, plots);
+  }, [plotStorageScope, plots]);
 
   const { data: uniqueDimensions, isLoading: dimensionsLoading, isError: dimensionsError } =
     useQuery({
@@ -164,8 +175,8 @@ export function MetricsCompareTab({
           )
         }
         valueKey={(value) => String(value)}
-        valueTitle={(value, referenceValue, status, row) =>
-          metricCompareValueTitle(value, referenceValue, status, row, metricDirectionsByRowId)
+        valueTitle={(value, referenceValue) =>
+          metricCompareValueTitle(value, referenceValue)
         }
         defaultOverflowMode="truncate"
       />
@@ -253,10 +264,7 @@ function renderCompareMetricValue(
 
 function metricCompareValueTitle(
   value: number | undefined,
-  referenceValue: number | undefined,
-  _status: ExperimentDataDiffStatus,
-  _row: ExperimentDataCompareRow<number>,
-  _directionsByRowId: Map<string, "maximize" | "minimize">
+  referenceValue: number | undefined
 ): string {
   if (value === undefined) return "Not set";
   const formatted = formatMetricScalarForDisplay(value);

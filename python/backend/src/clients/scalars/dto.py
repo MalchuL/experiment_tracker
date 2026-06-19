@@ -140,6 +140,10 @@ class GetScalarsResponseDTO(PaginatedResponse[ExperimentScalarsDTO]):
     pass
 
 
+class ScalarNamesResponseDTO(BaseModel):
+    scalar_names: list[str]
+
+
 class LastLoggedExperimentsRequestDTO(BaseModel):
     experiment_ids: list[UUID] | None = None
 
@@ -164,12 +168,17 @@ class ScalarsQueryDTO(BaseModel):
     return_tags: bool = False
     start_time: datetime | None = None
     end_time: datetime | None = None
+    start_step: int | None = None
+    end_step: int | None = None
+    scalar_names: list[str] | None = None
+    store_cache: bool = True
 
     def as_query_params(self) -> dict[str, Any]:
         params: dict[str, Any] = {
             "return_tags": self.return_tags,
             "sampling": self.sampling.value,
             "columns_per_query": self.columns_per_query,
+            "store_cache": self.store_cache,
         }
         if self.experiment_ids:
             params["experiment_id"] = [str(experiment_id) for experiment_id in self.experiment_ids]
@@ -183,5 +192,10 @@ class ScalarsQueryDTO(BaseModel):
             params["start_time"] = to_json_utc_z(self.start_time)
         if self.end_time is not None:
             params["end_time"] = to_json_utc_z(self.end_time)
+        if self.start_step is not None:
+            params["start_step"] = self.start_step
+        if self.end_step is not None:
+            params["end_step"] = self.end_step
+        if self.scalar_names is not None:
+            params["scalar_name"] = self.scalar_names
         return params
-

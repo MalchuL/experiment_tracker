@@ -25,6 +25,7 @@ from clients.scalars import (
     ScalarsDropStorageTableResponseDTO,
     ScalarsExperimentUsageResponseDTO,
     ScalarsListStorageTablesResponseDTO,
+    ScalarNamesResponseDTO,
     ScalarsProjectUsageResponseDTO,
     ScalarsQueryDTO,
     ScalarsSampling,
@@ -202,6 +203,10 @@ class ScalarsServiceProtocol(Protocol):
         return_tags: bool = False,
         start_time: datetime | None = None,
         end_time: datetime | None = None,
+        start_step: int | None = None,
+        end_step: int | None = None,
+        scalar_names: Sequence[str] | None = None,
+        store_cache: bool = True,
     ) -> GetScalarsResponseDTO:
         """Query scalar series for a project.
 
@@ -233,6 +238,10 @@ class ScalarsServiceProtocol(Protocol):
         return_tags: bool = False,
         start_time: datetime | None = None,
         end_time: datetime | None = None,
+        start_step: int | None = None,
+        end_step: int | None = None,
+        scalar_names: Sequence[str] | None = None,
+        store_cache: bool = True,
     ) -> GetScalarsResponseDTO:
         """Query scalar series for one experiment.
 
@@ -250,6 +259,14 @@ class ScalarsServiceProtocol(Protocol):
         Returns:
             GetScalarsResponseDTO: Scalar query response.
         """
+        ...
+
+    async def get_scalar_names(
+        self,
+        user: UserProtocol,
+        project_id: UUID,
+    ) -> ScalarNamesResponseDTO:
+        """Return known scalar names for a project."""
         ...
 
     async def get_last_logged_experiments(
@@ -499,6 +516,10 @@ class ScalarsService:
         return_tags: bool = False,
         start_time: datetime | None = None,
         end_time: datetime | None = None,
+        start_step: int | None = None,
+        end_step: int | None = None,
+        scalar_names: Sequence[str] | None = None,
+        store_cache: bool = True,
     ) -> GetScalarsResponseDTO:
         """Query scalar series for a project.
 
@@ -564,6 +585,10 @@ class ScalarsService:
                 return_tags=return_tags,
                 start_time=start_time,
                 end_time=end_time,
+                start_step=start_step,
+                end_step=end_step,
+                scalar_names=list(scalar_names) if scalar_names is not None else None,
+                store_cache=store_cache,
             )
         )
 
@@ -578,6 +603,10 @@ class ScalarsService:
         return_tags: bool = False,
         start_time: datetime | None = None,
         end_time: datetime | None = None,
+        start_step: int | None = None,
+        end_step: int | None = None,
+        scalar_names: Sequence[str] | None = None,
+        store_cache: bool = True,
     ) -> GetScalarsResponseDTO:
         """Query scalar series for one experiment.
 
@@ -615,7 +644,22 @@ class ScalarsService:
             return_tags=return_tags,
             start_time=start_time,
             end_time=end_time,
+            start_step=start_step,
+            end_step=end_step,
+            scalar_names=scalar_names,
+            store_cache=store_cache,
         )
+
+    async def get_scalar_names(
+        self,
+        user: UserProtocol,
+        project_id: UUID,
+    ) -> ScalarNamesResponseDTO:
+        if not await self.permission_checker.can_view_scalar(user.id, project_id):
+            raise ScalarsNotAccessibleError(
+                f"You are not allowed to view scalars in project {project_id}"
+            )
+        return await self.client.get_scalar_names(project_id)
 
     async def get_last_logged_experiments(
         self,
@@ -830,6 +874,10 @@ class NoOpScalarsService:
         return_tags: bool = False,
         start_time: datetime | None = None,
         end_time: datetime | None = None,
+        start_step: int | None = None,
+        end_step: int | None = None,
+        scalar_names: Sequence[str] | None = None,
+        store_cache: bool = True,
     ) -> GetScalarsResponseDTO:
         """Return an empty scalar query response.
 
@@ -859,6 +907,10 @@ class NoOpScalarsService:
             return_tags,
             start_time,
             end_time,
+            start_step,
+            end_step,
+            scalar_names,
+            store_cache,
         )
         return GetScalarsResponseDTO(data=[], has_next=False, size=0, total=0)
 
@@ -873,6 +925,10 @@ class NoOpScalarsService:
         return_tags: bool = False,
         start_time: datetime | None = None,
         end_time: datetime | None = None,
+        start_step: int | None = None,
+        end_step: int | None = None,
+        scalar_names: Sequence[str] | None = None,
+        store_cache: bool = True,
     ) -> GetScalarsResponseDTO:
         """Return an empty scalar query response for one experiment.
 
@@ -900,8 +956,20 @@ class NoOpScalarsService:
             return_tags,
             start_time,
             end_time,
+            start_step,
+            end_step,
+            scalar_names,
+            store_cache,
         )
         return GetScalarsResponseDTO(data=[], has_next=False, size=0, total=0)
+
+    async def get_scalar_names(
+        self,
+        user: UserProtocol,
+        project_id: UUID,
+    ) -> ScalarNamesResponseDTO:
+        _ = (user, project_id)
+        return ScalarNamesResponseDTO(scalar_names=[])
 
     async def get_last_logged_experiments(
         self,

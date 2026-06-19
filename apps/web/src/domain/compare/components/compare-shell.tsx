@@ -24,6 +24,7 @@ import { useExperiments } from "@/domain/experiments/hooks";
 import type { Experiment } from "@/domain/experiments/types";
 import { HparamsCompareTab } from "../hparams/components";
 import { MetricsCompareTab } from "../metrics/components";
+import { ScalarsCompareTab } from "../scalars/components";
 import { FilesCompareTab } from "../snapshots/components";
 import { CompareExperimentPicker } from "./compare-experiment-picker";
 import { ExperimentNameTooltip } from "./experiment-name-tooltip";
@@ -35,9 +36,9 @@ import {
 } from "../hooks/use-experiment-data-compare-layout";
 import { cn } from "@/lib/utils";
 
-type CompareShellTab = "files" | "metrics" | "hparams";
+type CompareShellTab = "files" | "metrics" | "scalars" | "hparams";
 
-const COMPARE_SHELL_TABS: CompareShellTab[] = ["files", "metrics", "hparams"];
+const COMPARE_SHELL_TABS: CompareShellTab[] = ["files", "metrics", "scalars", "hparams"];
 
 function readStoredCompareTab(scope: string): CompareShellTab {
   const storedValue = loadCompareString(scope, "active-tab", "files");
@@ -193,6 +194,7 @@ export function CompareShell({ projectId }: CompareShellProps) {
           <TabsList>
             <TabsTrigger value="files">Files</TabsTrigger>
             <TabsTrigger value="metrics">Metrics</TabsTrigger>
+            <TabsTrigger value="scalars">Scalars</TabsTrigger>
             <TabsTrigger value="hparams">HParams</TabsTrigger>
           </TabsList>
         </div>
@@ -210,6 +212,18 @@ export function CompareShell({ projectId }: CompareShellProps) {
         </TabsContent>
         <TabsContent value="metrics" className="m-0 flex min-h-0 flex-1">
           <MetricsCompareTab
+            projectId={projectId}
+            allExperiments={experiments}
+            selectedExperiments={selectedExperiments}
+            onEnsureExperimentSelected={(experimentId) => {
+              if (!selectedIds.includes(experimentId)) {
+                replaceSelectedIds([...selectedIds, experimentId]);
+              }
+            }}
+          />
+        </TabsContent>
+        <TabsContent value="scalars" className="m-0 flex min-h-0 flex-1">
+          <ScalarsCompareTab
             projectId={projectId}
             allExperiments={experiments}
             selectedExperiments={selectedExperiments}

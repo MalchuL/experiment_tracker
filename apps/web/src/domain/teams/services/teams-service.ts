@@ -1,6 +1,7 @@
 import { serviceClients } from "@/lib/api/clients/axios-client";
-import { appendPaginationParams } from "@/lib/api/pagination";
+import { appendPaginationParams, fetchAllPaginated } from "@/lib/api/pagination";
 import { API_ROUTES } from "@/lib/constants/api-routes";
+import { DEFAULT_PAGE_SIZE } from "@/lib/constants/pagination";
 import type { PaginatedResponse, PaginationParams } from "@/lib/types/pagination";
 import type { CategoryCleanupResponse } from "@/domain/experiments/types";
 import type {
@@ -14,6 +15,7 @@ import type {
 
 export interface TeamsService {
   list: (params?: PaginationParams) => Promise<PaginatedResponse<TeamListItem>>;
+  listAll: () => Promise<TeamListItem[]>;
   getById: (teamId: string) => Promise<Team>;
   listMembers: (teamId: string) => Promise<TeamMemberRow[]>;
   create: (data: TeamCreateInput) => Promise<Team>;
@@ -32,6 +34,16 @@ export const teamsService: TeamsService = {
     );
     return response.data;
   },
+  listAll: async () =>
+    fetchAllPaginated(
+      async (params) => {
+        const response = await serviceClients.api.get<PaginatedResponse<TeamListItem>>(
+          appendPaginationParams(API_ROUTES.TEAMS.LIST, params),
+        );
+        return response.data;
+      },
+      { limit: DEFAULT_PAGE_SIZE },
+    ),
   getById: async (teamId) => {
     const response = await serviceClients.api.get<Team>(API_ROUTES.TEAMS.BY_ID.GET(teamId));
     return response.data;

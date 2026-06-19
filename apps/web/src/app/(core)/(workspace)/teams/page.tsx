@@ -17,7 +17,7 @@ export default function TeamsPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const { data, isLoading, error, refetch } = useTeams();
 
-  const teams = data?.data ?? [];
+  const teams = data ?? [];
 
   const headerActions = useMemo(() => {
     if (isLoading || error) return null;

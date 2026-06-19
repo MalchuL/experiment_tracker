@@ -16,6 +16,7 @@ from .dto import (
     ScalarsPointsResultDTO,
     ScalarsSampling,
     CompactProjectColumnsResponseDTO,
+    ScalarNamesResponseDTO,
 )
 from .service import ScalarsService
 
@@ -56,6 +57,10 @@ async def get_scalars(
     return_tags: bool = Query(default=False),
     start_time: datetime | None = Query(default=None),
     end_time: datetime | None = Query(default=None),
+    start_step: int | None = Query(default=None),
+    end_step: int | None = Query(default=None),
+    scalar_name: list[str] | None = Query(default=None),
+    store_cache: bool = Query(default=True),
     service: ScalarsService = Depends(get_scalars_service),
 ):
     """Read scalar series for a project, optionally filtered to experiments and time range.
@@ -72,9 +77,22 @@ async def get_scalars(
         return_tags=return_tags,
         start_time=start_time,
         end_time=end_time,
+        start_step=start_step,
+        end_step=end_step,
+        scalar_names=scalar_name,
+        store_cache=store_cache,
         sampling=sampling,
         columns_per_query=columns_per_query,
     )
+
+
+@router.get("/names/{project_id}", response_model=ScalarNamesResponseDTO)
+async def get_scalar_names(
+    project_id: UUID,
+    service: ScalarsService = Depends(get_scalars_service),
+):
+    """Return scalar names known for a project without loading scalar point values."""
+    return await service.get_scalar_names(project_id)
 
 
 @router.post(

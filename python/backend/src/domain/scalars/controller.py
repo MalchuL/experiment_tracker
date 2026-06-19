@@ -124,6 +124,10 @@ async def get_scalars(
     return_tags: bool = Query(default=False),
     start_time: datetime | None = Query(default=None),
     end_time: datetime | None = Query(default=None),
+    start_step: int | None = Query(default=None),
+    end_step: int | None = Query(default=None),
+    scalar_name: list[str] | None = Query(default=None),
+    store_cache: bool = Query(default=True),
     user: User = Depends(get_current_user_dual),
     _: None = Depends(require_api_token_scopes(ProjectActions.VIEW_METRIC)),
     scalars_service: ScalarsServiceProtocol = Depends(get_scalars_service),
@@ -162,6 +166,10 @@ async def get_scalars(
             return_tags=return_tags,
             start_time=start_time,
             end_time=end_time,
+            start_step=start_step,
+            end_step=end_step,
+            scalar_names=scalar_name,
+            store_cache=store_cache,
         )
     except Exception as exc:  # noqa: BLE001
         _raise_scalars_http_error(exc)
@@ -179,6 +187,10 @@ async def get_project_scalars(
     return_tags: bool = Query(default=False),
     start_time: datetime | None = Query(default=None),
     end_time: datetime | None = Query(default=None),
+    start_step: int | None = Query(default=None),
+    end_step: int | None = Query(default=None),
+    scalar_name: list[str] | None = Query(default=None),
+    store_cache: bool = Query(default=True),
     user: User = Depends(get_current_user_dual),
     _: None = Depends(require_api_token_scopes(ProjectActions.VIEW_METRIC)),
     scalars_service: ScalarsServiceProtocol = Depends(get_scalars_service),
@@ -219,7 +231,25 @@ async def get_project_scalars(
             return_tags=return_tags,
             start_time=start_time,
             end_time=end_time,
+            start_step=start_step,
+            end_step=end_step,
+            scalar_names=scalar_name,
+            store_cache=store_cache,
         )
+    except Exception as exc:  # noqa: BLE001
+        _raise_scalars_http_error(exc)
+
+
+@router.get("/names/project/{project_id}")
+async def get_project_scalar_names(
+    project_id: UUID,
+    user: User = Depends(get_current_user_dual),
+    _: None = Depends(require_api_token_scopes(ProjectActions.VIEW_METRIC)),
+    scalars_service: ScalarsServiceProtocol = Depends(get_scalars_service),
+):
+    """Return known scalar names for a project without loading scalar point values."""
+    try:
+        return await scalars_service.get_scalar_names(user=user, project_id=project_id)
     except Exception as exc:  # noqa: BLE001
         _raise_scalars_http_error(exc)
 

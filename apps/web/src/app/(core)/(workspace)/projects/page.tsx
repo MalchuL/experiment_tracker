@@ -107,7 +107,7 @@ export default function Projects() {
 
   const teamNameById = useMemo(() => {
     const m = new Map<string, string>();
-    for (const t of teamsList?.data ?? []) {
+    for (const t of teamsList ?? []) {
       m.set(t.id, t.name);
     }
     return m;
@@ -141,7 +141,7 @@ export default function Projects() {
 
   const teamCreatedAtMsById = useMemo(() => {
     const m = new Map<string, number>();
-    for (const t of teamsList?.data ?? []) {
+    for (const t of teamsList ?? []) {
       m.set(t.id, new Date(t.createdAt).getTime());
     }
     return m;

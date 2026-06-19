@@ -430,6 +430,8 @@ class ClickHouseScalarsDBUtils:
         experiment_ids: Sequence[UUID] | None = None,
         start_time: datetime | None = None,
         end_time: datetime | None = None,
+        start_step: int | None = None,
+        end_step: int | None = None,
         extra: Sequence[str] | None = None,
     ) -> list[str]:
         """Build AND fragments for the scalars fact table (experiments + optional time + extras)."""
@@ -451,6 +453,10 @@ class ClickHouseScalarsDBUtils:
                 f"{ProjectTableColumns.TIMESTAMP.value} <= "
                 f"toDateTime64('{self._format_datetime_literal(end_time)}', 3, 'UTC')"
             )
+        if start_step is not None:
+            where_clauses.append(f"{ProjectTableColumns.STEP.value} >= {int(start_step)}")
+        if end_step is not None:
+            where_clauses.append(f"{ProjectTableColumns.STEP.value} <= {int(end_step)}")
         if extra:
             where_clauses.extend(extra)
         return where_clauses
@@ -465,7 +471,7 @@ class ClickHouseScalarsDBUtils:
         """SQL predicate: keep row if partition size <= cap or row index is in the uniform grid."""
         mp = int(max_points)
         if mp == 1:
-            return f"(_u_cnt <= 1) OR (_u_rn = _u_cnt)"
+            return "(_u_cnt <= 1) OR (_u_rn = _u_cnt)"
         mp_minus_1 = mp - 1
         return (
             f"(_u_cnt <= {mp}) OR ("
@@ -489,13 +495,15 @@ class ClickHouseScalarsDBUtils:
         experiment_ids: Sequence[UUID] | None = None,
         start_time: datetime | None = None,
         end_time: datetime | None = None,
+        start_step: int | None = None,
+        end_step: int | None = None,
     ) -> str:
         """Build a wide SELECT for the scalars table (no per-column sampling).
 
         Per-metric uniform sampling is done via ``build_select_uniform_sampled_column``.
         """
         where_clauses = self._scalar_table_where_clauses(
-            experiment_ids, start_time, end_time
+            experiment_ids, start_time, end_time, start_step, end_step
         )
         where_sql = self._scalar_where_sql(where_clauses)
         exp_col = ProjectTableColumns.EXPERIMENT_ID.value
@@ -509,9 +517,13 @@ class ClickHouseScalarsDBUtils:
         table_name: str,
         start_time: datetime | None = None,
         end_time: datetime | None = None,
+        start_step: int | None = None,
+        end_step: int | None = None,
     ) -> str:
         """Count distinct experiments in the scalars table (optional time bounds)."""
-        where_clauses = self._scalar_table_where_clauses(None, start_time, end_time)
+        where_clauses = self._scalar_table_where_clauses(
+            None, start_time, end_time, start_step, end_step
+        )
         where_sql = self._scalar_where_sql(where_clauses)
         exp_col = ProjectTableColumns.EXPERIMENT_ID.value
         return f"SELECT uniqExact({exp_col}) FROM {table_name}{where_sql}"
@@ -521,11 +533,15 @@ class ClickHouseScalarsDBUtils:
         table_name: str,
         start_time: datetime | None = None,
         end_time: datetime | None = None,
+        start_step: int | None = None,
+        end_step: int | None = None,
         limit: int = 100,
         offset: int = 0,
     ) -> str:
         """Distinct experiment IDs ordered, with LIMIT/OFFSET for pagination."""
-        where_clauses = self._scalar_table_where_clauses(None, start_time, end_time)
+        where_clauses = self._scalar_table_where_clauses(
+            None, start_time, end_time, start_step, end_step
+        )
         where_sql = self._scalar_where_sql(where_clauses)
         exp_col = ProjectTableColumns.EXPERIMENT_ID.value
         lim = int(limit)
@@ -544,6 +560,8 @@ class ClickHouseScalarsDBUtils:
         experiment_ids: Sequence[UUID],
         start_time: datetime | None = None,
         end_time: datetime | None = None,
+        start_step: int | None = None,
+        end_step: int | None = None,
         max_points: int = 1000,
     ) -> str:
         """Uniform sample up to ``max_points`` **non-null** rows per experiment for one column.
@@ -558,7 +576,12 @@ class ClickHouseScalarsDBUtils:
             raise ValueError("experiment_ids must be non-empty")
 
         where_clauses = self._scalar_table_where_clauses(
-            experiment_ids, start_time, end_time, extra=(f"{col} IS NOT NULL",)
+            experiment_ids,
+            start_time,
+            end_time,
+            start_step,
+            end_step,
+            extra=(f"{col} IS NOT NULL",),
         )
         where_sql = self._scalar_where_sql(where_clauses)
         exp_col = ProjectTableColumns.EXPERIMENT_ID.value

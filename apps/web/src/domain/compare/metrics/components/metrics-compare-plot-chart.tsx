@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { CartesianGrid, Line, LineChart, ReferenceLine, XAxis, YAxis } from "recharts";
 import {
   ChartContainer,
@@ -21,6 +21,7 @@ import type { Experiment } from "@/domain/experiments/types";
 import { MetricDirection } from "@/domain/metrics/types";
 import { formatMetricLabel, projectMetricKeyString } from "@/lib/metrics/format-metric-label";
 import { CHART_COLORS } from "@/domain/scalars/constants";
+import { ScalarCardResizeHandle } from "@/domain/scalars/components/charts/scalar-card-resize-handle";
 import { buildMetricsPlotData } from "../lib/build-metrics-plot-data";
 import {
   applyYRangeToChartData,
@@ -126,6 +127,15 @@ export function MetricsComparePlotCard({
     () => computeUniformYTicks(yDomainResult.domain),
     [yDomainResult.domain]
   );
+  const referenceLinePoints = useMemo(
+    () =>
+      chartData.filter(
+        (point) =>
+          typeof point.experimentName === "string" &&
+          point.experimentName.trim().length > 0
+      ),
+    [chartData]
+  );
 
   const chartLayout = useMemo(
     () =>
@@ -164,11 +174,6 @@ export function MetricsComparePlotCard({
     () => new Set(plot.series.map((series) => projectMetricKeyString(series))),
     [plot.series]
   );
-
-  useEffect(() => {
-    setYMinDraft(formatYBound(plot.yMin));
-    setYMaxDraft(formatYBound(plot.yMax));
-  }, [plot.yMin, plot.yMax]);
 
   const handleAddMetric = (option: MetricNameOption) => {
     if (excludedKeys.has(projectMetricKeyString(option))) {
@@ -230,7 +235,7 @@ export function MetricsComparePlotCard({
   const chartHeightPx = chartLayout.chartHeight;
 
   return (
-    <Card className="min-w-0">
+    <Card className="relative min-w-0 overflow-hidden">
       <CardHeader className="flex flex-row items-center justify-end space-y-0 p-1">
         <Button
           type="button"
@@ -269,7 +274,7 @@ export function MetricsComparePlotCard({
                     }}
                   >
                     <CartesianGrid horizontal vertical={false} stroke="#ccc" />
-                    {chartDataFiltered.map((point) => (
+                    {referenceLinePoints.map((point) => (
                       <ReferenceLine
                         key={point.experimentId}
                         x={point.experimentName}
@@ -341,6 +346,15 @@ export function MetricsComparePlotCard({
           onPatchPlot={onPatchPlot}
         />
       </CardContent>
+      <ScalarCardResizeHandle
+        width={720}
+        height={plotHeight}
+        onResize={(size) =>
+          onPatchPlot(plot.id, {
+            plotHeight: size.height,
+          })
+        }
+      />
     </Card>
   );
 }

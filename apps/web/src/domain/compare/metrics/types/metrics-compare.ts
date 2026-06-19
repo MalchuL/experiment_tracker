@@ -32,9 +32,9 @@ export const DEFAULT_COMPARE_PLOT_POINT_PADDING = 12;
 export const MAX_COMPARE_PLOT_POINT_PADDING = 64;
 /** Inset (px) between the plot area and the chart container on left, right, and bottom. */
 export const DEFAULT_COMPARE_PLOT_EDGE_PADDING = 24;
-export const DEFAULT_COMPARE_PLOT_HEIGHT = 168;
-export const MIN_COMPARE_PLOT_HEIGHT = 120;
-export const MAX_COMPARE_PLOT_HEIGHT = 480;
+export const DEFAULT_COMPARE_PLOT_HEIGHT = 320;
+export const MIN_COMPARE_PLOT_HEIGHT = 320;
+export const MAX_COMPARE_PLOT_HEIGHT = 1120;
 /** Number of evenly spaced Y-axis ticks (and horizontal grid lines). */
 export const DEFAULT_COMPARE_PLOT_Y_TICK_COUNT = 5;
 

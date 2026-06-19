@@ -38,6 +38,10 @@ class ScalarsPointsResultDTO(BaseModel):
     total: int = 0
 
 
+class ScalarNamesResponseDTO(BaseModel):
+    scalar_names: List[str]
+
+
 class LogScalarRequestDTO(BaseModel):
     """Request DTO for logging multiple scalars at a single step"""
 

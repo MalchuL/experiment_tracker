@@ -1,5 +1,5 @@
 import { serviceClients } from "@/lib/api/clients/axios-client";
-import { appendPaginationParams } from "@/lib/api/pagination";
+import { appendPaginationParams, fetchAllPaginated } from "@/lib/api/pagination";
 import { API_ROUTES } from "@/lib/constants/api-routes";
 import { DEFAULT_PAGE_SIZE } from "@/lib/constants/pagination";
 import type { PaginationParams } from "@/lib/types/pagination";
@@ -79,6 +79,23 @@ export const loggedObjectsService = {
     );
     const response = await serviceClients.api.get<ArtifactsInfoSummaryResult>(path);
     return response.data;
+  },
+  getAllSummaryByProject: async (
+    projectId: string,
+    params?: GetProjectObjectsParams
+  ): Promise<ArtifactsInfoSummaryResult> => {
+    const data = await fetchAllPaginated((pagination) =>
+      loggedObjectsService.getSummaryByProject(projectId, {
+        ...params,
+        ...pagination,
+      })
+    );
+    return {
+      data,
+      hasNext: false,
+      size: data.length,
+      total: data.length,
+    };
   },
   getDetailByProject: async (
     projectId: string,

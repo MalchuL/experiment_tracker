@@ -42,8 +42,11 @@ export interface ExperimentScalarsPoints {
   tags?: StepTags[] | null;
 }
 
-export interface ScalarsPointsResult
-  extends PaginatedResponse<ExperimentScalarsPoints> {}
+export type ScalarsPointsResult = PaginatedResponse<ExperimentScalarsPoints>;
+
+export interface ScalarNamesResult {
+  scalar_names: string[];
+}
 
 export interface LastLoggedExperimentsRequest {
   experiment_ids: string[] | null;
@@ -54,8 +57,7 @@ export interface LastLoggedExperiment {
   last_modified: string;
 }
 
-export interface LastLoggedExperimentsResult
-  extends PaginatedResponse<LastLoggedExperiment> {}
+export type LastLoggedExperimentsResult = PaginatedResponse<LastLoggedExperiment>;
 
 export interface ScalarSavedView {
   id: string;

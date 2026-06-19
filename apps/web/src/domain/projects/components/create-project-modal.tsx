@@ -45,7 +45,7 @@ export function CreateProjectModal({
   creationIsPending,
 }: CreateProjectModalProps) {
   const { data: teamsData } = useTeams();
-  const creatableTeams = (teamsData?.data ?? []).filter((t) => t.canCreateProject);
+  const creatableTeams = (teamsData ?? []).filter((t) => t.canCreateProject);
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
