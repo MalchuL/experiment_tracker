@@ -1,12 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { teamsService } from "@/domain/teams/services";
 import { QUERY_KEYS } from "@/lib/constants/query-keys";
-import { DEFAULT_PAGE_SIZE } from "@/lib/constants/pagination";
 
 export function useTeams() {
   return useQuery({
     queryKey: [QUERY_KEYS.TEAMS.LIST],
-    queryFn: () => teamsService.list({ limit: DEFAULT_PAGE_SIZE, offset: 0 }),
+    queryFn: () => teamsService.listAll(),
   });
 }
 

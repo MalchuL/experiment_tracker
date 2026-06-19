@@ -1,6 +1,7 @@
 import { serviceClients } from "@/lib/api/clients/axios-client";
-import { appendPaginationParams } from "@/lib/api/pagination";
+import { appendPaginationParams, fetchAllPaginated } from "@/lib/api/pagination";
 import { API_ROUTES } from "@/lib/constants/api-routes";
+import { DEFAULT_PAGE_SIZE } from "@/lib/constants/pagination";
 import type { PaginatedResponse, PaginationParams } from "@/lib/types/pagination";
 import type {
   CreateProjectReport,
@@ -14,6 +15,7 @@ export interface ReportsService {
     projectId: string,
     params?: PaginationParams,
   ): Promise<PaginatedResponse<ProjectReportSummary>>;
+  listAllByProject(projectId: string): Promise<ProjectReportSummary[]>;
   getById(reportId: string): Promise<ProjectReport>;
   create(data: CreateProjectReport): Promise<ProjectReport>;
   update(reportId: string, data: UpdateProjectReport): Promise<ProjectReport>;
@@ -27,6 +29,16 @@ export const reportsService: ReportsService = {
     >(appendPaginationParams(API_ROUTES.PROJECTS.BY_ID.REPORTS(projectId), params));
     return response.data;
   },
+  listAllByProject: async (projectId) =>
+    fetchAllPaginated(
+      async (params) => {
+        const response = await serviceClients.api.get<
+          PaginatedResponse<ProjectReportSummary>
+        >(appendPaginationParams(API_ROUTES.PROJECTS.BY_ID.REPORTS(projectId), params));
+        return response.data;
+      },
+      { limit: DEFAULT_PAGE_SIZE },
+    ),
   getById: async (reportId) => {
     const response = await serviceClients.api.get<ProjectReport>(
       API_ROUTES.REPORTS.BY_ID.GET(reportId),

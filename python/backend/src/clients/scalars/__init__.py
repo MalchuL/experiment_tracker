@@ -14,6 +14,7 @@ from .dto import (
     ScalarsDropStorageTableResponseDTO,
     ScalarsExperimentUsageResponseDTO,
     ScalarsListStorageTablesResponseDTO,
+    ScalarNamesResponseDTO,
     ScalarsProjectUsageResponseDTO,
     ScalarsQueryDTO,
     ScalarsSampling,
@@ -37,9 +38,9 @@ __all__ = [
     "ScalarsDropStorageTableResponseDTO",
     "ScalarsExperimentUsageResponseDTO",
     "ScalarsListStorageTablesResponseDTO",
+    "ScalarNamesResponseDTO",
     "ScalarsProjectUsageResponseDTO",
     "ScalarsQueryDTO",
     "ScalarsSampling",
     "ScalarsServiceClient",
 ]
-

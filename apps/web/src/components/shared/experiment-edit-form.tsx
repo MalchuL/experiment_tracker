@@ -16,7 +16,6 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Save, Palette } from "lucide-react";
@@ -108,9 +107,11 @@ export function ExperimentEditForm({
             <FormItem>
               <FormLabel htmlFor="name">Name</FormLabel>
               <FormControl>
-                <Input
+                <Textarea
                   id="name"
                   placeholder="Experiment name"
+                  rows={1}
+                  className="min-h-9 resize-none py-2 [field-sizing:content]"
                   data-testid="input-name"
                   {...field}
                 />

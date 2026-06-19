@@ -3,6 +3,8 @@ import { Hypothesis } from "../types";
 import { API_ROUTES } from "@/lib/constants/api-routes";
 import { InsertHypothesis } from "../types/dto";
 import type { PaginatedResponse } from "@/lib/types/pagination";
+import { appendPaginationParams, fetchAllPaginated } from "@/lib/api/pagination";
+import { DEFAULT_PAGE_SIZE } from "@/lib/constants/pagination";
 
 
 export interface HypothesisService {
@@ -20,10 +22,15 @@ export const hypothesisService: HypothesisService = {
         return response.data.data;
     },
     getByProject: async (projectId: string): Promise<Hypothesis[]> => {
-        const response = await serviceClients.api.get<PaginatedResponse<Hypothesis>>(
-            API_ROUTES.PROJECTS.BY_ID.HYPOTHESES(projectId)
+        return fetchAllPaginated(
+            async (params) => {
+                const response = await serviceClients.api.get<PaginatedResponse<Hypothesis>>(
+                    appendPaginationParams(API_ROUTES.PROJECTS.BY_ID.HYPOTHESES(projectId), params)
+                );
+                return response.data;
+            },
+            { limit: DEFAULT_PAGE_SIZE },
         );
-        return response.data.data;
     },
     createHypothesis: async (data: InsertHypothesis): Promise<Hypothesis> => {
         const response = await serviceClients.api.post<Hypothesis>(API_ROUTES.HYPOTHESES.CREATE, data);

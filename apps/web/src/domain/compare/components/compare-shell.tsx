@@ -24,14 +24,28 @@ import { useExperiments } from "@/domain/experiments/hooks";
 import type { Experiment } from "@/domain/experiments/types";
 import { HparamsCompareTab } from "../hparams/components";
 import { MetricsCompareTab } from "../metrics/components";
+import { ScalarsCompareTab } from "../scalars/components";
 import { FilesCompareTab } from "../snapshots/components";
 import { CompareExperimentPicker } from "./compare-experiment-picker";
 import { ExperimentNameTooltip } from "./experiment-name-tooltip";
 import {
   loadCompareBoolean,
+  loadCompareString,
   saveCompareBoolean,
+  saveCompareString,
 } from "../hooks/use-experiment-data-compare-layout";
 import { cn } from "@/lib/utils";
+
+type CompareShellTab = "files" | "metrics" | "scalars" | "hparams";
+
+const COMPARE_SHELL_TABS: CompareShellTab[] = ["files", "metrics", "scalars", "hparams"];
+
+function readStoredCompareTab(scope: string): CompareShellTab {
+  const storedValue = loadCompareString(scope, "active-tab", "files");
+  return COMPARE_SHELL_TABS.includes(storedValue as CompareShellTab)
+    ? (storedValue as CompareShellTab)
+    : "files";
+}
 
 interface CompareShellProps {
   projectId: string;
@@ -44,6 +58,9 @@ export function CompareShell({ projectId }: CompareShellProps) {
   const compareStorageScope = `compare:${projectId}`;
   const [experimentsOpen, setExperimentsOpen] = useState(
     () => !loadCompareBoolean(compareStorageScope, "experiments-collapsed", false)
+  );
+  const [activeTab, setActiveTab] = useState<CompareShellTab>(() =>
+    readStoredCompareTab(compareStorageScope)
   );
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
@@ -62,6 +79,10 @@ export function CompareShell({ projectId }: CompareShellProps) {
   useEffect(() => {
     setExperimentsOpen(!loadCompareBoolean(compareStorageScope, "experiments-collapsed", false));
   }, [compareStorageScope]);
+
+  useEffect(() => {
+    saveCompareString(compareStorageScope, "active-tab", activeTab);
+  }, [compareStorageScope, activeTab]);
 
   useEffect(() => {
     const urlOrder = urlSelectedIds.join(",");
@@ -164,11 +185,16 @@ export function CompareShell({ projectId }: CompareShellProps) {
         </CollapsibleContent>
       </Collapsible>
 
-      <Tabs defaultValue="files" className="flex min-h-0 flex-1 flex-col">
+      <Tabs
+        value={activeTab}
+        onValueChange={(value) => setActiveTab(value as CompareShellTab)}
+        className="flex min-h-0 flex-1 flex-col"
+      >
         <div className="border-b px-5 py-2">
           <TabsList>
             <TabsTrigger value="files">Files</TabsTrigger>
             <TabsTrigger value="metrics">Metrics</TabsTrigger>
+            <TabsTrigger value="scalars">Scalars</TabsTrigger>
             <TabsTrigger value="hparams">HParams</TabsTrigger>
           </TabsList>
         </div>
@@ -186,6 +212,18 @@ export function CompareShell({ projectId }: CompareShellProps) {
         </TabsContent>
         <TabsContent value="metrics" className="m-0 flex min-h-0 flex-1">
           <MetricsCompareTab
+            projectId={projectId}
+            allExperiments={experiments}
+            selectedExperiments={selectedExperiments}
+            onEnsureExperimentSelected={(experimentId) => {
+              if (!selectedIds.includes(experimentId)) {
+                replaceSelectedIds([...selectedIds, experimentId]);
+              }
+            }}
+          />
+        </TabsContent>
+        <TabsContent value="scalars" className="m-0 flex min-h-0 flex-1">
+          <ScalarsCompareTab
             projectId={projectId}
             allExperiments={experiments}
             selectedExperiments={selectedExperiments}

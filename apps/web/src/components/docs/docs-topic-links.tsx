@@ -118,6 +118,7 @@ function TopicGroup(props: {
 }) {
   const { section, currentPath, testIdPrefix, variant } = props;
   const defaultOpen = topicSectionContainsPath(section, currentPath);
+  const sectionActive = topicSectionContainsPath(section, currentPath);
 
   const indexAndNested = (
     <div className="min-w-0 flex-1">
@@ -129,7 +130,19 @@ function TopicGroup(props: {
           variant={variant}
         />
       ) : (
-        <span className="block rounded-md px-2 py-1.5 text-sm text-muted-foreground">{section.label}</span>
+        <CollapsibleTrigger asChild>
+          <button
+            type="button"
+            className={cn(
+              topicLinkClass(sectionActive),
+              "block w-full text-left",
+              !sectionActive && "text-muted-foreground",
+            )}
+            data-testid={`${testIdPrefix}-group-${section.segment}`}
+          >
+            {section.label}
+          </button>
+        </CollapsibleTrigger>
       )}
       <CollapsibleContent className="overflow-hidden">
         <TopicChildList variant={variant}>

@@ -44,6 +44,7 @@ export const QUERY_KEYS = {
     },
     SCALARS: {
         BY_PROJECT: (projectId: string) => `projects/${projectId}/scalars`,
+        NAMES: (projectId: string) => `projects/${projectId}/scalars/names`,
         LAST_LOGGED: (projectId: string) => `projects/${projectId}/scalars/last-logged`,
     },
     ARTIFACTS: {

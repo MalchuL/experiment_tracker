@@ -1,4 +1,5 @@
 export * from "./project-scalars-hook";
+export * from "./use-project-scalar-names";
 export * from "./scalar-views-hook";
 export * from "./use-scalars-data-model";
 export * from "./use-scalars-live-refresh";

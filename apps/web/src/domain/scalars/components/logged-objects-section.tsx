@@ -136,6 +136,7 @@ export function LoggedObjectsSection({
                       min={0}
                       max={maxStepIndex}
                       step={1}
+                      markCount={availableSteps.length}
                       disabled={availableSteps.length <= 1}
                       onValueChange={(value) => {
                         const idx = value[0] ?? 0;
@@ -229,6 +230,7 @@ export function LoggedObjectsSection({
                                 min={0}
                                 max={Math.max(0, experimentSteps.length - 1)}
                                 step={1}
+                                markCount={experimentSteps.length}
                                 onValueChange={(value) => {
                                   const idxValue = value[0] ?? 0;
                                   const maxOverrideIndex = Math.max(0, experimentSteps.length - 1);

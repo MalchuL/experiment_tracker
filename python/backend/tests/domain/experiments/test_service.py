@@ -2,6 +2,7 @@ from datetime import datetime
 from uuid import UUID, uuid4
 
 import pytest
+from experiment_tracker_shared import utc_now_naive
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from clients.object_storage import EnsureExperimentBucketResponseDTO
@@ -244,6 +245,72 @@ class TestExperimentService:
 
         assert updated.name == "Updated"
         assert updated.progress == 50
+
+    async def test_create_experiment_sets_started_at_when_status_running(
+        self,
+        experiment_service: ExperimentService,
+        db_session: AsyncSession,
+        test_user: User,
+    ) -> None:
+        project = await _create_project(db_session, test_user)
+        permission_service = PermissionService(db_session, auto_commit=True)
+        await permission_service.add_permission(
+            user_id=test_user.id,
+            action=ProjectActions.CREATE_EXPERIMENT,
+            allowed=True,
+            project_id=project.id,
+        )
+        before = utc_now_naive()
+        dto = ExperimentCreateDTO(
+            project_id=project.id,
+            name="Running Experiment",
+            description="Started immediately",
+            status=ExperimentStatus.RUNNING,
+        )
+
+        created = await experiment_service.create_experiment(test_user, dto)
+        after = utc_now_naive()
+
+        assert created.started_at is not None
+        assert before <= created.started_at <= after
+
+    async def test_update_experiment_sets_started_at_when_status_running(
+        self,
+        experiment_service: ExperimentService,
+        db_session: AsyncSession,
+        test_user: User,
+    ) -> None:
+        project = await _create_project(db_session, test_user)
+        experiment = await _create_experiment(db_session, project, "Experiment")
+        permission_service = PermissionService(db_session, auto_commit=True)
+        await permission_service.add_permission(
+            user_id=test_user.id,
+            action=ProjectActions.EDIT_EXPERIMENT,
+            allowed=True,
+            project_id=project.id,
+        )
+        first_before = utc_now_naive()
+        first_updated = await experiment_service.update_experiment(
+            test_user,
+            experiment.id,
+            ExperimentUpdateDTO(status=ExperimentStatus.RUNNING),
+        )
+        first_after = utc_now_naive()
+
+        assert first_updated.started_at is not None
+        assert first_before <= first_updated.started_at <= first_after
+
+        second_before = utc_now_naive()
+        second_updated = await experiment_service.update_experiment(
+            test_user,
+            experiment.id,
+            ExperimentUpdateDTO(status=ExperimentStatus.RUNNING),
+        )
+        second_after = utc_now_naive()
+
+        assert second_updated.started_at is not None
+        assert second_before <= second_updated.started_at <= second_after
+        assert second_updated.started_at >= first_updated.started_at
 
     async def test_delete_experiment_permission_denied(
         self,

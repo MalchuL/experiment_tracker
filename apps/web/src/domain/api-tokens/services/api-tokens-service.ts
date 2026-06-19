@@ -1,5 +1,7 @@
 import { serviceClients } from "@/lib/api/clients/axios-client";
+import { appendPaginationParams, fetchAllPaginated } from "@/lib/api/pagination";
 import { API_ROUTES } from "@/lib/constants/api-routes";
+import { DEFAULT_PAGE_SIZE } from "@/lib/constants/pagination";
 import type { PaginatedResponse } from "@/lib/types/pagination";
 import type {
   ApiTokenCreateRequest,
@@ -24,10 +26,15 @@ export const apiTokensService: ApiTokensService = {
     return response.data;
   },
   list: async () => {
-    const response = await serviceClients.api.get<PaginatedResponse<ApiTokenListItem>>(
-      API_ROUTES.USERS.API_TOKENS.LIST,
+    return fetchAllPaginated(
+      async (params) => {
+        const response = await serviceClients.api.get<PaginatedResponse<ApiTokenListItem>>(
+          appendPaginationParams(API_ROUTES.USERS.API_TOKENS.LIST, params),
+        );
+        return response.data;
+      },
+      { limit: DEFAULT_PAGE_SIZE },
     );
-    return response.data.data;
   },
   update: async (id, payload) => {
     const response = await serviceClients.api.patch<ApiTokenListItem>(

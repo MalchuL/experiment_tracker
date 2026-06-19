@@ -32,6 +32,7 @@ from .dto import (
     ScalarsListStorageTablesResponseDTO,
     ScalarsProjectUsageResponseDTO,
     ScalarsQueryDTO,
+    ScalarNamesResponseDTO,
 )
 
 
@@ -43,6 +44,7 @@ class ScalarsServiceClient:
         "log_scalar": lambda project_id, experiment_id: f"/scalars/log/{project_id}/{experiment_id}",
         "log_scalars_batch": lambda project_id, experiment_id: f"/scalars/log_batch/{project_id}/{experiment_id}",
         "get_scalars": lambda project_id: f"/scalars/get/{project_id}",
+        "get_scalar_names": lambda project_id: f"/scalars/names/{project_id}",
         "get_last_logged_experiments": lambda project_id: f"/last_logged/{project_id}",
         "delete_experiment": lambda project_id, experiment_id: f"/projects/{project_id}/experiments/{experiment_id}",
         "delete_project": lambda project_id: f"/projects/{project_id}",
@@ -99,6 +101,14 @@ class ScalarsServiceClient:
             accept_msgpack=False,
         )
         return GetScalarsResponseDTO.model_validate(response)
+
+    async def get_scalar_names(self, project_id: UUID) -> ScalarNamesResponseDTO:
+        response = await self._request(
+            "GET",
+            self.ENDPOINTS["get_scalar_names"](project_id),
+            accept_msgpack=False,
+        )
+        return ScalarNamesResponseDTO.model_validate(response)
 
     async def get_last_logged_experiments(
         self,
@@ -271,6 +281,10 @@ class NoOpScalarsServiceClient(ScalarsServiceClient):
     async def get_scalars(self, query: ScalarsQueryDTO) -> GetScalarsResponseDTO:
         _ = query
         return GetScalarsResponseDTO(data=[], has_next=False, size=0, total=0)
+
+    async def get_scalar_names(self, project_id: UUID) -> ScalarNamesResponseDTO:
+        _ = project_id
+        return ScalarNamesResponseDTO(scalar_names=[])
 
     async def get_last_logged_experiments(
         self,

@@ -28,6 +28,7 @@ from app.domain.scalars.dto import (  # type: ignore
     LogScalarsRequestDTO,
     LogScalarResponseDTO,
     LogScalarsResponseDTO,
+    ScalarNamesResponseDTO,
     ScalarSeriesDTO,
     ScalarsPointsResultDTO,
     ScalarsSampling,
@@ -58,12 +59,21 @@ def _sampling_cache_fragment(sampling: ScalarsSampling | Literal["*"]) -> str:
     return sampling.value
 
 
+def _scalar_names_cache_fragment(scalar_names: Sequence[str] | Literal["*"] | None) -> str:
+    if scalar_names == "*":
+        return "*"
+    if scalar_names is None:
+        return "all"
+    return ",".join(sorted(set(scalar_names))) or "none"
+
+
 def _build_scalars_cache_key(
     project_id: UUID,
     experiment_id: UUID | None,
     max_points: int | None | Literal["*"],
     return_tags: bool | Literal["*"],
     sampling: ScalarsSampling | Literal["*"],
+    scalar_names: Sequence[str] | Literal["*"] | None,
     columns_per_query: int | Literal["*"],
     limit: int | Literal["*"],
     offset: int | Literal["*"],
@@ -91,9 +101,11 @@ def _build_scalars_cache_key(
         A unique string suitable for ``Cache.get`` / ``Cache.set`` / ``Cache.invalidate`` matching.
     """
     sampling_key = _sampling_cache_fragment(sampling)
+    scalar_names_key = _scalar_names_cache_fragment(scalar_names)
     return (
         f"scalars:project:{project_id}:experiment:{experiment_id}:max_points:{max_points}:"
         f"sampling:{sampling_key}:return_tags:{return_tags}"
+        f":scalar_names:{scalar_names_key}"
         f":columns_per_query:{columns_per_query}:limit:{limit}:offset:{offset}"
     )
 
@@ -289,12 +301,18 @@ class ScalarsService:
         table_name: str,
         start_time: datetime | None,
         end_time: datetime | None,
+        start_step: int | None,
+        end_step: int | None,
         limit: int,
         offset: int,
     ) -> tuple[int, list[UUID]]:
         """Count distinct experiments, then return one page of ids (sorted, stable order)."""
         count_sql = SCALARS_DB_UTILS.build_count_distinct_experiments_statement(
-            table_name=table_name, start_time=start_time, end_time=end_time
+            table_name=table_name,
+            start_time=start_time,
+            end_time=end_time,
+            start_step=start_step,
+            end_step=end_step,
         )
         count_res = await self.client.query(count_sql)
         total = int(count_res.result_rows[0][0])
@@ -302,6 +320,8 @@ class ScalarsService:
             table_name=table_name,
             start_time=start_time,
             end_time=end_time,
+            start_step=start_step,
+            end_step=end_step,
             limit=limit,
             offset=offset,
         )
@@ -316,8 +336,12 @@ class ScalarsService:
         total_experiments: int,
         max_points: int,
         return_tags: bool,
+        scalar_names: list[str] | None,
+        store_cache: bool,
         start_time: datetime | None,
         end_time: datetime | None,
+        start_step: int | None,
+        end_step: int | None,
         sampling: ScalarsSampling,
         columns_per_query: int,
         limit: int,
@@ -326,9 +350,14 @@ class ScalarsService:
         ScalarsPointsResultDTO | None, dict[UUID, ExperimentsScalarsPointsResultDTO]
     ]:
         """Return a fully cached response, or partial per-experiment hits for the current page."""
-        if self.cache is None:
+        if self.cache is None or not store_cache:
             return None, {}
-        if start_time is not None or end_time is not None:
+        if (
+            start_time is not None
+            or end_time is not None
+            or start_step is not None
+            or end_step is not None
+        ):
             return None, {}
 
         cached_by_exp: dict[UUID, ExperimentsScalarsPointsResultDTO] = {}
@@ -339,6 +368,7 @@ class ScalarsService:
                 max_points=max_points,
                 return_tags=return_tags,
                 sampling=sampling,
+                scalar_names=scalar_names,
                 columns_per_query=columns_per_query,
                 limit=-1,
                 offset=-1,
@@ -365,10 +395,11 @@ class ScalarsService:
         self,
         table_name: str,
         experiment_ids: list[UUID],
-        project_id: UUID,
-        scalar_columns: list[str],
+        column_to_scalar_name: dict[str, str],
         start_time: datetime | None,
         end_time: datetime | None,
+        start_step: int | None,
+        end_step: int | None,
         max_points: int,
         columns_per_query: int,
         return_tags: bool,
@@ -377,13 +408,11 @@ class ScalarsService:
         dict[tuple[UUID, int], StepTagsDTO],
     ]:
         """Run per-column ClickHouse queries (batched) and merge into in-memory structures."""
-        mapping = await self._get_or_create_scalar_mapping(project_id)
-        column_to_scalar_name = {column: scalar for scalar, column in mapping.items()}
-
         result_scalars: defaultdict[UUID, dict[str, ScalarSeriesDTO]] = defaultdict(
             dict
         )
         tag_by_exp_step: dict[tuple[UUID, int], StepTagsDTO] = {}
+        scalar_columns = list(column_to_scalar_name)
 
         for i in range(0, len(scalar_columns), columns_per_query):
             batch = scalar_columns[i : i + columns_per_query]
@@ -395,6 +424,8 @@ class ScalarsService:
                         experiment_ids=experiment_ids,
                         start_time=start_time,
                         end_time=end_time,
+                        start_step=start_step,
+                        end_step=end_step,
                         max_points=max_points,
                     )
                     for col in batch
@@ -456,15 +487,24 @@ class ScalarsService:
         skip_experiment_ids: frozenset[UUID],
         max_points: int,
         return_tags: bool,
+        scalar_names: list[str] | None,
+        store_cache: bool,
         start_time: datetime | None,
         end_time: datetime | None,
+        start_step: int | None,
+        end_step: int | None,
         sampling: ScalarsSampling,
         columns_per_query: int,
     ) -> None:
         """Persist per-experiment payloads for full-range (unbounded) queries only."""
-        if self.cache is None:
+        if self.cache is None or not store_cache:
             return
-        if start_time is not None or end_time is not None:
+        if (
+            start_time is not None
+            or end_time is not None
+            or start_step is not None
+            or end_step is not None
+        ):
             return
         for item in merged:
             if item.experiment_id in skip_experiment_ids:
@@ -475,6 +515,7 @@ class ScalarsService:
                 max_points=max_points,
                 return_tags=return_tags,
                 sampling=sampling,
+                scalar_names=scalar_names,
                 columns_per_query=columns_per_query,
                 limit=-1,
                 offset=-1,
@@ -491,6 +532,10 @@ class ScalarsService:
         return_tags: bool = False,
         start_time: datetime | None = None,
         end_time: datetime | None = None,
+        start_step: int | None = None,
+        end_step: int | None = None,
+        scalar_names: list[str] | None = None,
+        store_cache: bool = True,
         sampling: ScalarsSampling = ScalarsSampling.UNIFORM,
         columns_per_query: int = 1,
     ):
@@ -519,6 +564,8 @@ class ScalarsService:
             raise ValueError("columns_per_query must be >= 1")
         if start_time is not None and end_time is not None and start_time > end_time:
             raise ValueError("start_time must be less than or equal to end_time")
+        if start_step is not None and end_step is not None and start_step > end_step:
+            raise ValueError("start_step must be less than or equal to end_step")
 
         requested_ids, browse_all = self._normalize_experiment_id_filter(experiment_id)
 
@@ -543,6 +590,8 @@ class ScalarsService:
                     table_name=table_name,
                     start_time=start_time,
                     end_time=end_time,
+                    start_step=start_step,
+                    end_step=end_step,
                     limit=limit,
                     offset=offset,
                 )
@@ -553,13 +602,20 @@ class ScalarsService:
                 requested_ids=requested_ids, limit=limit, offset=offset
             )
 
-        if start_time is not None or end_time is not None:
+        if (
+            start_time is not None
+            or end_time is not None
+            or start_step is not None
+            or end_step is not None
+        ):
             logger.debug(
-                "get_scalars bounded query project_id=%s page_experiment_ids=%s start_time=%s end_time=%s",
+                "get_scalars bounded query project_id=%s page_experiment_ids=%s start_time=%s end_time=%s start_step=%s end_step=%s",
                 project_id,
                 [str(eid) for eid in page_ids],
                 to_json_utc_z(start_time) if start_time else None,
                 to_json_utc_z(end_time) if end_time else None,
+                start_step,
+                end_step,
             )
 
         cached_full, cached_by_exp = await self._get_scalars_try_cache(
@@ -568,8 +624,12 @@ class ScalarsService:
             total_experiments=total_experiments,
             max_points=max_points,
             return_tags=return_tags,
+            scalar_names=scalar_names,
+            store_cache=store_cache,
             start_time=start_time,
             end_time=end_time,
+            start_step=start_step,
+            end_step=end_step,
             sampling=sampling,
             columns_per_query=columns_per_query,
             limit=limit,
@@ -581,20 +641,25 @@ class ScalarsService:
         # Load ClickHouse only for experiments on this page that were not cache hits.
         ids_to_fetch = [eid for eid in page_ids if eid not in cached_by_exp]
 
-        scalar_columns = await self._get_scalar_columns(table_name=table_name)
+        column_to_scalar_name = await self._get_query_scalar_columns(
+            project_id=project_id,
+            table_name=table_name,
+            scalar_names=scalar_names,
+        )
         result_scalars: defaultdict[UUID, dict[str, ScalarSeriesDTO]] = defaultdict(
             dict
         )
         tag_by_exp_step: dict[tuple[UUID, int], StepTagsDTO] = {}
-        if ids_to_fetch and scalar_columns:
+        if ids_to_fetch and column_to_scalar_name:
             result_scalars, tag_by_exp_step = (
                 await self._load_sampled_columns_for_experiments(
                     table_name=table_name,
                     experiment_ids=ids_to_fetch,
-                    project_id=project_id,
-                    scalar_columns=scalar_columns,
+                    column_to_scalar_name=column_to_scalar_name,
                     start_time=start_time,
                     end_time=end_time,
+                    start_step=start_step,
+                    end_step=end_step,
                     max_points=max_points,
                     columns_per_query=columns_per_query,
                     return_tags=return_tags,
@@ -621,8 +686,12 @@ class ScalarsService:
             skip_experiment_ids=frozenset(cached_by_exp),
             max_points=max_points,
             return_tags=return_tags,
+            scalar_names=scalar_names,
+            store_cache=store_cache,
             start_time=start_time,
             end_time=end_time,
+            start_step=start_step,
+            end_step=end_step,
             sampling=sampling,
             columns_per_query=columns_per_query,
         )
@@ -664,6 +733,11 @@ class ScalarsService:
         if dropped:
             await self._save_scalar_mapping(project_id=project_id, mapping=kept_mapping)
         return CompactProjectColumnsResponseDTO(dropped_columns=dropped)
+
+    async def get_scalar_names(self, project_id: UUID) -> ScalarNamesResponseDTO:
+        """Return known public scalar names for a project without loading point values."""
+        mapping = await self._get_or_create_scalar_mapping(project_id)
+        return ScalarNamesResponseDTO(scalar_names=sorted(mapping))
 
     async def invalidate_cache_for_experiment(
         self, project_id: UUID, experiment_id: UUID
@@ -867,6 +941,8 @@ class ScalarsService:
         experiment_ids: list[UUID],
         start_time: datetime | None,
         end_time: datetime | None,
+        start_step: int | None,
+        end_step: int | None,
         max_points: int,
     ) -> tuple[str, Sequence[str], list[Sequence[object]]]:
         """Execute one sampled column query against ClickHouse.
@@ -894,6 +970,8 @@ class ScalarsService:
             experiment_ids=experiment_ids,
             start_time=start_time,
             end_time=end_time,
+            start_step=start_step,
+            end_step=end_step,
             max_points=max_points,
         )
         res = await self.client.query(sql)
@@ -996,6 +1074,32 @@ class ScalarsService:
         columns = await self._get_table_columns(table_name=table_name)
         base_columns = set(SCALARS_DB_UTILS.get_base_columns())
         return [col for col in columns if col not in base_columns]
+
+    async def _get_query_scalar_columns(
+        self,
+        project_id: UUID,
+        table_name: str,
+        scalar_names: list[str] | None,
+    ) -> dict[str, str]:
+        if scalar_names is None:
+            scalar_columns = await self._get_scalar_columns(table_name=table_name)
+            mapping = await self._get_or_create_scalar_mapping(project_id)
+            column_to_scalar_name = {column: scalar for scalar, column in mapping.items()}
+            return {
+                column: column_to_scalar_name.get(column, column)
+                for column in scalar_columns
+            }
+
+        if not scalar_names:
+            return {}
+
+        mapping = await self._get_or_create_scalar_mapping(project_id)
+        requested = set(scalar_names)
+        return {
+            column: scalar
+            for scalar, column in mapping.items()
+            if scalar in requested
+        }
 
     async def _ensure_scalars_columns(
         self, table_name: str, scalar_columns: Sequence[str]
@@ -1163,6 +1267,7 @@ class ScalarsService:
             max_points="*",
             return_tags="*",
             sampling="*",
+            scalar_names="*",
             columns_per_query="*",
             limit="*",
             offset="*",

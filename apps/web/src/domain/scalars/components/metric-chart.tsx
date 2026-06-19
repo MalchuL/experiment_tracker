@@ -19,7 +19,9 @@ type AxisWithUnifiedHoverTitle = NonNullable<Partial<Layout>["xaxis"]> & {
   };
 };
 interface MultiHoverRow {
+  experimentId: string;
   experimentName: string;
+  hoverLabel: string;
   step: number;
   /** Raw logged value shown in the tooltip */
   value: ScalarWireValue;
@@ -73,6 +75,14 @@ import {
   markerSymbolForScalarMarker,
 } from "@/domain/scalars/utils/scalar-plot-series";
 import {
+  buildExperimentHoverDisplayNames,
+  dedupeHoverRowsByExperimentAndStep,
+  filterHoverRowsToVisibleYRange,
+  getNextScalarHoverMode,
+  resolveHoverYRangeFromEvent,
+  usesUnifiedMultiHover,
+} from "@/domain/scalars/utils/metric-chart-hover";
+import {
   formatScalarWireForDisplay,
   isFiniteScalarValue,
 } from "@/domain/scalars/utils/scalar-value";
@@ -120,12 +130,17 @@ export function MetricChart({
 
   const isDark = useIsDarkMode();
 
+  const hoverDisplayNames = useMemo(
+    () => buildExperimentHoverDisplayNames(selectedExperiments, hoverNameMaxLength),
+    [hoverNameMaxLength, selectedExperiments]
+  );
+
   const plotData = useMemo(() => {
     const traces: Partial<PlotData>[] = [];
     const hoverNameColumnWidth = Math.max(
       1,
       ...selectedExperiments.map((experiment) =>
-        truncateName(experiment.name, hoverNameMaxLength).length
+        (hoverDisplayNames.get(experiment.id) ?? experiment.name).length
       )
     );
     selectedExperiments.forEach((experiment) => {
@@ -154,6 +169,7 @@ export function MetricChart({
       const activeSeries = smoothing > 0 ? smoothedSeries : originalSeries;
 
       const plotPointByStep = new Map(plotPoints.map((point) => [point.step, point]));
+      const hoverLabel = hoverDisplayNames.get(experiment.id) ?? experiment.name;
       const buildCustomData = (lineX: number[], lineY: Array<number | null>) =>
         lineX.map((step, index) => {
           const point = plotPointByStep.get(step);
@@ -171,10 +187,10 @@ export function MetricChart({
             point?.smoothed ?? activeValue ?? "—",
             step,
             experimentColor,
-            padColumn(truncateName(experiment.name, hoverNameColumnWidth), hoverNameColumnWidth),
+            padColumn(hoverLabel, hoverNameColumnWidth),
             padColumn(String(step), 4, "left"),
             padColumn(displayValue, 8, "left"),
-            truncateName(experiment.name, hoverNameMaxLength),
+            hoverLabel,
           ];
         });
 
@@ -220,8 +236,8 @@ export function MetricChart({
             color: experimentColor,
             size: isFullscreen ? 5 : 4,
           },
-          hoverinfo: hoverMode === "compare" ? "none" : undefined,
-          hovertemplate: hoverMode === "compare" ? undefined : hoverTemplate(hoverMode),
+          hoverinfo: usesUnifiedMultiHover(hoverMode) ? "none" : undefined,
+          hovertemplate: usesUnifiedMultiHover(hoverMode) ? undefined : hoverTemplate(hoverMode),
         });
       }
 
@@ -243,7 +259,7 @@ export function MetricChart({
       }
     });
     return traces;
-  }, [allExperiments, data, dotThreshold, hoverMode, hoverNameMaxLength, isFullscreen, metricName, selectedExperiments, smoothing]);
+  }, [allExperiments, data, dotThreshold, hoverDisplayNames, hoverMode, hoverNameMaxLength, isFullscreen, metricName, selectedExperiments, smoothing]);
 
   const handleRelayout = useCallback(
     (event: RelayoutEvent) => {
@@ -304,8 +320,13 @@ export function MetricChart({
   );
 
   const handleHover = useCallback((event: Readonly<PlotMouseEvent>) => {
-    if (hoverMode === "compare") {
-      setMultiHover(buildMultiHoverState(event, hoverNameMaxLength));
+    if (usesUnifiedMultiHover(hoverMode)) {
+      setMultiHover(
+        buildMultiHoverState(event, hoverDisplayNames, {
+          filterToVisibleYRange: hoverMode === "visible",
+          domainY: domain?.y ?? null,
+        })
+      );
     }
     const point = pickNearestHoverPoint(event);
     const customData = point?.customdata;
@@ -330,7 +351,7 @@ export function MetricChart({
       originalValue,
       smoothedValue,
     };
-  }, [hoverMode, hoverNameMaxLength]);
+  }, [domain?.y, hoverDisplayNames, hoverMode]);
 
   const handleUnhover = useCallback(() => {
     activePointRef.current = null;
@@ -383,7 +404,7 @@ export function MetricChart({
         autorange: domain?.y ? false : true,
       },
       showlegend: false,
-      hovermode: hoverMode === "compare" ? "x unified" : "closest",
+      hovermode: usesUnifiedMultiHover(hoverMode) ? "x unified" : "closest",
       dragmode: dragMode,
       uirevision: metricName,
     };
@@ -399,14 +420,13 @@ export function MetricChart({
       },
     ];
     if (onHoverModeChange) {
+      const presentation = getHoverModeButtonPresentation(hoverMode);
+      const nextMode = getNextScalarHoverMode(hoverMode);
       modeBarButtonsToAdd.push({
-        name: hoverMode === "compare" ? "Hover nearest" : "Hover all",
-        title:
-          hoverMode === "compare"
-            ? "Show only nearest experiment on hover"
-            : "Show all experiments on hover",
-        icon: hoverMode === "compare" ? HOVER_ALL_ICON : HOVER_NEAREST_ICON,
-        click: () => onHoverModeChange(hoverMode === "compare" ? "nearest" : "compare"),
+        name: presentation.name,
+        title: `${presentation.title} (click for ${getHoverModeButtonPresentation(nextMode).name.toLowerCase()})`,
+        icon: presentation.icon,
+        click: () => onHoverModeChange(nextMode),
       });
     }
     return {
@@ -444,11 +464,11 @@ export function MetricChart({
         revision={resizeRevision}
         shouldFreezeUpdates={shouldFreezePlotUpdates}
         onHover={handleHover}
-        onUnhover={hoverMode === "compare" ? undefined : handleUnhover}
+        onUnhover={usesUnifiedMultiHover(hoverMode) ? undefined : handleUnhover}
         onRelayout={handleRelayout}
         onInitialized={handleInitialized}
       />
-      {hoverMode === "compare" && multiHover ? <MultiHoverTooltip hover={multiHover} /> : null}
+      {usesUnifiedMultiHover(hoverMode) && multiHover ? <MultiHoverTooltip hover={multiHover} /> : null}
     </div>
   );
 }
@@ -478,7 +498,7 @@ function MultiHoverTooltip({ hover }: { hover: MultiHoverState }) {
       <div className="space-y-0.5">
         {hover.rows.map((row) => (
           <div
-            key={`${row.experimentName}:${row.step}`}
+            key={`${row.experimentId}:${row.step}`}
             className="whitespace-pre"
           >
             <span style={{ color: row.color }}>━━━━</span>
@@ -493,7 +513,11 @@ function MultiHoverTooltip({ hover }: { hover: MultiHoverState }) {
 
 function buildMultiHoverState(
   event: Readonly<PlotMouseEvent>,
-  hoverNameMaxLength: number
+  hoverDisplayNames: Map<string, string>,
+  options: {
+    filterToVisibleYRange: boolean;
+    domainY: [number, number] | null;
+  }
 ): MultiHoverState | null {
   const mouseEvent = event.event as unknown as globalThis.MouseEvent | undefined;
   const graphElement = findPlotlyGraphElement(mouseEvent?.target ?? null);
@@ -501,47 +525,56 @@ function buildMultiHoverState(
     return null;
   }
   const rect = graphElement.getBoundingClientRect();
-  const rows = (event.points ?? [])
-    .map((point): MultiHoverRow | null => {
-      const trace = point.data as { hoverinfo?: string } | undefined;
-      const customData = point.customdata;
-      if (trace?.hoverinfo === "skip" || !Array.isArray(customData) || customData.length < 7) {
-        return null;
-      }
-      const [, experimentName, , originalValue, smoothedValue, step, color] = customData;
-      const sortValue = typeof point.y === "number" ? point.y : Number(point.y);
-      if (
-        typeof experimentName !== "string" ||
-        typeof color !== "string" ||
-        typeof step !== "number" ||
-        !isScalarWireValue(originalValue) ||
-        !isScalarWireValue(smoothedValue) ||
-        !Number.isFinite(sortValue)
-      ) {
-        return null;
-      }
-      const displayValue = originalValue;
-      return {
-        experimentName,
-        step,
-        value: displayValue,
-        sortValue,
-        color,
-        displayName: padColumn(truncateName(experimentName, hoverNameMaxLength), hoverNameMaxLength),
-        displayStep: padColumn(String(step), 4, "left"),
-        displayValue: padColumn(formatScalarWireForDisplay(displayValue), 8, "left"),
-      };
-    })
-    .filter((row): row is MultiHoverRow => row !== null)
-    .sort((a, b) => b.sortValue - a.sortValue);
+  let rows = dedupeHoverRowsByExperimentAndStep(
+    (event.points ?? [])
+      .map((point): MultiHoverRow | null => {
+        const trace = point.data as { hoverinfo?: string } | undefined;
+        const customData = point.customdata;
+        if (trace?.hoverinfo === "skip" || !Array.isArray(customData) || customData.length < 7) {
+          return null;
+        }
+        const [experimentId, experimentName, , originalValue, smoothedValue, step, color] = customData;
+        const sortValue = typeof point.y === "number" ? point.y : Number(point.y);
+        if (
+          typeof experimentId !== "string" ||
+          typeof experimentName !== "string" ||
+          typeof color !== "string" ||
+          typeof step !== "number" ||
+          !isScalarWireValue(originalValue) ||
+          !isScalarWireValue(smoothedValue) ||
+          !Number.isFinite(sortValue)
+        ) {
+          return null;
+        }
+        const hoverLabel = hoverDisplayNames.get(experimentId) ?? experimentName;
+        const displayValue = originalValue;
+        return {
+          experimentId,
+          experimentName,
+          hoverLabel,
+          step,
+          value: displayValue,
+          sortValue,
+          color,
+          displayName: hoverLabel,
+          displayStep: padColumn(String(step), 4, "left"),
+          displayValue: padColumn(formatScalarWireForDisplay(displayValue), 8, "left"),
+        };
+      })
+      .filter((row): row is MultiHoverRow => row !== null)
+  ).sort((a, b) => b.sortValue - a.sortValue);
+  if (options.filterToVisibleYRange) {
+    const yRange = resolveHoverYRangeFromEvent(event.points, options.domainY);
+    rows = filterHoverRowsToVisibleYRange(rows, yRange);
+  }
   if (!rows.length) {
     return null;
   }
-  const nameWidth = Math.max(1, ...rows.map((row) => truncateName(row.experimentName, hoverNameMaxLength).length));
+  const nameWidth = Math.max(1, ...rows.map((row) => row.hoverLabel.length));
   const valueColumnWidths = getValueColumnWidths(rows);
   const formattedRows = rows.map((row) => ({
     ...row,
-    displayName: padColumn(truncateName(row.experimentName, hoverNameMaxLength), nameWidth),
+    displayName: padColumn(row.hoverLabel, nameWidth),
     displayValue: formatScalarValueForColumn(row.value, valueColumnWidths),
   }));
   return {
@@ -639,16 +672,6 @@ function hoverTemplate(hoverMode: ScalarHoverMode): string {
   return "%{customdata[7]} %{customdata[8]} %{customdata[9]}<extra></extra>";
 }
 
-function truncateName(value: string, maxLength: number): string {
-  if (value.length <= maxLength) {
-    return value;
-  }
-  if (maxLength <= 1) {
-    return value.slice(0, maxLength);
-  }
-  return `${value.slice(0, maxLength - 1)}…`;
-}
-
 function padColumn(value: string, width: number, align: "left" | "right" = "right"): string {
   const gap = Math.max(0, width - value.length);
   const padding = "\u00A0".repeat(gap);
@@ -714,3 +737,36 @@ const HOVER_ALL_ICON = {
   height: 1000,
   path: "M120 220H880V320H120V220ZM120 450H880V550H120V450ZM120 680H880V780H120V680Z",
 };
+
+const HOVER_VISIBLE_ICON = {
+  width: 1000,
+  height: 1000,
+  path: "M220 280H780V720H220V280ZM220 480H780",
+};
+
+function getHoverModeButtonPresentation(mode: ScalarHoverMode): {
+  name: string;
+  title: string;
+  icon: { width: number; height: number; path: string };
+} {
+  switch (mode) {
+    case "compare":
+      return {
+        name: "Hover all",
+        title: "Show all experiments at this step",
+        icon: HOVER_ALL_ICON,
+      };
+    case "visible":
+      return {
+        name: "Hover in view",
+        title: "Show only experiments inside the visible y-axis range",
+        icon: HOVER_VISIBLE_ICON,
+      };
+    case "nearest":
+      return {
+        name: "Hover nearest",
+        title: "Show only the nearest experiment",
+        icon: HOVER_NEAREST_ICON,
+      };
+  }
+}

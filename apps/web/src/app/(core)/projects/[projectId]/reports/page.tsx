@@ -42,7 +42,7 @@ export default function ProjectReportsPage() {
 
   const { data, isLoading: listLoading } = useQuery({
     queryKey: projectId ? [QUERY_KEYS.REPORTS.BY_PROJECT(projectId)] : [],
-    queryFn: () => reportsService.listByProject(projectId!),
+    queryFn: () => reportsService.listAllByProject(projectId!),
     enabled: Boolean(projectId),
   });
 
@@ -108,7 +108,7 @@ export default function ProjectReportsPage() {
     );
   }
 
-  const rows = data?.data ?? [];
+  const rows = data ?? [];
 
   return (
     <div className="space-y-6 p-6">

@@ -9,8 +9,10 @@ import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { MetricLabelsResponse } from "@/domain/metrics/types";
+import { cn } from "@/lib/utils";
 
 type ControlPanelProps = {
+  controlsOpen: boolean;
   labelData: MetricLabelsResponse;
   label: string | null;
   onLabelChange: (v: string | null) => void;
@@ -36,6 +38,7 @@ type ControlPanelProps = {
  * Persisted prefs live in localStorage; edit session in-memory.
  */
 export function ProjectMetricsControlPanel({
+  controlsOpen,
   labelData,
   label,
   onLabelChange,
@@ -55,10 +58,20 @@ export function ProjectMetricsControlPanel({
   onMetricReorder,
 }: ControlPanelProps) {
   return (
-    <aside
-      className="flex w-full min-w-0 shrink-0 flex-col gap-3 self-start border-b border-border pb-3 pl-0 sm:w-72 sm:gap-4 sm:border-b-0 sm:pb-0 lg:max-h-full lg:min-h-0 lg:overflow-y-auto lg:self-stretch"
-      aria-label="Metrics view controls"
+    <div
+      className={cn(
+        "relative shrink-0 self-start transition-all duration-300 lg:self-stretch",
+        controlsOpen ? "w-full sm:w-72" : "w-0",
+      )}
     >
+      <aside
+        className={cn(
+          "flex min-w-0 flex-col gap-3 border-b border-border pb-3 pl-0 sm:gap-4 sm:border-b-0 sm:pb-0 lg:max-h-full lg:min-h-0 lg:overflow-y-auto",
+          !controlsOpen && "invisible overflow-hidden",
+        )}
+        aria-label="Metrics view controls"
+        aria-hidden={!controlsOpen}
+      >
       <Card>
         <CardHeader className="space-y-1 pb-3">
           <div className="flex items-center gap-2 text-sm font-semibold">
@@ -192,6 +205,7 @@ export function ProjectMetricsControlPanel({
           </CardContent>
         </Card>
       ) : null}
-    </aside>
+      </aside>
+    </div>
   );
 }

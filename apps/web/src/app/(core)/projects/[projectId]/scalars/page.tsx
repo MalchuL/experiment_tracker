@@ -237,15 +237,13 @@ export default function Scalars() {
     let cancelled = false;
 
     void Promise.all([
-      scalarsService.getByProject(projectId, {
+      scalarsService.getAllByProject(projectId, {
         experimentIds: missingIds,
-        limit: Math.max(missingIds.length, 1),
         maxPoints: maxPointsPerPlot,
         returnTags: false,
       }),
-      loggedObjectsService.getSummaryByProject(projectId, {
+      loggedObjectsService.getAllSummaryByProject(projectId, {
         experimentIds: missingIds,
-        limit: Math.max(missingIds.length, 1),
         maxSteps: maxArtifactStepsPerObject,
       }),
     ])

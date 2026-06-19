@@ -92,18 +92,16 @@ export function useArtifactsLiveRefresh({
 
       const [incrementalLatest, baselineLatest] = await Promise.all([
         changedWithBaseline.length
-          ? loggedObjectsService.getSummaryByProject(projectId, {
+          ? loggedObjectsService.getAllSummaryByProject(projectId, {
               experimentIds: changedWithBaseline.map(({ item }) => item.experiment_id),
               maxSteps,
               startTime,
-              limit: changedWithBaseline.length,
             })
           : undefined,
         changedWithoutBaseline.length
-          ? loggedObjectsService.getSummaryByProject(projectId, {
+          ? loggedObjectsService.getAllSummaryByProject(projectId, {
               experimentIds: changedWithoutBaseline.map(({ item }) => item.experiment_id),
               maxSteps,
-              limit: changedWithoutBaseline.length,
             })
           : undefined,
       ]);

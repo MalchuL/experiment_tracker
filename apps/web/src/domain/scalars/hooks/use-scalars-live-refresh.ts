@@ -70,12 +70,11 @@ export function useScalarsLiveRefresh({
       }
 
       const startTime = computeIncrementalStartTime(changed);
-      const latest = await scalarsService.getByProject(projectId, {
+      const latest = await scalarsService.getAllByProject(projectId, {
         experimentIds: changed.map(({ item }) => item.experiment_id),
         maxPoints,
         returnTags: false,
         ...(startTime ? { startTime } : {}),
-        limit: Math.max(changed.length, 1),
       });
       queryClient.setQueryData<InfiniteData<ScalarsPointsResult>>(scalarsQueryKey, (current) => {
         if (!current) return current;

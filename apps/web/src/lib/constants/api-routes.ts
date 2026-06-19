@@ -212,6 +212,7 @@ export const API_ROUTES = {
       },
       BY_PROJECT: {
         GET: (projectId: string) => `/api/scalars/get/project/${projectId}`,
+        NAMES: (projectId: string) => `/api/scalars/names/project/${projectId}`,
         LAST_LOGGED: (projectId: string) => `/api/scalars/last_logged/${projectId}`,
       },
     },

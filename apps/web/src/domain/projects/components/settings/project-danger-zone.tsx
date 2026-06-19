@@ -56,7 +56,7 @@ export function ProjectDangerZone({ projectId }: { projectId: string }) {
   });
   const teamsQuery = useQuery({
     queryKey: ["project-transfer-teams"],
-    queryFn: () => teamsService.list({ limit: 100, offset: 0 }),
+    queryFn: () => teamsService.listAll(),
     enabled: zoneOpen,
   });
 
@@ -261,7 +261,7 @@ export function ProjectDangerZone({ projectId }: { projectId: string }) {
                       onChange={(event) => setDestinationTeamId(event.target.value)}
                     >
                       <option value="">Standalone (Personal Project)</option>
-                      {(teamsQuery.data?.data ?? []).map((team) => (
+                      {(teamsQuery.data ?? []).map((team) => (
                         <option key={team.id} value={team.id}>
                           {team.name}
                         </option>
@@ -390,7 +390,7 @@ export function ProjectDangerZone({ projectId }: { projectId: string }) {
             <AlertDialogDescription>
               Inherited access will change immediately. Destination:{" "}
               {destinationTeamId
-                ? (teamsQuery.data?.data ?? []).find((team) => team.id === destinationTeamId)?.name ??
+                ? (teamsQuery.data ?? []).find((team) => team.id === destinationTeamId)?.name ??
                   destinationTeamId
                 : "Standalone (Personal Project)"}
               . This requires permission to remove the project from its current team and create it

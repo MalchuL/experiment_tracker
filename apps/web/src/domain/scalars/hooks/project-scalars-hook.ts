@@ -1,4 +1,4 @@
-import { useInfiniteQuery } from "@tanstack/react-query";
+import { keepPreviousData, useInfiniteQuery } from "@tanstack/react-query";
 import { QUERY_KEYS } from "@/lib/constants/query-keys";
 import { DEFAULT_PAGE_SIZE } from "@/lib/constants/pagination";
 import { scalarsService } from "../services";
@@ -9,10 +9,14 @@ import { useEffect, useMemo } from "react";
 export interface UseProjectScalarsParams {
   projectId?: string;
   experimentIds?: string[];
+  scalarNames?: string[];
   maxPoints?: number;
   returnTags?: boolean;
+  storeCache?: boolean;
   startTime?: string;
   endTime?: string;
+  startStep?: number;
+  endStep?: number;
 }
 
 /** Flattened per-experiment scalar series plus the infinite-query ``queryKey`` for cache merges (live refresh). */
@@ -37,24 +41,34 @@ export function useProjectScalars(
   const {
     projectId,
     experimentIds,
+    scalarNames,
     maxPoints,
     returnTags = false,
+    storeCache,
     startTime,
     endTime,
+    startStep,
+    endStep,
   } = params;
 
   const stableExperimentIds = [...(experimentIds ?? [])].sort();
+  const stableScalarNames = [...(scalarNames ?? [])].sort();
   const hasExplicitEmptyExperimentSelection = experimentIds !== undefined && experimentIds.length === 0;
+  const hasExplicitEmptyScalarSelection = scalarNames !== undefined && scalarNames.length === 0;
   const queryKey = projectId
     ? [
         QUERY_KEYS.SCALARS.BY_PROJECT(projectId),
         {
           experimentIds: stableExperimentIds,
+          scalarNames: stableScalarNames,
           limit: DEFAULT_PAGE_SIZE,
           maxPoints,
           returnTags,
+          storeCache,
           startTime,
           endTime,
+          startStep,
+          endStep,
         },
       ]
     : [];
@@ -72,12 +86,16 @@ export function useProjectScalars(
     queryFn: ({ pageParam }) =>
       scalarsService.getByProject(projectId!, {
         experimentIds: stableExperimentIds,
+        scalarNames: stableScalarNames,
         limit: DEFAULT_PAGE_SIZE,
         offset: pageParam,
         maxPoints,
         returnTags,
+        storeCache,
         startTime,
         endTime,
+        startStep,
+        endStep,
       }),
     initialPageParam: 0,
     getNextPageParam: (lastPage, allPages) => {
@@ -86,7 +104,11 @@ export function useProjectScalars(
       }
       return allPages.reduce((total, page) => total + page.data.length, 0);
     },
-    enabled: !!projectId && !hasExplicitEmptyExperimentSelection,
+    enabled:
+      !!projectId &&
+      !hasExplicitEmptyExperimentSelection &&
+      !hasExplicitEmptyScalarSelection,
+    placeholderData: keepPreviousData,
   });
   useEffect(() => {
     if (hasNextPage && !isFetchingNextPage) {
@@ -96,10 +118,10 @@ export function useProjectScalars(
 
   const scalars = useMemo(
     () => {
-      if (hasExplicitEmptyExperimentSelection) return [];
+      if (hasExplicitEmptyExperimentSelection || hasExplicitEmptyScalarSelection) return [];
       return data?.pages.flatMap((page) => page.data) ?? [];
     },
-    [data, hasExplicitEmptyExperimentSelection]
+    [data, hasExplicitEmptyExperimentSelection, hasExplicitEmptyScalarSelection]
   );
 
   return {

@@ -15,7 +15,9 @@ from lib.deletion_outcome import (
     finalize_deletion_outcome,
 )
 from lib.satellite_step_dto import satellite_step_from_result
+from experiment_tracker_shared import utc_now_naive
 from lib.types import UUID_TYPE
+from models import ExperimentStatus
 from sqlalchemy.ext.asyncio import AsyncSession
 from .repository import ExperimentRepository
 from .dto import (
@@ -164,6 +166,8 @@ class ExperimentService:
 
         try:
             experiment = self.experiment_mapper.experiment_create_dto_to_schema(data)
+            if data.status == ExperimentStatus.RUNNING:
+                experiment.started_at = utc_now_naive()
             await self.experiment_repository.create(experiment)
             if self.object_storage_client is not None:
                 await self.object_storage_client.ensure_experiment_bucket(
@@ -200,6 +204,8 @@ class ExperimentService:
                 f"You are not allowed to edit experiment {experiment_id}"
             )
         updates = self.experiment_mapper.experiment_update_dto_to_update_dict(data)
+        if updates.get("status") == ExperimentStatus.RUNNING:
+            updates["started_at"] = utc_now_naive()
         result = await self.experiment_repository.update(experiment_id, **updates)
         await self.db.commit()
 
