@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { ExperimentSidebar } from "@/components/shared/experiment-sidebar";
 import { ProjectDataTableFrame } from "@/components/shared/project-data-table-frame";
@@ -72,6 +72,7 @@ export function ProjectMetricsPage() {
   } = useProjectMetricsPageState();
 
   const metricsScrollRef = useRef<HTMLDivElement>(null);
+  const [controlsOpen, setControlsOpen] = useState(true);
 
   const { aggregatedMetricsByExperiment } = useAggregatedMetrics(projectId, {
     refetchInterval: REFRESH_EXPERIMENTS_LIST_INTERVAL,
@@ -114,6 +115,7 @@ export function ProjectMetricsPage() {
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden px-6 pt-6 pb-6">
         <div className="box-border flex min-h-0 flex-1 flex-col gap-4 lg:flex-row lg:items-stretch">
           <ProjectMetricsControlPanel
+            controlsOpen={controlsOpen}
             labelData={labelData}
             label={label}
             onLabelChange={setLabel}
@@ -147,6 +149,8 @@ export function ProjectMetricsPage() {
                   table={table}
                   exportFileBase={exportFileBase}
                   showDownload={showDownload}
+                  controlsOpen={controlsOpen}
+                  onControlsOpenChange={setControlsOpen}
                 />
               }
               footer={

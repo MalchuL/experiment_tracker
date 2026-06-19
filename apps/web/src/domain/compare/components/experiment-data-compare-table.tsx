@@ -20,6 +20,11 @@ export type ExperimentDataComparisonMode = "baseline" | "previous";
 export type ExperimentDataOverflowMode = "wrap" | "truncate";
 export type ExperimentDataDiffStatus = ExperimentDiffStatus | "missing";
 
+/** Tints row cells on hover without replacing diff background colors underneath. */
+const compareRowCellHoverClass =
+  "relative before:pointer-events-none before:absolute before:inset-0 before:z-0 before:bg-muted/40 before:opacity-0 before:transition-opacity before:content-[''] group-hover:before:opacity-100";
+const compareRowCellContentClass = "relative z-[1]";
+
 export interface ExperimentDataCompareColumn {
   id: string;
   label: string;
@@ -274,7 +279,8 @@ function ExperimentDataCompareTableContent<T>({
           <TableRow key={row.id} className="group hover:bg-transparent">
             <TableCell
               className={cn(
-                "box-border border-r bg-background px-4 py-2.5 font-mono text-xs text-foreground/80 transition-colors group-hover:bg-muted/50",
+                "box-border border-r bg-background px-4 py-2.5 font-mono text-xs text-foreground/80",
+                compareRowCellHoverClass,
                 leadOverflowMode === "wrap"
                   ? "whitespace-normal break-words"
                   : "overflow-hidden whitespace-nowrap",
@@ -286,7 +292,12 @@ function ExperimentDataCompareTableContent<T>({
               }}
               title={row.label}
             >
-              <div className={leadOverflowMode === "truncate" ? "truncate" : undefined}>
+              <div
+                className={cn(
+                  compareRowCellContentClass,
+                  leadOverflowMode === "truncate" ? "truncate" : undefined
+                )}
+              >
                 {row.label}
               </div>
             </TableCell>
@@ -297,7 +308,8 @@ function ExperimentDataCompareTableContent<T>({
                 <TableCell
                   key={columns[index]?.id ?? index}
                   className={cn(
-                    "box-border border-r px-4 py-2.5 align-top transition-colors group-hover:bg-muted/50",
+                    "box-border border-r px-4 py-2.5 align-top",
+                    compareRowCellHoverClass,
                     overflowMode === "wrap"
                       ? "whitespace-normal break-words"
                       : "overflow-hidden whitespace-nowrap",
@@ -306,7 +318,12 @@ function ExperimentDataCompareTableContent<T>({
                   style={fixedWidth(columnWidths[index] ?? 0)}
                   title={String(valueTitle(value, referenceValue, status, row) ?? "")}
                 >
-                  <div className={overflowMode === "truncate" ? "truncate" : undefined}>
+                  <div
+                    className={cn(
+                      compareRowCellContentClass,
+                      overflowMode === "truncate" ? "truncate" : undefined
+                    )}
+                  >
                     {renderValue(value, referenceValue, status, row)}
                   </div>
                 </TableCell>
