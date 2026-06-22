@@ -17,8 +17,11 @@ import { getScalarsDotThreshold } from "@/domain/scalars/utils";
 import { cn } from "@/lib/utils";
 import { resolveCommittedMaxPoints, resolveCommittedStepBound } from "../lib";
 import {
+  MAX_SCALAR_COMPARE_HOVER_NAME_MAX_LENGTH,
   MAX_SCALAR_COMPARE_PLOT_HEIGHT,
+  MIN_SCALAR_COMPARE_HOVER_NAME_MAX_LENGTH,
   MIN_SCALAR_COMPARE_PLOT_HEIGHT,
+  SCALAR_COMPARE_HOVER_NAME_MAX_LENGTH_STEP,
   type ScalarComparePlotConfig,
   type ScalarMetricOption,
 } from "../types";
@@ -188,7 +191,7 @@ export function ScalarsComparePlotCard({
               smoothing={plot.smoothing}
               dotThreshold={dotThreshold}
               hoverMode={plot.hoverMode}
-              hoverNameMaxLength={50}
+              hoverNameMaxLength={plot.hoverNameMaxLength}
               onDomainChange={handleDomainChange}
               onHoverModeChange={(hoverMode) => onPatchPlot(plot.id, { hoverMode })}
             />
@@ -376,7 +379,19 @@ function PlotSettingsPanel({
             min={MIN_SCALAR_COMPARE_PLOT_HEIGHT}
             max={MAX_SCALAR_COMPARE_PLOT_HEIGHT}
             step={8}
+            valueSuffix="px"
             onChange={(value) => onPatchPlot(plot.id, { plotHeight: value })}
+          />
+
+          <PlotSliderField
+            id={`scalar-hover-name-${plot.id}`}
+            label="Hover name"
+            value={plot.hoverNameMaxLength}
+            min={MIN_SCALAR_COMPARE_HOVER_NAME_MAX_LENGTH}
+            max={MAX_SCALAR_COMPARE_HOVER_NAME_MAX_LENGTH}
+            step={SCALAR_COMPARE_HOVER_NAME_MAX_LENGTH_STEP}
+            valueSuffix=" chars"
+            onChange={(value) => onPatchPlot(plot.id, { hoverNameMaxLength: value })}
           />
 
           <Button type="button" variant="outline" size="sm" onClick={onResetDomain}>
@@ -443,6 +458,7 @@ function PlotSliderField({
   min,
   max,
   step,
+  valueSuffix,
   onChange,
 }: {
   id: string;
@@ -451,6 +467,7 @@ function PlotSliderField({
   min: number;
   max: number;
   step: number;
+  valueSuffix: string;
   onChange: (value: number) => void;
 }) {
   return (
@@ -459,7 +476,10 @@ function PlotSliderField({
         <Label htmlFor={id} className="text-xs text-muted-foreground">
           {label}
         </Label>
-        <span className="text-xs tabular-nums text-muted-foreground">{value}px</span>
+        <span className="text-xs tabular-nums text-muted-foreground">
+          {value}
+          {valueSuffix}
+        </span>
       </div>
       <Slider
         id={id}

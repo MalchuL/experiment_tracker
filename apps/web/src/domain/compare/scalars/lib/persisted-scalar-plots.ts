@@ -1,7 +1,10 @@
 import { loadCompareString, saveCompareString } from "@/domain/compare/hooks/use-experiment-data-compare-layout";
 import type { ScalarHoverMode } from "@/domain/scalars/types";
 import {
+  DEFAULT_SCALAR_COMPARE_HOVER_NAME_MAX_LENGTH,
   DEFAULT_SCALAR_COMPARE_PLOT_HEIGHT,
+  MAX_SCALAR_COMPARE_HOVER_NAME_MAX_LENGTH,
+  MIN_SCALAR_COMPARE_HOVER_NAME_MAX_LENGTH,
   type ScalarComparePlotConfig,
 } from "../types";
 
@@ -72,6 +75,12 @@ function sanitizeScalarPlot(value: unknown, defaultMaxPoints: number): ScalarCom
     hoverMode: HOVER_MODES.includes(value.hoverMode as ScalarHoverMode)
       ? (value.hoverMode as ScalarHoverMode)
       : "compare",
+    hoverNameMaxLength: clampNumber(
+      value.hoverNameMaxLength,
+      MIN_SCALAR_COMPARE_HOVER_NAME_MAX_LENGTH,
+      MAX_SCALAR_COMPARE_HOVER_NAME_MAX_LENGTH,
+      DEFAULT_SCALAR_COMPARE_HOVER_NAME_MAX_LENGTH
+    ),
     stepMinDraft: optionalIntegerDraft(value.stepMinDraft, stepMin),
     stepMin,
     stepMaxDraft: optionalIntegerDraft(value.stepMaxDraft, stepMax),

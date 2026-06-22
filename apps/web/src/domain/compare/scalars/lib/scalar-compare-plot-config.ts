@@ -1,5 +1,6 @@
 import { createClientId } from "@/lib/utils";
 import {
+  DEFAULT_SCALAR_COMPARE_HOVER_NAME_MAX_LENGTH,
   DEFAULT_SCALAR_COMPARE_PLOT_HEIGHT,
   type ScalarComparePlotConfig,
 } from "../types";
@@ -14,6 +15,7 @@ export function createScalarComparePlotConfig(defaultMaxPoints: number): ScalarC
     domain: null,
     plotHeight: DEFAULT_SCALAR_COMPARE_PLOT_HEIGHT,
     hoverMode: "compare",
+    hoverNameMaxLength: DEFAULT_SCALAR_COMPARE_HOVER_NAME_MAX_LENGTH,
     stepMinDraft: "",
     stepMin: null,
     stepMaxDraft: "",

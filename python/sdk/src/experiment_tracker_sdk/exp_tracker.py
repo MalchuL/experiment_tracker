@@ -77,21 +77,30 @@ _SNAPSHOT_MAX_FILE_SIZE_UNSET = object()
 
 
 class ExpTracker:
-    """
-    Minimal TensorBoard-like logging API.
-    Methods mirror typical tensorboard.SummaryWriter calls:
-        - add_scalar
-        - add_metric
-        - add_scalars
-        - add_image
-        - add_text
-        - add_histogram
-        - add_audio
-        - add_figure
-        - add_mesh
-        - add_embedding
-        - flush
-        - close
+    """TensorBoard-style experiment logger for the Experiment Tracker API.
+
+    Binds to one experiment and exposes convenience methods for logging
+    scalars, metrics, step artifacts (images, text, charts), final artifacts,
+    code snapshots, and experiment metadata. Method names mirror
+    ``tensorboard.SummaryWriter`` where applicable (``add_scalar``,
+    ``add_image``, ``flush``, ``close``, and similar).
+
+    Prefer :meth:`init` when resolving team, project, and experiment objects
+    from names or ids. Use the constructor when you already hold ids and SDK
+    client handles.
+
+    Metadata helpers such as :meth:`status`, :meth:`progress`, :meth:`name`,
+    and :meth:`tags` mutate the bound
+    :class:`~experiment_tracker_sdk.client.instances.ExperimentInstance`.
+    Outside a ``with tracker:`` block each assignment triggers an API update;
+    inside the context manager updates are batched and sent on clean exit.
+
+    Scalar batches and queued HTTP requests are flushed by :meth:`flush` and
+    :meth:`close`. Call :meth:`close` at the end of a training run.
+
+    Attributes:
+        experiment_id: Experiment UUID bound to this tracker.
+        project_id: Owning project UUID.
     """
 
     def __init__(
@@ -104,17 +113,22 @@ class ExpTracker:
         *,
         verbose: bool = False,
     ):
-        """Initialize the ExpTracker instance.
+        """Initialize an ``ExpTracker`` bound to an existing experiment.
 
         Args:
             experiment_id: Experiment UUID or string id bound to this tracker.
             project_id: Project UUID or string id that owns the experiment.
-            api_requests_registry: Registry of API request spec factories.
+            api_requests_registry: Registry of API request spec factories used to
+                build endpoint calls.
             request_client: HTTP client used for API calls and artifact uploads.
-            experiment_instance: Optional pre-built experiment handle; when
-                omitted, a minimal placeholder instance is created.
+            experiment_instance: Optional pre-built experiment handle. When
+                omitted, a minimal placeholder instance is created from
+                ``experiment_id`` and ``project_id``.
             verbose: When ``True``, show tqdm progress bars during artifact
-                uploads (images, text, final artifacts, and similar).
+                uploads (images, text, final artifacts, snapshots, and similar).
+
+        Returns:
+            None.
         """
         self.experiment_id = experiment_id
         self.project_id = project_id
@@ -144,22 +158,56 @@ class ExpTracker:
         )
 
     def __enter__(self) -> "ExpTracker":
-        """Enter batched experiment metadata update mode."""
+        """Enter batched experiment metadata update mode.
+
+        While inside the context, property updates on the bound experiment
+        instance (``status``, ``progress``, ``name``, and similar) are queued
+        and sent in one API call on clean exit.
+
+        Returns:
+            This tracker instance.
+        """
         self._experiment.__enter__()
         return self
 
     def __exit__(self, exc_type, exc, tb) -> bool:  # type: ignore[exit-return]
-        """Leave batched experiment metadata update mode."""
+        """Leave batched experiment metadata update mode.
+
+        Args:
+            exc_type: Exception type raised inside the context, or ``None`` on a
+                clean exit.
+            exc: Exception instance raised inside the context, or ``None``.
+            tb: Traceback for the exception raised inside the context, or
+                ``None``.
+
+        Returns:
+            ``False`` so exceptions are never suppressed.
+        """
         return self._experiment.__exit__(exc_type, exc, tb)
 
     def _resolve_verbose(self, verbose: bool | None) -> bool:
-        """Resolve per-call or tracker-level verbosity."""
+        """Resolve per-call verbosity against the tracker default.
+
+        Args:
+            verbose: Per-call override. ``None`` falls back to the tracker-level
+                ``verbose`` flag from construction or :meth:`init`.
+
+        Returns:
+            Effective verbosity flag for artifact uploads.
+        """
         if verbose is not None:
             return verbose
         return self._verbose
 
     def get_project_settings(self) -> dict[str, Any]:
-        """Fetch runtime project settings as a name-to-value mapping."""
+        """Fetch runtime project settings as a name-to-value mapping.
+
+        Returns:
+            Project settings dictionary keyed by setting name.
+
+        Raises:
+            ExpTrackerAPIError: If the API response is not a dictionary.
+        """
         response = self._request_client.request(
             self._api_requests_registry.projects.get_project_settings_map(
                 self.project_id
@@ -181,23 +229,31 @@ class ExpTracker:
         *,
         verbose: bool = False,
     ) -> "ExpTracker":
-        """Initialize the ExpTracker instance.
+        """Create and configure an ``ExpTracker`` for a project experiment.
+
+        Resolves or creates team, project, and experiment objects according to
+        ``init_params``, then assigns a random hex color to the experiment.
 
         Args:
-            project: Project ID or name to resolve.
-            experiment: Experiment ID or name to resolve inside the project.
-            team: Optional team ID or name used to resolve team-owned projects
+            project: Project id or name to resolve.
+            experiment: Experiment id or name to resolve inside the project.
+            team: Optional team id or name used to resolve team-owned projects
                 and to create a team/project when requested by ``init_params``.
-            init_params: Optional initialization behavior. Controls whether
-                existing team/project/experiment objects are reused, how
-                ambiguous matches are resolved, and whether missing objects are
-                created. When omitted, missing experiments are created by
-                default while projects and teams must already exist.
+            init_params: Initialization behavior. Controls whether existing
+                team/project/experiment objects are reused, how ambiguous
+                matches are resolved, and whether missing objects are created.
+                When omitted, missing experiments are created by default while
+                projects and teams must already exist.
             verbose: When ``True``, show tqdm progress bars during artifact
-                uploads performed through this tracker.
+                uploads performed through the returned tracker.
 
         Returns:
             Configured ``ExpTracker`` bound to the resolved experiment.
+
+        Raises:
+            ExperimentInitError: When team, project, or experiment resolution
+                fails (not found, ambiguous match, or policy violation).
+            ExpTrackerAPIError: When an underlying API request fails.
         """
         resolved_init_params = init_params or InitParams(
             create_experiment_if_not_exists=True,
@@ -223,7 +279,21 @@ class ExpTracker:
     def add_scalar(
         self, tag: str, scalar_value, global_step: int = 0, walltime: float = 0
     ):
-        """Log a single scalar value (finite, NaN, or ±inf)."""
+        """Log a single scalar value at a training step.
+
+        Values are buffered and sent in batches; call :meth:`flush` or
+        :meth:`close` to force delivery. Non-numeric inputs are ignored with a
+        warning. ``NaN`` and ``±inf`` are accepted and forwarded to the API.
+
+        Args:
+            tag: Scalar series name shown in the UI.
+            scalar_value: Numeric value to log.
+            global_step: Training step index.
+            walltime: Unused; kept for TensorBoard API compatibility.
+
+        Returns:
+            None.
+        """
         _ = walltime  # Kept for API parity with TensorBoard-style signatures.
         if not isinstance(scalar_value, (int, float)):
             logger.warning(
@@ -240,7 +310,20 @@ class ExpTracker:
         global_step: int = 0,
         walltime: float = 0,
     ):
-        """Log multiple scalar values under a main tag."""
+        """Log multiple scalar values under one step.
+
+        Each key in ``tag_scalar_dict`` is concatenated with ``main_tag`` and
+        logged via :meth:`add_scalar`.
+
+        Args:
+            main_tag: Prefix prepended to every key in ``tag_scalar_dict``.
+            tag_scalar_dict: Mapping of suffix tag to scalar value.
+            global_step: Training step index shared by all logged scalars.
+            walltime: Unused; kept for TensorBoard API compatibility.
+
+        Returns:
+            None.
+        """
         for tag, scalar_value in tag_scalar_dict.items():
             self.add_scalar(main_tag + tag, scalar_value, global_step, walltime)
 
@@ -251,7 +334,24 @@ class ExpTracker:
         label: str | None = None,
         walltime: float = 0,
     ):
-        """Create or update a metric row for this (name, label)."""
+        """Create or update a project metric row for this experiment.
+
+        Metrics are keyed by ``(name, label)`` and are distinct from step
+        scalars. Non-finite values are ignored with a warning.
+
+        Args:
+            name: Metric name.
+            value: Metric value (must be finite).
+            label: Optional metric label distinguishing multiple values with
+                the same name.
+            walltime: Unused; kept for TensorBoard API compatibility.
+
+        Returns:
+            None.
+
+        Raises:
+            ExpTrackerAPIError: When the metrics upsert API call fails.
+        """
         _ = walltime  # Kept for API parity with add_scalar-like signatures.
         if not math.isfinite(value):
             logger.warning(
@@ -275,16 +375,29 @@ class ExpTracker:
         walltime: float = 0,
         verbose: bool | None = None,
     ):
-        """Upload and log a single image object.
+        """Upload and log a single image at a training step.
 
         Supported inputs:
-        - PIL.Image.Image
-        - numpy.ndarray in HW or HWC layout
-        - torch.Tensor in CHW, HW, or HWC layout
+            - ``PIL.Image.Image``
+            - ``numpy.ndarray`` in HW or HWC layout
+            - ``torch.Tensor`` in CHW, HW, or HWC layout
+
+        Images are converted to PNG and stored as step-based logged objects.
 
         Args:
+            tag: Logical name shown in the UI.
+            img: Image payload in one of the supported formats above.
+            global_step: Training step index.
+            walltime: Unused; kept for TensorBoard API compatibility.
             verbose: Upload progress bar for this call only. ``None`` uses the
                 tracker-level ``verbose`` from construction or :meth:`init`.
+
+        Returns:
+            None.
+
+        Raises:
+            ExpTrackerAPIError: When optional image dependencies are missing,
+                the input shape is unsupported, or the upload API call fails.
         """
         prepared = prepare_step_image_content(tag, img, global_step)
         self._artifacts.upload_and_log_experiment_artifact_at_step(
@@ -307,11 +420,21 @@ class ExpTracker:
         walltime: float = 0,
         verbose: bool | None = None,
     ):
-        """Upload and log text as a text object.
+        """Upload and log UTF-8 text at a training step.
 
         Args:
+            tag: Logical name shown in the UI.
+            text_string: Text content to store.
+            global_step: Training step index.
+            walltime: Unused; kept for TensorBoard API compatibility.
             verbose: Upload progress bar for this call only. ``None`` uses the
                 tracker-level ``verbose`` from construction or :meth:`init`.
+
+        Returns:
+            None.
+
+        Raises:
+            ExpTrackerAPIError: When the upload API call fails.
         """
         prepared = prepare_step_text_content(tag, text_string, global_step)
         self._artifacts.upload_and_log_experiment_artifact_at_step(
@@ -342,9 +465,15 @@ class ExpTracker:
             tag: Logical name shown in the UI.
             artifact_type: Logged object type (histogram, scatter, pie, etc.).
             global_step: Training step index.
-            data: Serialized trace payloads.
-            layout: Optional chart layout dict.
+            data: Serialized trace payloads for the chart renderer.
+            layout: Optional chart layout dict merged into the payload.
             metadata: String key/value metadata stored alongside the artifact.
+
+        Returns:
+            None.
+
+        Raises:
+            ExpTrackerAPIError: When the upload API call fails.
         """
         self._artifacts.upload_and_log_experiment_artifact_at_step(
             experiment_id=str(self.experiment_id),
@@ -367,12 +496,11 @@ class ExpTracker:
         default_extension: str | None = None,
         verbose: bool | None = None,
     ) -> None:
-        """
-        Upload a named final artifact without step-based logging.
+        """Upload a named final artifact without step-based logging.
 
-        Final artifacts are named/tracked experiment artifacts with no step
-        associated with them. Use this generic method for checkpoints, configs,
-        final exports, and any content that does not need a typed convenience
+        Final artifacts are tracked experiment blobs with a stable name and
+        filepath but no ``global_step``. Use for checkpoints, configs, final
+        exports, and other run outputs that do not need a typed convenience
         helper.
 
         Args:
@@ -388,6 +516,13 @@ class ExpTracker:
                 default stored path and multipart filename.
             verbose: Upload progress bar for this call only. ``None`` uses the
                 tracker-level ``verbose`` from construction or :meth:`init`.
+
+        Returns:
+            None.
+
+        Raises:
+            ExpTrackerAPIError: When content preparation or the upload API call
+                fails. Errors are logged before re-raising.
         """
         try:
             prepared = prepare_final_artifact_content(
@@ -422,17 +557,24 @@ class ExpTracker:
     ) -> None:
         """Upload a named final image artifact without step-based logging.
 
-        Bytes, paths, and readable file-like objects are uploaded directly. Other
-        values are treated like ``add_image`` input and converted to PNG bytes
-        with ``image_data_to_png_bytes``; this supports PIL images and numpy
-        arrays when those optional packages are installed.
+        Bytes, paths, and readable file-like objects are uploaded directly.
+        Other values are treated like :meth:`add_image` input and converted to
+        PNG bytes; this supports PIL images and numpy arrays when those
+        optional packages are installed.
 
         Args:
             tag: Logical artifact name displayed in the UI.
             content: Image bytes, an existing image file path, a readable
-                file-like object, a PIL image, or a numpy array in HW/HWC layout.
+                file-like object, a PIL image, or a numpy array in HW/HWC
+                layout.
             stored_filepath: Relative filepath to store/display in the UI.
             verbose: Passed through to :meth:`log_final_artifact`.
+
+        Returns:
+            None.
+
+        Raises:
+            ExpTrackerAPIError: When image conversion or upload fails.
         """
         self.log_final_artifact(
             tag,
@@ -459,6 +601,12 @@ class ExpTracker:
                 UTF-8 by the generic upload path.
             stored_filepath: Relative filepath to store/display in the UI.
             verbose: Passed through to :meth:`log_final_artifact`.
+
+        Returns:
+            None.
+
+        Raises:
+            ExpTrackerAPIError: When content preparation or upload fails.
         """
         self.log_final_artifact(
             tag,
@@ -487,6 +635,12 @@ class ExpTracker:
             stored_filepath: Relative filepath to store/display in the UI.
             indent: Indentation passed to ``json.dumps`` for structured payloads.
             verbose: Passed through to :meth:`log_final_artifact`.
+
+        Returns:
+            None.
+
+        Raises:
+            ExpTrackerAPIError: When content preparation or upload fails.
         """
         self.log_final_artifact(
             tag,
@@ -513,6 +667,12 @@ class ExpTracker:
                 payloads are serialized with the SDK's lightweight YAML emitter.
             stored_filepath: Relative filepath to store/display in the UI.
             verbose: Passed through to :meth:`log_final_artifact`.
+
+        Returns:
+            None.
+
+        Raises:
+            ExpTrackerAPIError: When content preparation or upload fails.
         """
         self.log_final_artifact(
             tag,
@@ -532,7 +692,32 @@ class ExpTracker:
         max_file_size: int | None | object = _SNAPSHOT_MAX_FILE_SIZE_UNSET,
         verbose: bool | None = None,
     ) -> SnapshotUploadResult:
-        """Upload a file snapshot for the current experiment."""
+        """Upload a content-addressed code snapshot for this experiment.
+
+        Scans local files, uploads missing blobs to project storage, and
+        registers a snapshot manifest on the experiment. Ignore rules follow
+        ``.gitignore`` and ``.exp_trackerignore`` by default.
+
+        Args:
+            path: File, directory, or iterable of paths to include. Defaults to
+                the current directory (``"."``).
+            root: Absolute directory used for manifest-relative paths, or
+                ``None`` to discover one from ignore files.
+            ignore_file: Ignore-file name or names applied during scanning.
+            max_file_size: Maximum included file size in bytes. When omitted,
+                uses ``EXP_TRACKER_SNAPSHOT_MAX_FILE_SIZE`` from settings.
+                ``None`` or a negative value disables size filtering.
+            verbose: Upload progress bar for this call only. ``None`` uses the
+                tracker-level ``verbose`` from construction or :meth:`init`.
+
+        Returns:
+            :class:`~experiment_tracker_sdk.snapshot.SnapshotUploadResult`
+            summarizing included, skipped, uploaded, and deduplicated files.
+
+        Raises:
+            ExpTrackerAPIError: When scanning, hashing, or upload fails.
+            ValueError: When ``root`` or ignore-file paths are invalid.
+        """
         resolved_max_file_size = (
             get_exp_tracker_settings().snapshot_max_file_size
             if max_file_size is _SNAPSHOT_MAX_FILE_SIZE_UNSET
@@ -564,12 +749,18 @@ class ExpTracker:
 
         Args:
             tag: Logical name shown in the UI.
-            values: Samples (sequence, numpy array, or torch tensor; 2D+ arrays
-                are flattened).
+            values: Samples as a sequence, numpy array, or torch tensor. Two-
+                dimensional and higher arrays are flattened.
             global_step: Training step index.
-            bins: Histogram bin count for the trace and preview metadata; uses
+            bins: Histogram bin count for the trace and preview metadata. Uses
                 ``histogram_metadata_bins`` from settings when omitted.
             walltime: Unused; kept for TensorBoard API compatibility.
+
+        Returns:
+            None.
+
+        Raises:
+            ExpTrackerAPIError: When the chart upload API call fails.
         """
         _ = walltime
         numeric_values = finite_float_values(values)
@@ -604,7 +795,20 @@ class ExpTracker:
         sample_rate: int = 44100,
         walltime: float = 0,
     ):
-        """Upload and log audio object."""
+        """Log audio at a training step.
+
+        Not implemented. Emits a warning and returns without uploading.
+
+        Args:
+            tag: Logical name that would be shown in the UI.
+            snd_tensor: Audio tensor payload.
+            global_step: Training step index.
+            sample_rate: Audio sample rate in Hz.
+            walltime: Unused; kept for TensorBoard API compatibility.
+
+        Returns:
+            None.
+        """
         logger.warning("add_audio is not implemented")
 
     def add_figure(
@@ -615,7 +819,20 @@ class ExpTracker:
         close: bool = True,
         walltime: float = 0,
     ):
-        """Log a matplotlib figure."""
+        """Log a matplotlib figure at a training step.
+
+        Not implemented. Emits a warning and returns without uploading.
+
+        Args:
+            tag: Logical name that would be shown in the UI.
+            figure: Matplotlib figure object.
+            global_step: Training step index.
+            close: Whether the figure would be closed after logging.
+            walltime: Unused; kept for TensorBoard API compatibility.
+
+        Returns:
+            None.
+        """
         logger.warning("add_figure is not implemented")
 
     def add_pie(
@@ -631,12 +848,16 @@ class ExpTracker:
         Args:
             tag: Logical name shown in the UI.
             labels: Slice labels (same length as ``values``).
-            values: Slice sizes (sequence, numpy array, or torch tensor).
+            values: Slice sizes as a sequence, numpy array, or torch tensor.
             global_step: Training step index.
             walltime: Unused; kept for TensorBoard API compatibility.
 
+        Returns:
+            None.
+
         Raises:
             ValueError: If ``labels`` and ``values`` lengths differ.
+            ExpTrackerAPIError: When the chart upload API call fails.
         """
         _ = walltime
         labels_list, numeric_values = finite_pie_slices(labels, values)
@@ -670,14 +891,18 @@ class ExpTracker:
 
         Args:
             tag: Logical name shown in the UI.
-            x: X coordinates (sequence, numpy array, or torch tensor).
+            x: X coordinates as a sequence, numpy array, or torch tensor.
             y: Y coordinates (same length as ``x`` after flattening).
             global_step: Training step index.
-            mode: Trace mode (e.g. ``"markers"``, ``"lines"``).
+            mode: Plotly trace mode (for example ``"markers"`` or ``"lines"``).
             walltime: Unused; kept for TensorBoard API compatibility.
+
+        Returns:
+            None.
 
         Raises:
             ValueError: If ``x`` and ``y`` lengths differ.
+            ExpTrackerAPIError: When the chart upload API call fails.
         """
         _ = walltime
         x_values, y_values = finite_scatter_xy(x, y)
@@ -733,9 +958,13 @@ class ExpTracker:
             global_step: Training step index.
             walltime: Unused; kept for TensorBoard API compatibility.
 
+        Returns:
+            None.
+
         Raises:
             ValueError: If ``colors`` is set and its length differs from
                 ``vertices``.
+            ExpTrackerAPIError: When the chart upload API call fails.
         """
         _ = walltime, faces
         xs, ys, zs = extract_scatter3d_vertices(vertices)
@@ -774,7 +1003,20 @@ class ExpTracker:
         walltime: float = 0,
         fps: int = 4,
     ):
-        """Upload and log video object."""
+        """Log video at a training step.
+
+        Not implemented. Emits a warning and returns without uploading.
+
+        Args:
+            tag: Logical name that would be shown in the UI.
+            vid_tensor: Video tensor payload.
+            global_step: Training step index.
+            walltime: Unused; kept for TensorBoard API compatibility.
+            fps: Frames per second for the encoded video.
+
+        Returns:
+            None.
+        """
         logger.warning("add_video is not implemented")
 
     def add_embedding(
@@ -786,12 +1028,37 @@ class ExpTracker:
         tag: str = "default",
         metadata_header=None,
     ):
-        """Log embeddings."""
+        """Log embedding projections at a training step.
+
+        Not implemented. Emits a warning and returns without uploading.
+
+        Args:
+            mat: Embedding matrix payload.
+            metadata: Optional per-row metadata.
+            label_img: Optional label images.
+            global_step: Training step index.
+            tag: Logical name that would be shown in the UI.
+            metadata_header: Optional metadata column headers.
+
+        Returns:
+            None.
+        """
         _ = mat, metadata, label_img, global_step, tag, metadata_header
         logger.warning("add_embedding is not implemented")
 
     def progress(self, progress: int | float):
-        """Update the progress of the experiment."""
+        """Update experiment completion progress.
+
+        Integer values are clamped to ``[0, 100]``. Float values are treated as
+        fractions in ``[0, 1]``, clamped, then rounded to an integer percent
+        (for example ``0.255`` becomes ``26``).
+
+        Args:
+            progress: Progress as an integer percent or fractional float.
+
+        Returns:
+            None.
+        """
         if isinstance(progress, int) and (progress < 0 or progress > 100):
             progress = min(max(progress, 0), 100)
         if isinstance(progress, float):
@@ -800,27 +1067,82 @@ class ExpTracker:
         self._experiment.progress = int(progress)
 
     def status(self, status: ExperimentStatus):
-        """Update the status of the experiment."""
+        """Update experiment lifecycle status.
+
+        Args:
+            status: New status value (for example ``ExperimentStatus.RUNNING``).
+
+        Returns:
+            None.
+        """
         self._experiment.status = status
 
     def tags(self, *tags: str):
-        """Update the tags of the experiment."""
+        """Replace experiment tags.
+
+        Args:
+            *tags: Tag strings to store on the experiment. Passing no values
+                clears tags.
+
+        Returns:
+            None.
+        """
         self._experiment.tags = list(tags)
 
     def color(self, color: str):
-        """Update the color of the experiment."""
+        """Update experiment display color.
+
+        Args:
+            color: Hex color string (for example ``"#3b82f6"``).
+
+        Returns:
+            None.
+
+        Raises:
+            ValueError: When ``color`` is not a valid hex color.
+        """
         self._experiment.color = color
 
     def description(self, description: str):
-        """Update the description of the experiment."""
+        """Update experiment description text.
+
+        Args:
+            description: Free-form description shown in the UI.
+
+        Returns:
+            None.
+        """
         self._experiment.description = description
 
     def features(self, features: list[FeatureNodeLike]):
-        """Update the feature tree for the experiment."""
+        """Replace the experiment feature tree.
+
+        Args:
+            features: Root feature nodes describing model architecture or
+                experiment structure.
+
+        Returns:
+            None.
+        """
         self._experiment.features = features
 
     def log_hparams(self, hparams: dict[str, Any]) -> None:
-        """Validate and fully replace this experiment's hyperparameters."""
+        """Validate and fully replace this experiment's hyperparameters.
+
+        The payload must be a strict JSON-compatible mapping. Nested structures
+        are normalized before upsert.
+
+        Args:
+            hparams: Hyperparameter mapping to store.
+
+        Returns:
+            None.
+
+        Raises:
+            HparamsSerializationError: When ``hparams`` is not a dict or
+                contains values that cannot be serialized.
+            ExpTrackerAPIError: When the hparams upsert API call fails.
+        """
 
         normalized = serialize_hparams(hparams)
         self._request_client.request(
@@ -831,11 +1153,32 @@ class ExpTracker:
         )
 
     def name(self, name: str):
-        """Update the name of the experiment."""
+        """Update experiment display name.
+
+        Args:
+            name: New experiment name.
+
+        Returns:
+            None.
+        """
         self._experiment.name = name
 
     def parent_experiment(self, parent_experiment: str | UUID):
-        """Update the parent experiment of the experiment."""
+        """Set the parent experiment by id or name.
+
+        Looks up the parent in the current project. The match succeeds when
+        either the experiment id or display name equals ``parent_experiment``.
+
+        Args:
+            parent_experiment: Parent experiment id or name within this project.
+
+        Returns:
+            None.
+
+        Raises:
+            ExpTrackerAPIError: When no matching parent experiment is found or
+                the update API call fails.
+        """
         experiments = fetch_all_project_experiments(
             self.project_id,
             request_client=self._request_client,
@@ -861,12 +1204,26 @@ class ExpTracker:
         self._experiment.parentExperimentId = parent_experiment_obj.id
 
     def flush(self):
-        """Flush the event file to disk/network."""
+        """Flush buffered scalar batches and queued HTTP requests.
+
+        Does not close the underlying HTTP client. Safe to call repeatedly
+        during a long-running training loop.
+
+        Returns:
+            None.
+        """
         self._scalar_logging.flush()
         self._request_client.flush()
 
     def close(self):
-        """Close the logger and free resources."""
+        """Flush pending data and close the HTTP client.
+
+        Scalar batches are flushed before the client is closed. Errors while
+        closing the client are swallowed so cleanup can proceed.
+
+        Returns:
+            None.
+        """
         self._scalar_logging.flush()
         self._request_client.flush()
         try:
