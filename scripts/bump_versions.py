@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Bump or set semver versions across frontend (pnpm) and Python packages."""
+"""Bump or set semver versions across packages and Docker image tags."""
 
 from __future__ import annotations
 
@@ -18,6 +18,12 @@ SDK_INIT_VERSION_RE = re.compile(
     r'^(__version__\s*=\s*)"([^"]+)"\s*$',
     re.MULTILINE,
 )
+DOCKER_COMPOSE = REPO_ROOT / "docker-compose.yml"
+DOCKER_IMAGE_TAG_RE = re.compile(
+    r"^([ \t]*x-image-tag:[ \t]*&image-tag[ \t]+)(\S+)[ \t]*$",
+    re.MULTILINE,
+)
+DOCKER_IMAGE_TAG_DEFAULT_RE = re.compile(r"(\$\{IMAGE_TAG:-)([^}]+)(\})")
 
 PYPROJECT_VERSION_RE = re.compile(
     r'^(version\s*=\s*)"([^"]+)"\s*$',
@@ -67,6 +73,38 @@ def read_version(pkg: Package) -> str:
     return match.group(2)
 
 
+def is_docker_image_package(pkg: Package) -> bool:
+    rel_parts = pkg.path.relative_to(REPO_ROOT).parts
+    return rel_parts[:2] in {
+        ("apps", "web"),
+        ("python", "backend"),
+        ("python", "object_storage"),
+        ("python", "scalars_service"),
+    }
+
+
+def read_docker_compose_version() -> str | None:
+    if not DOCKER_COMPOSE.is_file():
+        return None
+    text = DOCKER_COMPOSE.read_text(encoding="utf-8")
+    versions: list[str] = []
+    anchor_match = DOCKER_IMAGE_TAG_RE.search(text)
+    if anchor_match:
+        versions.append(anchor_match.group(2))
+    versions.extend(
+        match.group(2) for match in DOCKER_IMAGE_TAG_DEFAULT_RE.finditer(text)
+    )
+    unique_versions = sorted(set(versions))
+    if not unique_versions:
+        return None
+    if len(unique_versions) != 1:
+        rel = DOCKER_COMPOSE.relative_to(REPO_ROOT)
+        raise ValueError(
+            f"Multiple IMAGE_TAG defaults in {rel}: {', '.join(unique_versions)}"
+        )
+    return unique_versions[0]
+
+
 def parse_semver(version: str) -> tuple[int, int, int, str]:
     match = re.fullmatch(r"(\d+)\.(\d+)\.(\d+)(.*)", version)
     if not match:
@@ -111,6 +149,37 @@ def write_pyproject_version(path: Path, version: str) -> None:
     if count != 1:
         raise ValueError(f"Expected one version line in {path}")
     path.write_text(updated, encoding="utf-8")
+
+
+def sync_docker_compose(version: str, *, dry_run: bool) -> bool:
+    current = read_docker_compose_version()
+    if current is None:
+        return False
+    rel = DOCKER_COMPOSE.relative_to(REPO_ROOT)
+    if current == version:
+        print(f"  {rel}: unchanged ({version})")
+        return False
+    if dry_run:
+        print(f"  would update {rel}: {current} -> {version}")
+        return True
+
+    text = DOCKER_COMPOSE.read_text(encoding="utf-8")
+    updated, anchor_count = DOCKER_IMAGE_TAG_RE.subn(
+        rf"\g<1>{version}",
+        text,
+        count=1,
+    )
+    updated, default_count = DOCKER_IMAGE_TAG_DEFAULT_RE.subn(
+        rf"\g<1>{version}\g<3>",
+        updated,
+    )
+    if anchor_count != 1:
+        raise ValueError(f"Expected one x-image-tag anchor in {rel}")
+    if default_count < 1:
+        raise ValueError(f"Expected at least one IMAGE_TAG default in {rel}")
+    DOCKER_COMPOSE.write_text(updated, encoding="utf-8")
+    print(f"  updated {rel}: {current} -> {version}")
+    return True
 
 
 def sync_sdk_init(version: str, *, dry_run: bool) -> bool:
@@ -158,12 +227,18 @@ def cmd_list(packages: list[Package]) -> int:
     width = max(len(p.label) for p in packages)
     for pkg in packages:
         print(f"{pkg.label:<{width}}  {read_version(pkg)}")
+    docker_version = read_docker_compose_version()
+    if docker_version is not None:
+        print(f"{'docker-compose':<{width}}  {docker_version}")
     return 0
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Update versions in apps/*/package.json and python/*/pyproject.toml.",
+        description=(
+            "Update versions in apps/*/package.json, python/*/pyproject.toml, "
+            "and docker-compose.yml."
+        ),
     )
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument(
@@ -211,23 +286,43 @@ def main() -> int:
     else:
         target_for_all = None
 
-    prefix = "Would update" if args.dry_run else "Updating"
-    print(f"{prefix} {len(packages)} package(s):")
-
     sdk_pyproject = REPO_ROOT / "python/sdk/pyproject.toml"
     sdk_target_version: str | None = None
+    package_targets: list[tuple[Package, str]] = []
 
     for pkg in packages:
         if target_for_all is not None:
             new_version = target_for_all
         else:
             new_version = bump_semver(read_version(pkg), args.bump)
-        apply_version(pkg, new_version, dry_run=args.dry_run)
+        package_targets.append((pkg, new_version))
         if pkg.path == sdk_pyproject:
             sdk_target_version = new_version
 
+    docker_target_versions = sorted(
+        {
+            version
+            for pkg, version in package_targets
+            if is_docker_image_package(pkg)
+        }
+    )
+    if len(docker_target_versions) != 1:
+        print(
+            "Cannot update docker-compose.yml because packages target multiple versions: "
+            + ", ".join(docker_target_versions),
+            file=sys.stderr,
+        )
+        return 1
+
+    prefix = "Would update" if args.dry_run else "Updating"
+    print(f"{prefix} {len(packages)} package(s):")
+
+    for pkg, new_version in package_targets:
+        apply_version(pkg, new_version, dry_run=args.dry_run)
+
     if sdk_target_version is not None:
         sync_sdk_init(sdk_target_version, dry_run=args.dry_run)
+    sync_docker_compose(docker_target_versions[0], dry_run=args.dry_run)
 
     if args.dry_run:
         print("(dry run — no files written)")
