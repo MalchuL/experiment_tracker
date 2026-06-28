@@ -45,7 +45,7 @@ export function ScalarVisibilityList({
           </Button>
         ) : null}
       </div>
-      <div className="h-[24vh] min-h-40 min-w-0 overflow-auto">
+      <div className="h-[36vh] min-h-52 min-w-0 overflow-auto">
         <div className="min-w-max space-y-0.5 pr-3">
           {allLoggedMetricNames.map((metricName) => {
             const isHidden = hiddenMetrics.has(metricName);
@@ -93,52 +93,52 @@ export function ScalarVisibilityList({
               </div>
             );
           })}
+
+          {artifactItems.length > 0 ? (
+            <div className="pt-2">
+              <div className="px-1 pb-1 text-[11px] font-medium text-muted-foreground">
+                Artifacts
+              </div>
+              <div className="space-y-0.5">
+                {artifactItems.map((artifact) => {
+                  const isHidden = hiddenArtifactIds.has(artifact.id);
+                  return (
+                    <div key={artifact.id} className="flex min-w-0 items-center gap-1 rounded px-1 py-0.5 hover:bg-muted/50">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-5 w-5 shrink-0"
+                        onClick={() => onToggleArtifact(artifact.id)}
+                      >
+                        {isHidden ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+                      </Button>
+                      <button
+                        type="button"
+                        className={`min-w-0 flex-1 whitespace-nowrap text-left text-xs ${
+                          isHidden ? "text-muted-foreground line-through" : ""
+                        }`}
+                        title={artifact.label}
+                        onClick={() => onOpenArtifact(artifact.id)}
+                      >
+                        {artifact.label}
+                      </button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-5 w-5 shrink-0"
+                        onClick={() => onOpenArtifact(artifact.id)}
+                        disabled={isHidden}
+                      >
+                        <Maximize2 className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
         </div>
       </div>
-
-      {artifactItems.length > 0 ? (
-        <div className="space-y-1">
-          <div className="text-[11px] font-medium text-muted-foreground">Artifacts</div>
-          <div className="h-28 min-w-0 overflow-auto">
-            <div className="min-w-max space-y-0.5 pr-3">
-              {artifactItems.map((artifact) => {
-                const isHidden = hiddenArtifactIds.has(artifact.id);
-                return (
-                  <div key={artifact.id} className="flex min-w-0 items-center gap-1 rounded px-1 py-0.5 hover:bg-muted/50">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-5 w-5 shrink-0"
-                      onClick={() => onToggleArtifact(artifact.id)}
-                    >
-                      {isHidden ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
-                    </Button>
-                    <button
-                      type="button"
-                      className={`min-w-0 flex-1 whitespace-nowrap text-left text-xs ${
-                        isHidden ? "text-muted-foreground line-through" : ""
-                      }`}
-                      title={artifact.label}
-                      onClick={() => onOpenArtifact(artifact.id)}
-                    >
-                      {artifact.label}
-                    </button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-5 w-5 shrink-0"
-                      onClick={() => onOpenArtifact(artifact.id)}
-                      disabled={isHidden}
-                    >
-                      <Maximize2 className="h-3 w-3" />
-                    </Button>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      ) : null}
     </div>
   );
 }

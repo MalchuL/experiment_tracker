@@ -224,17 +224,19 @@ export default function Experiments() {
           />
 
           <div className="flex flex-wrap items-end justify-between gap-4">
-            <div className="min-w-0 flex-1 space-y-1.5 sm:max-w-md">
-              <Label htmlFor="experiments-search">Search id, name, description, or tags</Label>
+            <div className="min-w-64 flex-1 sm:max-w-md">
+              <Label htmlFor="experiments-search" className="sr-only">
+                Search id, name, description, or tags
+              </Label>
               <Input
                 id="experiments-search"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="e.g. uuid fragment, baseline, gpu-a100…"
+                placeholder="Search id, name, description, or tags"
                 data-testid="input-experiments-search"
               />
             </div>
-            <div className="flex h-10 shrink-0 flex-wrap items-center gap-4">
+            <div className="flex max-w-full min-w-0 flex-wrap items-center gap-x-4 gap-y-2">
               <CompareLabeledSwitch
                 id="experiments-selection-mode"
                 label="Selection mode"

@@ -532,8 +532,8 @@ export function ExperimentSidebar({
           <Skeleton className="h-40 w-full" />
         </div>
       ) : experiment ? (
-        <ScrollArea className="flex-1">
-          <div className="min-w-0 max-w-full space-y-4 p-4">
+        <ScrollArea className="min-w-0 flex-1">
+          <div className="min-w-full space-y-4 p-4">
             {/* Status + owning project (truncated on narrow sidebars) */}
             <div className="flex max-w-full min-w-0 flex-wrap items-center gap-2">
               <StatusBadge status={experiment.status} />
@@ -759,7 +759,7 @@ export function ExperimentSidebar({
             <Tabs
               value={activeTab}
               onValueChange={(value) => setActiveTab(value as ExperimentSidebarTab)}
-              className="min-w-0 max-w-full space-y-2 overflow-hidden"
+              className="min-w-0 max-w-full space-y-2"
             >
               <TabsList className="w-full">
                 <TabsTrigger value="metrics" className="flex-1" data-testid="tab-metrics">
@@ -829,7 +829,7 @@ export function ExperimentSidebar({
                 ) : null}
               </TabsContent>
 
-              <TabsContent value="features" className="min-w-0 max-w-full space-y-2 overflow-hidden">
+              <TabsContent value="features" className="min-w-0 max-w-full space-y-2">
                 <ExperimentFeaturesPanel
                   experiment={experiment}
                   parentExperiment={savedParentExperiment}
@@ -843,7 +843,7 @@ export function ExperimentSidebar({
                 />
               </TabsContent>
 
-              <TabsContent value="hparams" className="min-w-0 max-w-full space-y-2 overflow-hidden">
+              <TabsContent value="hparams" className="min-w-0 max-w-full space-y-2">
                 <ExperimentHparamsPanel
                   experimentId={experiment.id}
                   parentExperimentId={experiment.parentExperimentId}
