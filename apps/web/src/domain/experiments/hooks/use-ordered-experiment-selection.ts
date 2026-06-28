@@ -23,6 +23,14 @@ export function useOrderedExperimentSelection() {
     });
   }, []);
 
+  const selectExperiments = useCallback((ids: string[]) => {
+    setOrderedIds(ids);
+  }, []);
+
+  const clearSelection = useCallback(() => {
+    setOrderedIds([]);
+  }, []);
+
   const getOrderNumber = useCallback(
     (id: string): number | null => {
       const index = orderedIds.indexOf(id);
@@ -36,6 +44,8 @@ export function useOrderedExperimentSelection() {
     setSelectionMode,
     orderedIds,
     toggleExperiment,
+    selectExperiments,
+    clearSelection,
     getOrderNumber,
     selectedCount: orderedIds.length,
   };

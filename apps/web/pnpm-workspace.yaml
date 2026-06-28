@@ -1,5 +1,8 @@
 packages:
   - .
-ignoredBuiltDependencies:
-  - sharp
-  - unrs-resolver
+allowBuilds:
+  '@parcel/watcher': true
+  es5-ext: false
+  esbuild: true
+  sharp: false
+  unrs-resolver: false

@@ -6,6 +6,7 @@
 
 export const API_ROUTES = {
     ROOT: "/",
+    ABOUT: "api/about",
   
     AUTH: {
       LOGIN: "api/auth/jwt/login",

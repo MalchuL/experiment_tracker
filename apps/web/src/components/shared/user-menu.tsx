@@ -8,7 +8,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Key, LogOut, UserCircle, Users } from "lucide-react";
+import { Info, Key, LogOut, UserCircle, Users } from "lucide-react";
 import Link from "next/link";
 import { FRONTEND_ROUTES } from "@/lib/constants/frontend-routes";
 
@@ -53,6 +53,12 @@ export function UserMenu() {
           <Link href={FRONTEND_ROUTES.PROFILE_API_TOKENS} className="cursor-pointer" data-testid="menu-api-tokens">
             <Key className="mr-2 h-4 w-4" />
             API Tokens
+          </Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <Link href={FRONTEND_ROUTES.ABOUT} className="cursor-pointer" data-testid="menu-about">
+            <Info className="mr-2 h-4 w-4" />
+            About
           </Link>
         </DropdownMenuItem>
         <DropdownMenuSeparator />

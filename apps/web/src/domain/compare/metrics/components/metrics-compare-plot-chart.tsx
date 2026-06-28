@@ -131,11 +131,19 @@ export function MetricsComparePlotCard({
     () =>
       chartData.filter(
         (point) =>
-          typeof point.experimentName === "string" &&
-          point.experimentName.trim().length > 0
+          typeof point.experimentId === "string" &&
+          point.experimentId.trim().length > 0
       ),
     [chartData]
   );
+
+  const experimentNameById = useMemo(() => {
+    const names = new Map<string, string>();
+    for (const point of chartData) {
+      names.set(point.experimentId, point.experimentName);
+    }
+    return names;
+  }, [chartData]);
 
   const chartLayout = useMemo(
     () =>
@@ -277,14 +285,14 @@ export function MetricsComparePlotCard({
                     {referenceLinePoints.map((point) => (
                       <ReferenceLine
                         key={point.experimentId}
-                        x={point.experimentName}
+                        x={point.experimentId}
                         stroke="#ccc"
                         strokeOpacity={0.55}
                         ifOverflow="extendDomain"
                       />
                     ))}
                     <XAxis
-                      dataKey="experimentName"
+                      dataKey="experimentId"
                       tickLine={false}
                       axisLine={false}
                       tickMargin={0}
@@ -294,6 +302,9 @@ export function MetricsComparePlotCard({
                       height={chartLayout.xAxisHeight}
                       padding={chartLayout.xAxisPadding}
                       tick={{ fontSize: nameLabelFontSize }}
+                      tickFormatter={(experimentId) =>
+                        experimentNameById.get(String(experimentId)) ?? String(experimentId)
+                      }
                     />
                     <YAxis
                       tickLine={false}
@@ -722,10 +733,9 @@ function ComparePlotTooltipContent({
 }) {
   if (!active || !payload?.length) return null;
 
-  const experimentName =
-    label != null && label !== ""
-      ? String(label)
-      : String(payload[0]?.payload?.experimentName ?? "");
+  const experimentName = String(
+    payload[0]?.payload?.experimentName ?? label ?? ""
+  );
 
   const rows = payload.filter(
     (item) => item.value !== null && item.value !== undefined && item.value !== ""

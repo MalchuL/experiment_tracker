@@ -9,6 +9,7 @@ import { TableCell, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import { EXPERIMENTS_TABLE_GRIP_PX } from "@/domain/experiments/lib/experiments-table-column-widths";
 import { getExperimentSelectionMetricsCellStyle } from "@/domain/experiments/experiment-selection-style";
+import { ExperimentSelectionOrderBadge } from "@/domain/experiments/components/experiment-selection-order-badge";
 import { SHOW_IN_REPORT_COLUMN_ID, SHOW_IN_REPORT_COLUMN_PX, METRICS_TABLE_ROW_BORDER_CLASS } from "../lib/constants";
 import type { MetricsTableRow } from "../lib/types";
 
@@ -32,6 +33,9 @@ type MetricsTableSortableRowProps = {
   gripWidthPx: number;
   rowReorderDisabled: boolean;
   editMode: boolean;
+  selectionMode: boolean;
+  selectionOrderNumber?: number | null;
+  onSelectionToggle?: () => void;
   wrapExperimentNames: boolean;
   wrapValues: boolean;
 };
@@ -56,12 +60,15 @@ export function MetricsTableSortableRow({
   gripWidthPx,
   rowReorderDisabled,
   editMode,
+  selectionMode,
+  selectionOrderNumber = null,
+  onSelectionToggle,
   wrapExperimentNames,
   wrapValues,
 }: MetricsTableSortableRowProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: row.id,
-    disabled: rowReorderDisabled,
+    disabled: rowReorderDisabled || selectionMode,
   });
 
   const expColor = row.original.experimentColor;
@@ -81,7 +88,9 @@ export function MetricsTableSortableRow({
     opacity: isDragging ? 0.5 : 1,
   };
 
-  const gripReorderTitle = rowReorderDisabled
+  const gripReorderTitle = selectionMode
+    ? "Select for compare"
+    : rowReorderDisabled
     ? "Clear the name filter and column sorting to reorder experiments"
     : "Reorder";
 
@@ -105,19 +114,30 @@ export function MetricsTableSortableRow({
           ...getExperimentSelectionMetricsCellStyle("grip", isRowSelected, expColor),
         }}
       >
-        <div
-          className={cn(
-            GRIP_LEAD_SLOT_CLASS,
-            rowReorderDisabled
-              ? "cursor-not-allowed opacity-40"
-              : "cursor-grab active:cursor-grabbing"
-          )}
-          title={gripReorderTitle}
-          {...attributes}
-          {...(rowReorderDisabled ? {} : listeners)}
-        >
-          <GripVertical className="h-4 w-4 text-muted-foreground" />
-        </div>
+        {selectionMode && onSelectionToggle ? (
+          <div className={GRIP_LEAD_SLOT_CLASS} title={gripReorderTitle}>
+            <ExperimentSelectionOrderBadge
+              experimentId={row.original.experimentId}
+              experimentName={row.original.experimentName}
+              orderNumber={selectionOrderNumber}
+              onToggle={onSelectionToggle}
+            />
+          </div>
+        ) : (
+          <div
+            className={cn(
+              GRIP_LEAD_SLOT_CLASS,
+              rowReorderDisabled
+                ? "cursor-not-allowed opacity-40"
+                : "cursor-grab active:cursor-grabbing"
+            )}
+            title={gripReorderTitle}
+            {...attributes}
+            {...(rowReorderDisabled ? {} : listeners)}
+          >
+            <GripVertical className="h-4 w-4 text-muted-foreground" />
+          </div>
+        )}
       </TableCell>
       {row.getVisibleCells().map((cell) => {
         const isExperiment = cell.column.id === "experiment";

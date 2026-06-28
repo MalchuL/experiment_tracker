@@ -5,7 +5,8 @@ import { Loader2 } from "lucide-react";
 import { ExperimentSidebar } from "@/components/shared/experiment-sidebar";
 import { ProjectDataTableFrame } from "@/components/shared/project-data-table-frame";
 import { Button } from "@/components/ui/button";
-import { useAggregatedMetrics } from "@/domain/experiments/hooks";
+import { ExperimentCompareBar } from "@/domain/experiments/components/experiment-compare-bar";
+import { useAggregatedMetrics, useOrderedExperimentSelection } from "@/domain/experiments/hooks";
 import { getDisplayedTrackedMetrics } from "@/lib/metrics/format-metric-label";
 import { REFRESH_EXPERIMENTS_LIST_INTERVAL } from "@/lib/constants/rates";
 import {
@@ -22,6 +23,16 @@ import {
 import { useProjectMetricsPageState } from "./hooks/use-project-metrics-page-state";
 import { ProjectMetricsControlPanel } from "./project-metrics-control-panel";
 import { ProjectMetricsTableSection } from "./project-metrics-table-section";
+import type { MetricsTableRow } from "./lib/types";
+
+function compareMetricsRowsByCreatedAtAsc(a: MetricsTableRow, b: MetricsTableRow): number {
+  const ta = Date.parse(a.createdAt);
+  const tb = Date.parse(b.createdAt);
+  if (Number.isFinite(ta) && Number.isFinite(tb) && ta !== tb) {
+    return ta - tb;
+  }
+  return a.experimentId.localeCompare(b.experimentId);
+}
 
 /**
  * Project-scoped metrics pivot: one `label` at a time, experiments × metric names. Controls sit in a
@@ -73,6 +84,15 @@ export function ProjectMetricsPage() {
 
   const metricsScrollRef = useRef<HTMLDivElement>(null);
   const [controlsOpen, setControlsOpen] = useState(true);
+  const {
+    selectionMode,
+    setSelectionMode,
+    orderedIds,
+    toggleExperiment,
+    selectExperiments,
+    clearSelection,
+    getOrderNumber,
+  } = useOrderedExperimentSelection();
 
   const { aggregatedMetricsByExperiment } = useAggregatedMetrics(projectId, {
     refetchInterval: REFRESH_EXPERIMENTS_LIST_INTERVAL,
@@ -96,6 +116,10 @@ export function ProjectMetricsPage() {
   const canShowTable = !dataLoading && label !== null && latest != null;
   const showDownload =
     canShowTable && !editMode && table.getRowModel().rows.length > 0;
+  const experimentIdsByCreatedAtAsc = useMemo(
+    () => [...tableData].sort(compareMetricsRowsByCreatedAtAsc).map((row) => row.experimentId),
+    [tableData]
+  );
 
   if (!projectId) {
     return <ProjectMetricsNoProject />;
@@ -112,7 +136,7 @@ export function ProjectMetricsPage() {
 
   return (
     <div className="flex h-full min-h-0 w-full min-w-0 gap-0">
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden px-6 pt-6 pb-6">
+      <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden px-6 pt-6 pb-6">
         <div className="box-border flex min-h-0 flex-1 flex-col gap-4 lg:flex-row lg:items-stretch">
           <ProjectMetricsControlPanel
             controlsOpen={controlsOpen}
@@ -151,6 +175,8 @@ export function ProjectMetricsPage() {
                   showDownload={showDownload}
                   controlsOpen={controlsOpen}
                   onControlsOpenChange={setControlsOpen}
+                  selectionMode={selectionMode}
+                  onSelectionModeChange={setSelectionMode}
                 />
               }
               footer={
@@ -201,6 +227,9 @@ export function ProjectMetricsPage() {
                 wrapExperimentNames={wrapExperimentNames}
                 wrapValues={wrapValues}
                 rowReorderDisabled={rowReorderDisabled}
+                selectionMode={selectionMode}
+                getSelectionOrderNumber={getOrderNumber}
+                onSelectionToggle={toggleExperiment}
                 experimentRowOrder={experimentRowOrder}
                 onExperimentRowReorder={handleExperimentRowReorder}
                 tableData={tableData}
@@ -211,6 +240,16 @@ export function ProjectMetricsPage() {
             </div>
           </div>
         </div>
+        {selectionMode ? (
+          <ExperimentCompareBar
+            projectId={projectId}
+            orderedIds={orderedIds}
+            onSelectAll={() => selectExperiments(experimentIdsByCreatedAtAsc)}
+            onClearSelection={clearSelection}
+            selectAllDisabled={experimentIdsByCreatedAtAsc.length === 0}
+            className="absolute bottom-6 left-6 z-20"
+          />
+        ) : null}
       </div>
 
       {selectedExperimentId ? (
