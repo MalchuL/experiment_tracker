@@ -75,14 +75,14 @@ export function ExperimentColumnHeader({ header }: ExperimentColumnHeaderProps) 
     col.getIsSorted() === "asc" ? " ↑" : col.getIsSorted() === "desc" ? " ↓" : ""
   }`;
   return (
-    <div className="w-full text-left">
+    <div className="w-full min-w-0 overflow-hidden text-left">
       <button
         type="button"
         className="flex w-full min-w-0 items-center gap-1 text-left font-medium"
         title={experimentHeaderFullLabel}
         onClick={col.getToggleSortingHandler()}
       >
-        {experimentHeaderFullLabel}
+        <span className="block min-w-0 flex-1 truncate">{experimentHeaderFullLabel}</span>
       </button>
     </div>
   );
@@ -126,11 +126,11 @@ export function ExperimentNameCell({
   wrapExperimentNames,
 }: ExperimentNameCellProps) {
   return (
-    <div className="flex min-w-0 pr-2">
+    <div className="flex w-full min-w-0 pr-2">
       <div
         className={cn(
-          "min-w-0 min-h-[1.5rem] flex-1 text-left",
-          wrapExperimentNames ? "whitespace-normal break-words" : "overflow-hidden whitespace-nowrap"
+          "min-w-0 min-h-[1.5rem] flex-1 overflow-hidden text-left",
+          wrapExperimentNames ? "whitespace-normal break-words [overflow-wrap:anywhere]" : "whitespace-nowrap"
         )}
       >
         <div
@@ -148,7 +148,7 @@ export function ExperimentNameCell({
         >
           <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: row.experimentColor }} aria-hidden />
           <span
-            className={cn("min-w-0 font-medium", !wrapExperimentNames && "truncate")}
+            className={cn("block min-w-0 flex-1 font-medium", !wrapExperimentNames && "truncate")}
             title={row.experimentName}
           >
             {row.experimentName}
