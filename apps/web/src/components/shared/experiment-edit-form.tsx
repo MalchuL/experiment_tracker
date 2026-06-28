@@ -111,7 +111,7 @@ export function ExperimentEditForm({
                   id="name"
                   placeholder="Experiment name"
                   rows={1}
-                  className="min-h-9 resize-none py-2 [field-sizing:content]"
+                  className="min-h-9 min-w-0 max-w-full resize-none overflow-x-hidden py-2 whitespace-pre-wrap [field-sizing:content] [overflow-wrap:anywhere]"
                   data-testid="input-name"
                   {...field}
                 />

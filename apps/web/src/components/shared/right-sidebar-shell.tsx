@@ -55,10 +55,12 @@ export function RightSidebarShell({
           onPointerDown={onResizePointerDown}
         />
       ) : null}
-      <div className="flex shrink-0 items-center justify-between gap-2 border-b p-4">
-        <div className="flex min-w-0 flex-1 items-center gap-2">
+      <div className="flex shrink-0 items-start justify-between gap-2 border-b p-4">
+        <div className="flex min-w-0 flex-1 items-start gap-2">
           {headerPrefix}
-          <h2 className="min-w-0 flex-1 truncate font-semibold">{title}</h2>
+          <h2 className="min-w-0 flex-1 whitespace-normal break-words font-semibold">
+            {title}
+          </h2>
         </div>
         <div className="flex shrink-0 items-center gap-2">
           {headerActions}

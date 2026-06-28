@@ -468,7 +468,9 @@ export function ExperimentSidebar({
           <Skeleton className="h-5 w-32" />
         ) : experiment?.name ? (
           <ExperimentNameTooltip name={experiment.name}>
-            <span className="block min-w-0 truncate">{experiment.name}</span>
+            <span className="block min-w-0 whitespace-normal [overflow-wrap:anywhere]">
+              {experiment.name}
+            </span>
           </ExperimentNameTooltip>
         ) : (
           "Experiment"
