@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { API_ROUTES } from "@/lib/constants/api-routes";
+import { FRONTEND_ROUTES } from "@/lib/constants/frontend-routes";
 import { getPublicApiBaseUrl } from "@/lib/runtime-config";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
@@ -581,7 +582,7 @@ export default function AdminPage() {
           Lock / clear key
         </Button>
         <Button asChild variant="outline">
-          <Link href="/admin/storage">Storage Management</Link>
+          <Link href={FRONTEND_ROUTES.ADMIN_STORAGE}>Storage Management</Link>
         </Button>
       </div>
 

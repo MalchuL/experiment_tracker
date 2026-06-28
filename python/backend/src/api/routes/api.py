@@ -1,5 +1,6 @@
 from fastapi import APIRouter
 
+from api.routes.about import router as about_router
 from api.routes.admin import router as admin_router
 from api.routes.auth import router as auth_router
 from api.routes.health import router as health_router
@@ -22,6 +23,7 @@ router = APIRouter()
 # Align paths with legacy backend/routes.py naming.
 API_PREFIX = get_settings().api_prefix
 router.include_router(health_router)
+router.include_router(about_router)
 router.include_router(projects_router)
 router.include_router(experiments_router)
 router.include_router(experiment_data_router)

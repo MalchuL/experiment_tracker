@@ -2,10 +2,13 @@ import { buildExperimentDetailsHref } from "@/lib/experiment-details-url";
 
 export const FRONTEND_ROUTES = {
   ROOT: "/",
+  ADMIN: "/admin",
+  ADMIN_STORAGE: "/admin/storage",
   DOCS: "/docs",
   DOCS_DOC: (docPath: string) => `/docs/${docPath}`,
   LOGIN: "/login",
   REGISTER: "/register",
+  ABOUT: "/about",
   PROJECTS: "/projects",
   EXPERIMENTS: "/experiments",
   HYPOTHESES: "/hypotheses",
@@ -37,3 +40,14 @@ export const FRONTEND_ROUTES = {
     SETTINGS: (projectId: string) => `/projects/${projectId}/settings`,
   },
 } as const;
+
+/** Routes reachable without a logged-in user (admin uses its own key in sessionStorage). */
+export function isPublicFrontendPath(pathname: string | null | undefined): boolean {
+  if (!pathname) return false;
+  if (pathname === FRONTEND_ROUTES.LOGIN || pathname === FRONTEND_ROUTES.REGISTER) {
+    return true;
+  }
+  return (
+    pathname === FRONTEND_ROUTES.ADMIN || pathname.startsWith(`${FRONTEND_ROUTES.ADMIN}/`)
+  );
+}

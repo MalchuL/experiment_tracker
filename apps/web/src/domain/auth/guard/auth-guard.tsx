@@ -1,8 +1,8 @@
 "use client";
 
 import { useAuthService } from "../hooks/auth-hook";
-import { useRouter } from "next/navigation";
-import { FRONTEND_ROUTES } from "@/lib/constants/frontend-routes";
+import { usePathname, useRouter } from "next/navigation";
+import { FRONTEND_ROUTES, isPublicFrontendPath } from "@/lib/constants/frontend-routes";
 import { useEffect } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -12,18 +12,20 @@ interface AuthGuardProps {
 }
 
 export function AuthGuard({ children, requireAuth = true }: AuthGuardProps) {
-  const { user, isLoading, isAuthenticated, login, register, updateUser, logout } = useAuthService();
+  const { isLoading, isAuthenticated } = useAuthService();
   const router = useRouter();
+  const pathname = usePathname();
+  const isPublic = isPublicFrontendPath(pathname);
 
   useEffect(() => {
     if (isLoading) return;
-    if (requireAuth && !isAuthenticated) {
+    if (requireAuth && !isPublic && !isAuthenticated) {
       router.push(FRONTEND_ROUTES.LOGIN);
     }
     if (!requireAuth && isAuthenticated) {
       router.push(FRONTEND_ROUTES.PROJECTS);
     }
-  }, [isAuthenticated, requireAuth, isLoading]);
+  }, [isAuthenticated, isLoading, isPublic, requireAuth, router]);
 
   if (isLoading) {
     return <Skeleton className="w-full h-full" />;
