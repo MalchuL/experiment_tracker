@@ -9,6 +9,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { CompareLabeledSwitch } from "@/domain/compare/components/compare-labeled-switch";
 import { downloadTableReport } from "../lib/export-report";
 import type { MetricsTableRow } from "../lib/types";
 
@@ -18,6 +19,8 @@ type ProjectMetricsTableToolbarProps = {
   showDownload: boolean;
   controlsOpen: boolean;
   onControlsOpenChange: (open: boolean) => void;
+  selectionMode: boolean;
+  onSelectionModeChange: (on: boolean) => void;
 };
 
 export function ProjectMetricsTableToolbar({
@@ -26,6 +29,8 @@ export function ProjectMetricsTableToolbar({
   showDownload,
   controlsOpen,
   onControlsOpenChange,
+  selectionMode,
+  onSelectionModeChange,
 }: ProjectMetricsTableToolbarProps) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-2">
@@ -34,6 +39,14 @@ export function ProjectMetricsTableToolbar({
         <span>Metrics grid</span>
       </div>
       <div className="flex items-center gap-2">
+        <CompareLabeledSwitch
+          id="metrics-selection-mode"
+          label="Selection mode"
+          checked={selectionMode}
+          onCheckedChange={onSelectionModeChange}
+          tip="Pick experiments in order; #1 is the compare baseline."
+          ariaLabel="Enable selection mode for compare"
+        />
         <Button
           type="button"
           variant="outline"

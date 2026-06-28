@@ -92,6 +92,7 @@ import { useToast } from "@/lib/hooks/use-toast";
 import { calculateDagTreeLayout } from "@/domain/experiments/dag/calculate-dag-layout";
 import { wouldCreateCycle } from "@/domain/experiments/dag/dag-parent-utils";
 import { experimentMatchesSearch } from "@/domain/experiments/lib/experiment-matches-search";
+import { compareExperimentsByCreatedAtAsc } from "@/domain/experiments/lib/sort-experiments-by-created-at";
 import { ListSkeleton } from "@/components/shared/loading-skeleton";
 import type { InsertExperiment } from "@/domain/experiments/types";
 
@@ -441,6 +442,8 @@ function DagViewCanvas({
     setSelectionMode,
     orderedIds,
     toggleExperiment,
+    selectExperiments,
+    clearSelection,
     getOrderNumber,
   } = useOrderedExperimentSelection();
   /** Node ids currently mid-drag — avoids syncing layout-derived nodes over RF state (error #015). */
@@ -450,6 +453,10 @@ function DagViewCanvas({
   const layout = useMemo(
     () => calculateDagTreeLayout(experiments, savedPositions),
     [experiments, savedPositions]
+  );
+  const experimentIdsByCreatedAtAsc = useMemo(
+    () => [...experiments].sort(compareExperimentsByCreatedAtAsc).map((experiment) => experiment.id),
+    [experiments]
   );
 
   const focusNodeInViewport = useCallback(
@@ -820,7 +827,13 @@ function DagViewCanvas({
             </Panel>
             {selectionMode ? (
               <Panel position="bottom-left" className="m-2">
-                <ExperimentCompareBar projectId={projectId} orderedIds={orderedIds} />
+                <ExperimentCompareBar
+                  projectId={projectId}
+                  orderedIds={orderedIds}
+                  onSelectAll={() => selectExperiments(experimentIdsByCreatedAtAsc)}
+                  onClearSelection={clearSelection}
+                  selectAllDisabled={experimentIdsByCreatedAtAsc.length === 0}
+                />
               </Panel>
             ) : null}
             <Panel position="top-right" className="m-2 flex items-center gap-2">

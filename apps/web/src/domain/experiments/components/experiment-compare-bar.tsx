@@ -9,12 +9,18 @@ import { cn } from "@/lib/utils";
 interface ExperimentCompareBarProps {
   projectId: string;
   orderedIds: string[];
+  onSelectAll?: () => void;
+  onClearSelection?: () => void;
+  selectAllDisabled?: boolean;
   className?: string;
 }
 
 export function ExperimentCompareBar({
   projectId,
   orderedIds,
+  onSelectAll,
+  onClearSelection,
+  selectAllDisabled = false,
   className,
 }: ExperimentCompareBarProps) {
   const selectedCount = orderedIds.length;
@@ -46,6 +52,31 @@ export function ExperimentCompareBar({
               Scalars
             </Link>
           </Button>
+          {onSelectAll || onClearSelection ? (
+            <div className="h-6 w-px shrink-0 bg-border" aria-hidden="true" />
+          ) : null}
+          {onSelectAll ? (
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={onSelectAll}
+              disabled={selectAllDisabled}
+              data-testid="button-select-all-experiments"
+            >
+              Select All
+            </Button>
+          ) : null}
+          {onClearSelection ? (
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={onClearSelection}
+              disabled={selectedCount === 0}
+              data-testid="button-clear-selected-experiments"
+            >
+              Clear
+            </Button>
+          ) : null}
         </>
       ) : (
         <>
@@ -55,6 +86,31 @@ export function ExperimentCompareBar({
           <Button type="button" variant="outline" disabled data-testid="button-scalars-selected-experiments">
             Scalars
           </Button>
+          {onSelectAll || onClearSelection ? (
+            <div className="h-6 w-px shrink-0 bg-border" aria-hidden="true" />
+          ) : null}
+          {onSelectAll ? (
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={onSelectAll}
+              disabled={selectAllDisabled}
+              data-testid="button-select-all-experiments"
+            >
+              Select All
+            </Button>
+          ) : null}
+          {onClearSelection ? (
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={onClearSelection}
+              disabled
+              data-testid="button-clear-selected-experiments"
+            >
+              Clear
+            </Button>
+          ) : null}
         </>
       )}
     </div>

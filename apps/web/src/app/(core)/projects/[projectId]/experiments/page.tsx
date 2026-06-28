@@ -25,6 +25,7 @@ import {
   saveExperimentsTablePinLead,
   saveExperimentsTableWrapNames,
 } from "@/domain/experiments/lib/experiments-table-column-widths";
+import { compareExperimentsByCreatedAtAsc } from "@/domain/experiments/lib/sort-experiments-by-created-at";
 import { useOrderedExperimentSelection } from "@/domain/experiments/hooks";
 import { useSelectedExperimentStore } from "@/domain/experiments/store";
 import { REFRESH_EXPERIMENTS_LIST_INTERVAL } from "@/lib/constants/rates";
@@ -46,6 +47,8 @@ export default function Experiments() {
     setSelectionMode,
     orderedIds,
     toggleExperiment,
+    selectExperiments,
+    clearSelection,
     getOrderNumber,
   } = useOrderedExperimentSelection();
 
@@ -93,6 +96,10 @@ export default function Experiments() {
       );
 
   const experimentIds = useMemo(() => experiments.map((experiment) => experiment.id), [experiments]);
+  const experimentIdsByCreatedAtAsc = useMemo(
+    () => [...experiments].sort(compareExperimentsByCreatedAtAsc).map((experiment) => experiment.id),
+    [experiments]
+  );
   const {
     metricsByExperiment,
     isFetching: metricsFetching,
@@ -367,6 +374,9 @@ export default function Experiments() {
           <ExperimentCompareBar
             projectId={projectId}
             orderedIds={orderedIds}
+            onSelectAll={() => selectExperiments(experimentIdsByCreatedAtAsc)}
+            onClearSelection={clearSelection}
+            selectAllDisabled={experimentIdsByCreatedAtAsc.length === 0}
             className="absolute bottom-6 left-6 z-20"
           />
         ) : null}

@@ -55,6 +55,9 @@ type ProjectMetricsTableSectionProps = {
   wrapExperimentNames: boolean;
   wrapValues: boolean;
   rowReorderDisabled: boolean;
+  selectionMode: boolean;
+  getSelectionOrderNumber: (experimentId: string) => number | null;
+  onSelectionToggle: (experimentId: string) => void;
   experimentRowOrder: string[];
   onExperimentRowReorder: (orderedIds: string[]) => void;
   tableData: MetricsTableRow[];
@@ -73,6 +76,9 @@ export function ProjectMetricsTableSection({
   wrapExperimentNames,
   wrapValues,
   rowReorderDisabled,
+  selectionMode,
+  getSelectionOrderNumber,
+  onSelectionToggle,
   experimentRowOrder,
   onExperimentRowReorder,
   tableData,
@@ -102,8 +108,10 @@ export function ProjectMetricsTableSection({
     );
   };
 
-  const gripReorderTitle = rowReorderDisabled
-    ? "Clear the name filter and column sorting to reorder experiments"
+  const gripReorderTitle = selectionMode
+    ? "Select for compare"
+    : rowReorderDisabled
+      ? "Clear the name filter and column sorting to reorder experiments"
     : "Reorder";
 
   return (
@@ -232,6 +240,9 @@ export function ProjectMetricsTableSection({
                         gripWidthPx={gripWidthPx}
                         rowReorderDisabled={rowReorderDisabled}
                         editMode={editMode}
+                        selectionMode={selectionMode}
+                        selectionOrderNumber={getSelectionOrderNumber(row.original.experimentId)}
+                        onSelectionToggle={() => onSelectionToggle(row.original.experimentId)}
                         wrapExperimentNames={wrapExperimentNames}
                         wrapValues={wrapValues}
                       />
