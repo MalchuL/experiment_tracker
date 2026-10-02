@@ -1,3 +1,4 @@
+import { scalarPageSize as normalizePageSize } from "../utils/scalar-pagination";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReadonlyURLSearchParams } from "next/navigation";
 import type { Experiment } from "@/domain/experiments/types";
@@ -43,6 +44,7 @@ interface UseScalarsQueryStateParams {
   searchParams: ReadonlyURLSearchParams;
   experiments: Experiment[];
   allLoggedMetricNames: string[];
+  metricNamesLoaded?: boolean;
   allArtifactIds?: string[];
 }
 
@@ -55,8 +57,12 @@ export function useScalarsQueryState({
   searchParams,
   experiments,
   allLoggedMetricNames,
+  metricNamesLoaded = false,
   allArtifactIds = [],
 }: UseScalarsQueryStateParams) {
+  const [scalarPage, setScalarPage] = useState(1);
+  const [scalarPageSize, setPageSize] = useState(12);
+  const setScalarPageSize = useCallback((size: number) => { setPageSize(normalizePageSize(size)); setScalarPage(1); }, []);
   const [smoothing, setSmoothing] = useState(0);
   const [initialized, setInitialized] = useState(false);
   const [selectedExperimentIds, setSelectedExperimentIds] = useState<Set<string>>(new Set());
@@ -77,6 +83,8 @@ export function useScalarsQueryState({
   const applySharedParams = useCallback(
     (params: URLSearchParams) => {
       try {
+        setScalarPage(Math.max(1, Math.floor(Number(params.get("page"))) || 1));
+        setPageSize(normalizePageSize(Number(params.get("pageSize"))));
         const parsed = parseScalarsQueryParams(
           params,
           experiments,
@@ -102,14 +110,14 @@ export function useScalarsQueryState({
     if (experiments.length === 0 || initialized) return;
     const hasMetricsParam = !!searchParams.get("met");
     const hasArtifactsParam = !!searchParams.get("art");
-    if (hasMetricsParam && allLoggedMetricNames.length === 0) return;
+    if (hasMetricsParam && !metricNamesLoaded && allLoggedMetricNames.length === 0) return;
     if (hasArtifactsParam && allArtifactIds.length === 0) return;
     const timer = window.setTimeout(() => {
       applySharedParams(new URLSearchParams(searchParams.toString()));
       setInitialized(true);
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [experiments, searchParams, initialized, allLoggedMetricNames, allArtifactIds, applySharedParams]);
+  }, [experiments, searchParams, initialized, allLoggedMetricNames, metricNamesLoaded, allArtifactIds, applySharedParams]);
 
   /**
    * Keeps selection aligned when ``experiments`` gains rows: drops stale ids, and if the selection
@@ -139,8 +147,13 @@ export function useScalarsQueryState({
       hiddenMets: Set<string>,
       hiddenArtifacts: Set<string>,
       smooth: number
-    ) => buildScalarsQueryString(experimentIds, hiddenMets, hiddenArtifacts, smooth, experiments.length),
-    [experiments.length]
+    ) => {
+      const params = new URLSearchParams(buildScalarsQueryString(experimentIds, hiddenMets, hiddenArtifacts, smooth, experiments.length));
+      if (scalarPage > 1) params.set("page", String(scalarPage));
+      if (scalarPageSize !== 12) params.set("pageSize", String(scalarPageSize));
+      return params.toString();
+    },
+    [experiments.length, scalarPage, scalarPageSize]
   );
 
   const currentQueryString = useMemo(
@@ -171,6 +184,7 @@ export function useScalarsQueryState({
   ]);
 
   const toggleExperiment = useCallback((experimentId: string) => {
+    setScalarPage(1);
     setSelectedExperimentIds((prev) => {
       const next = new Set(prev);
       if (next.has(experimentId)) {
@@ -183,14 +197,17 @@ export function useScalarsQueryState({
   }, []);
 
   const selectAllExperiments = useCallback(() => {
+    setScalarPage(1);
     setSelectedExperimentIds(new Set(experiments.map((experiment) => experiment.id)));
   }, [experiments]);
 
   const clearAllExperiments = useCallback(() => {
+    setScalarPage(1);
     setSelectedExperimentIds(new Set());
   }, []);
 
   const toggleMetric = useCallback((metricName: string) => {
+    setScalarPage(1);
     setHiddenMetrics((prev) => {
       const next = new Set(prev);
       if (next.has(metricName)) {
@@ -203,11 +220,13 @@ export function useScalarsQueryState({
   }, []);
 
   const showAllMetrics = useCallback(() => {
+    setScalarPage(1);
     setHiddenMetrics(new Set());
   }, []);
 
   const showOnlyMetric = useCallback(
     (metricName: string) => {
+      setScalarPage(1);
       if (allLoggedMetricNames.length === 0) return;
       setHiddenMetrics(new Set(allLoggedMetricNames.filter((name) => name !== metricName)));
     },
@@ -244,6 +263,7 @@ export function useScalarsQueryState({
   );
 
   return {
+    scalarPage, setScalarPage, scalarPageSize, setScalarPageSize,
     smoothing,
     setSmoothing,
     initialized,

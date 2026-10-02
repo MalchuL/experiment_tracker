@@ -3,36 +3,26 @@
 import { useCallback, useState } from "react";
 import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import type { Experiment } from "@/domain/experiments/types";
-import { ScalarExperimentList } from "./scalar-experiment-list";
+import {
+  ScalarExperimentList,
+  type ScalarExperimentListProps,
+} from "./scalar-experiment-list";
 
 const MIN_SIDEBAR_WIDTH = 220;
 const MAX_SIDEBAR_WIDTH = 520;
 const DEFAULT_SIDEBAR_WIDTH = 288;
 
 interface ScalarExperimentsSidebarProps {
-  experiments: Experiment[];
-  selectedExperimentIds: Set<string>;
-  soloMode: boolean;
-  chosenExperimentId: string | null;
-  onSoloExperimentSelect: (id: string) => void;
-  onToggleExperiment: (experimentId: string) => void;
-  onSelectAllExperiments: () => void;
-  onClearAllExperiments: () => void;
-  onEditExperiment: (experiment: Experiment) => void;
+  list: {
+    items: Pick<ScalarExperimentListProps, "experiments" | "onEditExperiment">;
+    selection: ScalarExperimentListProps["selection"];
+    solo: ScalarExperimentListProps["solo"];
+  };
   onClose?: () => void;
 }
 
 export function ScalarExperimentsSidebar({
-  experiments,
-  selectedExperimentIds,
-  soloMode,
-  chosenExperimentId,
-  onSoloExperimentSelect,
-  onToggleExperiment,
-  onSelectAllExperiments,
-  onClearAllExperiments,
-  onEditExperiment,
+  list,
   onClose,
 }: ScalarExperimentsSidebarProps) {
   const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_SIDEBAR_WIDTH);
@@ -47,8 +37,11 @@ export function ScalarExperimentsSidebar({
         setSidebarWidth(
           Math.min(
             MAX_SIDEBAR_WIDTH,
-            Math.max(MIN_SIDEBAR_WIDTH, startWidth + moveEvent.clientX - startX)
-          )
+            Math.max(
+              MIN_SIDEBAR_WIDTH,
+              startWidth + moveEvent.clientX - startX,
+            ),
+          ),
         );
       };
 
@@ -60,7 +53,7 @@ export function ScalarExperimentsSidebar({
       window.addEventListener("pointermove", handlePointerMove);
       window.addEventListener("pointerup", handlePointerUp);
     },
-    [sidebarWidth]
+    [sidebarWidth],
   );
 
   return (
@@ -72,22 +65,21 @@ export function ScalarExperimentsSidebar({
       <div className="flex shrink-0 items-center justify-between border-b p-3">
         <h2 className="truncate font-semibold">Experiments</h2>
         {onClose ? (
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onClose}>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={onClose}
+          >
             <X className="h-4 w-4" />
           </Button>
         ) : null}
       </div>
       <div className="min-h-0 flex-1 p-2.5">
         <ScalarExperimentList
-          experiments={experiments}
-          selectedExperimentIds={selectedExperimentIds}
-          soloMode={soloMode}
-          chosenExperimentId={chosenExperimentId}
-          onSoloExperimentSelect={onSoloExperimentSelect}
-          onToggleExperiment={onToggleExperiment}
-          onSelectAllExperiments={onSelectAllExperiments}
-          onClearAllExperiments={onClearAllExperiments}
-          onEditExperiment={onEditExperiment}
+          {...list.items}
+          selection={list.selection}
+          solo={list.solo}
         />
       </div>
       <button

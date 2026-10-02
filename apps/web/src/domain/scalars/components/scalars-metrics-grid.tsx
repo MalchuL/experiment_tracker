@@ -1,5 +1,7 @@
 "use client";
 
+import { VirtualScalarCard } from "./charts/virtual-scalar-card";
+
 import { EmptyState } from "@/components/shared/empty-state";
 import { BarChart3 } from "lucide-react";
 import type { Experiment } from "@/domain/experiments/types";
@@ -16,45 +18,63 @@ interface MetricItem {
 }
 
 export interface ScalarsMetricsGridProps {
-  visibleMetrics: MetricItem[];
-  chartDataByMetric: Record<string, ScalarChartPoint[]>;
-  metricDomains: Record<string, ChartDomain>;
-  cardHeight: number;
-  cardMinWidth: number;
-  smoothing?: number;
-  dotThreshold?: number;
-  hoverMode?: ScalarHoverMode;
-  hoverNameMaxLength?: number;
-  allExperiments: Experiment[];
-  visibleExperiments: Experiment[];
-  onResetDomain: (metricName: string) => void;
-  onExpandMetric: (metricName: string) => void;
-  onHideMetric: (metricName: string) => void;
-  onDomainChange: (metricName: string, domain: ChartDomain | null) => void;
-  onResizeCards?: (size: { width: number; height: number }) => void;
-  onHoverModeChange?: (mode: ScalarHoverMode) => void;
-  onPointContextMenu?: (point: ScalarPointSelection, position: { x: number; y: number }) => void;
+  experiments: {
+    allExperiments: Experiment[];
+    visibleExperiments: Experiment[];
+  };
+  size: {
+    cardHeight: number;
+    cardMinWidth: number;
+    onResizeCards?: (size: { width: number; height: number }) => void;
+  };
+  zoom: {
+    metricDomains: Record<string, ChartDomain>;
+    onResetDomain: (metricName: string) => void;
+    onDomainChange: (metricName: string, domain: ChartDomain | null) => void;
+  };
+  display?: {
+    smoothing?: number;
+    dotThreshold?: number;
+    hoverMode?: ScalarHoverMode;
+    hoverNameMaxLength?: number;
+  };
+  actions: {
+    onExpandMetric: (metricName: string) => void;
+    onHideMetric: (metricName: string) => void;
+    onHoverModeChange?: (mode: ScalarHoverMode) => void;
+    onPointContextMenu?: (
+      point: ScalarPointSelection,
+      position: { x: number; y: number },
+    ) => void;
+  };
+  loading?: {
+    onMetricVisibilityChange?: (name: string, visible: boolean) => void;
+    statusByMetric?: Record<string, { loading: boolean; error: boolean }>;
+  };
+  metrics: {
+    visibleMetrics: MetricItem[];
+    chartDataByMetric: Record<string, ScalarChartPoint[]>;
+  };
 }
 
 export function ScalarsMetricsGrid({
-  visibleMetrics,
-  chartDataByMetric,
-  metricDomains,
-  cardHeight,
-  cardMinWidth,
-  smoothing = 0,
-  dotThreshold = 10,
-  hoverMode = "compare",
-  hoverNameMaxLength = 50,
-  allExperiments,
-  visibleExperiments,
-  onResetDomain,
-  onExpandMetric,
-  onHideMetric,
-  onDomainChange,
-  onResizeCards = () => {},
-  onHoverModeChange = () => {},
-  onPointContextMenu = () => {},
+  experiments: { allExperiments, visibleExperiments },
+  size: { cardHeight, cardMinWidth, onResizeCards = () => {} },
+  zoom: { metricDomains, onResetDomain, onDomainChange },
+  display: {
+    smoothing = 0,
+    dotThreshold = 10,
+    hoverMode = "compare",
+    hoverNameMaxLength = 50,
+  } = {},
+  actions: {
+    onExpandMetric,
+    onHideMetric,
+    onHoverModeChange = () => {},
+    onPointContextMenu = () => {},
+  },
+  loading: { onMetricVisibilityChange, statusByMetric } = {},
+  metrics: { visibleMetrics, chartDataByMetric },
 }: ScalarsMetricsGridProps) {
   if (visibleMetrics.length === 0) {
     return (
@@ -80,27 +100,50 @@ export function ScalarsMetricsGrid({
         const domain = metricDomains[metric.name] || { x: null, y: null };
 
         return (
-          <ScalarChartCard
+          <VirtualScalarCard
             key={metric.name}
-            metricName={metric.name}
-            data={hasData ? data : []}
-            domain={domain}
-            cardHeight={cardHeight}
-            cardMinWidth={cardMinWidth}
-            allExperiments={allExperiments}
-            visibleExperiments={visibleExperiments}
-            smoothing={smoothing}
-            dotThreshold={dotThreshold}
-            hoverMode={hoverMode}
-            hoverNameMaxLength={hoverNameMaxLength}
-            onHoverModeChange={onHoverModeChange}
-            onResetDomain={onResetDomain}
-            onExpandMetric={onExpandMetric}
-            onHideMetric={onHideMetric}
-            onDomainChange={onDomainChange}
-            onResizeCards={onResizeCards}
-            onPointContextMenu={onPointContextMenu}
-          />
+            name={metric.name}
+            height={cardHeight + 48}
+            width={cardMinWidth}
+            onVisibilityChange={onMetricVisibilityChange}
+          >
+            <ScalarChartCard
+              metricName={metric.name}
+              data={hasData ? data : []}
+              experiments={{
+                allExperiments: allExperiments,
+                visibleExperiments: visibleExperiments,
+              }}
+              size={{
+                cardHeight: cardHeight,
+                cardMinWidth: cardMinWidth,
+                onResizeCards: onResizeCards,
+              }}
+              zoom={{
+                domain: domain,
+                onDomainChange: onDomainChange,
+                onResetDomain: onResetDomain,
+              }}
+              display={{
+                smoothing: smoothing,
+                dotThreshold: dotThreshold,
+                hoverMode: hoverMode,
+                hoverNameMaxLength: hoverNameMaxLength,
+              }}
+              actions={{
+                onExpandMetric: onExpandMetric,
+                onHideMetric: onHideMetric,
+                onHoverModeChange: onHoverModeChange,
+                onPointContextMenu: onPointContextMenu,
+              }}
+              status={{
+                loading: statusByMetric
+                  ? (statusByMetric[metric.name]?.loading ?? true)
+                  : false,
+                error: statusByMetric?.[metric.name]?.error,
+              }}
+            />
+          </VirtualScalarCard>
         );
       })}
     </div>

@@ -4,43 +4,57 @@ import { Eye, EyeOff, Maximize2, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { ArtifactViewItem, ChartDomain } from "@/domain/scalars/types";
 
-interface ScalarVisibilityListProps {
-  allLoggedMetricNames: string[];
-  hiddenMetrics: Set<string>;
-  artifactItems: ArtifactViewItem[];
-  hiddenArtifactIds: Set<string>;
-  metricDomains: Record<string, ChartDomain>;
-  onToggleMetric: (metricName: string) => void;
-  onShowAllMetrics: () => void;
-  onShowOnlyMetric: (metricName: string) => void;
-  onExpandMetric: (metricName: string) => void;
-  onResetMetricDomain: (metricName: string) => void;
-  onToggleArtifact: (artifactId: string) => void;
-  onOpenArtifact: (artifactId: string) => void;
+export interface ScalarVisibilityListProps {
+  scalars: {
+    allLoggedMetricNames: string[];
+    hiddenMetrics: Set<string>;
+    metricDomains: Record<string, ChartDomain>;
+    onToggleMetric: (metricName: string) => void;
+    onShowAllMetrics: () => void;
+    onShowOnlyMetric: (metricName: string) => void;
+    onExpandMetric: (metricName: string) => void;
+    onResetMetricDomain: (metricName: string) => void;
+  };
+  artifacts: {
+    artifactItems: ArtifactViewItem[];
+    hiddenArtifactIds: Set<string>;
+    onToggleArtifact: (artifactId: string) => void;
+    onOpenArtifact: (artifactId: string) => void;
+  };
 }
 
 export function ScalarVisibilityList({
-  allLoggedMetricNames,
-  hiddenMetrics,
-  artifactItems,
-  hiddenArtifactIds,
-  metricDomains,
-  onToggleMetric,
-  onShowAllMetrics,
-  onShowOnlyMetric,
-  onExpandMetric,
-  onResetMetricDomain,
-  onToggleArtifact,
-  onOpenArtifact,
+  scalars: {
+    allLoggedMetricNames,
+    hiddenMetrics,
+    metricDomains,
+    onToggleMetric,
+    onShowAllMetrics,
+    onShowOnlyMetric,
+    onExpandMetric,
+    onResetMetricDomain,
+  },
+  artifacts: {
+    artifactItems,
+    hiddenArtifactIds,
+    onToggleArtifact,
+    onOpenArtifact,
+  },
 }: ScalarVisibilityListProps) {
   return (
     <div className="space-y-1.5 min-w-0">
       <div className="flex items-center justify-between">
         <span className="text-xs text-muted-foreground">
-          {allLoggedMetricNames.length - hiddenMetrics.size}/{allLoggedMetricNames.length} scalars
+          {allLoggedMetricNames.length - hiddenMetrics.size}/
+          {allLoggedMetricNames.length} scalars
         </span>
         {hiddenMetrics.size > 0 ? (
-          <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={onShowAllMetrics}>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 px-2 text-xs"
+            onClick={onShowAllMetrics}
+          >
             Show all
           </Button>
         ) : null}
@@ -50,7 +64,10 @@ export function ScalarVisibilityList({
           {allLoggedMetricNames.map((metricName) => {
             const isHidden = hiddenMetrics.has(metricName);
             return (
-              <div key={metricName} className="flex min-w-0 items-center gap-1 rounded px-1 py-0.5 hover:bg-muted/50">
+              <div
+                key={metricName}
+                className="flex min-w-0 items-center gap-1 rounded px-1 py-0.5 hover:bg-muted/50"
+              >
                 <Button
                   variant="ghost"
                   size="icon"
@@ -58,7 +75,11 @@ export function ScalarVisibilityList({
                   onClick={() => onToggleMetric(metricName)}
                   data-testid={`button-toggle-metric-${metricName}`}
                 >
-                  {isHidden ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+                  {isHidden ? (
+                    <EyeOff className="h-3 w-3" />
+                  ) : (
+                    <Eye className="h-3 w-3" />
+                  )}
                 </Button>
                 <button
                   type="button"
@@ -103,14 +124,21 @@ export function ScalarVisibilityList({
                 {artifactItems.map((artifact) => {
                   const isHidden = hiddenArtifactIds.has(artifact.id);
                   return (
-                    <div key={artifact.id} className="flex min-w-0 items-center gap-1 rounded px-1 py-0.5 hover:bg-muted/50">
+                    <div
+                      key={artifact.id}
+                      className="flex min-w-0 items-center gap-1 rounded px-1 py-0.5 hover:bg-muted/50"
+                    >
                       <Button
                         variant="ghost"
                         size="icon"
                         className="h-5 w-5 shrink-0"
                         onClick={() => onToggleArtifact(artifact.id)}
                       >
-                        {isHidden ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+                        {isHidden ? (
+                          <EyeOff className="h-3 w-3" />
+                        ) : (
+                          <Eye className="h-3 w-3" />
+                        )}
                       </Button>
                       <button
                         type="button"

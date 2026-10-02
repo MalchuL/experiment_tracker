@@ -6,6 +6,7 @@ import {
   Dialog,
   DialogContent,
   DialogFooter,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -53,6 +54,7 @@ export function CreateMetricFromPointDialog({
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>Create metric from scalar point</DialogTitle>
+          <DialogDescription>Save the original scalar value as an experiment metric.</DialogDescription>
         </DialogHeader>
         {point ? (
           <div className="space-y-3">

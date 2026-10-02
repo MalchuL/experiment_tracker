@@ -14,6 +14,8 @@ export interface ScalarMetricItem {
 }
 
 export interface UseScalarsDataModelParams {
+  metricNames?: string[];
+  activeMetricNames?: string[];
   experiments: Experiment[];
   scalars: ExperimentScalarsPoints[];
   selectedExperimentIds: Set<string>;
@@ -25,6 +27,8 @@ export interface UseScalarsDataModelParams {
 }
 
 export function useScalarsDataModel({
+  metricNames,
+  activeMetricNames,
   experiments,
   scalars,
   selectedExperimentIds,
@@ -41,12 +45,13 @@ export function useScalarsDataModel({
   }, [experiments]);
 
   const allLoggedMetricNames = useMemo(() => {
+    if (metricNames) return metricNames;
     const metricSet = new Set<string>();
     scalars.forEach((experimentScalars) => {
       Object.keys(experimentScalars.scalars || {}).forEach((name) => metricSet.add(name));
     });
     return Array.from(metricSet).sort();
-  }, [scalars]);
+  }, [scalars, metricNames]);
 
   const visibleMetrics = useMemo<ScalarMetricItem[]>(() => {
     if (allLoggedMetricNames.length === 0) return [];
@@ -76,11 +81,11 @@ export function useScalarsDataModel({
   const allChartDataByMetric = useMemo(() => {
     return buildChartDataByMetric({
       scalars,
-      allLoggedMetricNames,
+      allLoggedMetricNames: activeMetricNames ?? allLoggedMetricNames,
       visibleExperiments,
       smoothing,
     });
-  }, [allLoggedMetricNames, scalars, visibleExperiments, smoothing]);
+  }, [activeMetricNames, allLoggedMetricNames, scalars, visibleExperiments, smoothing]);
 
   const chartDataByMetric = useMemo(() => {
     return Object.fromEntries(

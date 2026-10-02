@@ -19,7 +19,7 @@ export interface UseProjectScalarsParams {
   endStep?: number;
 }
 
-/** Flattened per-experiment scalar series plus the infinite-query ``queryKey`` for cache merges (live refresh). */
+/** Flattened per-experiment scalar series for Compare plots, including bounded queries. */
 export interface UseProjectScalarsResult {
   scalars: ScalarsPointsResult["data"];
   queryKey: readonly unknown[];
@@ -33,7 +33,7 @@ export interface UseProjectScalarsResult {
  * Infinite query over **project scalar curves** from the main API (→ scalars satellite). Concatenates pages
  * into ``scalars``; auto-fetches remaining pages like ``useProjectObjects``.
  *
- * ``queryKey`` must stay aligned with ``useScalarsLiveRefresh`` when patching cache after ``last_logged``.
+ * The project Scalars page uses per-scalar transactional caches in ``useScalarsLiveRefresh`` instead.
  */
 export function useProjectScalars(
   params: UseProjectScalarsParams
