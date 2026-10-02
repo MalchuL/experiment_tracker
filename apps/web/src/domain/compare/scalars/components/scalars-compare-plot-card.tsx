@@ -1,7 +1,13 @@
 "use client";
 
 import { useMemo, useState, type KeyboardEvent } from "react";
-import { ChevronLeft, ChevronRight, LoaderCircle, RotateCcw, X } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  LoaderCircle,
+  RotateCcw,
+  X,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -10,7 +16,10 @@ import { Slider } from "@/components/ui/slider";
 import type { Experiment } from "@/domain/experiments/types";
 import { ScalarCardResizeHandle } from "@/domain/scalars/components/charts/scalar-card-resize-handle";
 import { MetricChart } from "@/domain/scalars/components/metric-chart";
-import { useProjectScalarNames, useProjectScalars } from "@/domain/scalars/hooks";
+import {
+  useProjectScalarNames,
+  useProjectScalars,
+} from "@/domain/scalars/hooks";
 import type { ChartDomain } from "@/domain/scalars/types";
 import { buildChartDataByMetric } from "@/domain/scalars/utils/scalars-data-model";
 import { getScalarsDotThreshold } from "@/domain/scalars/utils";
@@ -31,7 +40,10 @@ type ScalarsComparePlotCardProps = {
   projectId: string;
   plot: ScalarComparePlotConfig;
   selectedExperiments: Experiment[];
-  onPatchPlot: (plotId: string, patch: Partial<ScalarComparePlotConfig>) => void;
+  onPatchPlot: (
+    plotId: string,
+    patch: Partial<ScalarComparePlotConfig>,
+  ) => void;
   onRemove: () => void;
 };
 
@@ -45,35 +57,30 @@ export function ScalarsComparePlotCard({
   const [settingsOpen, setSettingsOpen] = useState(true);
   const experimentIds = useMemo(
     () => selectedExperiments.map((experiment) => experiment.id),
-    [selectedExperiments]
+    [selectedExperiments],
   );
   const dotThreshold = useMemo(() => getScalarsDotThreshold(), []);
   const queryStepBounds = useMemo(
     () => resolveQueryStepBounds(plot.stepMin, plot.stepMax),
-    [plot.stepMin, plot.stepMax]
+    [plot.stepMin, plot.stepMax],
   );
   const requestedScalarNames = useMemo(
     () => (plot.metricName ? [plot.metricName] : []),
-    [plot.metricName]
+    [plot.metricName],
   );
   const { scalarNames } = useProjectScalarNames(projectId);
 
-  const {
-    scalars,
-    isLoading,
-    isFetching,
-    isFetchingNextPage,
-    refetch,
-  } = useProjectScalars({
-    projectId,
-    experimentIds,
-    scalarNames: requestedScalarNames,
-    maxPoints: plot.appliedMaxPoints,
-    returnTags: false,
-    storeCache: false,
-    startStep: queryStepBounds.startStep,
-    endStep: queryStepBounds.endStep,
-  });
+  const { scalars, isLoading, isFetching, isFetchingNextPage, refetch } =
+    useProjectScalars({
+      projectId,
+      experimentIds,
+      scalarNames: requestedScalarNames,
+      maxPoints: plot.appliedMaxPoints,
+      returnTags: false,
+      storeCache: false,
+      startStep: queryStepBounds.startStep,
+      endStep: queryStepBounds.endStep,
+    });
 
   const metricOptions = useMemo<ScalarMetricOption[]>(() => {
     return [...scalarNames]
@@ -94,7 +101,10 @@ export function ScalarsComparePlotCard({
   }, [plot.metricName, plot.smoothing, scalars, selectedExperiments]);
 
   const commitMaxPointsDraft = () => {
-    const result = resolveCommittedMaxPoints(plot.maxPointsDraft, plot.appliedMaxPoints);
+    const result = resolveCommittedMaxPoints(
+      plot.maxPointsDraft,
+      plot.appliedMaxPoints,
+    );
     onPatchPlot(plot.id, {
       maxPointsDraft: result.maxPointsDraft,
       appliedMaxPoints: result.appliedMaxPoints,
@@ -153,7 +163,10 @@ export function ScalarsComparePlotCard({
   return (
     <Card className="relative min-w-0 overflow-hidden">
       <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 p-2">
-        <span className="min-w-0 truncate text-sm font-medium" title={metricLabel}>
+        <span
+          className="min-w-0 truncate text-sm font-medium"
+          title={metricLabel}
+        >
           {metricLabel}
         </span>
         <Button
@@ -174,7 +187,9 @@ export function ScalarsComparePlotCard({
               Choose a scalar from the panel on the right.
             </PlotPlaceholder>
           ) : showLoadingPlaceholder ? (
-            <PlotPlaceholder height={plot.plotHeight}>Loading plot...</PlotPlaceholder>
+            <PlotPlaceholder height={plot.plotHeight}>
+              Loading plot...
+            </PlotPlaceholder>
           ) : chartData.length === 0 ? (
             <PlotPlaceholder height={plot.plotHeight}>
               No data for selected experiments.
@@ -183,17 +198,28 @@ export function ScalarsComparePlotCard({
             <MetricChart
               metricName={plot.metricName}
               data={chartData}
-              selectedExperiments={selectedExperiments}
-              allExperiments={selectedExperiments}
-              height={plot.plotHeight}
-              resizeRevision={plot.plotHeight}
-              domain={plot.domain}
-              smoothing={plot.smoothing}
-              dotThreshold={dotThreshold}
-              hoverMode={plot.hoverMode}
-              hoverNameMaxLength={plot.hoverNameMaxLength}
-              onDomainChange={handleDomainChange}
-              onHoverModeChange={(hoverMode) => onPatchPlot(plot.id, { hoverMode })}
+              experiments={{
+                selectedExperiments: selectedExperiments,
+                allExperiments: selectedExperiments,
+              }}
+              viewport={{
+                height: plot.plotHeight,
+                resizeRevision: plot.plotHeight,
+              }}
+              zoom={{
+                domain: plot.domain,
+                onDomainChange: handleDomainChange,
+              }}
+              display={{
+                smoothing: plot.smoothing,
+                dotThreshold: dotThreshold,
+                hoverMode: plot.hoverMode,
+                hoverNameMaxLength: plot.hoverNameMaxLength,
+              }}
+              interactions={{
+                onHoverModeChange: (hoverMode) =>
+                  onPatchPlot(plot.id, { hoverMode }),
+              }}
             />
           )}
         </div>
@@ -251,7 +277,10 @@ function PlotSettingsPanel({
   onOpenChange: (open: boolean) => void;
   metricOptions: ScalarMetricOption[];
   isFetching: boolean;
-  onPatchPlot: (plotId: string, patch: Partial<ScalarComparePlotConfig>) => void;
+  onPatchPlot: (
+    plotId: string,
+    patch: Partial<ScalarComparePlotConfig>,
+  ) => void;
   onRefetch: () => void;
   onCommitMaxPoints: () => void;
   onMaxPointsKeyDown: (event: KeyboardEvent<HTMLInputElement>) => void;
@@ -266,13 +295,15 @@ function PlotSettingsPanel({
     <div
       className={cn(
         "relative shrink-0 transition-[width] duration-300",
-        open ? "w-full sm:w-60" : "w-0"
+        open ? "w-full sm:w-60" : "w-0",
       )}
     >
       {open ? (
         <aside className="flex flex-col gap-3 border-t px-3 pt-3 sm:border-l sm:border-t-0 sm:pl-3 sm:pt-0">
           <div className="flex items-center justify-between gap-2">
-            <p className="text-xs font-medium text-muted-foreground">Plot controls</p>
+            <p className="text-xs font-medium text-muted-foreground">
+              Plot controls
+            </p>
             <Button
               type="button"
               variant="ghost"
@@ -303,7 +334,10 @@ function PlotSettingsPanel({
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor={`scalar-max-points-${plot.id}`} className="text-xs text-muted-foreground">
+            <Label
+              htmlFor={`scalar-max-points-${plot.id}`}
+              className="text-xs text-muted-foreground"
+            >
               Points
             </Label>
             <Input
@@ -322,13 +356,17 @@ function PlotSettingsPanel({
           </div>
 
           <div className="space-y-1.5">
-            <p className="text-xs font-medium text-muted-foreground">Step range</p>
+            <p className="text-xs font-medium text-muted-foreground">
+              Step range
+            </p>
             <div className="grid grid-cols-2 gap-2">
               <StepBoundField
                 id={`scalar-step-min-${plot.id}`}
                 label="Min"
                 value={plot.stepMinDraft}
-                onChange={(stepMinDraft) => onPatchPlot(plot.id, { stepMinDraft })}
+                onChange={(stepMinDraft) =>
+                  onPatchPlot(plot.id, { stepMinDraft })
+                }
                 onBlur={onCommitStepMin}
                 onKeyDown={onStepMinKeyDown}
               />
@@ -336,7 +374,9 @@ function PlotSettingsPanel({
                 id={`scalar-step-max-${plot.id}`}
                 label="Max"
                 value={plot.stepMaxDraft}
-                onChange={(stepMaxDraft) => onPatchPlot(plot.id, { stepMaxDraft })}
+                onChange={(stepMaxDraft) =>
+                  onPatchPlot(plot.id, { stepMaxDraft })
+                }
                 onBlur={onCommitStepMax}
                 onKeyDown={onStepMaxKeyDown}
               />
@@ -345,7 +385,10 @@ function PlotSettingsPanel({
 
           <div className="space-y-2">
             <div className="flex items-center justify-between gap-2">
-              <Label htmlFor={`scalar-smoothing-${plot.id}`} className="text-xs text-muted-foreground">
+              <Label
+                htmlFor={`scalar-smoothing-${plot.id}`}
+                className="text-xs text-muted-foreground"
+              >
                 Smoothing
               </Label>
               <Input
@@ -355,7 +398,9 @@ function PlotSettingsPanel({
                 step={0.01}
                 className="h-7 w-20 text-xs"
                 value={plot.smoothing}
-                onChange={(event) => onSmoothingChange(Number(event.target.value))}
+                onChange={(event) =>
+                  onSmoothingChange(Number(event.target.value))
+                }
                 aria-label="Smoothing value"
               />
             </div>
@@ -391,10 +436,17 @@ function PlotSettingsPanel({
             max={MAX_SCALAR_COMPARE_HOVER_NAME_MAX_LENGTH}
             step={SCALAR_COMPARE_HOVER_NAME_MAX_LENGTH_STEP}
             valueSuffix=" chars"
-            onChange={(value) => onPatchPlot(plot.id, { hoverNameMaxLength: value })}
+            onChange={(value) =>
+              onPatchPlot(plot.id, { hoverNameMaxLength: value })
+            }
           />
 
-          <Button type="button" variant="outline" size="sm" onClick={onResetDomain}>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={onResetDomain}
+          >
             <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
             Reset zoom
           </Button>
@@ -410,7 +462,11 @@ function PlotSettingsPanel({
           onClick={() => onOpenChange(!open)}
           aria-label={open ? "Hide plot settings" : "Show plot settings"}
         >
-          {open ? <ChevronRight className="h-3 w-3" /> : <ChevronLeft className="h-3 w-3" />}
+          {open ? (
+            <ChevronRight className="h-3 w-3" />
+          ) : (
+            <ChevronLeft className="h-3 w-3" />
+          )}
         </Button>
       </div>
     </div>
@@ -520,7 +576,7 @@ function clampSmoothing(value: number): number {
 
 function resolveQueryStepBounds(
   stepMin: number | null,
-  stepMax: number | null
+  stepMax: number | null,
 ): { startStep?: number; endStep?: number } {
   if (stepMin !== null && stepMax !== null && stepMin > stepMax) {
     return {};

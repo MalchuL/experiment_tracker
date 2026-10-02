@@ -24,8 +24,7 @@ export function mergeExperimentScalars(
 /**
  * Merge an incremental scalar payload into one cached React Query page.
  *
- * Applies to both scalar live polling and the scalars page manual refresh button because both
- * paths call ``refreshChangedScalars`` in ``useScalarsLiveRefresh``. For each metric series, the
+ * Uses the same series merge as the per-scalar live cache. For each metric series, the
  * merge first replaces duplicate steps with incoming values, then thins the combined sampled points
  * across the step range while always retaining the newest step. This avoids letting a dense
  * incremental payload evict most of the already-sampled history.

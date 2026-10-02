@@ -45,6 +45,15 @@ The scalars service paginates experiments first, then loads metric columns. For 
 
 Live updates and manual refreshes merge newer points into cached plot data. The UI keeps the first and latest points where possible and thins the merged series across the step range.
 
+Plots are paginated, with **12**, **24**, or **48** plots per page (default **12**). Each plot still includes all selected experiments. The page number and page size are included in shared URLs and saved views. Hiding scalars or changing the experiment selection returns to page 1.
+
+Only plots near the visible scroll area download points and mount charts. Collapsed groups and inactive scalar tabs stop loading their plots. The scalar-name catalog is project-wide, so a listed scalar can have no data for the selected experiments.
+
+When you return to a plot, its cached history appears immediately and catches up from its last successful refresh. Failed requests retain both the previous history and refresh position; use **Refresh** to retry. Unused caches expire after ten minutes, after which the plot loads a complete sampled baseline. Zoom survives scrolling and plot-page changes.
+
+Right-click a scalar point and choose **Create metric** to save its original value as an experiment metric; smoothing does not change the saved value.
+
+
 ## Dots on small series
 
 Small series show larger dots so sparse data remains visible. The default dot threshold is `10` points and can be configured with `NEXT_PUBLIC_SCALARS_DOT_THRESHOLD`.

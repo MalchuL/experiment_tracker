@@ -189,3 +189,19 @@ describe("mergeScalarsPage", () => {
     expect(result.data[0]?.scalars.acc.y.at(-1)).toBe(0.4);
   });
 });
+
+it("retains bounded historical coverage across repeated dense updates and a long absence", () => {
+  let current = page([{ experiment_id: "exp", scalars: { loss: { x: [0], y: [0] } } }]);
+  for (let batch = 0; batch < 100; batch++) {
+    const steps = Array.from({ length: 100 }, (_, index) => batch * 100 + index);
+    current = mergeScalarsPage(current, [{ experiment_id: "exp", scalars: { loss: { x: steps, y: steps } } }], { maxPoints: 100 });
+  }
+  const afterAbsence = Array.from({ length: 100 }, (_, index) => 10_000 + index * 100);
+  current = mergeScalarsPage(current, [{ experiment_id: "exp", scalars: { loss: { x: afterAbsence, y: afterAbsence } } }], { maxPoints: 100 });
+  const series = current.data[0].scalars.loss;
+  expect(series.x).toHaveLength(100);
+  expect(series.x[0]).toBe(0);
+  expect(series.x.at(-1)).toBe(19_900);
+  expect(series.y).toEqual(series.x);
+  expect(Math.max(...series.x.slice(1).map((step, index) => step - series.x[index]))).toBeLessThan(500);
+});

@@ -4,42 +4,44 @@ import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import type { SyncMode } from "@/domain/scalars/types";
 
-interface ScalarDisplayControlsProps {
-  syncMode: SyncMode;
-  setSyncMode: (mode: SyncMode) => void;
-  soloMode: boolean;
-  onToggleSoloMode: () => void;
-  cardHeight: number;
-  setCardHeight: (value: number) => void;
-  cardMinWidth: number;
-  setCardMinWidth: (value: number) => void;
-  hoverNameMaxLength: number;
-  setHoverNameMaxLength: (value: number) => void;
-  smoothing: number;
-  onSmoothingChange: (value: number[]) => void;
-  onSmoothingCommit: (value: number[]) => void;
-  maxPointsPerPlot: number;
-  maxArtifactStepsPerObject: number;
-  dotThreshold: number;
+export interface ScalarDisplayControlsProps {
+  sync: {
+    syncMode: SyncMode;
+    setSyncMode: (mode: SyncMode) => void;
+  };
+  solo: {
+    soloMode: boolean;
+    onToggleSoloMode: () => void;
+  };
+  size: {
+    cardHeight: number;
+    setCardHeight: (value: number) => void;
+    cardMinWidth: number;
+    setCardMinWidth: (value: number) => void;
+  };
+  hover: {
+    hoverNameMaxLength: number;
+    setHoverNameMaxLength: (value: number) => void;
+  };
+  smoothing: {
+    smoothing: number;
+    onSmoothingChange: (value: number[]) => void;
+    onSmoothingCommit: (value: number[]) => void;
+  };
+  limits: {
+    maxPointsPerPlot: number;
+    maxArtifactStepsPerObject: number;
+    dotThreshold: number;
+  };
 }
 
 export function ScalarDisplayControls({
-  syncMode,
-  setSyncMode,
-  soloMode,
-  onToggleSoloMode,
-  cardHeight,
-  setCardHeight,
-  cardMinWidth,
-  setCardMinWidth,
-  hoverNameMaxLength,
-  setHoverNameMaxLength,
-  smoothing,
-  onSmoothingChange,
-  onSmoothingCommit,
-  maxPointsPerPlot,
-  maxArtifactStepsPerObject,
-  dotThreshold,
+  sync: { syncMode, setSyncMode },
+  solo: { soloMode, onToggleSoloMode },
+  size: { cardHeight, setCardHeight, cardMinWidth, setCardMinWidth },
+  hover: { hoverNameMaxLength, setHoverNameMaxLength },
+  smoothing: { smoothing, onSmoothingChange, onSmoothingCommit },
+  limits: { maxPointsPerPlot, maxArtifactStepsPerObject, dotThreshold },
 }: ScalarDisplayControlsProps) {
   return (
     <div className="space-y-2">
@@ -63,7 +65,9 @@ export function ScalarDisplayControls({
           type="button"
           onClick={onToggleSoloMode}
           className={`h-8 w-full rounded border px-2 text-xs ${
-            soloMode ? "border-primary bg-primary text-primary-foreground" : "border-border"
+            soloMode
+              ? "border-primary bg-primary text-primary-foreground"
+              : "border-border"
           }`}
           data-testid="button-solo-mode"
         >
@@ -117,9 +121,10 @@ export function ScalarDisplayControls({
         />
       </div>
       <p className="text-[11px] leading-4 text-muted-foreground">
-        Each plot requests up to {maxPointsPerPlot.toLocaleString()} points per experiment and scalar.
-        Artifact sliders request up to {maxArtifactStepsPerObject.toLocaleString()} steps per object.
-        Series with {dotThreshold} points or fewer show markers.
+        Each plot requests up to {maxPointsPerPlot.toLocaleString()} points per
+        experiment and scalar. Artifact sliders request up to{" "}
+        {maxArtifactStepsPerObject.toLocaleString()} steps per object. Series
+        with {dotThreshold} points or fewer show markers.
       </p>
     </div>
   );

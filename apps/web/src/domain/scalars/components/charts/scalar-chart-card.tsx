@@ -16,51 +16,63 @@ import { ScalarCardResizeHandle } from "./scalar-card-resize-handle";
 interface ScalarChartCardProps {
   metricName: string;
   data: ScalarChartPoint[];
-  domain: ChartDomain;
-  cardHeight: number;
-  cardMinWidth: number;
-  allExperiments: Experiment[];
-  visibleExperiments: Experiment[];
-  smoothing: number;
-  dotThreshold: number;
-  hoverMode: ScalarHoverMode;
-  hoverNameMaxLength: number;
-  onHoverModeChange: (mode: ScalarHoverMode) => void;
-  onResetDomain: (metricName: string) => void;
-  onExpandMetric: (metricName: string) => void;
-  onHideMetric: (metricName: string) => void;
-  onDomainChange: (metricName: string, domain: ChartDomain | null) => void;
-  onResizeCards: (size: { width: number; height: number }) => void;
-  onPointContextMenu: (point: ScalarPointSelection, position: { x: number; y: number }) => void;
+  experiments: {
+    allExperiments: Experiment[];
+    visibleExperiments: Experiment[];
+  };
+  size: {
+    cardHeight: number;
+    cardMinWidth: number;
+    onResizeCards: (size: { width: number; height: number }) => void;
+  };
+  zoom: {
+    domain: ChartDomain;
+    onDomainChange: (metricName: string, domain: ChartDomain | null) => void;
+    onResetDomain: (metricName: string) => void;
+  };
+  display: {
+    smoothing: number;
+    dotThreshold: number;
+    hoverMode: ScalarHoverMode;
+    hoverNameMaxLength: number;
+  };
+  actions: {
+    onExpandMetric: (metricName: string) => void;
+    onHideMetric: (metricName: string) => void;
+    onHoverModeChange: (mode: ScalarHoverMode) => void;
+    onPointContextMenu: (
+      point: ScalarPointSelection,
+      position: { x: number; y: number },
+    ) => void;
+  };
+  status?: {
+    loading?: boolean;
+    error?: boolean;
+  };
 }
 
 export function ScalarChartCard({
   metricName,
   data,
-  domain,
-  cardHeight,
-  cardMinWidth,
-  allExperiments,
-  visibleExperiments,
-  smoothing,
-  dotThreshold,
-  hoverMode,
-  hoverNameMaxLength,
-  onHoverModeChange,
-  onResetDomain,
-  onExpandMetric,
-  onHideMetric,
-  onDomainChange,
-  onResizeCards,
-  onPointContextMenu,
+  experiments: { allExperiments, visibleExperiments },
+  size: { cardHeight, cardMinWidth, onResizeCards },
+  zoom: { domain, onDomainChange, onResetDomain },
+  display: { smoothing, dotThreshold, hoverMode, hoverNameMaxLength },
+  actions: {
+    onExpandMetric,
+    onHideMetric,
+    onHoverModeChange,
+    onPointContextMenu,
+  },
+  status: { loading = false, error = false } = {},
 }: ScalarChartCardProps) {
   const hasData = data.length > 0;
 
   return (
     <Card
-      className="relative overflow-hidden rounded-lg"
+      className="relative gap-0 overflow-hidden rounded-lg py-0"
       data-testid={`card-metric-${metricName}`}
-      style={{ width: cardMinWidth }}
+      style={{ width: cardMinWidth, height: cardHeight + 48 }}
     >
       <CardHeader className="px-2.5 py-1.5">
         <CardTitle className="flex items-center justify-between gap-2 text-sm">
@@ -101,30 +113,53 @@ export function ScalarChartCard({
           </div>
         </CardTitle>
       </CardHeader>
+      {error && hasData ? (
+        <span
+          role="alert"
+          className="absolute bottom-1 left-2 z-10 bg-background text-xs"
+        >
+          Refresh failed; showing cached data. Use Refresh to retry.
+        </span>
+      ) : null}
       <CardContent className="px-1.5 pb-2 pt-0">
         {!hasData ? (
           <div
             className="flex items-center justify-center text-sm text-muted-foreground"
             style={{ height: cardHeight }}
           >
-            No data for selected experiments
+            {error
+              ? "Could not load scalar. Use Refresh to retry."
+              : loading
+                ? "Loading scalar…"
+                : "No data for selected experiments"}
           </div>
         ) : (
           <MetricChart
             metricName={metricName}
             data={data}
-            selectedExperiments={visibleExperiments}
-            allExperiments={allExperiments}
-            height={cardHeight}
-            resizeRevision={cardMinWidth}
-            domain={domain}
-            smoothing={smoothing}
-            dotThreshold={dotThreshold}
-            hoverMode={hoverMode}
-            hoverNameMaxLength={hoverNameMaxLength}
-            onHoverModeChange={onHoverModeChange}
-            onPointContextMenu={onPointContextMenu}
-            onDomainChange={(nextDomain) => onDomainChange(metricName, nextDomain)}
+            experiments={{
+              selectedExperiments: visibleExperiments,
+              allExperiments: allExperiments,
+            }}
+            viewport={{
+              height: cardHeight,
+              resizeRevision: cardMinWidth,
+            }}
+            zoom={{
+              domain: domain,
+              onDomainChange: (nextDomain) =>
+                onDomainChange(metricName, nextDomain),
+            }}
+            display={{
+              smoothing: smoothing,
+              dotThreshold: dotThreshold,
+              hoverMode: hoverMode,
+              hoverNameMaxLength: hoverNameMaxLength,
+            }}
+            interactions={{
+              onHoverModeChange: onHoverModeChange,
+              onPointContextMenu: onPointContextMenu,
+            }}
           />
         )}
       </CardContent>

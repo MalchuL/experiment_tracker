@@ -2,7 +2,7 @@
  * Shared poll interval for ``GET /api/scalars/last_logged/{projectId}``.
  *
  * **Scalars** (`useScalarsLiveRefresh`): on timestamp advances, fetches incremental scalar
- * points (bounded by ``startTime``) and merges into the project scalars infinite cache. The
+ * points (bounded by ``startTime``) and merges into the per-scalar cache together with its watermark. The
  * same sampled merge path is used by the manual refresh button; it caps each series at
  * ``maxPoints`` and always keeps the latest point.
  *

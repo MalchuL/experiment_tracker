@@ -10,6 +10,7 @@ import type {
 } from "../types";
 
 export interface GetProjectScalarsParams {
+  signal?: AbortSignal;
   experimentIds?: string[];
   scalarNames?: string[];
   maxPoints?: number;
@@ -96,7 +97,7 @@ export const scalarsService: ScalarsService = {
       API_ROUTES.SCALARS.BY_PROJECT.GET(projectId),
       params
     );
-    const response = await serviceClients.api.get<ScalarsPointsResult>(path);
+    const response = await serviceClients.api.get<ScalarsPointsResult>(path, { signal: params?.signal });
     return response.data;
   },
 
@@ -123,7 +124,7 @@ export const scalarsService: ScalarsService = {
       API_ROUTES.SCALARS.BY_EXPERIMENT.GET(experimentId),
       params
     );
-    const response = await serviceClients.api.get<ScalarsPointsResult>(path);
+    const response = await serviceClients.api.get<ScalarsPointsResult>(path, { signal: params?.signal });
     return response.data;
   },
 

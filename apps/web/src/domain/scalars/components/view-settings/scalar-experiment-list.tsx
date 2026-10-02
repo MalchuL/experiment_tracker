@@ -7,35 +7,40 @@ import { Checkbox } from "@/components/ui/checkbox";
 import type { Experiment } from "@/domain/experiments/types";
 import { CHART_COLORS } from "@/domain/scalars/constants";
 
-interface ScalarExperimentListProps {
+export interface ScalarExperimentListProps {
   experiments: Experiment[];
-  selectedExperimentIds: Set<string>;
-  soloMode: boolean;
-  chosenExperimentId: string | null;
-  onSoloExperimentSelect: (id: string) => void;
-  onToggleExperiment: (experimentId: string) => void;
-  onSelectAllExperiments: () => void;
-  onClearAllExperiments: () => void;
   onEditExperiment: (experiment: Experiment) => void;
+  selection: {
+    selectedExperimentIds: Set<string>;
+    onToggleExperiment: (experimentId: string) => void;
+    onSelectAllExperiments: () => void;
+    onClearAllExperiments: () => void;
+  };
+  solo: {
+    soloMode: boolean;
+    chosenExperimentId: string | null;
+    onSoloExperimentSelect: (id: string) => void;
+  };
 }
 
 export function ScalarExperimentList({
   experiments,
-  selectedExperimentIds,
-  soloMode,
-  chosenExperimentId,
-  onSoloExperimentSelect,
-  onToggleExperiment,
-  onSelectAllExperiments,
-  onClearAllExperiments,
   onEditExperiment,
+  selection: {
+    selectedExperimentIds,
+    onToggleExperiment,
+    onSelectAllExperiments,
+    onClearAllExperiments,
+  },
+  solo: { soloMode, chosenExperimentId, onSoloExperimentSelect },
 }: ScalarExperimentListProps) {
   const listExperiments = useMemo(
     () =>
       [...experiments].sort(
-        (a, b) => parseISO(b.createdAt).getTime() - parseISO(a.createdAt).getTime()
+        (a, b) =>
+          parseISO(b.createdAt).getTime() - parseISO(a.createdAt).getTime(),
       ),
-    [experiments]
+    [experiments],
   );
 
   return (
@@ -45,10 +50,20 @@ export function ScalarExperimentList({
           {selectedExperimentIds.size}/{experiments.length} selected
         </span>
         <div className="flex gap-1">
-          <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={onSelectAllExperiments}>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 px-2 text-xs"
+            onClick={onSelectAllExperiments}
+          >
             All
           </Button>
-          <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={onClearAllExperiments}>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 px-2 text-xs"
+            onClick={onClearAllExperiments}
+          >
             None
           </Button>
         </div>
@@ -56,7 +71,10 @@ export function ScalarExperimentList({
       <div className="h-[calc(100vh-14rem)] min-h-0 overflow-auto">
         <div className="min-w-80 space-y-0.5 pr-3">
           {listExperiments.map((experiment, index) => (
-            <div key={experiment.id} className="flex items-center gap-1.5 rounded px-1 py-0.5 hover:bg-muted/50">
+            <div
+              key={experiment.id}
+              className="flex items-center gap-1.5 rounded px-1 py-0.5 hover:bg-muted/50"
+            >
               {soloMode ? (
                 <button
                   type="button"
@@ -79,7 +97,11 @@ export function ScalarExperimentList({
               <button
                 type="button"
                 className="h-4 w-4 shrink-0 rounded-full border border-border"
-                style={{ backgroundColor: experiment.color || CHART_COLORS[index % CHART_COLORS.length] }}
+                style={{
+                  backgroundColor:
+                    experiment.color ||
+                    CHART_COLORS[index % CHART_COLORS.length],
+                }}
                 onClick={() => onEditExperiment(experiment)}
                 aria-label={`Edit ${experiment.name}`}
               />
