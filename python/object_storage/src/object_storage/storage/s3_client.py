@@ -1,4 +1,4 @@
-"""AWS S3 storage client used by the CAS service."""
+"""S3-compatible storage client for RustFS and AWS S3."""
 
 from __future__ import annotations
 
@@ -181,7 +181,7 @@ class S3Storage:
 
 
 class _S3BlobStream:
-    """Adapter that provides a MinIO-like streaming interface over boto3."""
+    """Expose the blob streaming interface expected by artifact download handlers."""
 
     def __init__(self, body) -> None:
         """Store the boto3 streaming body reference."""
@@ -199,7 +199,7 @@ class _S3BlobStream:
         self._body.close()
 
     def release_conn(self) -> None:
-        """No-op for compatibility with MinIO response objects."""
+        """Keep the shared stream interface; boto3 releases the connection on close."""
 
         return None
 

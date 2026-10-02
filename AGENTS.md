@@ -11,7 +11,7 @@ flowchart LR
   Web["apps/web\n(Next.js)"]
   API["python/backend\n(FastAPI + Postgres)"]
   Scalars["python/scalars_service\n(FastAPI + ClickHouse)"]
-  Blobs["python/object_storage\n(FastAPI + MinIO/S3)"]
+  Blobs["python/object_storage\n(FastAPI + RustFS/S3)"]
   SDK["python/sdk\n(client library)"]
 
   Web -->|"HTTP / BFF routes"| API
@@ -23,7 +23,7 @@ flowchart LR
 - **Frontend (`apps/web`)**: UI, dashboard, charts. Uses **Route Handlers** under `src/app/api/` as a BFF that forwards to the backend with auth cookies/headers.
 - **Backend (`python/backend`)**: Primary API (`api.main:app`), users/teams/RBAC, projects, experiments, hypotheses, metrics orchestration. Calls **scalars_service** and **object_storage** via HTTP clients in `src/clients/`.
 - **Scalars service (`python/scalars_service`)**: Stores scalar runs, tags, **artifacts_info** tables (per-project), and related query APIs. Backed by **ClickHouse** (and supporting infra as configured in that package).
-- **Object storage (`python/object_storage`)**: Upload/download/delete for experiment and project blobs; uses **MinIO** or **S3** and metadata in Postgres.
+- **Object storage (`python/object_storage`)**: Upload/download/delete for experiment and project blobs; uses **RustFS** or **S3** and metadata in Postgres.
 - **SDK (`python/sdk`)**: `experiment_tracker_sdk` — typed HTTP client used by training jobs and tools to talk to the backend API.
 - **Shared (`python/shared`)**: Shared Python types/utilities consumed by other Python packages where applicable.
 
@@ -179,7 +179,7 @@ In-app docs: **`/docs/reference/admin-panel`** (`apps/web/content/docs/reference
 
 ### Local full-stack integration tests
 
-Run `./scripts/test-integration.sh` from the repository root. Requires Docker Compose v2+, uv, and Chromium's Linux system libraries; install those once with `cd python/integration && uv sync --locked && uv run playwright install-deps chromium`. The runner installs Chromium, builds this checkout's application images, starts disposable PostgreSQL/ClickHouse/Redis/MinIO services, runs pytest API/SDK/CLI and Chromium browser tests, then removes its own containers and volumes even when tests fail. It never mounts `./storage` or reads the root `.env`.
+Run `./scripts/test-integration.sh` from the repository root. Requires Docker Compose v2+, uv, and Chromium's Linux system libraries; install those once with `cd python/integration && uv sync --locked && uv run playwright install-deps chromium`. The runner installs Chromium, builds this checkout's application images, starts disposable PostgreSQL/ClickHouse/Redis/RustFS services, runs pytest API/SDK/CLI and Chromium browser tests, then removes its own containers and volumes even when tests fail. It never mounts `./storage` or reads the root `.env`.
 
 Selection examples: `./scripts/test-integration.sh -m browser`, `./scripts/test-integration.sh -m 'not browser'`, or `./scripts/test-integration.sh tests/test_storage.py::test_named_artifact_replace_archive_and_delete`. The suite is in `python/integration/tests`, outside the individual services' mocking conftests. HTTP, databases, storage, browser data and downloads are real; tests use unique users/resources and fresh browser contexts. Run serially; deliberate outages and load testing are excluded.
 

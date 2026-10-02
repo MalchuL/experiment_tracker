@@ -5,7 +5,7 @@
 Artifacts are experiment-linked files (images, videos, audio, text, point clouds) with step-based metadata, similar to scalars. The backend forwards artifact requests to two external services:
 
 - **scalars_service** — stores artifact metadata (artifacts_info) in ClickHouse
-- **object_storage** — stores binary blobs in S3/MinIO (project-scoped CAS, experiment bucket)
+- **object_storage** — stores binary blobs in S3/RustFS (project-scoped CAS, experiment bucket)
 
 ```mermaid
 flowchart TB
@@ -105,14 +105,11 @@ If either `SCALARS_SERVICE_URL` or `OBJECT_STORAGE_SERVICE_URL` is unset, artifa
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `storage_backend` | `s3` or `minio` | `s3` |
-| `s3_endpoint_url` | S3 endpoint (optional for AWS) | — |
+| `storage_backend` | S3 client for RustFS or AWS S3 | `s3` |
+| `s3_endpoint_url` | RustFS endpoint (optional for AWS) | — |
 | `s3_access_key_id` | S3 access key | — |
 | `s3_secret_access_key` | S3 secret key | — |
 | `s3_bucket` | Bucket name | `ml-blobs` |
-| `minio_endpoint` | MinIO endpoint | `localhost:9000` |
-| `minio_access_key` | MinIO access key | `minio` |
-| `minio_secret_key` | MinIO secret key | `minio123` |
 
 ### scalars_service
 
@@ -144,7 +141,7 @@ uv run uvicorn app.main:app --reload --port 8001
 
 ```bash
 cd python/object_storage
-# Configure S3/MinIO, then:
+# Configure S3/RustFS, then:
 uv run python -m object_storage.main
 # Runs on port 8010 by default
 ```
@@ -164,7 +161,7 @@ cd apps/web && pnpm run dev
 |---------|------|---------|
 | Backend | 8000 | API gateway, auth, RBAC, forwards to scalars + object_storage |
 | scalars_service | 8001 | Scalars + artifact metadata (ClickHouse) |
-| object_storage | 8010 | Blob storage (S3/MinIO, project-scoped CAS, experiment bucket) |
+| object_storage | 8010 | Blob storage (S3/RustFS, project-scoped CAS, experiment bucket) |
 
 ---
 

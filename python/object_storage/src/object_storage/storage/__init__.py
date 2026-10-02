@@ -3,11 +3,8 @@
 from __future__ import annotations
 
 from typing import BinaryIO, Protocol, cast
-from uuid import UUID
 
-from object_storage.config import get_settings
 from object_storage.storage.dto import BlobListEntry
-from object_storage.storage.minio_client import MinioStorage, get_minio_storage
 from object_storage.storage.s3_client import S3Storage, get_s3_storage
 
 
@@ -56,21 +53,15 @@ class StorageBackend(Protocol):
 
 
 def get_storage() -> StorageBackend:
-    """Return the default storage backend (S3 by default)."""
+    """Return the S3 client used for RustFS and AWS S3."""
 
-    settings = get_settings()
-    backend = getattr(settings, "storage_backend", "s3").lower()
-    if backend == "minio":
-        return cast(StorageBackend, get_minio_storage())
     return cast(StorageBackend, get_s3_storage())
 
 
 __all__ = [
     "BlobListEntry",
     "StorageBackend",
-    "MinioStorage",
     "S3Storage",
-    "get_minio_storage",
     "get_s3_storage",
     "get_storage",
 ]

@@ -3,6 +3,7 @@ from __future__ import annotations
 import pytest
 
 from object_storage.config import get_settings
+from object_storage.storage import S3Storage, get_storage
 
 
 def test_env_vars_override_defaults_for_testcontainers(
@@ -18,6 +19,7 @@ def test_env_vars_override_defaults_for_testcontainers(
     assert expected_s3_endpoint
     assert settings.database_url == expected_database_url
     assert settings.storage_backend == "s3"
+    assert isinstance(get_storage(), S3Storage)
     assert settings.s3_endpoint_url == expected_s3_endpoint
     assert settings.s3_access_key_id == "admin"
     assert settings.s3_secret_access_key == "password"

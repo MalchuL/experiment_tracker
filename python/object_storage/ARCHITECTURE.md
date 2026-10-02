@@ -16,7 +16,7 @@ files are stored once and reused across snapshots.
 - **PostgreSQL** for metadata (experiments, snapshots, blobs).
 - **S3-compatible object storage** for blob bytes:
   - **AWS S3** by default (via `boto3`).
-  - **MinIO** supported as an alternate backend.
+  - **RustFS** for self-hosted storage via the same S3 client.
 
 ## High-Level Flow (CAS)
 1. **Client scans files**, computes SHA-256 hashes.
@@ -43,8 +43,7 @@ Located in `src/object_storage/domain/object_storage/`.
 ### Storage Layer
 Located in `src/object_storage/storage/`.
 - **S3 backend (default)**: `S3Storage` using `boto3`.
-- **MinIO backend**: `MinioStorage` using `minio` SDK.
-- **get_storage()** selects backend via config.
+- **get_storage()** provides the same `S3Storage` client for RustFS and AWS S3.
 
 ### Database Layer
 Located in `src/object_storage/db/`.
@@ -76,21 +75,18 @@ Located in `src/object_storage/db/`.
 Configuration is loaded from environment variables (see `src/object_storage/config.py`).
 
 ### Storage Selection
-- `storage_backend`: `s3` (default) or `minio`
+- `storage_backend`: `s3` (RustFS and AWS S3 use the same backend)
 
 ### S3 Settings (Default Backend)
-- `s3_endpoint_url` (optional; set for MinIO or local S3-compatible)
+- `s3_endpoint_url` (set to `http://rustfs:9000` inside Compose or `http://localhost:9000` locally; omit for AWS S3)
 - `s3_region`
 - `s3_access_key_id`
 - `s3_secret_access_key`
 - `s3_bucket`
 
-### MinIO Settings (Alternate Backend)
-- `minio_endpoint`
-- `minio_access_key`
-- `minio_secret_key`
-- `minio_secure`
-- `minio_bucket`
+### RustFS Server Settings
+- `RUSTFS_ACCESS_KEY` and `RUSTFS_SECRET_KEY` configure the server credentials.
+- The service's `S3_ACCESS_KEY_ID` and `S3_SECRET_ACCESS_KEY` must match them.
 
 ### Database
 - `database_url`
@@ -98,7 +94,7 @@ Configuration is loaded from environment variables (see `src/object_storage/conf
 ## Startup Lifecycle
 On application startup (`lifespan` in `main.py`):
 1. Database tables are created if missing.
-2. The configured storage bucket is ensured.
+2. Project and experiment buckets are created on demand by the bucket registry.
 
 ## Notes for Contributors
 - Keep business logic in the **service** layer.

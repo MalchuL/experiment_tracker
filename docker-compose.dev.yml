@@ -78,39 +78,24 @@ services:
       retries: 15
       start_period: 20s
 
-  minio:
-    image: minio/minio:latest
+  rustfs:
+    image: rustfs/rustfs:latest
     environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-admin}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-password}
+      RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY:-admin}
+      RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY:-password}
+      RUSTFS_CONSOLE_ENABLE: "true"
     ports:
-      - "${MINIO_API_PORT:-9000}:9000"
-      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+      - "${RUSTFS_API_PORT:-9000}:9000"
+      - "${RUSTFS_CONSOLE_PORT:-9001}:9001"
     volumes:
-      - ./storage/minio:/data
-    command: ["server", "/data", "--console-address", ":9001"]
+      - rustfs-data:/data
+    command: ["/data"]
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      test: ["CMD", "curl", "-f", "http://localhost:9000/health/ready"]
       interval: 5s
       timeout: 5s
       retries: 10
       start_period: 10s
-
-  minio-init:
-    image: minio/mc:latest
-    depends_on:
-      minio:
-        condition: service_healthy
-    environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-admin}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-password}
-      S3_BUCKET: ${S3_BUCKET:-ml-blobs}
-    entrypoint:
-      - /bin/sh
-      - -c
-      - |
-        mc alias set local http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD" \
-          && mc mb "local/$$S3_BUCKET" --ignore-existing
 
   object-storage:
     build:
@@ -122,10 +107,10 @@ services:
       # CORS: browser origins allowed to call object-storage (match your UI URL).
       ALLOWED_ORIGINS: ${OBJECT_STORAGE_ALLOWED_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
       DATABASE_URL: ${OBJECT_STORAGE_DATABASE_URL:-postgresql+asyncpg://tracker:tracker@postgres-object-storage:5432/object_storage}
-      S3_ENDPOINT_URL: ${S3_ENDPOINT_URL:-http://minio:9000}
+      S3_ENDPOINT_URL: ${S3_ENDPOINT_URL:-http://rustfs:9000}
       S3_REGION: ${S3_REGION:-us-east-1}
-      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-admin}
-      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-password}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-${RUSTFS_ACCESS_KEY:-admin}}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-${RUSTFS_SECRET_KEY:-password}}
       S3_BUCKET: ${S3_BUCKET:-ml-blobs}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
     ports:
@@ -133,10 +118,8 @@ services:
     depends_on:
       postgres-object-storage:
         condition: service_healthy
-      minio:
+      rustfs:
         condition: service_healthy
-      minio-init:
-        condition: service_completed_successfully
 
   scalars:
     build:
@@ -196,3 +179,6 @@ services:
     depends_on:
       backend:
         condition: service_healthy
+
+volumes:
+  rustfs-data:

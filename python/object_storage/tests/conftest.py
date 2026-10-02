@@ -24,49 +24,50 @@ def _to_asyncpg_url(database_url: str) -> str:
     return database_url
 
 
-def _wait_minio_ready(endpoint_url: str, timeout_s: float = 30.0) -> None:
-    """Wait until MinIO responds on health endpoint."""
+def _wait_rustfs_ready(endpoint_url: str, timeout_s: float = 60.0) -> None:
+    """Wait until RustFS reports that its S3 storage is ready."""
 
-    ready_url = f"{endpoint_url.rstrip('/')}/minio/health/ready"
-    deadline = time.time() + timeout_s
-    while time.time() < deadline:
+    ready_url = f"{endpoint_url.rstrip('/')}/health/ready"
+    deadline = time.monotonic() + timeout_s
+    while time.monotonic() < deadline:
         try:
-            with urlopen(ready_url) as response:  # noqa: S310
+            with urlopen(ready_url, timeout=5) as response:  # noqa: S310
                 if response.status == 200:
                     return
         except Exception:
             time.sleep(0.5)
             continue
-    raise RuntimeError(f"MinIO did not become ready in {timeout_s}s: {ready_url}")
+    raise RuntimeError(f"RustFS did not become ready in {timeout_s}s: {ready_url}")
 
 
 @pytest.fixture(scope="session", autouse=True)
 def isolated_test_environment(pytestconfig: pytest.Config) -> None:
     """
-    Start isolated Postgres/MinIO containers and expose config via env vars.
+    Start isolated Postgres/RustFS containers and expose config via env vars.
 
     This keeps test data out of developer local services and avoids overlap.
     """
 
     postgres = PostgresContainer("postgres:16-alpine")
-    minio = DockerContainer("minio/minio:latest")
-    minio.with_exposed_ports(9000)
-    minio.with_env("MINIO_ROOT_USER", "admin")
-    minio.with_env("MINIO_ROOT_PASSWORD", "password")
-    minio.with_command('server /data --console-address ":9001"')
+    rustfs = DockerContainer("rustfs/rustfs:latest")
+    rustfs.with_exposed_ports(9000)
+    rustfs.with_env("RUSTFS_ACCESS_KEY", "admin")
+    rustfs.with_env("RUSTFS_SECRET_KEY", "password")
+    rustfs.with_command("/data")
 
     try:
         postgres.start()
-        minio.start()
+        rustfs.start()
     except Exception as exc:
+        rustfs.stop()
+        postgres.stop()
         pytest.skip(f"Docker/testcontainers unavailable: {exc}")
         return
 
     db_url = _to_asyncpg_url(postgres.get_connection_url())
-    minio_host = minio.get_container_host_ip()
-    minio_port = minio.get_exposed_port(9000)
-    endpoint_url = f"http://{minio_host}:{minio_port}"
-    _wait_minio_ready(endpoint_url)
+    rustfs_host = rustfs.get_container_host_ip()
+    rustfs_port = rustfs.get_exposed_port(9000)
+    endpoint_url = f"http://{rustfs_host}:{rustfs_port}"
 
     monkeypatch = pytest.MonkeyPatch()
     monkeypatch.setenv("DATABASE_URL", db_url)
@@ -83,11 +84,12 @@ def isolated_test_environment(pytestconfig: pytest.Config) -> None:
 
     get_settings.cache_clear()
     try:
+        _wait_rustfs_ready(endpoint_url)
         yield
     finally:
         get_settings.cache_clear()
         monkeypatch.undo()
-        minio.stop()
+        rustfs.stop()
         postgres.stop()
 
 

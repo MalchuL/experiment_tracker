@@ -62,36 +62,21 @@ services:
       retries: 15
       start_period: 20s
 
-  minio:
+  rustfs:
     volumes:
-      - minio-data:/data
-    image: minio/minio:latest
+      - rustfs-data:/data
+    image: rustfs/rustfs:latest
     environment:
-      MINIO_ROOT_USER: admin
-      MINIO_ROOT_PASSWORD: password
-    command: ["server", "/data", "--console-address", ":9001"]
+      RUSTFS_ACCESS_KEY: admin
+      RUSTFS_SECRET_KEY: password
+      RUSTFS_CONSOLE_ENABLE: "true"
+    command: ["/data"]
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      test: ["CMD", "curl", "-f", "http://localhost:9000/health/ready"]
       interval: 5s
       timeout: 5s
       retries: 10
       start_period: 10s
-
-  minio-init:
-    image: minio/mc:latest
-    depends_on:
-      minio:
-        condition: service_healthy
-    environment:
-      MINIO_ROOT_USER: admin
-      MINIO_ROOT_PASSWORD: password
-      S3_BUCKET: ml-blobs
-    entrypoint:
-      - /bin/sh
-      - -c
-      - |
-        mc alias set local http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD" \
-          && mc mb "local/$$S3_BUCKET" --ignore-existing
 
   object-storage:
     image: experiment-tracker-integration-object-storage:local
@@ -106,7 +91,7 @@ services:
       # CORS: browser origins allowed to call object-storage (match your UI URL).
       ALLOWED_ORIGINS: http://127.0.0.1:${INTEGRATION_WEB_PORT:-13000}
       DATABASE_URL: postgresql+asyncpg://tracker:tracker@postgres-object-storage:5432/object_storage
-      S3_ENDPOINT_URL: http://minio:9000
+      S3_ENDPOINT_URL: http://rustfs:9000
       S3_REGION: us-east-1
       S3_ACCESS_KEY_ID: admin
       S3_SECRET_ACCESS_KEY: password
@@ -115,10 +100,8 @@ services:
     depends_on:
       postgres-object-storage:
         condition: service_healthy
-      minio:
+      rustfs:
         condition: service_healthy
-      minio-init:
-        condition: service_completed_successfully
 
   scalars:
     image: experiment-tracker-integration-scalars:local
@@ -187,4 +170,4 @@ volumes:
   postgres-object-storage-data:
   redis-data:
   clickhouse-data:
-  minio-data:
+  rustfs-data:

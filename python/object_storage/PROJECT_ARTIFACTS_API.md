@@ -21,7 +21,7 @@ The registry:
 
 ## Storage keys vs manifest paths
 
-- **Object storage**: keys are derived from the blob hash (see `StorageBackend.put_blob` / `blobs/…` layout in S3/MinIO clients).
+- **Object storage**: keys are derived from the blob hash (see `StorageBackend.put_blob` / `blobs/…` layout in S3/RustFS clients).
 - **Snapshots**: each manifest entry has `path` (relative, safe) and `hash` (64-char hex). ZIP build reads bytes by hash and writes them under `path` inside the archive.
 
 ## Service methods (summary)

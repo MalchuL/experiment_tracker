@@ -6,7 +6,7 @@
 ![Next.js](https://img.shields.io/badge/Next.js-UI-000000?logo=nextdotjs&logoColor=white)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-relational%20state-4169E1?logo=postgresql&logoColor=white)
 ![ClickHouse](https://img.shields.io/badge/ClickHouse-scalars-FFCC01?logo=clickhouse&logoColor=black)
-![MinIO](https://img.shields.io/badge/MinIO-object%20storage-C72E49?logo=minio&logoColor=white)
+![RustFS](https://img.shields.io/badge/RustFS-object%20storage-E5532E)
 ![S3 Compatible](https://img.shields.io/badge/S3-compatible%20blobs-569A31?logo=amazons3&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-self--hosted-2496ED?logo=docker&logoColor=white)
 ![SDK](https://img.shields.io/badge/Python%20SDK-training%20logs-4B8BBE?logo=python&logoColor=white)
@@ -92,7 +92,7 @@ flowchart LR
   API["FastAPI backend"]
   PG["PostgreSQL\nusers, teams, projects, experiments, RBAC"]
   CH["ClickHouse\nscalar series and step artifact metadata"]
-  S3["MinIO / S3-compatible storage\ncontent-addressed blobs"]
+  S3["RustFS / S3-compatible storage\ncontent-addressed blobs"]
   SDK["Python SDK / CLI"]
 
   SDK --> API
@@ -121,7 +121,7 @@ This makes the product lightweight from a workflow perspective while still match
 | Project artifacts | Deduplicate shared project files by content hash for datasets, code snapshots, configs, and reusable assets. |
 | Research lineage | Keep parent-child run relationships and metric deltas connected to experiment history. |
 | Research organization | Keep hypotheses, reports, kanban items, notes, and SDK-driven training logs in one project workspace. |
-| Self-hosted stack | Run the UI, API, scalars service, object storage, PostgreSQL, ClickHouse, and MinIO/S3-compatible storage with Docker or local development tools. |
+| Self-hosted stack | Run the UI, API, scalars service, object storage, PostgreSQL, ClickHouse, and RustFS/S3-compatible storage with Docker or local development tools. |
 
 ## Positioning
 
@@ -255,4 +255,4 @@ Docker installation, deployment, troubleshooting, and known issues: **[Docker Gu
 
 ## Local Development
 
-For manual local setup with Postgres, MinIO, ClickHouse, the Python services, and the Next.js frontend, see [LOCAL_RUN.md](LOCAL_RUN.md).
+For manual local setup with Postgres, RustFS, ClickHouse, the Python services, and the Next.js frontend, see [LOCAL_RUN.md](LOCAL_RUN.md).

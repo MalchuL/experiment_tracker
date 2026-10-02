@@ -33,7 +33,7 @@ ALLOWED_ORIGINS="http://localhost:3000,http://127.0.0.1:3000"
 
 ### Object Storage Database
 
-The object storage service stores bucket and artifact metadata in PostgreSQL. File bytes live in MinIO or another S3-compatible store.
+The object storage service stores bucket and artifact metadata in PostgreSQL. File bytes live in RustFS or another S3-compatible store.
 
 ```bash
 sudo -u postgres psql
@@ -109,7 +109,7 @@ pnpm install
 
 ## Run Everything
 
-The canonical local run commands live in [run_local_stack.sh](run_local_stack.sh). The script opens separate terminal windows for MinIO, object storage, ClickHouse, scalars service, backend, and frontend.
+The canonical local run commands live in [run_local_stack.sh](run_local_stack.sh). The script opens separate terminal windows for RustFS, object storage, ClickHouse, scalars service, backend, and frontend.
 
 ```bash
 ./run_local_stack.sh
@@ -125,17 +125,17 @@ bash run_local_stack.sh
 
 These commands mirror [run_local_stack.sh](run_local_stack.sh). Run each long-lived process in a separate terminal.
 
-### MinIO
+### RustFS
 
 ```bash
 cd python/object_storage
-docker rm -f minio
-docker run -p 9000:9000 -p 9001:9001 --name minio -v minio:/data -e "MINIO_ROOT_USER=admin" -e "MINIO_ROOT_PASSWORD=password" minio/minio server /data --console-address ":9001"
+docker rm -f rustfs
+docker run -p 9000:9000 -p 9001:9001 --name rustfs -v rustfs:/data -e "RUSTFS_ACCESS_KEY=admin" -e "RUSTFS_SECRET_KEY=password" rustfs/rustfs:latest /data
 ```
 
-MinIO API: `http://localhost:9000`
+RustFS API: `http://localhost:9000`
 
-MinIO console: `http://localhost:9001`
+RustFS console: `http://localhost:9001`
 
 ### Object Storage Service
 

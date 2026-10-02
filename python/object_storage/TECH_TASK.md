@@ -10,7 +10,7 @@ Here is the comprehensive technical task (Tech Task) for the **ML Experiment Sto
 **Solution:** A **Content-Addressable Storage (CAS)** system. Files are addressed by their content hash (SHA-256). Identical files are stored only once, regardless of how many experiments use them.
 
 ## 2. Architecture High-Level
-*   **Backend:** Python (FastAPI) + PostgreSQL (Metadata) + MinIO (Blob Storage).
+*   **Backend:** Python (FastAPI) + PostgreSQL (Metadata) + RustFS (Blob Storage).
 *   **Client:** Python SDK (integrated into ML pipelines).
 *   **Protocol:** HTTP/REST.
 
@@ -19,7 +19,7 @@ sequenceDiagram
     participant SDK as Python SDK
     participant API as FastAPI Service
     participant DB as PostgreSQL
-    participant S3 as MinIO
+    participant S3 as RustFS
 
     Note over SDK: 1. Scan Dir & Calc Hashes
     SDK->>API: POST /blobs/check (Batch Hashes)
@@ -44,7 +44,7 @@ sequenceDiagram
 
 ### 3.1. Infrastructure Requirements
 *   **Containerization:** Docker & Docker Compose.
-*   **Storage:** MinIO (S3 compatible). Bucket name: `ml-blobs`.
+*   **Storage:** RustFS (S3 compatible). Bucket name: `ml-blobs`.
 *   **Database:** PostgreSQL 15+.
 
 ### 3.2. Data Model (PostgreSQL)
@@ -57,7 +57,7 @@ sequenceDiagram
 
 #### `POST /blobs/check`
 *   **Input:** List of SHA-256 hashes `["abc...", "def..."]`.
-*   **Logic:** Query DB/MinIO to check existence.
+*   **Logic:** Query DB/RustFS to check existence.
 *   **Output:** List of **missing** hashes that need upload.
 
 #### `POST /blobs/upload`
@@ -65,7 +65,7 @@ sequenceDiagram
 *   **Logic:**
     1.  Validate file integrity (optional: stream & calc hash on fly).
     2.  Check if blob exists (idempotency).
-    3.  Stream upload to MinIO path: `blobs/{hash[:2]}/{hash[2:]}`.
+    3.  Stream upload to RustFS path: `blobs/{hash[:2]}/{hash[2:]}`.
     4.  Register in `blobs` table.
 *   **Output:** `200 OK`.
 
@@ -128,7 +128,7 @@ tracker.snapshot(
 
 ## 5. Non-Functional Requirements
 1.  **Scalability:** The system must handle files up to **5GB**.
-    *   *Implementation Detail:* Use `spooled` temporary files in FastAPI or direct stream to MinIO to avoid RAM OOM.
+    *   *Implementation Detail:* Use `spooled` temporary files in FastAPI or direct stream to RustFS to avoid RAM OOM.
 2.  **Performance:**
     *   Deduplication check must be < 200ms for 1000 files.
     *   Hashing on client must saturate disk I/O.
@@ -140,4 +140,4 @@ tracker.snapshot(
 2.  Client SDK can upload a folder with a 1GB file.
 3.  Running the upload twice results in **0 bytes uploaded** on the second run (Deduplication verified).
 4.  Snapshot record appears in PostgreSQL with correct JSON structure.
-5.  Files are physically present in MinIO bucket.
+5.  Files are physically present in RustFS bucket.

@@ -37,10 +37,10 @@ echo "Building apps/web (production)…"
   pnpm run build
 )
 
-# Object storage: MinIO
+# Object storage: RustFS
 launch_terminal \
-  "local-run: minio" \
-  "cd python/object_storage && docker rm -f minio >/dev/null 2>&1 || true; docker run -p 9000:9000 -p 9001:9001 --name minio -v minio:/data -e \"MINIO_ROOT_USER=admin\" -e \"MINIO_ROOT_PASSWORD=password\" minio/minio server /data --console-address \":9001\""
+  "local-run: rustfs" \
+  "cd python/object_storage && docker rm -f rustfs >/dev/null 2>&1 || true; docker run -p 9000:9000 -p 9001:9001 --name rustfs -v rustfs:/data -e \"RUSTFS_ACCESS_KEY=admin\" -e \"RUSTFS_SECRET_KEY=password\" rustfs/rustfs:latest /data"
 sleep 2
 
 # Object storage service

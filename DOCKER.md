@@ -15,7 +15,7 @@ There are two root Compose files:
 
 2. **Optional environment file.** Copy `.env.example` to `.env` to override secrets, CORS, public ports, `GHCR_NAMESPACE`, or `IMAGE_TAG`. Application images resolve as `ghcr.io/${GHCR_NAMESPACE}/experiment-tracker-<service>:${IMAGE_TAG}`. Defaults are `GHCR_NAMESPACE=malchul` and `IMAGE_TAG=0.12.1`.
 
-3. **`storage/` on disk.** Data is persisted under **`./storage/`** (for example `storage/postgres-backend`, `storage/clickhouse`). **You do not need to create these directories yourself:** Docker creates missing host paths for bind mounts when the containers start.
+3. **Persistent data.** Databases are persisted under **`./storage/`** (for example `storage/postgres-backend`, `storage/clickhouse`); RustFS blobs use the named Docker volume **`rustfs-data`**. Docker creates missing bind-mount paths and named volumes when the containers start.
 
 4. **Pull GHCR images and start the deployment stack**:
 
@@ -170,11 +170,12 @@ Typical order when you want the stack **gone** and then a **clean start** next t
    docker compose down
    ```
 
-   Add **`--remove-orphans`** if you changed service names and old containers remain. Add **`-v`** only if you use **named Docker volumes** in this project and want them removed too (this compose file mainly uses **bind mounts** to `./storage`, so `-v` often does nothing for data persistence).
+   Add **`--remove-orphans`** if you changed service names and old containers remain. **`-v` deletes the named RustFS volume and all its blobs**; database bind mounts under `./storage/` remain.
 
 3. **Remove persisted data** (optional, destructive; empty databases and blobs next `up`):
 
    ```bash
+   docker compose down -v
    rm -rf storage/
    ```
 
@@ -213,7 +214,7 @@ The deployment stack publishes only web and backend ports. The development stack
 | 5434 | postgres (object storage DB) |
 | 6380 | redis |
 | 8123 | ClickHouse HTTP |
-| 9000 / 9001 | MinIO API / console |
+| 9000 / 9001 | RustFS API / console |
 
 Host ports are overridden with variables in a root `.env` (see `.env.example`). Container ports stay the same so services inside Compose keep talking to names such as `redis:6379` and `postgres-backend:5432`.
 
@@ -225,8 +226,8 @@ If Compose fails with **`address already in use`**, create or edit root `.env` a
 REDIS_PORT=6381
 POSTGRES_OBJECT_STORAGE_PORT=5436
 POSTGRES_BACKEND_PORT=5437
-MINIO_API_PORT=9010
-MINIO_CONSOLE_PORT=9011
+RUSTFS_API_PORT=9010
+RUSTFS_CONSOLE_PORT=9011
 ```
 
 Then restart:
@@ -238,14 +239,15 @@ docker compose up -d
 
 Only the published host port changes. Containers continue using their unchanged internal service names and ports.
 
-### Known issues (Docker / MinIO)
+### Known issues (Docker / RustFS)
 
-- **MinIO fails to start because host port 9000 is already in use.** Set `MINIO_API_PORT` and `MINIO_CONSOLE_PORT` to free ports in root `.env`, then restart the stack.
-- **Older Docker Engine and `minio/minio:latest`.** On some older installations, the current image may exit immediately. Pin the `minio` service to a known-good release such as `minio/minio:RELEASE.2024-11-07T00-52-20Z`.
+- **RustFS fails to start because host port 9000 is already in use.** Set `RUSTFS_API_PORT` and `RUSTFS_CONSOLE_PORT` to free ports in root `.env`, then restart the stack.
+- **RustFS data permissions.** The stack uses a named `rustfs-data` volume for the non-root RustFS container. A custom bind mount must be writable by UID/GID `10001:10001`; see the [RustFS Docker guide](https://docs.rustfs.com/en/installation/container/docker).
+- **Switching an existing installation to RustFS.** The new volume starts empty. Previous object-store directories and volumes are preserved, but must be migrated through the S3 API with the same bucket names and object keys; do not mount their raw data into RustFS. Remove old service containers with `docker compose down --remove-orphans` before starting the updated stack. Set `RUSTFS_ACCESS_KEY` and `RUSTFS_SECRET_KEY` in the root `.env`; the API's `S3_*` credentials inherit those values unless explicitly overridden.
 - **Bad or incompatible local object-storage state.** Stop the stack, clear persisted data, then start again. This is destructive:
 
   ```bash
-  docker compose down
+  docker compose down -v
   rm -rf storage/*
   docker compose up -d
   ```
@@ -266,7 +268,7 @@ docker compose logs -f backend
 To run backend on the host while dependencies run in the development stack:
 
 ```bash
-docker compose -f docker-compose.dev.yml up -d postgres-backend postgres-object-storage redis clickhouse minio minio-init scalars object-storage
+docker compose -f docker-compose.dev.yml up -d postgres-backend postgres-object-storage redis clickhouse rustfs scalars object-storage
 cd python/backend
 export DATABASE_URL="postgresql+asyncpg://tracker:tracker@127.0.0.1:5435/experiment_tracker"
 export SCALARS_SERVICE_URL="http://127.0.0.1:8001/api"

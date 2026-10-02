@@ -88,7 +88,7 @@ class BucketListRowDTO(BaseModel):
     size: int = Field(
         description=(
             "Byte total in the object-storage registry for this bucket (incremental "
-            "book-keeping); may drift from S3/MinIO if objects changed out-of-band."
+            "book-keeping); may drift from S3/RustFS if objects changed out-of-band."
         ),
     )
     storage_size: int | None = Field(
@@ -179,7 +179,7 @@ class ClearStorageBucketResponseDTO(BaseModel):
 class ReconcileStorageBucketResponseDTO(BaseModel):
     """Response after ``POST .../admin/storage/buckets/{bucket_id}/reconcile``.
 
-    Re-sums object bytes from S3/MinIO and **writes** that value to the registry ``size``.
+    Re-sums object bytes from S3/RustFS and **writes** that value to the registry ``size``.
     Unlike GET list's ``reconcile`` query flag, this endpoint persists the correction.
     """
 

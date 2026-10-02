@@ -167,7 +167,7 @@ async def list_storage_buckets(
     reconcile: bool = Query(
         default=False,
         description=(
-            "When true, each row includes storage_size (sum of object sizes from S3/MinIO). "
+            "When true, each row includes storage_size (sum of object sizes from S3/RustFS). "
             "Does not update the registry size column; use POST .../buckets/{bucket_id}/reconcile to persist."
         ),
     ),

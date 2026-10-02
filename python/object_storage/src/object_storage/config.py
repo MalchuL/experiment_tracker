@@ -1,4 +1,5 @@
 from functools import lru_cache
+from typing import Literal
 
 from pydantic_settings import BaseSettings
 
@@ -14,19 +15,13 @@ class Settings(BaseSettings):
         "postgresql+asyncpg://object_storage:object_storage@localhost:5433/object_storage"
     )
 
-    storage_backend: str = "s3"
+    storage_backend: Literal["s3"] = "s3"
 
     s3_endpoint_url: str | None = None
     s3_region: str = "us-east-1"
     s3_access_key_id: str | None = None
     s3_secret_access_key: str | None = None
     s3_bucket: str = "ml-blobs"
-
-    minio_endpoint: str = "localhost:9000"
-    minio_access_key: str = "minio"
-    minio_secret_key: str = "minio123"
-    minio_secure: bool = False
-    minio_bucket: str = "ml-blobs"
 
     class Config:
         env_prefix = ""

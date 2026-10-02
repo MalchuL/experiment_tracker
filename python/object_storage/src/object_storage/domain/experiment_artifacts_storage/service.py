@@ -69,7 +69,7 @@ class ArtifactsStorageService:
     def _remove_orphan_object_after_failed_upload(
         self, bucket_name: str, blob_hash: str
     ) -> None:
-        """Delete S3/MinIO object after DB rollback; ignores errors (best-effort)."""
+        """Delete S3/RustFS object after DB rollback; ignores errors (best-effort)."""
 
         try:
             self._buckets_service.storage.delete_blob(bucket_name, blob_hash)
