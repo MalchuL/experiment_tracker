@@ -32,7 +32,7 @@ def project_experiment_bucket_name(
 ) -> str:
     """Object storage name for a registered (project, experiment) pair.
 
-    Keep names short enough for S3/MinIO bucket constraints (max 63 chars).
+    Keep names short enough for S3/RustFS bucket constraints (max 63 chars).
     """
 
     if experiment_id is None:

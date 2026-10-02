@@ -6,7 +6,7 @@ Technical Task: ML Experiment Storage Service (CAS-based)
 **Solution:** A **Content-Addressable Storage (CAS)** system. Files are addressed by their content hash (SHA-256). Identical files are stored only once, regardless of how many experiments use them.
 
 ## 2. Architecture High-Level
-*   **Backend:** Python (FastAPI) + PostgreSQL (Metadata) + MinIO (Blob Storage).
+*   **Backend:** Python (FastAPI) + PostgreSQL (Metadata) + RustFS (Blob Storage).
 *   **Client:** Python SDK (integrated into ML pipelines).
 *   **Protocol:** HTTP/REST.
 

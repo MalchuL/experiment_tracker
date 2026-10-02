@@ -1,0 +1,117 @@
+[
+  {
+    "id": "PAT-REVOCATION",
+    "severity": "high",
+    "title": "A warmed API token remains usable after revocation",
+    "tests": [
+      "test_access.py::test_pat_scope_and_revocation"
+    ],
+    "expected": "The next request using a revoked PAT returns 401.",
+    "actual": "The revoke response and token listing show revoked=true, but the next authenticated request returns 200. An unused revoked token is correctly rejected.",
+    "cause": "ApiTokenService.revoke_token does not invalidate TOKEN_CACHE. validate_token checks the cached revoked flag, then reloads the DB row without rechecking revocation. Cache TTL defaults to 60 seconds.",
+    "locations": [
+      "python/backend/src/domain/api_tokens/service.py"
+    ]
+  },
+  {
+    "id": "INACTIVE-PAT",
+    "severity": "medium",
+    "title": "Inactive users can authenticate with PATs on the profile endpoint",
+    "tests": [
+      "test_access.py::test_inactive_user_pat_cannot_read_profile"
+    ],
+    "expected": "Authentication rejects inactive users with 401 or 403.",
+    "actual": "GET /users/me/profile returns 200 and a profile containing isActive=false when authenticated with the inactive user's PAT.",
+    "cause": "get_current_user_by_api_token returns token.user without enforcing active status. JWT authentication and project permission checks enforce active status separately.",
+    "locations": [
+      "python/backend/src/api/routes/auth.py"
+    ]
+  },
+  {
+    "id": "SDK-BINARY-DOWNLOAD",
+    "severity": "medium",
+    "title": "The SDK parses project blob downloads as JSON",
+    "tests": [
+      "test_storage.py::test_sdk_project_blob_download_returns_bytes"
+    ],
+    "expected": "ArtifactClient.download_project_artifact returns the uploaded bytes.",
+    "actual": "The backend correctly returns binary bytes with application/octet-stream, but the SDK raises JSONDecodeError.",
+    "cause": "HttpRequestExecutor._parse_response calls response.json() before checking whether spec.response_model is FileDownloadResponse. Project blob downloads have no Content-Disposition header to trigger the earlier file branch.",
+    "locations": [
+      "python/sdk/src/experiment_tracker_sdk/client/transport/executor.py"
+    ]
+  },
+  {
+    "id": "STALE-STEP-INDEX",
+    "severity": "medium",
+    "title": "Deleting a step artifact leaves its metadata in ClickHouse",
+    "tests": [
+      "test_storage.py::test_deleted_step_artifact_is_removed_from_index"
+    ],
+    "expected": "Deleted step artifacts disappear from the metadata index and UI queries.",
+    "actual": "Deletion succeeds, but get-at-step still returns the deleted blob's metadata after bounded polling.",
+    "cause": "ExperimentArtifactsService.delete_experiment_artifact_by_hash only calls object storage; it does not remove artifacts_info rows from the scalars service.",
+    "locations": [
+      "python/backend/src/domain/experiment_artifacts/service.py"
+    ]
+  },
+  {
+    "id": "MISSING-BLOB-500",
+    "severity": "medium",
+    "title": "Missing experiment blobs return an internal server error",
+    "tests": [
+      "test_storage.py::test_missing_experiment_blob_returns_not_found",
+      "test_storage.py::test_deleted_step_artifact_download_returns_not_found"
+    ],
+    "expected": "Downloads of missing or deleted blobs return 404.",
+    "actual": "Object storage returns 500 for a missing experiment blob, and downloading a deleted step artifact propagates 500 through the backend.",
+    "cause": "The experiment download route does not translate missing S3 objects/buckets into a not-found response.",
+    "locations": [
+      "python/object_storage/src/object_storage/domain/experiment_artifacts_storage/controller.py",
+      "python/object_storage/src/object_storage/domain/experiment_artifacts_storage/service.py"
+    ]
+  },
+  {
+    "id": "MISSING-EXPERIMENT-400",
+    "severity": "low",
+    "title": "A nonexistent experiment returns 400 instead of the documented 404",
+    "tests": [
+      "test_research.py::test_missing_experiment_returns_not_found"
+    ],
+    "expected": "GET /experiments/{missing_id} returns 404.",
+    "actual": "The API returns 400 with an Object with id ... not found message.",
+    "cause": "The experiment controller maps DBNotFoundError through its generic 400 branch.",
+    "locations": [
+      "python/backend/src/domain/experiments/controller.py"
+    ]
+  },
+  {
+    "id": "METRIC-ACCESS-400",
+    "severity": "low",
+    "title": "Reading another user's experiment metrics returns 400 instead of access denial",
+    "tests": [
+      "test_storage.py::test_foreign_user_cannot_read_training_data[metrics]"
+    ],
+    "expected": "The inaccessible experiment's metrics return 403 or the documented 404.",
+    "actual": "The API denies the data but responds 400 with Project ... not accessible.",
+    "cause": "get_experiment_metrics passes ProjectNotAccessibleError to the experiment controller's generic 400 branch.",
+    "locations": [
+      "python/backend/src/domain/experiments/controller.py"
+    ]
+  },
+  {
+    "id": "HYPOTHESIS-LINK-404",
+    "severity": "medium",
+    "title": "Hypothesis cards navigate to a missing details page",
+    "tests": [
+      "test_browser.py::test_hypothesis_card_opens_details[chromium]"
+    ],
+    "expected": "Clicking a hypothesis card opens a page showing that hypothesis.",
+    "actual": "The card links to /projects/{project_id}/hypotheses/{hypothesis_id}, which returns the Next.js 404 page. The list itself and the backend hypothesis API work.",
+    "cause": "HypothesisCard uses FRONTEND_ROUTES.PROJECT_PAGES.HYPOTHESIS_BY_ID, but the application only defines the hypotheses list route; no details route exists.",
+    "locations": [
+      "apps/web/src/domain/hypothesis/components/hypothesis-card.tsx",
+      "apps/web/src/lib/constants/frontend-routes.ts"
+    ]
+  }
+]

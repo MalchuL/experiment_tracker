@@ -193,7 +193,7 @@ class StorageBucketRowDTO(BaseModel):
     storage_size: int | None = Field(
         default=None,
         description=(
-            "Sum of object sizes reported by S3/MinIO for this response. Present only "
+            "Sum of object sizes reported by S3/RustFS for this response. Present only "
             "when the list request used reconcile=true (extra list pass); null if skipped. "
             "Read-only for the request—does not update the registry."
         ),

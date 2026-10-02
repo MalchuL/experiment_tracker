@@ -1,6 +1,6 @@
 [project]
 name = "object-storage"
-version = "0.12.12"
+version = "0.12.13"
 description = "Content-addressable object storage service for experiments"
 readme = "README.md"
 authors = [
@@ -15,7 +15,6 @@ dependencies = [
     "pydantic>=2.7.0",
     "pydantic-settings>=2.2.1",
     "python-multipart>=0.0.9",
-    "minio>=7.2.10",
     "boto3>=1.35.0",
     "anyio>=4.4.0",
     "experiment-tracker-shared",

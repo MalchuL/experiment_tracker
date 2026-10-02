@@ -60,6 +60,8 @@ The unique key is `stored_filepath`. Uploading a new artifact to the same filepa
 
 This behavior is intentional: `name` is a friendly display label, while `stored_filepath` is the stable storage location. It lets a run update the same artifact path, such as `final/model.pt`.
 
+Expand a final artifact in the UI to preview it inline or fullscreen. Text previews include shell scripts (`.sh`, `.bash`, `.zsh`, `.fish`), Python, JavaScript/TypeScript, R, SQL, XML, JSON Lines, TSV, text configs (`.conf`, `.env`, `.properties`), and diff/patch files, alongside existing text, Markdown, JSON/YAML/TOML, log, CSV, and INI/CFG previews. Text must be valid UTF-8 and fit within the 2 MiB preview limit. Scripts are displayed as text; they are never executed.
+
 ## Project artifacts
 
 Project artifacts are project-scoped content-addressed blobs. The SDK computes a hash, checks whether the project already has that hash, and uploads only missing content.

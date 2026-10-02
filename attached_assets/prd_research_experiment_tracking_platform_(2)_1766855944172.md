@@ -46,7 +46,7 @@ The goal of the project is to build a web service for managing, logging, and res
 - **SQLAlchemy** — ORM
 - **PostgreSQL** — primary relational database
 - **Celery + Redis** — background jobs, async processing (artifact diffing, evidence recomputation)
-- **MinIO (S3-compatible)** — artifact, code snapshot, and file storage
+- **RustFS (S3-compatible)** — artifact, code snapshot, and file storage
 - **deepdiff** — structural diffing for Features and artifacts
 - **FastAPI Users** — authentication, authorization, user management
 - **fastapi-ddd** — domain-driven design foundation

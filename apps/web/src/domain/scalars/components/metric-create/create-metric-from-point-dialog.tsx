@@ -55,9 +55,11 @@ export function CreateMetricFromPointDialog({
           <DialogTitle>Create metric from scalar point</DialogTitle>
         </DialogHeader>
         {point ? (
-          <div className="space-y-3">
-            <div className="rounded border bg-muted/30 p-2 text-xs">
-              <div className="font-medium">{point.experimentName}</div>
+          <div className="min-w-0 space-y-3">
+            <div className="min-w-0 rounded border bg-muted/30 p-2 text-xs">
+              <div className="min-w-0 whitespace-normal font-medium [overflow-wrap:anywhere]">
+                {point.experimentName}
+              </div>
               <div className="mt-1 break-all text-muted-foreground">{point.experimentId}</div>
               <div className="mt-1 text-muted-foreground">step {point.step}</div>
             </div>

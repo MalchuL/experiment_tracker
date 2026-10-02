@@ -27,6 +27,10 @@ python/backend/permission_update.md
 /storage
 
 /third-party
+.pnpm-store
 
 .agents
 skills-lock.json
+
+# Disposable full-stack test diagnostics
+/.integration-results/

@@ -3,7 +3,11 @@ import { cookies } from "next/headers";
 import { getServerApiBaseUrl } from "@/lib/env";
 
 const DEFAULT_MAX_BYTES = 2 * 1024 * 1024;
-const TEXT_EXTENSIONS = new Set(["txt", "yaml", "yml", "json", "toml", "md", "log", "csv", "ini", "cfg"]);
+const TEXT_EXTENSIONS = new Set([
+  "txt", "yaml", "yml", "json", "toml", "md", "log", "csv", "ini", "cfg",
+  "sh", "bash", "zsh", "fish", "py", "js", "jsx", "ts", "tsx", "r", "sql",
+  "xml", "jsonl", "ndjson", "tsv", "conf", "env", "properties", "diff", "patch",
+]);
 
 type PreviewResponse =
   | { status: "ok"; text: string; sizeBytes: number; contentType: string }

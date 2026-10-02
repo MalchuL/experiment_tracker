@@ -57,4 +57,4 @@ __all__ = [
     "HparamsSerializationError",
     "config",
 ]
-__version__ = "0.12.12"
+__version__ = "0.12.13"

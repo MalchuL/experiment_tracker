@@ -92,7 +92,7 @@ sequenceDiagram
    - `GET {BASE_URL}/api/blobs/{blob_hash}`
 3. Backend proxies to object storage service:
    - `GET {OBJECT_STORAGE_URL}/blobs/{blob_hash}`
-4. Object storage service streams blob bytes from S3/MinIO.
+4. Object storage service streams blob bytes from S3/RustFS.
 5. Response stream is returned to browser.
 
 ### HTTP sequence
@@ -103,7 +103,7 @@ sequenceDiagram
     participant Next as Next Route (/api/blobs/[blobHash])
     participant BE as Backend API
     participant OS as Object Storage Service
-    participant S3 as S3/MinIO
+    participant S3 as S3/RustFS
 
     Browser->>Next: GET /api/blobs/{hash}?contentType=...
     Next->>BE: GET /api/blobs/{hash} (with auth)
@@ -121,4 +121,4 @@ sequenceDiagram
 - Per-experiment step override can select a different nearest step than global slider.
 - Metadata and blob content are fetched separately by design:
   - metadata from ClickHouse (`scalars_service`)
-  - bytes from object storage (S3/MinIO).
+  - bytes from object storage (S3/RustFS).

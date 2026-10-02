@@ -47,7 +47,7 @@ def _read_stream(stream) -> bytes:
 
 
 def _read_object_store_bytes(storage, bucket_name: str, blob_hash: str) -> bytes:
-    """Load blob bytes from S3/MinIO by the hash key used for the object."""
+    """Load blob bytes from S3/RustFS by the hash key used for the object."""
 
     handle = storage.get_blob(bucket_name, blob_hash)
     return _read_stream(handle)
@@ -103,8 +103,12 @@ async def test_project_artifacts_workflow_with_isolated_containers(
             await service.delete_project_blob(project_id, blob_hash)
         assert exc_info.value.status_code == 400
 
-        deleted_blobs = await service.delete_project_snapshot(project_id, snapshot_id)
-        assert deleted_blobs == [blob_hash]
+        deleted_snapshot = await service.delete_project_snapshot(project_id, snapshot_id)
+        assert deleted_snapshot.deleted is True
+        assert deleted_snapshot.deleted_blobs == [blob_hash]
+        assert not storage.exists_blob(
+            project_experiment_bucket_name(project_id, None), blob_hash
+        )
 
         delete_result = await service.delete_project_blob(project_id, blob_hash)
         assert delete_result.deleted is False
@@ -419,8 +423,11 @@ async def test_experiment_artifacts_workflow(pytestconfig: pytest.Config) -> Non
         )
         assert delete_result.deleted is True
 
-        exp_delete = await service.delete_experiment(project_id, experiment_id)
-        assert exp_delete.deleted_count == 0
+        await service.delete_experiment(project_id, experiment_id)
+        assert await buckets_service.get_bucket_name(project_id, experiment_id) is None
+        assert not storage.bucket_exists(
+            project_experiment_bucket_name(project_id, experiment_id)
+        )
 
     await engine.dispose()
 

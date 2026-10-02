@@ -11,7 +11,7 @@ flowchart LR
   Web["apps/web\n(Next.js)"]
   API["python/backend\n(FastAPI + Postgres)"]
   Scalars["python/scalars_service\n(FastAPI + ClickHouse)"]
-  Blobs["python/object_storage\n(FastAPI + MinIO/S3)"]
+  Blobs["python/object_storage\n(FastAPI + RustFS/S3)"]
   SDK["python/sdk\n(client library)"]
 
   Web -->|"HTTP / BFF routes"| API
@@ -23,7 +23,7 @@ flowchart LR
 - **Frontend (`apps/web`)**: UI, dashboard, charts. Uses **Route Handlers** under `src/app/api/` as a BFF that forwards to the backend with auth cookies/headers.
 - **Backend (`python/backend`)**: Primary API (`api.main:app`), users/teams/RBAC, projects, experiments, hypotheses, metrics orchestration. Calls **scalars_service** and **object_storage** via HTTP clients in `src/clients/`.
 - **Scalars service (`python/scalars_service`)**: Stores scalar runs, tags, **artifacts_info** tables (per-project), and related query APIs. Backed by **ClickHouse** (and supporting infra as configured in that package).
-- **Object storage (`python/object_storage`)**: Upload/download/delete for experiment and project blobs; uses **MinIO** or **S3** and metadata in Postgres.
+- **Object storage (`python/object_storage`)**: Upload/download/delete for experiment and project blobs; uses **RustFS** or **S3** and metadata in Postgres.
 - **SDK (`python/sdk`)**: `experiment_tracker_sdk` — typed HTTP client used by training jobs and tools to talk to the backend API.
 - **Shared (`python/shared`)**: Shared Python types/utilities consumed by other Python packages where applicable.
 
@@ -176,6 +176,16 @@ In-app docs: **`/docs/reference/admin-panel`** (`apps/web/content/docs/reference
 - **User password change** (JWT or session cookie auth, not PAT): `POST /users/me/change-password` with JSON **`currentPassword`** and **`newPassword`** (min 8). Web UI: **`/profile`** (collapsible section); legacy **`/profile/password`** redirects there. Bootstrap admin UI: **`/admin`** (stores key in `sessionStorage`).
 
 ## Cross-service configuration
+
+### Local full-stack integration tests
+
+Run `./scripts/test-integration.sh` from the repository root. Requires Docker Compose v2+, uv, and Chromium's Linux system libraries; install those once with `cd python/integration && uv sync --locked && uv run playwright install-deps chromium`. The runner installs Chromium, builds this checkout's application images, starts disposable PostgreSQL/ClickHouse/Redis/RustFS services, runs pytest API/SDK/CLI and Chromium browser tests, then removes its own containers and volumes even when tests fail. It never mounts `./storage` or reads the root `.env`.
+
+Selection examples: `./scripts/test-integration.sh -m browser`, `./scripts/test-integration.sh -m 'not browser'`, or `./scripts/test-integration.sh tests/test_storage.py::test_named_artifact_replace_archive_and_delete`. The suite is in `python/integration/tests`, outside the individual services' mocking conftests. HTTP, databases, storage, browser data and downloads are real; tests use unique users/resources and fresh browser contexts. Run serially; deliberate outages and load testing are excluded.
+
+Default localhost-only ports are 18000 (backend), 18001 (scalars), 18002 (storage), and 13000 (web). Override `INTEGRATION_BACKEND_PORT`, `INTEGRATION_SCALARS_PORT`, `INTEGRATION_STORAGE_PORT`, and `INTEGRATION_WEB_PORT` if occupied. Each run uses a separate Compose project and writes results to `.integration-results/<timestamp>-<pid>/`: JUnit XML, pytest/startup/service/teardown logs, `summary.json`, `failures.txt`, `bugs.json`, and browser failure screenshots/traces. Open traces with `cd python/integration && uv run playwright show-trace <absolute-path-to-trace.zip>`.
+
+Confirmed initial findings, with expected/actual behavior, cause and source locations, live in `python/integration/findings.json`. Bug-exposing tests intentionally fail until application bugs are fixed; no skips or expected-failure markers hide them. `bugs.json` reports only known findings whose checks failed in that run; unmatched failures remain in `failures.txt` for investigation. This suite does not replace package unit tests or change CI. Test-only changes do not require an SDK release/version bump.
 
 Running the full stack locally requires the backend plus whatever URLs you configure for **scalars** and **object storage** services (and their databases/ClickHouse). Those are typically set via environment variables consumed by `python/backend`’s settings and the respective services’ configs—check each package’s `config` or `README` when wiring a new environment.
 

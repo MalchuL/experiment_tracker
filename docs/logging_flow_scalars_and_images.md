@@ -103,6 +103,6 @@ sequenceDiagram
 
 ## Notes
 
-- Blob content is stored in object storage (S3/MinIO).
+- Blob content is stored in object storage (S3/RustFS).
 - Only lightweight metadata is stored in ClickHouse (`objects_{project_id}`), which keeps UI queries fast.
 - For images, `path` currently stores the blob hash reference.
