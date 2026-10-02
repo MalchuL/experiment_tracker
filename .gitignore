@@ -27,6 +27,7 @@ python/backend/permission_update.md
 /storage
 
 /third-party
+.pnpm-store
 
 .agents
 skills-lock.json

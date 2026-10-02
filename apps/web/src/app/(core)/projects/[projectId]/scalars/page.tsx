@@ -85,6 +85,8 @@ export default function Scalars() {
   const [createMetricOpen, setCreateMetricOpen] = useState(false);
   const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true);
   const [refreshCycleStartMs, setRefreshCycleStartMs] = useState(() => Date.now());
+  const [manualRefreshInFlight, setManualRefreshInFlight] = useState(false);
+  const manualRefreshInFlightRef = useRef(false);
   const incrementalInFlightIds = useRef<Set<string>>(new Set());
   const maxPointsPerPlot = useMemo(() => getScalarsMaxPointsPerPlot(), []);
   const maxArtifactStepsPerObject = useMemo(() => getScalarsMaxArtifactStepsPerObject(), []);
@@ -116,8 +118,6 @@ export default function Scalars() {
   const {
     experiments = [],
     isLoading: experimentsLoading,
-    isFetching: experimentsFetching,
-    isFetchingNextPage: experimentsFetchingNextPage,
     refetch: refetchExperiments,
   } = useExperiments(projectId, {
     refetchInterval: autoRefreshEnabled ? EXPERIMENTS_LIST_POLL_INTERVAL_MS : false,
@@ -152,8 +152,6 @@ export default function Scalars() {
     scalars,
     queryKey: scalarsQueryKey,
     isLoading: scalarsLoading,
-    isFetching: scalarsFetching,
-    isFetchingNextPage: scalarsFetchingNextPage,
     refetch: refetchScalars,
   } = useProjectScalars({
     projectId,
@@ -165,8 +163,6 @@ export default function Scalars() {
     artifacts: projectArtifactsAtStep,
     queryKey: artifactsQueryKey,
     isLoading: objectsLoading,
-    isFetching: objectsFetching,
-    isFetchingNextPage: objectsFetchingNextPage,
     refetch: refetchObjects,
   } = useProjectObjectSummaries({
     projectId,
@@ -364,21 +360,29 @@ export default function Scalars() {
   }, [lastPollAt]);
 
   const runManualRefresh = async () => {
-    setRefreshCycleStartMs(Date.now());
-    const [incrementalScalarsRefresh, incrementalArtifactsRefresh] = await Promise.all([
-      refreshChangedScalars(),
-      refreshChangedArtifacts(),
-    ]);
-    await refetchExperiments();
-    const refreshPlan = planManualRefreshActions(
-      incrementalScalarsRefresh,
-      incrementalArtifactsRefresh
-    );
-    if (refreshPlan.refetchScalars) {
-      await refetchScalars();
-    }
-    if (refreshPlan.refetchArtifacts) {
-      await refetchObjects();
+    if (manualRefreshInFlightRef.current) return;
+    manualRefreshInFlightRef.current = true;
+    setManualRefreshInFlight(true);
+    try {
+      setRefreshCycleStartMs(Date.now());
+      const [incrementalScalarsRefresh, incrementalArtifactsRefresh] = await Promise.all([
+        refreshChangedScalars(),
+        refreshChangedArtifacts(),
+      ]);
+      await refetchExperiments();
+      const refreshPlan = planManualRefreshActions(
+        incrementalScalarsRefresh,
+        incrementalArtifactsRefresh
+      );
+      if (refreshPlan.refetchScalars) {
+        await refetchScalars();
+      }
+      if (refreshPlan.refetchArtifacts) {
+        await refetchObjects();
+      }
+    } finally {
+      manualRefreshInFlightRef.current = false;
+      setManualRefreshInFlight(false);
     }
   };
 
@@ -431,28 +435,20 @@ export default function Scalars() {
     <Button
       variant="outline"
       size="sm"
+      className="h-8 w-8 p-0"
+      aria-label="Refresh scalars"
+      title="Refresh scalars"
       onClick={() => {
         void runManualRefresh();
       }}
-      disabled={scalarsFetching || experimentsFetching || objectsFetching}
       data-testid="button-refresh-scalars"
     >
-      <RotateCcw
-        className={`mr-2 h-4 w-4 ${
-          scalarsFetching || experimentsFetching || objectsFetching ? "animate-spin" : ""
-        }`}
-      />
-      {scalarsFetching || experimentsFetching || objectsFetching ? "Refreshing..." : "Refresh"}
+      <RotateCcw className={`h-4 w-4 ${manualRefreshInFlight ? "animate-spin" : ""}`} />
     </Button>
   );
 
   const pageActions = (
     <div className="flex items-center gap-2">
-      <LiveRefreshIndicator
-        enabled={autoRefreshEnabled}
-        cycleStartMs={refreshCycleStartMs}
-        onToggle={handleToggleAutoRefresh}
-      />
       {refreshButton}
       <Button
         variant="outline"
@@ -470,6 +466,11 @@ export default function Scalars() {
       >
         {settingsSidebarOpen ? "Hide Settings" : "Show Settings"}
       </Button>
+      <LiveRefreshIndicator
+        enabled={autoRefreshEnabled}
+        cycleStartMs={refreshCycleStartMs}
+        onToggle={handleToggleAutoRefresh}
+      />
     </div>
   );
 

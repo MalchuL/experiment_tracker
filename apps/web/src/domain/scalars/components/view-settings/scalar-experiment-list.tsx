@@ -1,11 +1,14 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { parseISO } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import type { Experiment } from "@/domain/experiments/types";
 import { CHART_COLORS } from "@/domain/scalars/constants";
+import { cn } from "@/lib/utils";
 
 interface ScalarExperimentListProps {
   experiments: Experiment[];
@@ -30,6 +33,7 @@ export function ScalarExperimentList({
   onClearAllExperiments,
   onEditExperiment,
 }: ScalarExperimentListProps) {
+  const [wrapExperimentNames, setWrapExperimentNames] = useState(false);
   const listExperiments = useMemo(
     () =>
       [...experiments].sort(
@@ -53,10 +57,31 @@ export function ScalarExperimentList({
           </Button>
         </div>
       </div>
+      <div className="flex items-center justify-between gap-2">
+        <Label
+          htmlFor="scalars-wrap-experiment-names"
+          className="text-xs font-normal"
+          title="Wrap long experiment names onto multiple lines."
+        >
+          Wrap experiment names
+        </Label>
+        <Switch
+          id="scalars-wrap-experiment-names"
+          checked={wrapExperimentNames}
+          onCheckedChange={setWrapExperimentNames}
+          aria-label="Wrap long experiment names onto multiple lines"
+        />
+      </div>
       <div className="h-[calc(100vh-14rem)] min-h-0 overflow-auto">
-        <div className="min-w-80 space-y-0.5 pr-3">
+        <div className={cn("space-y-0.5 pr-3", wrapExperimentNames ? "min-w-0" : "min-w-80")}>
           {listExperiments.map((experiment, index) => (
-            <div key={experiment.id} className="flex items-center gap-1.5 rounded px-1 py-0.5 hover:bg-muted/50">
+            <div
+              key={experiment.id}
+              className={cn(
+                "flex gap-1.5 rounded px-1 py-0.5 hover:bg-muted/50",
+                wrapExperimentNames ? "min-w-0 items-start" : "items-center"
+              )}
+            >
               {soloMode ? (
                 <button
                   type="button"
@@ -85,7 +110,12 @@ export function ScalarExperimentList({
               />
               <label
                 htmlFor={`exp-${experiment.id}`}
-                className="flex-1 cursor-pointer whitespace-nowrap text-xs"
+                className={cn(
+                  "min-w-0 flex-1 cursor-pointer text-xs",
+                  wrapExperimentNames
+                    ? "whitespace-normal break-words [overflow-wrap:anywhere]"
+                    : "whitespace-nowrap"
+                )}
                 title={experiment.name}
               >
                 {experiment.name}
