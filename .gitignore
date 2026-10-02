@@ -31,3 +31,6 @@ python/backend/permission_update.md
 
 .agents
 skills-lock.json
+
+# Disposable full-stack test diagnostics
+/.integration-results/

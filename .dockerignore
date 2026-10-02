@@ -18,6 +18,8 @@ third-party
 !.env.example
 pnpm-store
 python/sdk
+python/integration
+.integration-results
 examples
 docs
 storage
